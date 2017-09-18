@@ -1,35 +1,35 @@
-	    parms[0] = '\0';
-    }
+            if (!strcasecmp(tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+        }
+        else if (lenp) {
+            const char *pos = lenp;
 
-/* try to set up PASV data connection first */
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+            while (apr_isdigit(*pos) || apr_isspace(*pos)) {
+                ++pos;
+            }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
-    }
+            if (*pos == '\0') {
+                ctx->state = BODY_LENGTH;
+                ctx->remaining = atol(lenp);
+            }
+            
+            /* If we have a limit in effect and we know the C-L ahead of
+             * time, stop it here if it is invalid. 
+             */ 
+            if (ctx->limit && ctx->limit < ctx->remaining) {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, f->r,
+                          "Requested content-length of %" APR_OFF_T_FMT 
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
+                ap_die(HTTP_REQUEST_ENTITY_TOO_LARGE, f->r);
+                return APR_EGENERAL;
+            }
+        }
 
-    ap_bputs("PASV" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: PASV command issued");
-/* possible results: 227, 421, 500, 501, 502, 530 */
-    i = ap_bgets(pasv, sizeof(pasv), f);
-
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        /* Since we're about to read data, send 100-Continue if needed.
+         * Only valid on chunked and C-L bodies where the C-L is > 0. */
+        if ((ctx->state == BODY_CHUNK || 
+            (ctx->state == BODY_LENGTH && ctx->remaining > 0)) &&
+            f->r->expecting_100 && f->r->proto_num >= HTTP_VERSION(1,1)) {
+            char *tmp;

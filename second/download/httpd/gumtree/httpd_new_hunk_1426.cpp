@@ -1,14 +1,49 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
+	    return cond_status;
 	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+
+	/* if we see a bogus header don't ignore it. Shout and scream */
+
+	if (!(l = strchr(w, ':'))) {
+	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
+			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+
+	    strcpy(malformed, MALFORMED_MESSAGE);
+	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+
+	    if (!buffer) {
+		/* Soak up all the script output - may save an outright kill */
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
+
+	    ap_kill_timeout(r);
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			 "%s: %s", malformed, r->filename);
+	    return SERVER_ERROR;
+	}
+
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}
+
+	if (!strcasecmp(w, "Content-type")) {
+	    char *tmp;
+
+	    /* Nuke trailing whitespace */
+
+	    char *endp = l + strlen(l) - 1;
+	    while (endp > l && ap_isspace(*endp)) {
+		*endp-- = '\0';
+	    }
+
+	    tmp = ap_pstrdup(r->pool, l);
+	    ap_content_type_tolower(tmp);
+	    r->content_type = tmp;
+	}
+	/*
+	 * If the script returned a specific status, that's what
+	 * we'll use - otherwise we assume 200 OK.
+	 */
+	else if (!strcasecmp(w, "Status")) {

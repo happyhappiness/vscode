@@ -1,30 +1,48 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(send_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", send_pw) != NULL)
-		   && (strpbrk(".", send_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			send_pw ? send_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			send_pw ? send_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
+/*  _________________________________________________________________
+**
+**  Module Initialization
+**  _________________________________________________________________
+*/
+
+static char *ssl_add_version_component(apr_pool_t *p,
+                                       server_rec *s,
+                                       char *name)
+{
+    char *val = ssl_var_lookup(p, s, NULL, NULL, name);
+
+    if (val && *val) {
+        ap_add_version_component(p, val);
     }
 
-    return DECLINED;
--- apache_1.3.0/src/modules/standard/mod_auth.c	1998-04-11 20:00:44.000000000 +0800
+    return val;
+}
+
+static char *version_components[] = {
+    "SSL_VERSION_PRODUCT",
+    "SSL_VERSION_INTERFACE",
+    "SSL_VERSION_LIBRARY",
+    NULL
+};
+
+static void ssl_add_version_components(apr_pool_t *p,
+                                       server_rec *s)
+{
+    char *vals[sizeof(version_components)/sizeof(char *)];
+    int i;
+
+    for (i=0; version_components[i]; i++) {
+        vals[i] = ssl_add_version_component(p, s,
+                                            version_components[i]);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Server: %s, Interface: %s, Library: %s",
+                 AP_SERVER_BASEVERSION,
+                 vals[1],  /* SSL_VERSION_INTERFACE */
+                 vals[2]); /* SSL_VERSION_LIBRARY */
+}
+
+
+/*
+ *  Initialize SSL library
+ */

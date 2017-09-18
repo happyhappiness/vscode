@@ -1,0 +1,1 @@
+printf ("Skipped selects:\t%d\n", skips);

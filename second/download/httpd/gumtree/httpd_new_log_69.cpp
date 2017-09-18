@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) %s timed out",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);

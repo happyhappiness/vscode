@@ -1,26 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+	}
     }
 
-    /* Pass two --- wildcard matches */
+    /* clean up and return */
+    result[res_pos] = 0;
+#if MIME_MAGIC_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
+#endif
+    return result;
+}
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+/* states for the state-machine algorithm in magic_rsl_to_request() */

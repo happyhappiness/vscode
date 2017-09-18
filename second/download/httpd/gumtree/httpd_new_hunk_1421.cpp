@@ -1,33 +1,18 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+    ap_table_setn(r->err_headers_out,
+	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
+	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
+		ap_auth_name(r), r->request_time));
+}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+{
+    const char *auth_line = ap_table_get(r->headers_in,
+                                      r->proxyreq ? "Proxy-Authorization"
+                                                  : "Authorization");
+    const char *t;
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
 
-    ap_kill_timeout(r);
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

@@ -1,13 +1,26 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+    h->read_body = &read_body;
+    h->read_headers = &read_headers;
+    h->write_body = &write_body;
+    h->write_headers = &write_headers;
+    h->remove_entity = &remove_entity;
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
+                 "disk_cache: Serving Cached URL %s",  dobj->name);
+    return OK;
+}
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
+static int remove_url(const char *type, char *key) 
+{
+  return OK;
+}
+
+static int remove_entity(cache_handle_t *h) 
+{
+    cache_object_t *obj = h->cache_obj;
+
+    /* Null out the cache object pointer so next time we start from scratch  */
+    h->cache_obj = NULL;
+    return OK;
+}
+
+/*

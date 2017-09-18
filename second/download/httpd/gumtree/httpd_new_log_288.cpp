@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, r, 
-		    "mod_info: couldn't open config file %s",
-		    filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		    MODNAME ": line=%d desc=%s", m->lineno, m->desc);

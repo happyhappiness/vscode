@@ -1,26 +1,24 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+                     "or is incomplete",
+                     key);
+        return DECLINED;
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+    /* Allocate and initialize cache_object_t and disk_cache_object_t */
+    h->cache_obj = obj = apr_pcalloc(r->pool, sizeof(*obj));
+    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
+    obj->key = apr_pstrdup(r->pool, key);
+    /* XXX Bad Temporary Cast - see cache_object_t notes */
+    obj->info.len = (apr_size_t) len;
+    obj->complete = 0;   /* Cache object is not complete */
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
+    dobj->name = obj->key;
+    dobj->datafile = data_file(r->pool, conf, dobj, key);
+    dobj->hdrsfile = header_file(r->pool, conf, dobj, key);
+    dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
 
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
+    return OK;
+}
+
+static int open_entity(cache_handle_t *h, request_rec *r, const char *key)
+{

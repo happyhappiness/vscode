@@ -1,17 +1,13 @@
+        }
+        conf->qop_list[0] = "none";
+        return NULL;
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
+
+    if (!strcasecmp(op, "auth-int")) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Digest: WARNING: qop `auth-int' currently only works "
+                     "correctly for responses with no entity");
     }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
+    else if (strcasecmp(op, "auth")) {
+        return apr_pstrcat(cmd->pool, "Unrecognized qop: ", op, NULL);
     }

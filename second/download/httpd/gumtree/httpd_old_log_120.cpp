@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fread of %s failed", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The request body must specify a report.");

@@ -1,20 +1,26 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
         }
-        return 0;
+        else {
+            cur = atol(str);
+        }
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server,
+                     "Invalid parameters for %s", cmd->cmd->name);
+        return;
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
+        max = atol(str);
+    }
 
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+        limit->rlim_cur = cur;
+        if (max) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server,
+                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+        }
+    }
+    else {
+        if (cur) {
+            limit->rlim_cur = cur;

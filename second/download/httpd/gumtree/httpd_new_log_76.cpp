@@ -1,1 +1,2 @@
-printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+ap_log_error(APLOG_MARK, rv, 0, NULL,
+                     "ISAPI: Failed to create module cache lock");

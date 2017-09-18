@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The \"update\" element does not contain "
+                      "a \"label-name\" or \"version\" element.");

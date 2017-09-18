@@ -1,14 +1,14 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+                               shmcb_get_safe_uint(cache->pos_count) -
+                               shmcb_cyclic_space(header->cache_data_size,
+                                                  shmcb_get_safe_uint(cache->first_pos),
+                                                  shmcb_get_safe_uint(&(idx->offset))));
+            shmcb_set_safe_uint(cache->first_pos, shmcb_get_safe_uint(&(idx->offset)));
+        }
+        ssl_log(s, SSL_LOG_TRACE, "we now have %u sessions",
+                shmcb_get_safe_uint(queue->pos_count));
     }
-#endif
+    header->num_expiries += loop;
+    return loop;
+}
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+/* Inserts a new encoded session into a queue/cache pair - expiring

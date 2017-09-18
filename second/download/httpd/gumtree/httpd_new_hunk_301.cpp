@@ -1,36 +1,27 @@
-/* --------------------------------------------------------- */
+    X509 *cert;
 
-/* simple little function to perror and exit */
-
-static void err(char *s)
-{
-    if (errno) {
-    	perror(s);
-    }
-    else {
-	printf("%s", s);
-    }
-    exit(errno);
-}
-
-/* --------------------------------------------------------- */
-
-/* write out request to a connection - assumes we can write 
-   (small) request out in one go into our new socket buffer  */
-
-static void write_request(struct connection *c)
-{
-    gettimeofday(&c->connect, 0);
-    /* XXX: this could use writev for posting -- more efficient -djg */
-    write(c->fd, request, reqlen);
-    if (posting) {
-        write(c->fd,postdata, postlen);
-        totalposted += (reqlen + postlen); 
+    if (!(asn1 = ssl_asn1_table_get(mc->tPublicCert, id))) {
+        return FALSE;
     }
 
-    c->state = STATE_READ;
-    FD_SET(c->fd, &readbits);
-    FD_CLR(c->fd, &writebits);
-}
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring %s server certificate", type);
 
-/* --------------------------------------------------------- */
+    ptr = asn1->cpData;
+    if (!(cert = d2i_X509(NULL, &ptr, asn1->nData))) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to import %s server certificate", type);
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
+
+    if (SSL_CTX_use_certificate(mctx->ssl_ctx, cert) <= 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure %s server certificate", type);
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
+
+    mctx->pks->certs[idx] = cert;
+
+    return TRUE;

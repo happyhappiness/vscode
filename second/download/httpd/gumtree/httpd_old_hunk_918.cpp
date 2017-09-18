@@ -1,13 +1,13 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Can't open directory for index: %s", r->filename);
+        return HTTP_FORBIDDEN;
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+#if APR_HAS_UNICODE_FS 
+    ap_set_content_type(r, "text/html;charset=utf-8");
+#else
+    ap_set_content_type(r, "text/html");
+#endif
+    if (autoindex_opts & TRACK_MODIFIED) {
+        ap_update_mtime(r, r->finfo.mtime);

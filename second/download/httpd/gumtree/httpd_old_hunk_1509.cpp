@@ -1,20 +1,25 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    const char *t;
+
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
+
+    if (!ap_auth_name(r)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+		    r->server, "need AuthName: %s", r->uri);
+        return SERVER_ERROR;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    if (!auth_line) {
+        ap_note_basic_auth_failure(r);
+        return AUTH_REQUIRED;
+    }
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+        /* Client tried to authenticate using wrong auth scheme */
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "client used wrong authentication scheme: %s", r->uri);
+        ap_note_basic_auth_failure(r);
+        return AUTH_REQUIRED;
+    }
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    t = ap_uudecode(r->pool, auth_line);

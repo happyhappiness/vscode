@@ -1,12 +1,15 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
+            sslconn->verify_depth = n = sc->server->auth.verify_depth;
+        }
+
+        /* determine whether a renegotiation has to be forced */
+        if (dc->nVerifyDepth < n) {
+            renegotiate = TRUE;
+            ssl_log(r->server, SSL_LOG_TRACE,
+                    "Reduced client verification depth "
+                    "will force renegotiation");
+        }
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+
+    /*
+     * override of SSLVerifyClient
+     *

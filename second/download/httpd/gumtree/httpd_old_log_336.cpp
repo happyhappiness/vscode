@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
-                             r->server, "insufficient space in "
-                             "expand_map_lookups, aborting");
+ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                     "proxy: FTP: declining URL %s - not ftp:", url);

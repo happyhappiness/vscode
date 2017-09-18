@@ -1,13 +1,14 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+        }
+
+        pid_buffer[i] = ps_record->pid;
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+    /* up_time in seconds */
+    up_time = (apr_uint32_t) apr_time_sec(nowtime -
+                               ap_scoreboard_image->global->restart_time);
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    if (!short_report) {
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head>\n<title>Apache Status</title>\n</head><body>\n",
+                 r);
+        ap_rputs("<h1>Apache Server Status for ", r);

@@ -1,26 +1,32 @@
+        /* When a connection is received, send an io completion notification to
+         * the ThreadDispatchIOCP. This function could be replaced by
+         * mpm_post_completion_context(), but why do an extra function call...
+         */
+        PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_CONNECTION_ACCEPTED,
+                                   &context->Overlapped);
+    }
 
-    /* Pass one --- direct matches */
+    if (!shutdown_in_progress) {
+        /* Yow, hit an irrecoverable error! Tell the child to die. */
+        SetEvent(exit_event);
+    }
+}
+static PCOMP_CONTEXT winnt_get_connection(PCOMP_CONTEXT context)
+{
+    int rc;
+    DWORD BytesRead;
+    DWORD CompKey;
+    LPOVERLAPPED pol;
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
+    mpm_recycle_completion_context(context);
 
-            if (result != DECLINED)
-                return result;
+    g_blocked_threads++;        
+    while (1) {
+        if (workers_may_exit) {
+            g_blocked_threads--;
+            return NULL;
         }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+        rc = GetQueuedCompletionStatus(ThreadDispatchIOCP, &BytesRead, &CompKey,
+                                       &pol, INFINITE);
+        if (!rc) {
+            rc = apr_get_os_error();

@@ -1,13 +1,19 @@
+}
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
+{
+    int rc = LDAP_SUCCESS;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
+                                                s->module_config, 
+                                                &ldap_module);
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+        /* log the LDAP SDK used 
+        */
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
+
+    #elif APR_HAS_NOVELL_LDAPSDK

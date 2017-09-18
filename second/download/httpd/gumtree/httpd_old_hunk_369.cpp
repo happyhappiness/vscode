@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    void *shm_segment;
+    unsigned int loop, total, cache_total, non_empty_divisions;
+    int index_pct, cache_pct;
+    double expiry_total;
+    time_t average_expiry, now, max_expiry, min_expiry, idxexpiry;
+
+    ssl_log(s, SSL_LOG_TRACE, "inside ssl_scache_shmcb_status");
+
+    /* We've kludged our pointer into the other cache's member variable. */
+    shm_segment = (void *) mc->tSessionCacheDataTable;
+
+    /* Get the header structure. */
+    shmcb_get_header(shm_segment, &header);

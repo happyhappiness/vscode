@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Invalid method in request %s", r->the_request);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+	    "ISAPI: not a regular file, skipping %s", fspec);

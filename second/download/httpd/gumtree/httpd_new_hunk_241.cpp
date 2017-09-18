@@ -1,13 +1,13 @@
-        for (i = 0; i < arr->nelts; ++i) {
-            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
-        }
-        return 0;
     }
     else {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "printenv directive does not take tags in %s",
-		    r->filename);
-        ap_rputs(error, r);
-        return -1;
+        return DECLINED;
     }
-}
+    def_port = apr_uri_default_port_for_scheme("ftp");
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: canonicalising URL %s", url);
+
+    port = def_port;
+    err = ap_proxy_canon_netloc(p, &url, &user, &password, &host, &port);
+    if (err)
+        return HTTP_BAD_REQUEST;

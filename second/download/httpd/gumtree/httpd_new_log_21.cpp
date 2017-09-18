@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: fork(2nd) for cache cleanup failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: invalid nc %s received - not a number", snc);

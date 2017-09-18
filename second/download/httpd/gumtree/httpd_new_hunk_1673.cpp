@@ -1,17 +1,20 @@
+<tr><th>Req<td>Milliseconds required to process most recent request\n \
+<tr><th>Conn<td>Kilobytes transferred this connection\n \
+<tr><th>Child<td>Megabytes transferred this child\n \
+<tr><th>Slot<td>Total megabytes transferred this slot\n \
+</table>\n", r);
+#endif
+	}
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    } else {
+
+    ap_rputs("<hr>To obtain a full report with current status information ", r);
+    ap_rputs("you need to use the <code>ExtendedStatus On</code> directive. \n", r);
+
     }
 
-    cache = c->fp;
+    if (!short_report) {
+	ap_rputs(ap_psignature("<HR>\n",r), r);
+	ap_rputs("</BODY></HTML>\n", r);
+    }
 
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);

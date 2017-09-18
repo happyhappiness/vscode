@@ -1,20 +1,13 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    apr_status_t rv;
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
-
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    apr_snprintf(conf_key, sizeof(conf_key), SERVICEPARAMS, mpm_service_name);
+    rv = ap_registry_get_array(p, conf_key, "ConfigArgs", &svc_args);
+    if (rv != APR_SUCCESS) {
+        if (rv == ERROR_FILE_NOT_FOUND) {
+            ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, NULL,
+                         "No ConfigArgs registered for %s, perhaps "
+                         "this service is not installed?", 
+                         mpm_service_name);
+            return APR_SUCCESS;
+        }
+        else

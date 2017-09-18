@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+{
+    SHMCBIndex *idx;
+    time_t now;
+    unsigned int loop, index_num, pos_count, new_pos;
+    SHMCBHeader *header;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    ssl_log(s, SSL_LOG_TRACE, "entering shmcb_expire_division");
+
+    /* We must calculate num and space ourselves based on expiry times. */
+    now = time(NULL);
+    loop = 0;
+    new_pos = shmcb_get_safe_uint(queue->first_pos);
+

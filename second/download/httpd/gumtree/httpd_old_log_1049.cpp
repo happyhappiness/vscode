@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: filename too long\n", argv[0]);

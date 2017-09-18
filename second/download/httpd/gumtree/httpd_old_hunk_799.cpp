@@ -1,41 +1,41 @@
-	    return cond_status;
-	}
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+static apr_status_t receive_from_other_child(void **csd, ap_listen_rec *lr,
+                                             apr_pool_t *ptrans)
+{
+    struct msghdr msg;
+    struct cmsghdr *cmsg;
+    char sockname[80];
+    struct iovec iov;
+    int ret, dp;
+    apr_os_sock_t sd;
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, ptrans,
+                 "trying to receive request from other child");
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+    apr_os_sock_get(&sd, lr->sd);
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+    iov.iov_base = sockname;
+    iov.iov_len = 80;
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
 
-	if (!strcasecmp(w, "Content-type")) {
+    cmsg = apr_palloc(ptrans, sizeof(*cmsg) + sizeof(sd));
+    cmsg->cmsg_len = sizeof(*cmsg) + sizeof(sd);
+    msg.msg_control = (caddr_t)cmsg;
+    msg.msg_controllen = cmsg->cmsg_len;
+    msg.msg_flags = 0;
+    
+    ret = recvmsg(sd, &msg, 0);
 
-	    /* Nuke trailing whitespace */
+    memcpy(&dp, CMSG_DATA(cmsg), sizeof(dp));
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
+    apr_os_sock_put((apr_socket_t **)csd, &dp, ptrans);
+    return 0;
+}
 
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+/* idle_thread_count should be incremented before starting a worker_thread */
+
+static void *worker_thread(apr_thread_t *thd, void *arg)

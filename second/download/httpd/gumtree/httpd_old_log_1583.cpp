@@ -1,0 +1,1 @@
+fprintf(stderr, "password too long");

@@ -1,18 +1,13 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+    if (finfo.filetype != APR_REG &&
+#if defined(WIN32) || defined(OS2) || defined(NETWARE)
+        strcasecmp(apr_filename_of_pathname(name), "nul") != 0) {
+#else
+        strcmp(name, "/dev/null") != 0) {
+#endif /* WIN32 || OS2 */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                    "Access to file %s denied by server: not a regular file",
+                    name);
+        apr_file_close(file);
+        return APR_EBADF;
+    }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

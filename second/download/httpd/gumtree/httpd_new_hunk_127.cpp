@@ -1,14 +1,13 @@
-                --cp;
-        }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
+                        *inserted_head = tmp_buck;
+                    }
+                }
 #endif
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                            "access to %s failed", r->uri);
-            return HTTP_FORBIDDEN;
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                               "unknown parameter \"%s\" to tag if in %s", tag, 
+                               r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+            }
         }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+    }

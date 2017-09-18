@@ -1,0 +1,1 @@
+fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", rv);

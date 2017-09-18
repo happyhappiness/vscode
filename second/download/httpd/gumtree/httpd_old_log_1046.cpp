@@ -1,0 +1,1 @@
+fprintf(stderr, "apr_SHA1InitEBCDIC()->%d\n", rv);

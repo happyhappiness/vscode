@@ -1,17 +1,13 @@
+
+    ap_log_pid(pconf, ap_pid_fname);
+
+    first_server_limit = server_limit;
+    first_thread_limit = thread_limit;
+    if (changed_limit_at_restart) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
+                     "ignored during restart");
+        changed_limit_at_restart = 0;
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+    ap_server_conf = s;

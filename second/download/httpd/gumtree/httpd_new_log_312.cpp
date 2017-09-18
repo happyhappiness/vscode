@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-			"%lu > %lu = %d", v, l, matched);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server,
+                "mod_unique_id: using ip addr %s",
+                 ipaddrstr);

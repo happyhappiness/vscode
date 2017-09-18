@@ -1,9 +1,19 @@
-/* Automatically generated file - do not edit */
+    char pwin[MAX_STRING_LEN];
+    char pwv[MAX_STRING_LEN];
+    unsigned int i;
+    apr_size_t len = sizeof(pwin);
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
+	fprintf(stderr, "password too long");
+	cleanup_tempfile_and_exit(5);
+    }
+    len = sizeof(pwin);
+    apr_password_get("Re-type new password: ", pwv, &len);
+    if (strcmp(pwin, pwv) != 0) {
+	fprintf(stderr, "They don't match, sorry.\n");
+        cleanup_tempfile_and_exit(1);
+    }
+    pw = pwin;
+    apr_file_printf(f, "%s:%s:", user, realm);
+
+    /* Do MD5 stuff */

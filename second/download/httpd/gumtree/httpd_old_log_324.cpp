@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": subrequest lookup for %s", sub_filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+		 "proxy: CONNECT: serving URL %s", url);

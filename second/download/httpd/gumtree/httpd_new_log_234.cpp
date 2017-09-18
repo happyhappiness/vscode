@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "client used wrong authentication scheme: %s for %s", 
-		    scheme, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);

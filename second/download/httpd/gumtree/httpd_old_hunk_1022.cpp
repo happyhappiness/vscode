@@ -1,40 +1,18 @@
-	return;
-    }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
+    free(ti);
 
-    help_proxy_garbage_coll(r);
+    ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
+    apr_allocator_create(&allocator);
+    apr_allocator_max_free_set(allocator, ap_max_mem_free);
+    apr_pool_create_ex(&ptrans, NULL, NULL, allocator);
+    apr_allocator_owner_set(allocator, ptrans);
 
+    /* XXX: What happens if this is allocated from the
+     * single-thread-optimized ptrans pool? -aaron */
+    bucket_alloc = apr_bucket_alloc_create(tpool);
 
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    wakeup = (worker_wakeup_info *)apr_palloc(tpool, sizeof(*wakeup));
+    wakeup->pool = ptrans;
+    if ((rv = apr_thread_cond_create(&wakeup->cond, tpool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "apr_thread_cond_create failed. Attempting to shutdown "

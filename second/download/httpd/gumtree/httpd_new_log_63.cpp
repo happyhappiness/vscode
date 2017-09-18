@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, server_conf,
-			 "gprof: error creating directory %s", dir);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: asynchronous I/O not supported: %s", 
+                            r->filename);

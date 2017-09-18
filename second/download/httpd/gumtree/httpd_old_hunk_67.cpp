@@ -1,13 +1,22 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    /* get the destination URI */
+    dest = apr_table_get(r->headers_in, "Destination");
+    if (dest == NULL) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The request is missing a Destination header.");
+        return HTTP_BAD_REQUEST;
+    }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    lookup = dav_lookup_uri(dest, r, 0 /* must_be_absolute */);
+    if (lookup.rnew == NULL) {
+        if (lookup.err.status == HTTP_BAD_REQUEST) {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                          lookup.err.desc);
+            return HTTP_BAD_REQUEST;
+        }
+        else if (lookup.err.status == HTTP_BAD_GATEWAY) {
+            /* ### Bindings protocol draft 02 says to return 507
+             * ### (Cross Server Binding Forbidden); Apache already defines 507

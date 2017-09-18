@@ -1,13 +1,14 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+            rc = ap_os_create_privileged_process(r, procnew, argv0, argv, 
+                                                 (const char * const *)env, 
+                                                 procattr, ptrans);
+
+            if (rc != APR_SUCCESS) {
+                /* Bad things happened. Everyone should have cleaned up. */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                        "couldn't create child process: %d: %s", rc, r->filename);
+            }
+        }
+    } 
+    return -1; 
+} 
+

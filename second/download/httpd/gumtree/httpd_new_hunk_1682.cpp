@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
+	 */
+	return TRUE;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    /* We don't support all this async I/O, Microsoft-specific stuff */
+    case HSE_REQ_IO_COMPLETION:
+    case HSE_REQ_TRANSMIT_FILE:
+	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
+		    "ISAPI asynchronous I/O not supported: %s", r->filename);
+    default:
+	SetLastError(ERROR_INVALID_PARAMETER);
+	return FALSE;
+    }
 }
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

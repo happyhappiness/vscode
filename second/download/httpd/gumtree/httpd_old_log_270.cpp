@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Unmatched '(' in \"%s\" in file %s",
-                        expr, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);

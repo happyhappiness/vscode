@@ -1,15 +1,14 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be zero for UPDATE with a version");
+        return HTTP_BAD_REQUEST;
     }
-    else if (lenp) {
-        const char *pos = lenp;
 
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    /* get the target value (a label or a version URI) */
+    apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
+                    &target, &tsize);
+    if (tsize == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A \"label-name\" or \"href\" element does not contain "
+                      "any content.");
+        return HTTP_BAD_REQUEST;
+    }

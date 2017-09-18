@@ -1,14 +1,15 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
+                                   r);
                 }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+            }
+            break;
+
+        case SATISFY_ANY:
+            if (((access_status = ap_run_access_checker(r)) != 0)) {
+                if (!ap_some_auth_required(r)) {
+                    return decl_die(access_status, "check access", r);
+                }
+
+                if (((access_status = ap_run_check_user_id(r)) != 0)
+                    || !ap_auth_type(r)) {
+                    return decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  No user file?"

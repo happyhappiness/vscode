@@ -1,26 +1,24 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+	    b = apr_bucket_transient_create((char*) data_type + ate, 
+                                           headlen - ate, c->bucket_alloc);
+	    APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+	    APR_BRIGADE_INSERT_TAIL(bb, b);
+	    ap_pass_brigade(cid->r->output_filters, bb);
         }
+        return 1;
     }
 
-    /* Pass two --- wildcard matches */
+    case HSE_REQ_DONE_WITH_SESSION:
+        /* Signal to resume the thread completing this request,
+         * leave it to the pool cleanup to dispose of our mutex.
+         */
+        if (cid->completed) {
+            apr_thread_mutex_unlock(cid->completed);
+        }
+        return 1;
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;
+        apr_uint32_t len;

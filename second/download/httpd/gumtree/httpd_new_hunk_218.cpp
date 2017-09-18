@@ -1,13 +1,19 @@
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+	    }
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "httpd: #perl SSI disallowed by IncludesNoExec in %s",
-                    r->filename);
-        return DECLINED;
+	    /* move to next continuation record */
+	    m = m->next;
+	}
+#if MIME_MAGIC_DEBUG
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		    MODNAME ": matched after %d rules", rule_counter);
+#endif
+	return 1;		/* all through */
     }
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		MODNAME ": failed after %d rules", rule_counter);
+#endif
+    return 0;			/* no match at all */
+}
+
+static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)

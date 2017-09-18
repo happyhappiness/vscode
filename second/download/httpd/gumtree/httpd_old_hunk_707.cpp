@@ -1,18 +1,13 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+static  CommandParser_t ConsoleHandler = {0, NULL, 0};
+#define HANDLEDCOMMAND  0
+#define NOTMYCOMMAND    1
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+static int show_settings = 0;
+
+#if 0
+#define DBPRINT0(s) printf(s)
+#define DBPRINT1(s,v1) printf(s,v1)
+#define DBPRINT2(s,v1,v2) printf(s,v1,v2)
+#else
+#define DBPRINT0(s)
+#define DBPRINT1(s,v1)

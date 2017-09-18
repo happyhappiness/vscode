@@ -1,27 +1,37 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+                    while (*p > 32)
+                        *q++ = *p++;
+                }
+                *q = 0;
+            }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+	    /* XXX: this parsing isn't even remotely HTTP compliant...
+	     * but in the interest of speed it doesn't totally have to be,
+	     * it just needs to be extended to handle whatever servers
+	     * folks want to test against. -djg */
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
+            /* check response code */
+            part = strstr(c->cbuff, "HTTP");                /* really HTTP/1.x_ */
+            strncpy(respcode, (part+strlen("HTTP/1.x_")), 3);
+	    respcode[3] = '\0';
+            if (respcode[0] != '2') {
+                err_response++;
+                if (verbosity >= 2) printf ("WARNING: Response code not 2xx (%s)\n", respcode);
+            }
+	    else if (verbosity >= 3) {
+                printf("LOG: Response code = %s\n", respcode);
+            }
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+            c->gotheader = 1;
+            *s = 0;             /* terminate at end of header */
+            if (keepalive &&
+                (strstr(c->cbuff, "Keep-Alive")
+                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+                char *cl;
+                cl = strstr(c->cbuff, "Content-Length:");
+                /* handle NCSA, which sends Content-length: */
+                if (!cl)
+                    cl = strstr(c->cbuff, "Content-length:");
+                if (cl) {
+                    c->keepalive = 1;
+                    c->length = atoi(cl + 16);
+                }

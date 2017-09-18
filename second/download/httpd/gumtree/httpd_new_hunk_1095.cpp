@@ -1,13 +1,30 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		    "Graceful restart requested, doing restart");
+
+        /* Wait for all of the threads to terminate before initiating the restart */
+        while (worker_thread_count > 0) {
+            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
+        printf ("\nRestarting...\n");
+    }
+
+    return 0;
+}
+
+static int netware_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
+{
+    int debug;
+    char *addrname = NULL;
+
+    mpm_state = AP_MPMQ_STARTING;
+
+    debug = ap_exists_config_define("DEBUG");
+
+    is_graceful = 0;
+    ap_my_pid = getpid();
+    addrname = getaddressspacename (NULL, NULL);
+    if (addrname) {

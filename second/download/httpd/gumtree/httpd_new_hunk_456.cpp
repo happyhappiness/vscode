@@ -1,31 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    apr_status_t rv;
+
+    pconf = p;
+    ap_server_conf = s;
+
+    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
+                     NULL, "no listening sockets available, shutting down");
+        return DONE;
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    ap_log_pid(pconf, ap_pid_fname);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();

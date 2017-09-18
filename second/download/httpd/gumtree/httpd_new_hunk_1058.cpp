@@ -1,16 +1,15 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+        }
+        else {
+            t2 = t;
+        }
+
+        if (autoindex_opts & TABLE_INDEXING) {
+            ap_rputs("<tr>", r);
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,

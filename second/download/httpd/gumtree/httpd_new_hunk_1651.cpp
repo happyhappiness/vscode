@@ -1,29 +1,22 @@
-	}
+    }
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+    /* perform sub-request for the file name without the suffix */
+    result = 0;
+    sub_filename = ap_pstrndup(r->pool, r->filename, suffix_pos);
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
+		MODNAME ": subrequest lookup for %s", sub_filename);
+#endif /* MIME_MAGIC_DEBUG */
+    sub = ap_sub_req_lookup_file(sub_filename, r);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    /* extract content type/encoding/language from sub-request */
+    if (sub->content_type) {
+	r->content_type = ap_pstrdup(r->pool, sub->content_type);
+#if MIME_MAGIC_DEBUG
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
+		    MODNAME ": subrequest %s got %s",
+		    sub_filename, r->content_type);
+#endif /* MIME_MAGIC_DEBUG */
+	if (sub->content_encoding)
+	    r->content_encoding =
+		ap_pstrdup(r->pool, sub->content_encoding);

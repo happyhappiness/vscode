@@ -1,17 +1,13 @@
+        return result;
+    }
+    /* note: doc == NULL if no request body */
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    if (doc == NULL || !dav_validate_root(doc, "propertyupdate")) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "a \"propertyupdate\" element.");
+        return HTTP_BAD_REQUEST;
     }
 
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    /* Check If-Headers and existing locks */

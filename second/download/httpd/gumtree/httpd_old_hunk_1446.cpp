@@ -1,15 +1,29 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+	}
     }
-    else if (lenp) {
-        char *pos = lenp;
+    if (
+    /* username is OK */
+	   (res == OK)
+    /* password been filled out ? */
+	   && ((!sec->auth_anon_mustemail) || strlen(send_pw))
+    /* does the password look like an email address ? */
+	   && ((!sec->auth_anon_verifyemail)
+	       || ((strpbrk("@", send_pw) != NULL)
+		   && (strpbrk(".", send_pw) != NULL)))) {
+	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
+			"Anonymous: Passwd <%s> Accepted",
+			send_pw ? send_pw : "\'none\'");
+	}
+	return OK;
+    }
+    else {
+	if (sec->auth_anon_authoritative) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			send_pw ? send_pw : "\'none\'");
+	    return AUTH_REQUIRED;
+	}
+	/* Drop out the bottom to return DECLINED */
+    }
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    return DECLINED;

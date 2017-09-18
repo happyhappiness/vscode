@@ -1,20 +1,15 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
-    }
-
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    /* cache filters 
+     * XXX The cache filters need to run right after the handlers and before
+     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
+     * Make them AP_FTYPE_CONTENT for now.
+     * XXX ianhH:they should run AFTER all the other content filters.
+     */
+    cache_in_filter_handle = 
+        ap_register_output_filter("CACHE_IN", 
+                                  cache_in_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    /* CACHE_OUT must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this 
+     * happens.
+     */

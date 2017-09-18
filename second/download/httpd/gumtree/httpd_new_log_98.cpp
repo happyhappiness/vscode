@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Invalid Content-Length %s", lenp);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          lookup.err.desc);

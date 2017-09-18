@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ALERT, r,
-		    "DLL could not load GetExtensionVersion(): %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             r->server, "proxy: failed to enable ssl support "
+                             "for %pI (%s)", p_conn->addr, p_conn->name);

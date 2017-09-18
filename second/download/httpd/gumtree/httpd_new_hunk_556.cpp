@@ -1,18 +1,21 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+        changed_limit_at_restart = 1;
+        return NULL;
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+    server_limit = tmp_server_limit;
+    
+    if (server_limit > MAX_SERVER_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: ServerLimit of %d exceeds compile time limit "
+                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
+       server_limit = MAX_SERVER_LIMIT;
+    } 
+    else if (server_limit < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ServerLimit > 0, setting to 1");
+	server_limit = 1;
     }
+    return NULL;
+}
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

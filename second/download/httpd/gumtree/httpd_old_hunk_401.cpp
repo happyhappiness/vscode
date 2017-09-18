@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+     *  Initialise list of loaded modules
+     */
+    ap_loaded_modules = (module **)apr_palloc(process->pool,
+        sizeof(module *) * (total_modules + DYNAMIC_MODULE_LIMIT + 1));
+
+    if (ap_loaded_modules == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                     "Ouch!  Out of memory in ap_setup_prelinked_modules()!");
+    }
+
+    for (m = ap_preloaded_modules, m2 = ap_loaded_modules; *m != NULL; )
+        *m2++ = *m++;
+

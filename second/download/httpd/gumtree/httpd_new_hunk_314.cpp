@@ -1,10 +1,29 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+}
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+static apr_status_t ssl_io_filter_error(ap_filter_t *f,
+                                        apr_bucket_brigade *bb,
+                                        apr_status_t status)
+{
+    SSLConnRec *sslconn = myConnConfig(f->c);
+    apr_bucket *bucket;
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    switch (status) {
+      case HTTP_BAD_REQUEST:
+            /* log the situation */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                         f->c->base_server,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, f->c->base_server);
+
+            sslconn->non_ssl_request = 1;
+            ssl_io_filter_disable(f);
+
+            /* fake the request line */
+            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
+            break;
+
+      default:
+        return status;
+    }
+

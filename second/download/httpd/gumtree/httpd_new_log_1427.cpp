@@ -1,0 +1,1 @@
+apr_pool_create(&subpool, r->pool);

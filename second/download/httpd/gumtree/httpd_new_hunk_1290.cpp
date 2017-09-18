@@ -1,33 +1,34 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+static int core_pre_connection(conn_rec *c, void *csd)
+{
+    core_net_rec *net = apr_palloc(c->pool, sizeof(*net));
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+#ifdef AP_MPM_DISABLE_NAGLE_ACCEPTED_SOCK
+    apr_status_t rv;
 
-    ap_kill_timeout(r);
+    /* BillS says perhaps this should be moved to the MPMs. Some OSes
+     * allow listening socket attributes to be inherited by the
+     * accept sockets which means this call only needs to be made
+     * once on the listener
+     */
+    /* The Nagle algorithm says that we should delay sending partial
+     * packets in hopes of getting more data.  We don't want to do
+     * this; we are not telnet.  There are bad interactions between
+     * persistent connections and Nagle's algorithm that have very severe
+     * performance penalties.  (Failing to disable Nagle is not much of a
+     * problem with simple HTTP.)
+     */
+    rv = apr_socket_opt_set(csd, APR_TCP_NODELAY, 1);
+    if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+        /* expected cause is that the client disconnected already,
+         * hence the debug level
+         */
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+    }
+#endif
+    net->c = c;
+    net->in_ctx = NULL;
+    net->out_ctx = NULL;
+    net->client_socket = csd;
+

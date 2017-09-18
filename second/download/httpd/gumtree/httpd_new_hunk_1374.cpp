@@ -1,21 +1,17 @@
+                                 "Error reading from remote server");
+        }
+        if (rc != 229 && rc != 500 && rc != 501 && rc != 502) {
+            return ap_proxyerror(r, HTTP_BAD_GATEWAY, ftpmessage);
+        }
+        else if (rc == 229) {
+            /* Parse the port out of the EPSV reply. */
+            data_port = parse_epsv_reply(ftpmessage);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+            if (data_port) {
+                apr_sockaddr_t *epsv_addr;
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                       "proxy: FTP: EPSV contacting remote host on port %d",
+                             data_port);
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+                if ((rv = apr_socket_create(&data_sock, connect_addr->family, SOCK_STREAM, r->pool)) != APR_SUCCESS) {

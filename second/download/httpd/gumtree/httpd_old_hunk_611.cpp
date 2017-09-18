@@ -1,13 +1,19 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+	exit(1);
     }
+#endif
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    apr_getopt_init(&opt, cntxt, argc, argv);
+    while ((status = apr_getopt(opt, "n:c:t:T:p:v:kVhwix:y:z:C:H:P:A:g:X:de:Sq"
+#if USE_SSL
+				"s"
+#endif
+				,&c, &optarg)) == APR_SUCCESS) {
+	switch (c) {
+	case 's':
+#if USE_SSL
+        ssl = 1;
+        break;
+#else
+        fprintf(stderr, "SSL not compiled in; no https support\n");
+        exit(1);
+#endif

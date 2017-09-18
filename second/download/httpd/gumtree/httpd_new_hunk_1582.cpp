@@ -1,29 +1,13 @@
-	}
+	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+			       "Options ExecCGI is off in this directory");
+    if (nph && is_included)
+	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
+			       "attempt to include NPH CGI script");
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+#if defined(OS2) || defined(WIN32)
+    /* Allow for cgi files without the .EXE extension on them under OS/2 */
+    if (r->finfo.st_mode == 0) {
+	struct stat statbuf;
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
+

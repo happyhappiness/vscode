@@ -1,13 +1,15 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    return APR_SUCCESS;
+}
+
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter(deflateFilterName, deflate_out_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+    ap_register_input_filter(deflateFilterName, deflate_in_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+}
+
+static const command_rec deflate_filter_cmds[] = {
+    AP_INIT_TAKE1("DeflateFilterNote", deflate_set_note, NULL, RSRC_CONF,
+                  "Set a note to report on compression ratio"),

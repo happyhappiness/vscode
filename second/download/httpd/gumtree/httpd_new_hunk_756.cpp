@@ -1,25 +1,25 @@
-	return ap_proxyerror(r, err);	/* give up */
+    while (done < requests) {
+	apr_int32_t n;
+	apr_int32_t timed;
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+	/* check for time limit expiry */
+	now = apr_time_now();
+	timed = (apr_int32_t)apr_time_sec(now - start);
+	if (tlimit && timed >= tlimit) {
+	    requests = done;	/* so stats are correct */
+	    break;		/* no need to do another round */
+	}
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+	n = concurrency;
+#ifdef USE_SSL
+        if (ssl == 1)
+            status = APR_SUCCESS;
+        else
 #endif
+	status = apr_poll(readbits, concurrency, &n, aprtimeout);
+	if (status != APR_SUCCESS)
+	    apr_err("apr_poll", status);
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+	if (!n) {
+	    err("\nServer timed out\n\n");
+	}

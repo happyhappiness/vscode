@@ -1,93 +1,209 @@
-        int iEnvBlockLen;
+#endif
+#if APR_HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
+#ifdef AP_MPM_WANT_RECLAIM_CHILD_PROCESSES
 
-	interpreter[0] = 0;
-	pid = -1;
+typedef enum {DO_NOTHING, SEND_SIGTERM, SEND_SIGKILL, GIVEUP} action_t;
 
-	exename = strrchr(r->filename, '/');
-	if (!exename) {
-	    exename = strrchr(r->filename, '\\');
-	}
-	if (!exename) {
-	    exename = r->filename;
-	}
-	else {
-	    exename++;
-	}
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT")
-		|| !strcasecmp(dot, ".CMD")
-		|| !strcasecmp(dot, ".EXE")
-		||  !strcasecmp(dot, ".COM")) {
-		is_exe = 1;
-	    }
-	}
+typedef struct extra_process_t {
+    struct extra_process_t *next;
+    pid_t pid;
+} extra_process_t;
 
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r')
-			|| (interpreter[i] == '\n')) {
-			break;
-		    }
-		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-	    }
-	    else {
-	        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-                    is_binary = 1;
-		}
-	    }
-	}
-        /* Bail out if we haven't figured out what kind of
-         * file this is by now..
+static extra_process_t *extras;
+
+void ap_register_extra_mpm_process(pid_t pid)
+{
+    extra_process_t *p = (extra_process_t *)malloc(sizeof(extra_process_t));
+
+    p->next = extras;
+    p->pid = pid;
+    extras = p;
+}
+
+int ap_unregister_extra_mpm_process(pid_t pid)
+{
+    extra_process_t *cur = extras;
+    extra_process_t *prev = NULL;
+
+    while (cur && cur->pid != pid) {
+        prev = cur;
+        cur = cur->next;
+    }
+
+    if (cur) {
+        if (prev) {
+            prev->next = cur->next;
+        }
+        else {
+            extras = cur->next;
+        }
+        free(cur);
+        return 1; /* found */
+    }
+    else {
+        /* we don't know about any such process */
+        return 0;
+    }
+}
+
+static int reclaim_one_pid(pid_t pid, action_t action)
+{
+    apr_proc_t proc;
+    apr_status_t waitret;
+
+    proc.pid = pid;
+    waitret = apr_proc_wait(&proc, NULL, NULL, APR_NOWAIT);
+    if (waitret != APR_CHILD_NOTDONE) {
+        return 1;
+    }
+
+    switch(action) {
+    case DO_NOTHING:
+        break;
+        
+    case SEND_SIGTERM:
+        /* ok, now it's being annoying */
+        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);
+        kill(pid, SIGTERM);
+        break;
+        
+    case SEND_SIGKILL:
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGKILL",
+                     pid);
+#ifndef BEOS
+        kill(pid, SIGKILL);
+#else
+        /* sending a SIGKILL kills the entire team on BeOS, and as
+         * httpd thread is part of that team it removes any chance
+         * of ever doing a restart.  To counter this I'm changing to
+         * use a kinder, gentler way of killing a specific thread
+         * that is just as effective.
          */
-        if (!is_exe && !is_script && !is_binary) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		"%s is not executable; ensure interpreted scripts have "
-		"\"#!\" first line", 
-		r->filename);
-            return (pid);
-	}
+        kill_thread(pid);
+#endif
+        break;
+                
+    case GIVEUP:
+        /* gave it our best shot, but alas...  If this really
+         * is a child we are trying to kill and it really hasn't
+         * exited, we will likely fail to bind to the port
+         * after the restart.
+         */
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "could not make child process %" APR_PID_T_FMT
+                     " exit, "
+                     "attempting to continue anyway",
+                     pid);
+        break;
+    }
+    
+    return 0;
+}
 
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
+void ap_reclaim_child_processes(int terminate)
+{
+    apr_time_t waittime = 1024 * 16;
+    int i;
+    extra_process_t *cur_extra;
+    int not_dead_yet;
+    int max_daemons;
+    apr_time_t starttime = apr_time_now();
+    /* this table of actions and elapsed times tells what action is taken
+     * at which elapsed time from starting the reclaim
+     */
+    struct {
+        action_t action;
+        apr_time_t action_time;
+    } action_table[] = {
+        {DO_NOTHING, 0}, /* dummy entry for iterations where we reap
+                          * children but take no action against
+                          * stragglers
+                          */
+        {SEND_SIGTERM, apr_time_from_sec(3)},
+        {SEND_SIGTERM, apr_time_from_sec(5)},
+        {SEND_SIGTERM, apr_time_from_sec(7)},
+        {SEND_SIGKILL, apr_time_from_sec(9)},
+        {GIVEUP,       apr_time_from_sec(10)}
+    };
+    int cur_action;      /* index of action we decided to take this
+                          * iteration
+                          */
+    int next_action = 1; /* index of first real action */
 
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
+    ap_mpm_query(AP_MPMQ_MAX_DAEMON_USED, &max_daemons);
+
+    do {
+        apr_sleep(waittime);
+        /* don't let waittime get longer than 1 second; otherwise, we don't
+         * react quickly to the last child exiting, and taking action can
+         * be delayed
+         */
+        waittime = waittime * 4;
+        if (waittime > apr_time_from_sec(1)) {
+            waittime = apr_time_from_sec(1);
+        }
+
+        /* see what action to take, if any */
+        if (action_table[next_action].action_time <= apr_time_now() - starttime) {
+            cur_action = next_action;
+            ++next_action;
+        }
+        else {
+            cur_action = 0; /* nothing to do */
+        }
+
+        /* now see who is done */
+        not_dead_yet = 0;
+        for (i = 0; i < max_daemons; ++i) {
+            pid_t pid = MPM_CHILD_PID(i);
+
+            if (pid == 0) {
+                continue; /* not every scoreboard entry is in use */
+            }
+
+            if (reclaim_one_pid(pid, action_table[cur_action].action)) {
+                MPM_NOTE_CHILD_KILLED(i);
+            }
+            else {
+                ++not_dead_yet;
+            }
+        }
+ 
+        cur_extra = extras;
+        while (cur_extra) {
+            extra_process_t *next = cur_extra->next;
+
+            if (reclaim_one_pid(cur_extra->pid, action_table[cur_action].action)) {
+                AP_DEBUG_ASSERT(1 == ap_unregister_extra_mpm_process(cur_extra->pid));
+            }
+            else {
+                ++not_dead_yet;
+            }
+            cur_extra = next;
+        }
+
+#if APR_HAS_OTHER_CHILD
+        apr_proc_other_child_check();
+#endif
+
+    } while (not_dead_yet > 0 &&
+             action_table[cur_action].action != GIVEUP);
+}
+#endif /* AP_MPM_WANT_RECLAIM_CHILD_PROCESSES */
+
+#ifdef AP_MPM_WANT_WAIT_OR_TIMEOUT
+
+/* number of calls to wait_or_timeout between writable probes */

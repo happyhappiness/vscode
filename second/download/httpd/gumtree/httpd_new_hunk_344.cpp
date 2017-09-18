@@ -1,14 +1,69 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+        return;
+    }
+
+    /*
+     * create the various trace messages
+     */
+    if (s->loglevel >= APLOG_DEBUG) {
+        if (where & SSL_CB_HANDSHAKE_START) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Handshake: start", SSL_LIBRARY_NAME);
+        }
+        else if (where & SSL_CB_HANDSHAKE_DONE) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Handshake: done", SSL_LIBRARY_NAME);
+        }
+        else if (where & SSL_CB_LOOP) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Loop: %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+        }
+        else if (where & SSL_CB_READ) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Read: %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+        }
+        else if (where & SSL_CB_WRITE) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Write: %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+        }
+        else if (where & SSL_CB_ALERT) {
+            char *str = (where & SSL_CB_READ) ? "read" : "write";
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Alert: %s:%s:%s\n",
+                         SSL_LIBRARY_NAME, str,
+                         SSL_alert_type_string_long(rc),
+                         SSL_alert_desc_string_long(rc));
+        }
+        else if (where & SSL_CB_EXIT) {
+            if (rc == 0) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "%s: Exit: failed in %s",
+                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+            }
+            else if (rc < 0) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "%s: Exit: error in %s",
+                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+            }
+        }
+    }
+
+    /*
+     * Because SSL renegotations can happen at any time (not only after
+     * SSL_accept()), the best way to log the current connection details is
+     * right after a finished handshake.
+     */
+    if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Connection: Client IP: %s, Protocol: %s, "
+                     "Cipher: %s (%s/%s bits)",
+                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
+    }
+}
+

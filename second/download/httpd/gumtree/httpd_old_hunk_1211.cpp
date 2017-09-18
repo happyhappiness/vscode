@@ -1,14 +1,12 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
     }
-    cache = c->fp;
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    if (use_acceptex) {
+        apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);

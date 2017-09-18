@@ -1,22 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    rr->content_type = CGI_MAGIC_TYPE;
+
+    /* Run it. */
+
+    rr_status = ap_run_sub_req(rr);
+    if (is_HTTP_REDIRECT(rr_status)) {
+        const char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    }
+
+    ap_destroy_sub_req(rr);

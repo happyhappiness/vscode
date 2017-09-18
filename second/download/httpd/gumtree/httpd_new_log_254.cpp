@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "unknown parameter \"%s\" to tag %s in %s",
-                    tag, directive, r->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                     "mod_rewrite: Parent could not set permissions "
+                     "on RewriteLock; check User and Group directives");

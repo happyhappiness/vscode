@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
+ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
+                 "disk_cache: Caching URL %s",  key);

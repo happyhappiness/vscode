@@ -1,21 +1,41 @@
+        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
+        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+        cert_store = X509_STORE_new();
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "Unable to reconfigure verify locations "
+                         "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+            X509_STORE_free(cert_store);
+
+            return HTTP_FORBIDDEN;
+        }
+
+        /* SSL_free will free cert_store */
+        SSL_set_cert_store(ssl, cert_store);
+
+        if (!(ca_list = ssl_init_FindCAList(r->server, r->pool,
+                                            ca_file, ca_path)))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "Unable to determine list of available "
+                         "CA certificates for client authentication");
+
+            return HTTP_FORBIDDEN;
+        }
+
+        SSL_set_client_CA_list(ssl, ca_list);
+        renegotiate = TRUE;
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Changed client verification locations will force "
+                     "renegotiation");
+    }
+#endif /* HAVE_SSL_SET_CERT_STORE */
+
+    /* 
+     * SSL renegotiations in conjunction with HTTP
+     * requests using the POST method are not supported.

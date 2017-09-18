@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, server,
-		     "_rini: BS2000 auth failed for user \"%s\" acct \"%s\"",
-		     inittask.username, inittask.account);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: keepalive address match (keep original socket)");

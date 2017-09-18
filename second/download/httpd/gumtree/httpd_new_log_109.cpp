@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-                            "Symbolic link not allowed: %s", rnew->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "The request body, if present, must be a "
+                          "DAV:checkin element.");

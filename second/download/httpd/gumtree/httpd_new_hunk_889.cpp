@@ -1,28 +1,14 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
-}
+    if (name == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+               "Internal error: pcfg_openfile() called with NULL filename");
+        return APR_EBADF;
+    }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+    status = apr_file_open(&file, name, APR_READ | APR_BUFFERED,
+                           APR_OS_DEFAULT, p);
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                "Opening config file %s (%s)",
+                name, (status != APR_SUCCESS) ? 
+                apr_strerror(status, buf, sizeof(buf)) : "successful");
+#endif

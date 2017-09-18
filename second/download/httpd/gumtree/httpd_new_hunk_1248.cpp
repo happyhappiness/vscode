@@ -1,13 +1,25 @@
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+	/* every zero-byte counts as 8 zero-bits */
+	bits = 8 * quads;
 
-    ap_hard_timeout("send headers", r);
+	if (bits != 32)		/* no warning for fully qualified IP address */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
+		 inet_ntoa(This->addr), bits);
+    }
 
-    ap_basic_http_header(r);
+    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
+
+    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "Warning: NetMask and IP-Addr disagree in %s/%ld",
+		inet_ntoa(This->addr), bits);
+	This->addr.s_addr &= This->mask.s_addr;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "         Set to %s/%ld",
+		inet_ntoa(This->addr), bits);
+    }
+
+    if (*addr == '\0') {
+	This->matcher = proxy_match_ipaddr;
+	return 1;

@@ -1,19 +1,21 @@
-    if (!method_restricted)
-	return OK;
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                           "unknown value \"%s\" to parameter \"encoding\" of "
+                           "tag echo in %s", tag_val, r->filename);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);
+                    return 1;
+                }
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" in tag echo of %s",
+                            tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+                return 1;
+            }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+        }
+    }
+    return 0;
 }
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

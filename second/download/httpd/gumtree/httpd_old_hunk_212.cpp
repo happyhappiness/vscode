@@ -1,13 +1,13 @@
-            }
-        }
-        else if (!strcmp(tag, "done")) {
-            return 0;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unknown parameter \"%s\" to tag include in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
-    }
-}
+    union VALUETYPE p;
+    magic_server_config_rec *conf = (magic_server_config_rec *)
+		ap_get_module_config(r->server->module_config, &mime_magic_module);
+    struct magic *m;
+
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+		MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
+		conf,
+		conf->magicfile ? conf->magicfile : "NULL",
+		conf->magic ? "set" : "NULL",
+		(conf->magic && conf->magic->next) ? "set" : "NULL",
+		conf->last ? "set" : "NULL");

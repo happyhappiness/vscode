@@ -1,15 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
 
-	i = read(fd, line, 26);
+    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
+                               ap_accept_lock_mech, _pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        mpm_state = AP_MPMQ_STOPPING;
+        return 1;
+    }
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
+        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {

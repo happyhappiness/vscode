@@ -1,22 +1,19 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
+                        * the network is up again, and restart the children.
+                        * Ben Hyde noted that temporary ENETDOWN situations
+                        * occur in mobile IP.
+                        */
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                            "apr_accept: giving up.");
+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, pthrd, 
+                                         bucket_alloc);
+                }
+                else {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_accept: (client socket)");
+                        clean_child_exit(1, my_worker_num, pthrd, bucket_alloc);
+                }
+            }
+        }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
+        /*

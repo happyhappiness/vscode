@@ -1,49 +1,46 @@
-	    return cond_status;
-	}
+                /* bio_filter_out_flush() already passed down a flush bucket
+                 * if there was any data to be flushed.
+                 */
+                apr_bucket_delete(bucket);
+            }
+        }
+        else if (AP_BUCKET_IS_EOC(bucket)) {
+            /* The special "EOC" bucket means a shutdown is needed;
+             * - turn off buffering in bio_filter_out_write
+             * - issue the SSL_shutdown
+             */
+            filter_ctx->nobuffer = 1;
+            status = ssl_filter_io_shutdown(filter_ctx, f->c, 0);
+            if (status != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
+                             "SSL filter error shutting down I/O");
+            }
+            if ((status = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
+                return status;
+            }
+            break;
+        }
+        else {
+            /* filter output */
+            const char *data;
+            apr_size_t len;
+            
+            status = apr_bucket_read(bucket, &data, &len, rblock);
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+            if (APR_STATUS_IS_EAGAIN(status)) {
+                /* No data available: flush... */
+                if (bio_filter_out_flush(filter_ctx->pbioWrite) < 0) {
+                    status = outctx->rc;
+                    break;
+                }
+                rblock = APR_BLOCK_READ;
+                continue; /* and try again with a blocking read. */
+            }
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+            rblock = APR_NONBLOCK_READ;
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+            if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
+                break;
+            }
 
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+            status = ssl_filter_write(f, data, len);

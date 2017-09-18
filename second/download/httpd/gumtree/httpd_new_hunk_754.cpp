@@ -1,21 +1,15 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+	   "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+	   trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+	   "<td colspan=2 %s>%d</td></tr>\n",
+	   trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+	   "<td colspan=2 %s>%qd.%03ld seconds</td></tr>\n",
+	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
+           (long)apr_time_usec(timetaken));
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+	   "<td colspan=2 %s>%ld</td></tr>\n",
+	   trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
+	   "<td colspan=2 %s>%ld</td></tr>\n",
+	   trstring, tdstring, tdstring, bad);

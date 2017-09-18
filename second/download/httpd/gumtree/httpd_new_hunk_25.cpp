@@ -1,13 +1,13 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
+        if (d_uri.query) {
+            ap_unescape_url(d_uri.query);
+        }
+
+        if (r->method_number == M_CONNECT) {
+            if (strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }
+        else if (

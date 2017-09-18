@@ -1,20 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
     }
-
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    if (autoindex_opts & TABLE_INDEXING) {
+        ap_rvputs(r, breakrow, "</table>\n", NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr /></pre>\n", r);
+        }
+        else {
+            ap_rputs("</pre>\n", r);
+        }
+    }
+    else {

@@ -1,13 +1,13 @@
+    if (err != NULL) {
+        return err;
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    ap_threads_to_start = atoi(arg);
+    if (ap_threads_to_start < 0) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
+                     "StartThreads set to a value less than 0, reset to 1");
+        ap_threads_to_start = 1;
+    }
+    return NULL;
+}
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);

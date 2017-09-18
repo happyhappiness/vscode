@@ -1,0 +1,1 @@
+printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");

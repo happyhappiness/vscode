@@ -1,13 +1,19 @@
+                        * the network is up again, and restart the children.
+                        * Ben Hyde noted that temporary ENETDOWN situations
+                        * occur in mobile IP.
+                        */
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                            "apr_accept: giving up.");
+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, 
+                                         bucket_alloc, pthrd);
+                }
+                else {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_accept: (client socket)");
+                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc, pthrd);
+                }
+            }
+        }
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************
+        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
+        /*

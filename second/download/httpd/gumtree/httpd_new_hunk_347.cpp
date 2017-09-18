@@ -1,14 +1,33 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+    return TRUE;
+}
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+int ssl_mutex_on(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+
+    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
+        return TRUE;
+    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to acquire global mutex lock");
+        return FALSE;
+    }
+    return TRUE;
+}
+
+int ssl_mutex_off(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+
+    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
+        return TRUE;
+    if ((rv = apr_global_mutex_unlock(mc->pMutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to release global mutex lock");
+        return FALSE;
+    }
+    return TRUE;
+}
+

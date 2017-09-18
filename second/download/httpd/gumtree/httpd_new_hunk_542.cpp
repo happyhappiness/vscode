@@ -1,49 +1,32 @@
-	    return cond_status;
-	}
+    int thread_slot = ti->tid;
+    apr_socket_t *csd = NULL;
+    apr_bucket_alloc_t *bucket_alloc;
+    apr_pool_t *last_ptrans = NULL;
+    apr_pool_t *ptrans;                /* Pool for per-transaction stuff */
+    apr_status_t rv;
+    int is_idle = 0;
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    free(ti);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    bucket_alloc = apr_bucket_alloc_create(apr_thread_pool_get(thd));
 
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+    while (!workers_may_exit) {
+        if (!is_idle) {
+            rv = ap_queue_info_set_idle(worker_queue_info, last_ptrans);
+            last_ptrans = NULL;
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "ap_queue_info_set_idle failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+                break;
+            }
+            is_idle = 1;
+        }
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+        ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_READY, NULL);
+worker_pop:
+        if (workers_may_exit) {
+            break;

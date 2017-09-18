@@ -1,31 +1,26 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+     * In the case of one_process, it would fail.
+     */
+    if (one_process) {
+
+	type = forktype = bs2_noFORK;
+
+	ap_log_error(APLOG_MARK, APLOG_ERR, 0, server,
+		     "The debug mode of Apache should only "
+		     "be started by an unprivileged user!");
+	return 0;
     }
 
-    if (!child && run_as_service) {
-	service_cd();
+    /* If no _rini() is required, then return quickly. */
+    if (type != bs2_RFORK_RINI && type != bs2_FORK_RINI)
+	return 0;
+
+    /* An Account is required for _rini() */
+    if (bs2000_account == NULL)
+    {
+	ap_log_error(APLOG_MARK, APLOG_ALERT, 0, server,
+		     "No BS2000Account configured - cannot switch to User %s",
+		     user_name);
+	exit(APEXIT_CHILDFATAL);
     }
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    apr_cpystrn(username, user_name, sizeof username);

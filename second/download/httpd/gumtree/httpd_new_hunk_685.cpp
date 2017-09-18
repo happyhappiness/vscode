@@ -1,13 +1,13 @@
+    if (APR_SUCCESS != apr_uri_parse(p, *url, uri)) {
+        return ap_proxyerror(r, HTTP_BAD_REQUEST,
+                             apr_pstrcat(p,"URI cannot be parsed: ", *url,
+                                         NULL));
+    }
+    if (!uri->port) {
+        uri->port = apr_uri_port_of_scheme(uri->scheme);
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: HTTP connecting %s to %s:%d", *url, uri->hostname,
+                 uri->port);
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);

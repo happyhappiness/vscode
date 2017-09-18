@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Parsed domain %s", New->name);

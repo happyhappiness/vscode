@@ -1,13 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+    locks_hooks = DAV_GET_HOOKS_LOCKS(r);
+    if (locks_hooks == NULL)
+        return DECLINED;
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+    if ((const_locktoken_txt = apr_table_get(r->headers_in,
+                                             "Lock-Token")) == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "Unlock failed (%s):  "
+                      "No Lock-Token specified in header", r->filename);
+        return HTTP_BAD_REQUEST;
+    }
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    locktoken_txt = apr_pstrdup(r->pool, const_locktoken_txt);

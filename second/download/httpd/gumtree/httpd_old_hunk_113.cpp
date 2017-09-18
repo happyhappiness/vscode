@@ -1,13 +1,13 @@
-#define STANDALONE_MAIN standalone_main
-
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
-
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
-
-    ap_standalone = 1;
-
-    is_graceful = 0;
+                case token_lt:
+                    current = current->parent;
+                    continue;
+                case token_lbrace:
+                    break;
+                default:
+                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                                "Invalid expression \"%s\" in file %s",
+                                expr, r->filename);
+                    *was_error = 1;
+                    return retval;
+                }
+                break;

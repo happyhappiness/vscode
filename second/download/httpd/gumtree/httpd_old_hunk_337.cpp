@@ -1,13 +1,16 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    }
+    else {
+        depth = mctx->auth.verify_depth;
+    }
+
+    if (errdepth > depth) {
+        ssl_log(s, SSL_LOG_ERROR,
+                "Certificate Verification: Certificate Chain too long "
+                "(chain has %d certificates, but maximum allowed are only %d)",
+                errdepth, depth);
+
+        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+
+        ok = FALSE;
+    }

@@ -1,13 +1,13 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
+             */
+            apr_table_unset(f->r->headers_out, "Content-Length");
+        }
+    }
+
+    if (dc->debug >= DBGLVL_SHOWOPTIONS) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                      "%sfiltering `%s' through `%s', cfg %s",
+                      ctx->noop ? "skipping: " : "",
+                      f->r->uri ? f->r->uri : f->r->filename,
+                      ctx->filter->command,
+                      get_cfg_string(dc, ctx->filter, f->r->pool));
     }

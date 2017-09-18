@@ -1,13 +1,19 @@
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+            if (pidfile != NULL && unlink(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long)getpid());
+            }
+    
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
+        }
+        return 1;
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
 
-/*****************************************************************
+    /* we've been told to restart */

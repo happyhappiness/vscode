@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			    "ISA sent invalid headers: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: start body send");

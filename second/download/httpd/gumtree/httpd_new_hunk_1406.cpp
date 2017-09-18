@@ -1,17 +1,13 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    {
+	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
     }
+#endif
 
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    for (i = 0; i < t->a.nelts; ) {

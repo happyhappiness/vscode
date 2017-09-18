@@ -1,15 +1,13 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+	    const char *orig_groups, *groups;
+	    char *v;
+
+	    if (!(groups = get_dbm_grp(r, user, sec->auth_dbmgrpfile))) {
+		if (!(sec->auth_dbmauthoritative))
+		    return DECLINED;
+		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			    "user %s not in DBM group file %s: %s",
+			    user, sec->auth_dbmgrpfile, r->filename);
+		ap_note_basic_auth_failure(r);
+		return AUTH_REQUIRED;
+	    }
+	    orig_groups = groups;

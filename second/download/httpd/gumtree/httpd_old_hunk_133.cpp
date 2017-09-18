@@ -1,13 +1,13 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-        ap_die(BAD_REQUEST, r);
-        return;
-    }
+                rv = (*handle_func)(ctx, bb, r, f, dptr, &content_head);
+                if ((rv != 0) && (rv != 1)) {
+                    return (rv);
+                }
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                              "unknown directive \"%s\" in parsed doc %s",
+                              ctx->combined_tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_bkt, dptr, content_head);
+            }
 
-    /* Ignore embedded %2F's in path for proxy requests */
+            /* This chunk of code starts at the first bucket in the chain

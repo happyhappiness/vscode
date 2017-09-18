@@ -1,30 +1,25 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+                            const char *description)
+{
+    apr_file_t *stderr_log;
+    char errbuf[200];
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
-    }
-
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
+    apr_file_open_stderr(&stderr_log, pool);
+    /* Escape the logged string because it may be something that
+     * came in over the network.
+     */
+    apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+#ifdef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    description
 #else
-	if (unlink(filename) == -1) {
+                    ap_escape_logitem(pool, description)
+#endif
+                    );
+}
+
+static apr_status_t run_cgi_child(apr_file_t **script_out,
+                                  apr_file_t **script_in,
+                                  apr_file_t **script_err, 
+                                  const char *command,

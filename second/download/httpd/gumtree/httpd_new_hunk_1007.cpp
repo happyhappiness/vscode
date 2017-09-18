@@ -1,20 +1,14 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
-    }
-
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+ * After this registration is performed, then a filter may be added 
+ * into the filter chain by using ap_add_output_filter() and simply 
+ * specifying the name.
+ *
+ * @param name The name to attach to the filter function
+ * @param filter_func The filter function to name
+ * @param filter_init The function to call before the filter handlers 
+ *                    are invoked
+ * @param ftype The type of filter function, either ::AP_FTYPE_CONTENT or
+ *              ::AP_FTYPE_CONNECTION
+ * @see ap_add_output_filter()
+ */
+AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
+                                            ap_out_filter_func filter_func,

@@ -1,13 +1,12 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
+        /* Something bad happened, give up and go away. */
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));
     }
+    else {
+        char **args;
+        const char *pname;
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+        apr_tokenize_to_argv(pl->program, &args, pl->p);

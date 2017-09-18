@@ -1,17 +1,14 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
     }
-
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);

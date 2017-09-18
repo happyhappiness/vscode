@@ -1,13 +1,25 @@
+                                              s->process->pool);
+                    if (rv != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                     "%s: Unable to start the service manager.",
+                                     service_name);
+                        return HTTP_INTERNAL_SERVER_ERROR;
+                    }
+                }
+            }
+            else /* ! -k runservice */
+            {
+                mpm_start_console_handler();
+            }
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+            /* Create the start mutex, as an unnamed object for security.
+             * Ths start mutex is used during a restart to prevent more than 
+             * one child process from entering the accept loop at once.
+             */
+            rv =  apr_proc_mutex_create(&start_mutex, NULL,
+                                        APR_LOCK_DEFAULT,
+                                        ap_server_conf->process->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                             "%s: Unable to create the start_mutex.",
+                             service_name);

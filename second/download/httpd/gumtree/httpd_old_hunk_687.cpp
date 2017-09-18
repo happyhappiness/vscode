@@ -1,20 +1,16 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+                         "proxy: HTTPS: declining URL %s"
+                         " (mod_ssl not configured?)", url);
+            return DECLINED;
+        }
+        is_ssl = 1;
+    }
+    else if (strncasecmp(url, "http:", 5)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: HTTP: declining URL %s", url);
+        return DECLINED; /* only interested in HTTP */
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: HTTP: serving URL %s", url);
+    
+    
+    /* only use stored info for top-level pages. Sub requests don't share 

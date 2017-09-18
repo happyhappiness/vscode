@@ -1,13 +1,13 @@
-	    return OK;
-	}
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    if (r->main != NULL)        /* Say no to subrequests */
+        return DECLINED;
 
-	if (!(l = strchr(w, ':'))) {
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    conf = (expires_dir_config *) ap_get_module_config(r->per_dir_config, &expires_module);
+    if (conf == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
+    if (conf->active != ACTIVE_ON)
+        return DECLINED;

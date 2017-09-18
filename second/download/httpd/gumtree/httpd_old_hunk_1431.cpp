@@ -1,109 +1,40 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <VirtualHost> section", NULL);
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Limit> section", NULL);
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Directory/Location/Files> section", NULL);
-    
-    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
-	    || cmd->end_token == end_directorymatch_section)) ||
-	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
-	    || cmd->end_token == end_locationmatch_section)) ||
-	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
-	    || cmd->end_token == end_filesmatch_section)))
-	
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <", cmd->end_token+2,
-		       " section", NULL);
-
-    return NULL;
-}
-
-static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
-
-static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory (arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
+	return;
     }
-    
-    conf->ap_document_root = arg;
-    return NULL;
+    else
+	inside = 1;
+    (void) ap_release_mutex(garbage_mutex);
+
+    help_proxy_garbage_coll(r);
+
+    (void) ap_acquire_mutex(garbage_mutex);
+    inside = 0;
+    (void) ap_release_mutex(garbage_mutex);
 }
 
-static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
-				char *line)
+
+static void help_proxy_garbage_coll(request_rec *r)
 {
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) return err;
+    const char *cachedir;
+    void *sconf = r->server->module_config;
+    proxy_server_conf *pconf =
+    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+    const struct cache_conf *conf = &pconf->cache;
+    array_header *files;
+    struct stat buf;
+    struct gc_ent *fent, **elts;
+    int i, timefd;
+    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-  
-    w = ap_getword_conf_nc (cmd->pool, &line);
-    error_number = atoi(w);
+    cachedir = conf->root;
+    cachesize = conf->space;
+    every = conf->gcinterval;
 
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+    if (cachedir == NULL || every == -1)
+	return;
+    garbage_now = time(NULL);
+    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
+	return;
 
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
-        index_number = idx500;
-    else if ((index_number = ap_index_of_response(error_number)) == idx500)
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
-                
-    /* Store it... */
+    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
 
-    if( conf->response_code_strings == NULL ) {
-	conf->response_code_strings = ap_pcalloc(cmd->pool,
-	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
-
-    return NULL;
-}
-
-/* access.conf commands...
- *
+    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

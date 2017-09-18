@@ -1,20 +1,27 @@
-<tr><th>Req<td>Milliseconds required to process most recent request\n \
-<tr><th>Conn<td>Kilobytes transferred this connection\n \
-<tr><th>Child<td>Megabytes transferred this child\n \
-<tr><th>Slot<td>Total megabytes transferred this slot\n \
-</table>\n", r);
-#endif
-	}
 
-    } else {
-
-    ap_rputs("<hr>To obtain a full report with current status information ", r);
-    ap_rputs("you need to use the <code>ExtendedStatus On</code> directive. \n", r);
-
+    for (i=0; version_components[i]; i++) {
+        vals[i] = ssl_add_version_component(p, s,
+                                            version_components[i]);
     }
 
-    if (!short_report) {
-	ap_rputs(ap_psignature("<HR>\n",r), r);
-	ap_rputs("</BODY></HTML>\n", r);
-    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Server: %s, Interface: %s, Library: %s",
+                 AP_SERVER_BASEVERSION,
+                 vals[1],  /* SSL_VERSION_INTERFACE */
+                 vals[2]); /* SSL_VERSION_LIBRARY */
+}
+
+
+/*
+ *  Initialize SSL library
+ */
+static void ssl_init_SSLLibrary(server_rec *s)
+{
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Initializing %s library", SSL_LIBRARY_NAME);
+
+    CRYPTO_malloc_init();
+    SSL_load_error_strings();
+    SSL_library_init();
+}
 

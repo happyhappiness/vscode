@@ -1,13 +1,14 @@
-    if (!found) {
-	printf("Adding user %s in realm %s\n", user, realm);
-	add_password(user, realm, tfp);
-    }
-    fclose(f);
-    fclose(tfp);
-#if defined(__EMX__) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-    system(command);
-    unlink(tn);
+        }
+        else if (ssl_err == SSL_ERROR_SSL) {
+            /*
+             * Log SSL errors
+             */
+            conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+            ssl_log(c->base_server, SSL_LOG_ERROR|SSL_ADD_SSLERR,
+                    "SSL error on writing data");
+        }
+        /*
+         * XXX - Just trying to reflect the behaviour in 
+         * openssl_state_machine.c [mod_tls]. TBD
+         */
+        rc = 0;

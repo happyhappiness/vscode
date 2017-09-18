@@ -1,13 +1,13 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+                    max_clients, ap_daemons_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " and would exceed the ServerLimit value of %d.",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " Automatically lowering MaxClients to %d.  To increase,",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " please see the ServerLimit directive.");
+       ap_daemons_limit = server_limit;
+    } 
+    else if (ap_daemons_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 

@@ -1,29 +1,27 @@
-        qsort((void *) candidates->elts, candidates->nelts,
-              sizeof(misspelled_file), sort_by_quality);
+    /*
+     * Create a new SSL connection with the configured server SSL context and
+     * attach this to the socket. Additionally we register this attachment
+     * so we can detach later.
+     */
+    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
+        ssl_log(c->base_server, SSL_LOG_ERROR|SSL_ADD_SSLERR,
+                "Unable to create a new SSL connection from the SSL context");
 
-        /*
-         * Conditions for immediate redirection: 
-         *     a) the first candidate was not found by stripping the suffix 
-         * AND b) there exists only one candidate OR the best match is not ambigous
-         * then return a redirection right away.
-         */
-        if (variant[0].quality != SP_VERYDIFFERENT &&
-            (candidates->nelts == 1 || variant[0].quality != variant[1].quality)) {
+        c->aborted = 1;
 
-            nuri = ap_pstrcat(r->pool, url, variant[0].name, r->path_info,
-			      r->parsed_uri.query ? "?" : "",
-			      r->parsed_uri.query ? r->parsed_uri.query : "", NULL);
+        return DECLINED; /* XXX */
+    }
 
-            ap_table_setn(r->headers_out, "Location",
-                      ap_construct_url(r->pool, nuri, r));
+    vhost_md5 = ap_md5_binary(c->pool, sc->vhost_id, sc->vhost_id_len);
 
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r->server,
-                        ref ? "Fixed spelling: %s to %s from %s"
-                        : "Fixed spelling: %s to %s",
-                        r->uri, nuri, ref);
+    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
+                                    MD5_DIGESTSIZE*2))
+    {
+        ssl_log(c->base_server, SSL_LOG_ERROR|SSL_ADD_SSLERR,
+                "Unable to set session id context to `%s'", vhost_md5);
 
-            return HTTP_MOVED_PERMANENTLY;
-        }
-        /*
-         * Otherwise, a "[300] Multiple Choices" list with the variants is
-         * returned.
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
+    }
+

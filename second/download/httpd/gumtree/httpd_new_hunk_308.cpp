@@ -1,48 +1,42 @@
-    stats = malloc(requests * sizeof(struct data));
+     */
+    table = apr_hash_make(p);
 
-    FD_ZERO(&readbits);
-    FD_ZERO(&writebits);
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
 
-    /* setup request */
-    if (!posting) {
-	sprintf(request, "GET %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname);
-    }
-    else {
-	sprintf(request, "POST %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "Content-length: %d\r\n"
-                     "Content-type: %s\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname, postlen, 
-                     (content_type[0]) ? content_type : "text/plain");
+        if (!(sc->enabled && s->addrs)) {
+            continue;
+        }
+
+        key = apr_psprintf(p, "%pA:%u",
+                           &s->addrs->host_addr, s->addrs->host_port);
+        klen = strlen(key);
+
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: SSL server IP/port conflict: "
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s), 
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"), 
+                         ps->defn_line_number);
+            conflict = TRUE;
+            continue;
+        }
+
+        apr_hash_set(table, key, klen, s);
     }
 
-    if (verbosity >= 2) printf("INFO: POST header == \n---\n%s\n---\n", request);
+    if (conflict) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");
+    }
+}
 
-    reqlen = strlen(request);
-
-#ifdef CHARSET_EBCDIC
-    ebcdic2ascii(request, request, reqlen);
-#endif /*CHARSET_EBCDIC*/
-
-    /* ok - lets start */
-    gettimeofday(&start, 0);
-
-    /* initialise lots of requests */
-    for (i = 0; i < concurrency; i++)
-        start_connect(&con[i]);
+static int ssl_init_FindCAList_X509NameCmp(X509_NAME **a, X509_NAME **b)
+{
+    return(X509_NAME_cmp(*a, *b));

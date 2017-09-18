@@ -1,35 +1,31 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
+/* ------------------------------------------------------- */
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_SERVER_BASEREVISION " <$Revision: 1.97 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
-
-    r->status = 200;
-    r->status_line = "200 OK";
-
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
     else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_SERVER_BASEREVISION, "$Revision: 1.97 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
+
+/* display usage information */
+static void usage(const char *progname)
+{
+    fprintf(stderr, "Usage: %s [options] [http"
+#if USE_SSL
+	    "[s]"
+#endif
+	    "://]hostname[:port]/path\n", progname);
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");

@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+                         mc->szMutexFile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex");
+        return FALSE;
     }
+#if APR_HAS_FLOCK_SERIALIZE
+    if (mc->szMutexFile && mc->ChownMutexFile == TRUE)
+        chown(mc->szMutexFile, unixd_config.user_id, -1);
+#endif
+
+#if APR_HAS_SYSVSEM_SERIALIZE
+#if APR_USE_SYSVSEM_SERIALIZE

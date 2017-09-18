@@ -1,15 +1,15 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
         }
+        apr_dbm_close(dbm);
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
-
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
+        /* pass 2: delete expired elements */
+        if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+		APR_DBM_RWCREATE,SSL_DBM_FILE_MODE, p) != APR_SUCCESS) {
+            ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
+                    "Cannot re-open SSLSessionCache DBM file `%s' for expiring",
+                    mc->szSessionCacheDataFile);
+            apr_pool_destroy(p);
+            break;
         }
+        for (i = 0; i < keyidx; i++) {
+            apr_dbm_delete(dbm, keylist[i]);
+            nDeleted++;

@@ -1,23 +1,13 @@
-	/* fatal error, bail out */
-	return result;
-    }
 
-    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
-	/* We can't open it, but we were able to stat it. */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    MODNAME ": can't read `%s'", r->filename);
-	/* let some other handler decide what the problem is */
-	return DECLINED;
-    }
+            if (pstr != NULL && (sscanf(pstr,
+                 "%d,%d,%d,%d,%d,%d", &h3, &h2, &h1, &h0, &p1, &p0) == 6)) {
 
-    /*
-     * try looking at the first HOWMANY bytes
-     */
-    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    MODNAME ": read failed: %s", r->filename);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+                apr_sockaddr_t *pasv_addr;
+                apr_port_t pasvport = (p1 << 8) + p0;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                          "proxy: FTP: PASV contacting host %d.%d.%d.%d:%d",
+                             h3, h2, h1, h0, pasvport);
 
-    if (nbytes == 0)
-	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
+                if ((rv = apr_socket_create(&data_sock, APR_INET, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "proxy: error creating PASV socket");

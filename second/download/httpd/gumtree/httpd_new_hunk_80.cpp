@@ -1,13 +1,13 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = ap_toupper(*cp);
+         * the cache 
+         */
+        date = now;
+        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
+        apr_rfc822_date(dates, now);
+        ap_table_set(r->headers_out, "Date", dates);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: Added date header");
+        info->date = date;
     }
-
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
+    else {
+        date = info->date;
+    }

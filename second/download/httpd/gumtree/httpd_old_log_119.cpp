@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fopen(%s) failed", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "A \"label-name\" element does not contain "
+                      "a label name.");

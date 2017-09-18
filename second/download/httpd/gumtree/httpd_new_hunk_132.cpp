@@ -1,13 +1,13 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
-    }
+            /* At this point, everything between ctx->head_start_bucket and
+             * ctx->tail_start_bucket is an SSI
+             * directive, we just have to deal with it now.
+             */
+            if (get_combined_directive(ctx, r, *bb, tmp_buf,
+                                        TMP_BUF_SIZE) != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "mod_include: error copying directive in %s",
+                            r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_bkt, dptr, content_head);
 
+                /* DO CLEANUP HERE!!!!! */
+                tmp_dptr = ctx->head_start_bucket;

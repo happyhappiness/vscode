@@ -1,13 +1,13 @@
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+    if ((result = ap_xml_parse_input(r, &doc)) != OK)
+        return result;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+    depth = dav_get_depth(r, DAV_INFINITY);
+    if (depth != 0 && depth != DAV_INFINITY) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be 0 or \"infinity\" for LOCK.");
+        return HTTP_BAD_REQUEST;
     }
+
+    /* Ask repository module to resolve the resource */
+    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,

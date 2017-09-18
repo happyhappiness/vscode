@@ -1,13 +1,13 @@
-        case token_or:
-#ifdef DEBUG_INCLUDE
-            ap_rputs("     Evaluate and/or\n", r);
+        struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
+
+        for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
+            direct_connect = list[ii].matcher(&list[ii], r);
+        }
+#if DEBUGGING
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                      (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
+                      r->uri);
 #endif
-            if (current->left == (struct parse_node *) NULL ||
-                current->right == (struct parse_node *) NULL) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                ap_rputs(error, r);
-                goto RETURN;
-            }
-            if (!current->left->done) {
+    }
+
+    /* firstly, try a proxy, unless a NoProxy directive is active */

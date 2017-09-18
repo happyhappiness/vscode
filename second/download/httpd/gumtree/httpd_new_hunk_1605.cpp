@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+        case token_and:
+        case token_or:
+#ifdef DEBUG_INCLUDE
+            ap_rputs("     Token: and/or\n", r);
+#endif
+            if (current == (struct parse_node *) NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                ap_rputs(error, r);
+                goto RETURN;
+            }
+            /* Percolate upwards */

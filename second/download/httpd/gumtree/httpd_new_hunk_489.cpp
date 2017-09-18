@@ -1,16 +1,19 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+                        * Ben Hyde noted that temporary ENETDOWN situations
+                        * occur in mobile IP.
+                        */
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                            "apr_accept: giving up.");
+                        apr_thread_mutex_unlock(accept_mutex);
+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, bucket_alloc);
+
+                    default:
+                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_accept: (client socket)");
+                        apr_thread_mutex_unlock(accept_mutex);
+                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
+                }
+            }
+        }
+
+        /* Unlock the mutext so that the next thread can start listening for requests. */
+        apr_thread_mutex_unlock(accept_mutex);

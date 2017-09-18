@@ -1,14 +1,31 @@
-#include "http_main.h"
-#include "http_request.h"
 
-static int asis_handler(request_rec *r)
+static apr_status_t ef_close_file(void *vfile)
 {
-    FILE *f;
-    const char *location;
+    return apr_file_close(vfile);
+}
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+static void child_errfn(apr_pool_t *pool, apr_status_t err, const char *description)
+{
+    request_rec *r;
+    void *vr;
+    apr_file_t *stderr_log;
+    char errbuf[200];
+    char time_str[APR_CTIME_LEN];
+
+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
+    r = vr;
+    apr_file_open_stderr(&stderr_log, pool);
+    ap_recent_ctime(time_str, apr_time_now());
+    apr_file_printf(stderr_log,
+                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
+                    time_str,
+                    r->connection->remote_ip,
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+                    description);
+}
+
+/* init_ext_filter_process: get the external filter process going
+ * This is per-filter-instance (i.e., per-request) initialization.
+ */
+static apr_status_t init_ext_filter_process(ap_filter_t *f)

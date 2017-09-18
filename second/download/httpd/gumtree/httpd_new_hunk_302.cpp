@@ -1,32 +1,43 @@
-           timetaken / 1000, timetaken % 1000);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-               err_conn, err_length, err_except);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %d bytes\n", totalread);
-    if (posting)
-        printf("Total POSTed:           %d\n", totalposted);
-    printf("HTML transferred:       %d bytes\n", totalbread);
+    EVP_PKEY *pkey;
 
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-        printf("Transfer rate:          %.2f kb/s received\n",
-               (float) (totalread) / timetaken);
-        if (posting) {
-            printf("                        %.2f kb/s sent\n", 
-       		    (float)(totalposted)/timetaken);
-            printf("                        %.2f kb/s total\n", 
-           	    (float)(totalread + totalposted)/timetaken);
+    if (!(asn1 = ssl_asn1_table_get(mc->tPrivateKey, id))) {
+        return FALSE;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring %s server private key", type);
+
+    ptr = asn1->cpData;
+    if (!(pkey = d2i_PrivateKey(pkey_type, NULL, &ptr, asn1->nData)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to import %s server private key", type);
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
+
+    if (SSL_CTX_use_PrivateKey(mctx->ssl_ctx, pkey) <= 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure %s server private key", type);
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
+
+    /*
+     * XXX: wonder if this is still needed, this is old todo doc.
+     * (see http://www.psy.uq.edu.au/~ftp/Crypto/ssleay/TODO.html)
+     */
+    if ((pkey_type == EVP_PKEY_DSA) && mctx->pks->certs[idx]) {
+        EVP_PKEY *pubkey = X509_get_pubkey(mctx->pks->certs[idx]);
+
+        if (pubkey && EVP_PKEY_missing_parameters(pubkey)) {
+            EVP_PKEY_copy_parameters(pubkey, pkey);
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Copying DSA parameters from private key to certificate");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
         }
     }
 
-    {
-        /* work out connection times */
-        int i;
-        int totalcon = 0, total = 0;
+    mctx->pks->keys[idx] = pkey;
+
+    return TRUE;

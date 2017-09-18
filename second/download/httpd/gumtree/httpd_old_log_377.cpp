@@ -1,0 +1,3 @@
+ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r->server,
+			 "proxy: Ignoring duplicate HTTP header "
+			 "returned by %s (%s)", r->uri, r->method);

@@ -1,13 +1,44 @@
-            expr = tag_val;
-#ifdef DEBUG_INCLUDE
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-#endif
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "unknown parameter \"%s\" to tag if in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
+    /* If we are connecting through a remote proxy, we need to pass
+     * the CONNECT request on to it.
+     */
+    if (proxyport) {
+	/* FIXME: Error checking ignored.
+	 */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+		     "proxy: CONNECT: sending the CONNECT request to the remote proxy");
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+			      "CONNECT %s HTTP/1.0" CRLF, r->uri);
+        apr_send(sock, buffer, &nbytes);
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+			      "Proxy-agent: %s" CRLF CRLF, ap_get_server_version());
+        apr_send(sock, buffer, &nbytes);
     }
-}
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+		     "proxy: CONNECT: Returning 200 OK Status");
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+			      "HTTP/1.0 200 Connection Established" CRLF);
+        ap_xlate_proto_to_ascii(buffer, nbytes);
+        apr_send(client_socket, buffer, &nbytes);
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+			      "Proxy-agent: %s" CRLF CRLF, ap_get_server_version());
+        ap_xlate_proto_to_ascii(buffer, nbytes);
+        apr_send(client_socket, buffer, &nbytes);
+#if 0
+        /* This is safer code, but it doesn't work yet.  I'm leaving it 
+         * here so that I can fix it later.
+         */
+        r->status = HTTP_OK;
+        r->header_only = 1;
+        apr_table_set(r->headers_out, "Proxy-agent: %s", ap_get_server_version());
+        ap_rflush(r);
+#endif
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+		 "proxy: CONNECT: setting up poll()");
+
+    /*
+     * Step Four: Handle Data Transfer
+     *
+     * Handle two way transfer of data over the socket (this is a tunnel).

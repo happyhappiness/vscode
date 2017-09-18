@@ -1,18 +1,26 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        timeOut.tv_sec = st->connectionTimeout;
+    }
+
+    if (st->connectionTimeout >= 0) {
+        rc = ldap_set_option(NULL, LDAP_OPT_NETWORK_TIMEOUT, (void *)&timeOut);
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "LDAP: Could not set the connection timeout" );
+        }
+    }
+#endif
+
+    return(OK);
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    apr_status_t sts;

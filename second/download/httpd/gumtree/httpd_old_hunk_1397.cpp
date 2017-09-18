@@ -1,25 +1,18 @@
-	return ap_proxyerror(r, err);	/* give up */
+         */
+        if (rv == APR_ENOSPC && field) {
+            r->status = HTTP_BAD_REQUEST;
+            /* insure ap_escape_html will terminate correctly */
+            field[len - 1] = '\0';
+            apr_table_setn(r->notes, "error-notes",
+                           apr_pstrcat(r->pool,
+                                       "Size of a request header field "
+                                       "exceeds server limit.<br />\n"
+                                       "<pre>\n",
+                                       ap_escape_html(r->pool, field),
+                                       "</pre>\n", NULL));
+            return;
+        }
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
-    }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+        if (rv != APR_SUCCESS) {
+            r->status = HTTP_BAD_REQUEST;
+            return;

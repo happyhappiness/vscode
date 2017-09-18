@@ -1,28 +1,17 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
-}
+                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
+            }
+        }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+        /* configure new state */
+        if (!modssl_set_cipher_list(ssl, dc->szCipherSuite)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         r->server,
+                         "Unable to reconfigure (per-directory) "
+                         "permitted SSL ciphers");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+
+            if (cipher_list_old) {
+                sk_SSL_CIPHER_free(cipher_list_old);
+            }
+
+            return HTTP_FORBIDDEN;

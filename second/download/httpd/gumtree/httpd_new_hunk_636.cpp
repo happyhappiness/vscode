@@ -1,14 +1,31 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+     * Caching is forbidden under the following circumstances:
+     *
+     * - RFC2616 14.9.2 Cache-Control: no-store
+     * - Pragma: no-cache
+     * - Any requests requiring authorization.
+     */
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(cc_in, "no-store", NULL) ||
+            ap_cache_liststr(pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
+        }
+    }
+
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter

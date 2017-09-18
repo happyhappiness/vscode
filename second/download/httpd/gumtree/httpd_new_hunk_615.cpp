@@ -1,10 +1,34 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    apr_status_t check;
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
+    check = apr_stat(&sbuf, fname, APR_FINFO_TYPE, pool);
+    return ((check || sbuf.filetype != APR_REG) ? 0 : 1);
+}
+
+#ifdef NETWARE
+void nwTerminate()
+{
+    pressanykey();
+}
 #endif
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+static void check_args(apr_pool_t *pool, int argc, const char *const argv[], 
+                       int *alg, int *mask, char **user, char **pwfilename, 
+                       char **password)
+{
+    const char *arg;
+    int args_left = 2;
+    int i;
+
+    /*
+     * Preliminary check to make sure they provided at least
+     * three arguments, we'll do better argument checking as 
+     * we parse the command line.
+     */
+    if (argc < 3) {
+        usage();
+    }
+
+    /*
+     * Go through the argument list and pick out any options.  They
+     * have to precede any other arguments.
+     */

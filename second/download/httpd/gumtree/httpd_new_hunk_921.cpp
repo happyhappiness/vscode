@@ -1,13 +1,28 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+{
+    if (sig == SIGHUP) {
+        ++daemon_should_exit;
     }
+}
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+static void cgid_child_errfn(apr_pool_t *pool, apr_status_t err,
+                             const char *description)
+{
+    request_rec *r;
+    void *vr;
+
+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
+    r = vr;
+
+    /* sure we got r, but don't call ap_log_rerror() because we don't
+     * have r->headers_in and possibly other storage referenced by
+     * ap_log_rerror()
+     */
+    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+}
+
+static int cgid_server(void *data) 
+{ 
+    struct sockaddr_un unix_addr;
+    int sd, sd2, rc;
+    mode_t omask;
+    apr_socklen_t len;

@@ -1,49 +1,26 @@
-	    return cond_status;
-	}
+        /*
+         * Check date of CRL to make sure it's not expired
+         */
+        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+        if (i == 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Found CRL has invalid nextUpdate field");
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+            X509_STORE_CTX_set_error(ctx,
+                                     X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
+            X509_OBJECT_free_contents(&obj);
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+            return FALSE;
+        }
 
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+        if (i < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Found CRL is expired - "
+                         "revoking all certificates until you get updated CRL");
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_HAS_EXPIRED);
+            X509_OBJECT_free_contents(&obj);
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+            return FALSE;
+        }

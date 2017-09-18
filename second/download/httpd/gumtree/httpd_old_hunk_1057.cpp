@@ -1,15 +1,13 @@
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr />", r);
+        }
+        else {
+            ap_rputc('\n', r);
+        }
     }
     else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }

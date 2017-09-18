@@ -1,19 +1,21 @@
-	version_locked++;
-    }
-}
+            }
+            else if (!strcmp(tag, "encoding")) {
+                if (!strcasecmp(tag_val, "none")) encode = E_NONE;
+                else if (!strcasecmp(tag_val, "url")) encode = E_URL;
+                else if (!strcasecmp(tag_val, "entity")) encode = E_ENTITY;
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                           "unknown value \"%s\" to parameter \"encoding\" of "
+                           "tag echo in %s", tag_val, r->filename);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);
+                }
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" in tag echo of %s",
+                            tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+            }
 
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-/* a clean exit from a child with proper cleanup */
-static void __attribute__((noreturn)) clean_child_exit(int code)
-{
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    exit(code);
-}
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
-{
+        }

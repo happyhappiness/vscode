@@ -1,0 +1,1 @@
+fprintf(stderr, " -p  Do not encrypt the password (plaintext).\n");

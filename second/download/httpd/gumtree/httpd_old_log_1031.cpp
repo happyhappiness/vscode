@@ -1,0 +1,1 @@
+fprintf(stderr, "\thtpasswd [-cmdps] passwordfile username\n");

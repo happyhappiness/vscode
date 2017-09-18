@@ -1,26 +1,13 @@
+        return DECLINED;
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+    if (strcmp(r->handler, "ldap-status")) {
+        return DECLINED;
     }
 
-    /* Pass two --- wildcard matches */
+    r->content_type = "text/html";
+    if (r->header_only)
+        return OK;
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    ap_rputs(DOCTYPE_HTML_3_2
+             "<html><head><title>LDAP Cache Information</title></head>\n", r);
+    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);

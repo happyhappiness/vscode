@@ -1,18 +1,24 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
+void ssl_scache_dbm_remove(server_rec *s, UCHAR *id, int idlen)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    /* create DBM key and values */
+    dbmkey.dptr  = (char *)id;
+    dbmkey.dsize = idlen;
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    /* and delete it from the DBM file */
+    ssl_mutex_on(s);
+    if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool) != APR_SUCCESS) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
+                "Cannot open SSLSessionCache DBM file `%s' for writing (delete)",
+                mc->szSessionCacheDataFile);
+        ssl_mutex_off(s);
+        return;
+    }
+    apr_dbm_delete(dbm, dbmkey);
+    apr_dbm_close(dbm);
+    ssl_mutex_off(s);

@@ -1,25 +1,30 @@
-	return ap_proxyerror(r, err);	/* give up */
+    struct iovec iov;
+    conn_rec *c = r->connection;
+    apr_bucket_brigade *bb = apr_brigade_create(r->pool, c->bucket_alloc);
+    perchild_server_conf *sconf = (perchild_server_conf *)
+                            ap_get_module_config(r->server->module_config, 
+                                                 &mpm_perchild_module);
+    char request_body[HUGE_STRING_LEN];
+    apr_off_t len = 0;
+    apr_size_t l = 0;
+    perchild_header h;
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
+                 "passing request to another child.  Vhost: %s, child %d",
+                 apr_table_get(r->headers_in, "Host"), child_num);
+    ap_get_brigade(r->input_filters, bb, AP_MODE_EXHAUSTIVE, APR_NONBLOCK_READ,
+                   len);
+    if (apr_brigade_flatten(bb, request_body, &l) != APR_SUCCESS) {
+        return DECLINED;
     }
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-#endif
+    apr_os_sock_get(&sfd, thesock);
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+    iov.iov_base = "FOOBAR";
+    iov.iov_len = 1;
+
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+

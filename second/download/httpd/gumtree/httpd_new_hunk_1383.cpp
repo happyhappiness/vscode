@@ -1,14 +1,14 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
+
+    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
+    /* set "NUL" as sysout for the child */
+    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");
+    }

@@ -1,13 +1,20 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+        memcpy(&sel_write, &writebits, sizeof(readbits));
 
-    /* Run it. */
+        /* check for time limit expiry */
+        gettimeofday(&now, 0);
+        if (tlimit && timedif(now, start) > (tlimit * 1000)) {
+            requests = done;    /* so stats are correct */
+        }
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
+        /* Timeout of 30 seconds. */
+        timeout.tv_sec = 30;
+        timeout.tv_usec = 0;
+        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
+        if (!n) {
+            err("\nServer timed out\n\n");
+        }
+        if (n < 1)
+            err("select");
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+        for (i = 0; i < concurrency; i++) {
+            int s = con[i].fd;

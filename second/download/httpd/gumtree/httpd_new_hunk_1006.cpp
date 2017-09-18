@@ -1,31 +1,20 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+ * set to ASCII, then send it.
+ * @param r   the current request
+ * @param ... the strings to write, followed by a NULL pointer
+ */
+int ap_rvputs_proto_in_ascii(request_rec *r, ...);
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+#else   /* APR_CHARSET_EBCDIC */
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+#define ap_xlate_proto_to_ascii(x,y)          /* NOOP */
+#define ap_xlate_proto_from_ascii(x,y)        /* NOOP */
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
+#define ap_rvputs_proto_in_ascii  ap_rvputs
 
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+#endif  /* APR_CHARSET_EBCDIC */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  /* !APACHE_UTIL_EBCDIC_H */

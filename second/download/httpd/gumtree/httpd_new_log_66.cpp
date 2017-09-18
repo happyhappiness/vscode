@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d getting accept lock. Exiting!", rc);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);

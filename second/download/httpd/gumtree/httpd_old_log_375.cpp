@@ -1,2 +1,2 @@
-printf("Transfer rate:          %.2f kb/s\n",
-               (float) (totalread) / timetaken);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+                     "proxy: HTTP: declining URL %s", url);

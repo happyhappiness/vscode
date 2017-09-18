@@ -1,13 +1,20 @@
-	 * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
-	 * ))
-	 */
-	m = m->next;
-	while (m && (m->cont_level != 0)) {
-#if MIME_MAGIC_DEBUG
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match line=%d cont=%d type=%d %s",
-			m->lineno, m->cont_level, m->type,
-			(m->type == STRING) ? m->value.s : "");
-#endif
-	    if (cont_level >= m->cont_level) {
-		if (cont_level > m->cont_level) {
+
+            /* if we are done, leave */
+            if (TRUE == finish) {
+                break;
+            }
+        }
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+                     "proxy: FTP: end body send");
+
+    }
+    if (data_sock) {
+        ap_flush_conn(data);
+        apr_socket_close(data_sock);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+                     "proxy: FTP: data connection closed");
+    }
+
+    /* Retrieve the final response for the RETR or LIST commands */
+    rc = proxy_ftp_command(NULL, r, origin, bb, &ftpmessage);
+    apr_brigade_cleanup(bb);

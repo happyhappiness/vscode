@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		  "client %pI denied by server configuration: %s",
-		  &r->connection->remote_addr, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                        "else directive does not take tags in %s", r->filename);

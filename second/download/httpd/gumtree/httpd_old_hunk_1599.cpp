@@ -1,18 +1,26 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+            ap_chdir_file(r->filename);
+#endif
+        }
+        else if (!strcmp(tag, "cgi")) {
+            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
+            if (include_cgi(parsed_string, r) == -1) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                            "invalid CGI ref \"%s\" in %s", tag_val, file);
+                ap_rputs(error, r);
+            }
+            /* grumble groan */
+#ifndef WIN32
+            ap_chdir_file(r->filename);
+#endif
+        }
+        else if (!strcmp(tag, "done")) {
+            return 0;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "unknown parameter \"%s\" to tag exec in %s",
+                        tag, file);
+            ap_rputs(error, r);
+        }
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */

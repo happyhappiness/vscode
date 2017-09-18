@@ -1,25 +1,22 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
+			 "setrlimit(RLIMIT_VMEM): failed to set memory "
+			 "usage limit");
+	}
     }
 #endif
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+#ifdef OS2
+    {
+	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
+	int is_script;
+	char interpreter[2048];	/* hope it's enough for the interpreter path */
+	FILE *program;
+
+	program = fopen(r->filename, "rt");
+	if (!program) {
+	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r, "fopen(%s) failed",
+			 r->filename);
+	    return (pid);
+	}
+	fgets(interpreter, sizeof(interpreter), program);
+	fclose(program);
+	if (!strncmp(interpreter, "#!", 2)) {

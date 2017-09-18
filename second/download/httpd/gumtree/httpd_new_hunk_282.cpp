@@ -1,13 +1,15 @@
-    lseek(fd, 0, SEEK_SET);
-    rc = _locking(fd, _LK_LOCK, 1);
-    lseek(fd, 0, SEEK_END);
-#endif
+{
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
 
-    if (rc < 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                     "mod_rewrite: failed to lock file descriptor");
-        exit(1);
+    SSLConnRec *sslconn = ssl_init_connection_ctx(c);
+
+    if (!sc->proxy_enabled) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "SSL Proxy requested for %s but not enabled "
+                     "[Hint: SSLProxyEngine]", sc->vhost_id);
+
+        return 0;
     }
-    return;
-}
 
+    sslconn->is_proxy = 1;
+    sslconn->disabled = 0;

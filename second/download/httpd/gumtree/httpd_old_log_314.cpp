@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			"%lu < %lu = %d", v, l, matched);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                      (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
+                      r->uri);

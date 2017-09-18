@@ -1,13 +1,35 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+/*
+ *  Abstraction layer for loading
+ *  Apache modules under run-time via 
+ *  dynamic shared object (DSO) mechanism
+ */
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+void *ap_os_dso_load(const char *path)
+{
+#if defined(HPUX) || defined(HPUX10)
+    shl_t handle;
+    handle = shl_load(path, BIND_IMMEDIATE|BIND_VERBOSE|BIND_NOSTART, 0L);
+    return (void *)handle;
+#else
+#if defined(OSF1) ||\
+    (defined(__FreeBSD_version) && (__FreeBSD_version >= 220000))
+    return dlopen((char *)path, RTLD_NOW | RTLD_GLOBAL);
+#else
+    return dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+#endif
+#endif
+}
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+void ap_os_dso_unload(void *handle) 
+{
+#if defined(HPUX) || defined(HPUX10)
+    shl_unload((shl_t)handle);
+#else
+    dlclose(handle);
+#endif
+    return;
+}
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+void *ap_os_dso_sym(void *handle, const char *symname)
+{
+#if defined(HPUX) || defined(HPUX10)

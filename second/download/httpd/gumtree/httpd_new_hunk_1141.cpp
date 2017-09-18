@@ -1,13 +1,22 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+     * working.  (IMHO what they really fix is a bug in the users of the code
+     * - failing to program correctly for shadow passwords).  We need,
+     * therefore, to provide a password. This password can be matched by
+     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
+     * This is just the crypted variant of the word "password" ;-)
+     */
+    auth_line = apr_pstrcat(r->pool, "Basic ", 
+                            ap_pbase64encode(r->pool, 
+                                             apr_pstrcat(r->pool, clientdn, 
+                                                         ":password", NULL)),
+                            NULL);
+    apr_table_set(r->headers_in, "Authorization", auth_line);
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                 auth_line);
+
+    return DECLINED;
+}
+
+/* authorization phase */
+int ssl_hook_Auth(request_rec *r)

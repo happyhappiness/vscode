@@ -1,13 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			     "proxy: error creating cache directory %s",
-			     c->filename);
-	    *p = '/';
-	    ++p;
-	}
-#if defined(__EMX__) || defined(WIN32)
-	/* Under OS/2 use rename. */
-	if (rename(c->tempfile, c->filename) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			 "proxy: error renaming cache file %s to %s",
-			 c->tempfile, c->filename);
-    }
+                        return 1;
+                    }
+                }
+                if (!strcmp(tag, "cmd")) {
+                    cgid_pfn_ps(r, ctx, tag_val, parsed_string, sizeof(parsed_string), 1);
+                    if (include_cmd(ctx, bb, parsed_string, r, f) == -1) {
+                        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                                    "execution failure for parameter \"%s\" "
+                                    "to tag exec in file %s", tag, r->filename);
+                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+                    }
+                    /* just in case some stooge changed directories */
+                }

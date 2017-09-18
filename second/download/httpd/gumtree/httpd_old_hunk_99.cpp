@@ -1,13 +1,13 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
-    }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+#else /* APR_FILES_AS_SOCKETS */
+                /* Yuck... I'd really like to wait until I can read
+                 * or write, but instead I have to sleep and try again 
+                 */
+                apr_sleep(100000); /* 100 milliseconds */
+                if (dc->debug >= DBGLVL_GORY) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
+                                  0, f->r, "apr_sleep()");
+                }
+#endif /* APR_FILES_AS_SOCKETS */
+            }
+            else if (rv != APR_SUCCESS) {
+                return rv;

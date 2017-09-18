@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "could not open db auth file: %s", auth_dbpwfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r, 
+                      "%s", argsbuffer);

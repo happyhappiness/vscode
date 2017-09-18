@@ -1,13 +1,25 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+    if (mc->szSessionCacheDataFile == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "SSLSessionCache required");
+        ssl_die();
     }
 
-    Explain0("FTP: connected.");
+    /* Use anonymous shm by default, fall back on name-based. */
+    rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
+                        mc->nSessionCacheDataSize, 
+                        NULL, mc->pPool);
+    
+    if (APR_STATUS_IS_ENOTIMPL(rv)) {
+        rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
+                            mc->nSessionCacheDataSize, 
+                            mc->szSessionCacheDataFile,
+                            mc->pPool);
+    }
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    if (rv != APR_SUCCESS) {
+        char buf[100];
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Cannot allocate shared memory: (%d)%s", rv,
+                     apr_strerror(rv, buf, sizeof(buf)));
+        ssl_die();
+    }

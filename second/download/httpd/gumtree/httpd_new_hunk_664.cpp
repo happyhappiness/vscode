@@ -1,13 +1,29 @@
+        if (tenc) {
+            if (!strcasecmp(tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+        }
+        else if (lenp) {
+            int conversion_error = 0;
+            char *endstr;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+            ctx->state = BODY_LENGTH;
+            errno = 0;
+            ctx->remaining = strtol(lenp, &endstr, 10);	/* we depend on ANSI */
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+            /* This protects us from over/underflow (the errno check),
+             * non-digit chars in the string (excluding leading space)
+             * (the endstr checks) and a negative number. Depending
+             * on the strtol implementation, the errno check may also
+             * trigger on an all whitespace string */
+            if (errno || (endstr && *endstr) || (ctx->remaining < 0)) {
+                 conversion_error = 1; 
+            }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+            if (conversion_error) {
+                apr_bucket_brigade *bb;
+
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Invalid Content-Length");
+
+                bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);

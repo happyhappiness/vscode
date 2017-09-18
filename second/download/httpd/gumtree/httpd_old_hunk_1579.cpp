@@ -1,20 +1,13 @@
-#endif
+	real_file = last_slash;
+	real_file++;
+	*last_slash = '\0';
+    }
+    else {
+	/* no last slash, buh?! */
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		    "internal error in mod_cern_meta: %s", r->filename);
+	/* should really barf, but hey, let's be friends... */
+	return DECLINED;
+    };
 
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    metafilename = ap_pstrcat(r->pool, "/", scrap_book, "/",

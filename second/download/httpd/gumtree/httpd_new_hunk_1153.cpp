@@ -1,13 +1,13 @@
+         * use by any of the children.
+         */
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "Graceful restart requested, doing restart");
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+        /* Wait for all of the threads to terminate before initiating the restart */
+        while (worker_thread_count > 0) {
+            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();

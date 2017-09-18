@@ -1,14 +1,30 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+    const char *location;
+
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+	return DECLINED;
+    if (r->finfo.st_mode == 0) {
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+		    "File does not exist: %s", r->filename);
+	return NOT_FOUND;
+    }
+
+    f = ap_pfopen(r->pool, r->filename, "r");
+
+    if (f == NULL) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+		    "file permissions deny server access: %s", r->filename);
+	return FORBIDDEN;
+    }
+
+    scan_script_header(r, f);
+    location = ap_table_get(r->headers_out, "Location");
+
+    if (location && location[0] == '/' &&
+	((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
+
+	ap_pfclose(r->pool, f);
+
+	/* Internal redirect -- fake-up a pseudo-request */
+	r->status = HTTP_OK;
+

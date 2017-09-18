@@ -1,13 +1,13 @@
+                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
+            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
+            printf("Commands:\n");
+            printf("\tDIRECTIVES - Show directives\n");
+            printf("\tHELP       - Display this help information\n");
+            printf("\tMODULES    - Show a list of the loaded modules\n");
+            printf("\tRESTART    - Reread the configurtion file and restart Apache\n");
+            printf("\tSETTINGS   - Show current thread status\n");
+            printf("\tSHUTDOWN   - Shutdown Apache\n");
+            printf("\tVERSION    - Display the server version information\n");
+        }
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+        /*  Tell NetWare we handled the command */

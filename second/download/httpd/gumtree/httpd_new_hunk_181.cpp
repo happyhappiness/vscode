@@ -1,24 +1,32 @@
-    if (!sec->auth_dbpwfile)
-	return DECLINED;
+        apr_file_read(fpout, &c, &nbytes);
+    }
+    buf[i] = '\0';
 
-    if (!(real_pw = get_db_pw(r, c->user, sec->auth_dbpwfile))) {
-	if (!(sec->auth_dbauthoritative))
-	    return DECLINED;
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "DB user %s not found: %s", c->user, r->filename);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+    /* give the lock back */
+    if (rewrite_mapr_lock_acquire) {
+        rv = apr_global_mutex_unlock(rewrite_mapr_lock_acquire);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_global_mutex_unlock(rewrite_mapr_lock_acquire) "
+                          "failed");
+            return NULL; /* Maybe this should be fatal? */
+        }
     }
-    /* Password is up to first : if exists */
-    colon_pw = strchr(real_pw, ':');
-    if (colon_pw)
-	*colon_pw = '\0';
-    /* anyone know where the prototype for crypt is? */
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "DB user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+
+    if (strcasecmp(buf, "NULL") == 0) {
+        return NULL;
     }
-    return OK;
+    else {
+        return apr_pstrdup(r->pool, buf);
+    }
 }
+
+static void ap_register_rewrite_mapfunc(char *name, rewrite_mapfunc_t *func)
+{
+    apr_hash_set(mapfunc_hash, name, strlen(name), (const void *)func);
+}
+
+static char *rewrite_mapfunc_toupper(request_rec *r, char *key)
+{
+    char *value, *cp;
+

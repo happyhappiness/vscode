@@ -1,13 +1,13 @@
-        additional = atoi(&code[1]);
-        break;
-    default:
-        /* expecting the add_* routines to be case-hardened this 
-         * is just a reminder that module is beta
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "internal error: bad expires code: %s", r->filename);
-        return SERVER_ERROR;
-    };
+	m->flag |= INDIR;
+    }
 
-    expires = base + additional;
-    ap_snprintf(age, sizeof(age), "max-age=%d", (int) expires - (int) r->request_time);
+    /* get offset, then skip over it */
+    m->offset = (int) strtol(l, &t, 0);
+    if (l == t) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, serv,
+		    MODNAME ": offset %s invalid", l);
+    }
+    l = t;
+
+    if (m->flag & INDIR) {
+	m->in.type = LONG;

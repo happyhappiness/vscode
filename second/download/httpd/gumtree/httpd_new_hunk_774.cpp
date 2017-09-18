@@ -1,10 +1,17 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+        rv = cache_create_entity(r, cache->types, url, size);
+    }
+    
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        if (split_point) {
+            apr_bucket_brigade *already_sent = in;
+            in = apr_brigade_split(in, split_point);
+            apr_brigade_destroy(already_sent);
+        }
+        return ap_pass_brigade(f->next, in);
+    }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", url);
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800

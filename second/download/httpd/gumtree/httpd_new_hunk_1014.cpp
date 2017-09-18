@@ -1,29 +1,13 @@
-	}
+            SSL_do_handshake(ssl);
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Awaiting re-negotiation handshake");
+

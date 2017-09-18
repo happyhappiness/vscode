@@ -1,15 +1,13 @@
-    ap_hard_timeout("send directory", r);
-
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
+	    cmd->server->server_uid = ap_user_id;
+	    fprintf(stderr,
+		    "Warning: User directive in <VirtualHost> "
+		    "requires SUEXEC wrapper.\n");
+	}
     }
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
+    if (cmd->server->server_uid == 0) {
+	fprintf(stderr,
+		"Error:\tApache has not been designed to serve pages while\n"
+		"\trunning as root.  There are known race conditions that\n"
+		"\twill allow any local user to read any file on the system.\n"
+		"\tShould you still desire to serve pages as root then\n"

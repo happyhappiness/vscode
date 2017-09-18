@@ -1,13 +1,13 @@
-                  ap_escape_shell_cmd(r->pool, arg_copy));
-    }
+    int eos;
 
-    while (1) {
-        if (!find_string(f, STARTING_SEQUENCE, r, printing)) {
-            if (get_directive(f, directive, sizeof(directive), r->pool)) {
-		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			    "mod_include: error reading directive in %s",
-			    r->filename);
-		ap_rputs(error, r);
-                return;
-            }
-            if (!strcmp(directive, "if")) {
+    if (APR_SUCCESS != (rv = ap_proxy_string_read(ftp_ctrl, bb, response, sizeof(response), &eos))) {
+        return -1;
+    }
+/*
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "proxy: <FTP: %s", response);
+*/
+    if (!apr_isdigit(response[0]) || !apr_isdigit(response[1]) ||
+    !apr_isdigit(response[2]) || (response[3] != ' ' && response[3] != '-'))
+        status = 0;
+    else

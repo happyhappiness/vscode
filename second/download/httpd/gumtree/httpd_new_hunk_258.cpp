@@ -1,13 +1,13 @@
-	    continue;
-	}
+                 * backend server from hanging around waiting
+                 * for a slow client to eat these bytes
+                 */
+                ap_flush_conn(data);
+                apr_socket_close(data_sock);
+                data_sock = NULL;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: FTP: data connection closed");
+                /* signal that we must leave */
+                finish = TRUE;
+            }
 
-	/* if we get here, the main entry rule was a match */
-	/* this will be the last run through the loop */
-#if MIME_MAGIC_DEBUG
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    MODNAME ": rule matched, line=%d type=%d %s",
-		    m->lineno, m->type,
-		    (m->type == STRING) ? m->value.s : "");
-#endif
-
-	/* print the match */
+            /* if no EOS yet, then we must flush */

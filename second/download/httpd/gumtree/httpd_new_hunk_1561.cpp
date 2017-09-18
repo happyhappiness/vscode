@@ -1,14 +1,20 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+    if (!sec->auth_pwfile)
+	return DECLINED;
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    if (!(real_pw = get_pw(r, c->user, sec->auth_pwfile))) {
+	if (!(sec->auth_authoritative))
+	    return DECLINED;
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+		    "user %s not found: %s", c->user, r->uri);
+	ap_note_basic_auth_failure(r);
+	return AUTH_REQUIRED;
+    }
+    /* anyone know where the prototype for crypt is? */
+    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+		    "user %s: password mismatch: %s", c->user, r->uri);
+	ap_note_basic_auth_failure(r);
+	return AUTH_REQUIRED;
+    }
+    return OK;
+}

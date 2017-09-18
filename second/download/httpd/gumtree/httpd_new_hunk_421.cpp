@@ -1,12 +1,13 @@
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
+static void check_restart(void *data)
+{
+    if (!restart_pending && !shutdown_pending) {
+        int slot = (int)data;
+        make_worker(slot);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
+            "spawning a new worker thread in slot %d", slot);
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
 }
 
-/*****************************************************************
+/* start up a bunch of children */
+static void startup_threads(int number_to_start)

@@ -1,0 +1,1 @@
+printf("This is ApacheBench, Version %s\n", AP_SERVER_BASEREVISION " <$Revision: 1.97 $> apache-2.0");

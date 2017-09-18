@@ -1,13 +1,13 @@
-	if (r->filename[strlen(r->filename) - 1] != '/') {
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
+    
+    env_var = getenv(arg);
+    if (env_var != NULL) {
+        apr_table_setn(vars, arg, apr_pstrdup(cmd->pool, env_var));
     }
     else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, cmd->server,
+                     "PassEnv variable %s was undefined", arg);
     }
-}
 
+    return NULL;
+}
 

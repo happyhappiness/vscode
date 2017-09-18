@@ -1,15 +1,17 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
 	    }
-	    continue;
-	}
-#endif
 
-	i = read(fd, line, 26);
+	    ap_kill_timeout(r);
+	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			  "%s: %s", malformed, r->filename);
+	    ap_table_setn(r->notes, "error-notes",
+			  ap_pstrdup(r->pool, malformed));
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
+	*l++ = '\0';
+	while (*l && ap_isspace(*l)) {
+	    ++l;
+	}

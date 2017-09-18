@@ -1,28 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+}
 
-    child_timeouts = !ap_standalone || one_process;
 
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+{
+    int i;

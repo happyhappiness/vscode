@@ -1,21 +1,13 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+	   "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+	   trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+	   "<td colspan=2 %s>%d</td></tr>\n",
+	   trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+	   "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
+	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
+           (long)apr_time_usec(timetaken));
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+	   "<td colspan=2 %s>%ld</td></tr>\n",
+	   trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"

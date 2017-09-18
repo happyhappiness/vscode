@@ -1,25 +1,41 @@
-	return ap_proxyerror(r, err);	/* give up */
+                        "ExtFilterOptions %s %s %s ExtFilterInType %s "
+                        "ExtFilterOuttype %s",
+                        debug_str, log_stderr_str, preserve_content_length_str,
+                        intype_str, outtype_str);
+}
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
+static apr_status_t init_filter_instance(ap_filter_t *f)
+{
+    ef_ctx_t *ctx;
+    ef_dir_t *dc;
+    ef_server_t *sc;
+    apr_status_t rv;
+
+    f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(ef_ctx_t));
+    dc = ap_get_module_config(f->r->per_dir_config,
+                              &ext_filter_module);
+    sc = ap_get_module_config(f->r->server->module_config,
+                              &ext_filter_module);
+    ctx->dc = dc;
+    /* look for the user-defined filter */
+    ctx->filter = apr_hash_get(sc->h, f->frec->name, APR_HASH_KEY_STRING);
+    if (!ctx->filter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                      "couldn't find definition of filter '%s'",
+                      f->frec->name);
+        return APR_EINVAL;
     }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
+    ctx->p = f->r->pool;
+    if (ctx->filter->intype &&
+        ctx->filter->intype != INTYPE_ALL &&
+        strcasecmp(ctx->filter->intype, f->r->content_type)) {
+        /* wrong IMT for us; don't mess with the output */
+        ctx->noop = 1;
     }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+    else {
+        rv = init_ext_filter_process(f);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        if (ctx->filter->outtype &&
+            ctx->filter->outtype != OUTTYPE_UNCHANGED) {

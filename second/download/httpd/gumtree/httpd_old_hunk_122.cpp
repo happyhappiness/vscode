@@ -1,12 +1,13 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
-
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+            debug_pos += sizeof ("     Evaluate ge/gt/le/lt\n");
+#endif
+            if ((current->left == (struct parse_node *) NULL) ||
+                (current->right == (struct parse_node *) NULL) ||
+                (current->left->token.type != token_string) ||
+                (current->right->token.type != token_string)) {
+                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);
+                *was_error = 1;
+                return retval;
+            }
+            buffer = ap_ssi_parse_string(r, ctx, current->left->token.value,

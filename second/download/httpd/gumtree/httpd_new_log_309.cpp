@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    "%lu == *any* = 1", v);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		MODNAME ": subrequest lookup for %s", sub_filename);

@@ -1,13 +1,13 @@
-                    return value;
-                }
-            }
-            else if (s->type == MAPTYPE_DBM) {
-#ifndef NO_DBM_REWRITEMAP
-                if (stat(s->checkfile, &st) == -1) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                                 "mod_rewrite: can't access DBM RewriteMap "
-                                 "file %s", s->checkfile);
-                    rewritelog(r, 1, "can't open DBM RewriteMap file, "
-                               "see error log");
-                    return NULL;
-                }
+    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
+    for (i = 0; apr_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
+        continue;
+
+#if 0
+    if (addr[i] == ':') {
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "@@@@ handle optional port in proxy_is_domainname()");
+	/* @@@@ handle optional port */
+    }
+#endif
+
+    if (addr[i] != '\0')

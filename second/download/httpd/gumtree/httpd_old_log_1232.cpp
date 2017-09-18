@@ -1,0 +1,1 @@
+fprintf(stderr, " Processing config file: %s\n", fnew->fname);

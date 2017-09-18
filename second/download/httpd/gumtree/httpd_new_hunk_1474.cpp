@@ -1,13 +1,28 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %d\n", port);
+    printf("\n");
+    printf("Document Path:          %s\n", path);
+    printf("Document Length:        %d bytes\n", doclen);
+    printf("\n");
+    printf("Concurrency Level:      %d\n", concurrency);
+    printf("Time taken for tests:   %d.%03d seconds\n",
+           timetaken / 1000, timetaken % 1000);
+    printf("Complete requests:      %d\n", done);
+    printf("Failed requests:        %d\n", bad);
+    if (bad)
+        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
+               err_conn, err_length, err_except);
+    if (keepalive)
+        printf("Keep-Alive requests:    %d\n", doneka);
+    printf("Total transferred:      %d bytes\n", totalread);
+    printf("HTML transferred:       %d bytes\n", totalbread);
+
+    /* avoid divide by zero */
+    if (timetaken) {
+        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
+        printf("Transfer rate:          %.2f kb/s\n",
+               (float) (totalread) / timetaken);
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    {
+        /* work out connection times */

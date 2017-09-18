@@ -1,17 +1,13 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
-	   connection */
-	ap_bputs("TYPE I" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: TYPE I");
-/* responses: 200, 421, 500, 501, 504, 530 */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
-	if (i == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (i != 200 && i != 504) {
-	    ap_kill_timeout(r);
-	    return HTTP_BAD_GATEWAY;
-	}
-/* Allow not implemented */
+        return *methnum;
+        
+    if (cur_method_number > METHOD_NUMBER_LAST) {
+        /* The method registry  has run out of dynamically
+         * assignable method numbers. Log this and return M_INVALID.
+         */
+        ap_log_perror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, p,
+                      "Maximum new request methods %d reached while "
+                      "registering method %s.",
+                      METHOD_NUMBER_LAST, methname);
+        return M_INVALID;
+    }
+

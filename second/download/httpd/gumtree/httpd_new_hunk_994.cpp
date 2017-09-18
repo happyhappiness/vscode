@@ -1,31 +1,27 @@
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
+    }
 
-    /* Pass one --- direct matches */
+    if (mutual) {
+        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
         }
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
+    optParam = SO_TLS_UNCLEAN_SHUTDOWN;
+    WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam, sizeof(optParam), 
+             NULL, 0, NULL, NULL, NULL);
 
-    /* Pass two --- wildcard matches */
+    return s;
+}
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
+{
+	int rcode;

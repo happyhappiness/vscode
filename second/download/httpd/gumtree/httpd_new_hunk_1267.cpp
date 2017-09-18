@@ -1,13 +1,15 @@
-	return ap_proxyerror(r, err);	/* give up */
+AP_DECLARE(void) ap_log_error(const char *file, int line, int level, 
+                             apr_status_t status, const server_rec *s, 
+                             const char *fmt, ...)
+			    __attribute__((format(printf,6,7)));
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+/**
+ * ap_log_perror() - log messages which are not related to a particular
+ * request, connection, or virtual server.  This uses a printf-like
+ * format to log messages to the error_log.
+ * @param file The file in which this function is called
+ * @param line The line number on which this function is called
+ * @param level The level of this error message
+ * @param status The status code from the previous command
+ * @param p The pool which we are logging for
+ * @param fmt The format string

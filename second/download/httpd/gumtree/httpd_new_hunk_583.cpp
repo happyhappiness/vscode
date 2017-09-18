@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+        /* Zap leading whitespace by shifting */
+        if (src != buf)
+	    for (dst = buf; (*dst++ = *src++) != '\0'; )
+	        ;
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+#ifdef DEBUG_CFG_LINES
+	ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Read config: %s", buf);
+#endif
+	return 0;
+    } else {
+	/* No "get string" function defined; read character by character */
+	register int c;
+	register size_t i = 0;

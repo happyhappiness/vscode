@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
-
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+                if (expr == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "missing expr in elif statement: %s", 
+                                  r->filename);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);
+                    return 1;
+                }
+                expr_ret = parse_expr(r, ctx, expr, &was_error, 
+                                      &was_unmatched, debug_buf);
+                if (was_error) {
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);

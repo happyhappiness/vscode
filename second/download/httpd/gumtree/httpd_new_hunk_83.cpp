@@ -1,13 +1,13 @@
-	states fresh;		/* states for a fresh start */
-	states tmp;		/* temporary */
-	states empty;		/* empty set of states */
-};
+    }
 
-#include "engine.ih"
-#include "ap_ctype.h"
-
-#ifdef REDEBUG
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-#else
+    /* If we don't have a full directory configuration, bail out.
+     */
+    if (!dc->charset_source || !dc->charset_default) {
+        if (dc->debug >= DBGLVL_PMC) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "incomplete configuration: src %s, dst %s",
+                          dc->charset_source ? dc->charset_source : "unspecified",
+                          dc->charset_default ? dc->charset_default : "unspecified");
+        }
+        return DECLINED;
+    }

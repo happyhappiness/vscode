@@ -1,21 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+
+    rr->content_type = CGI_MAGIC_TYPE;
+
+    /* Run it. */
+
+    rr_status = ap_run_sub_req(rr);
+    if (ap_is_HTTP_REDIRECT(rr_status)) {
+        const char *location = ap_table_get(rr->headers_out, "Location");
+        location = ap_escape_html(rr->pool, location);
+        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    ap_destroy_sub_req(rr);

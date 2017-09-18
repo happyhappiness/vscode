@@ -1,0 +1,1 @@
+fprintf(stderr, "apr_MD5InitEBCDIC()->%d\n", rv);

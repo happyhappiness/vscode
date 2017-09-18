@@ -1,13 +1,17 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
+    apr_status_t status;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
+
+    if (isproxy) {
+	strcpy(connecthost, proxyhost);
+	connectport = proxyport;
     }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+    else {
+	strcpy(connecthost, hostname);
+	connectport = port;
     }
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    if (!use_html) {
+	printf("Benchmarking %s ", hostname);
+	if (isproxy)

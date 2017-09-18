@@ -1,28 +1,22 @@
-    }
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET) {
-        return DECLINED;
-    }
-    if (r->finfo.st_mode == 0) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "File does not exist: %s",
-                    (r->path_info
-                     ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-                     : r->filename));
-        return HTTP_NOT_FOUND;
-    }
+    /* stuff for PASV mode */
+    int connect = 0, use_port = 0;
+    char dates[AP_RFC822_DATE_LEN];
 
-    if (!(f = ap_pfopen(r->pool, r->filename, "r"))) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                    "file permissions deny server access: %s", r->filename);
-        return HTTP_FORBIDDEN;
+    /* is this for us? */
+    if (proxyhost) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                     "proxy: FTP: declining URL %s - proxyhost %s specified:", url, proxyhost);
+        return DECLINED;        /* proxy connections are via HTTP */
     }
+    if (strncasecmp(url, "ftp:", 4)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                     "proxy: FTP: declining URL %s - not ftp:", url);
+        return DECLINED;        /* only interested in FTP */
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                 "proxy: FTP: serving URL %s", url);
 
-    if ((*state == xbithack_full)
-#if !defined(__EMX__) && !defined(WIN32)
-    /*  OS/2 dosen't support Groups. */
-        && (r->finfo.st_mode & S_IXGRP)
-#endif
-        ) {
-        ap_update_mtime(r, r->finfo.st_mtime);
-        ap_set_last_modified(r);
+    /* create space for state information */
+    backend = (proxy_conn_rec *) ap_get_module_config(c->conn_config, &proxy_ftp_module);
+    if (!backend) {
+        backend = ap_pcalloc(c->pool, sizeof(proxy_conn_rec));

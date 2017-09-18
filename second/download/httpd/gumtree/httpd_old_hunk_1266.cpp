@@ -1,25 +1,33 @@
-	return ap_proxyerror(r, err);	/* give up */
+ * @tip ap_open_logs isn't expected to be used by modules, it is
+ * an internal core function 
+ */
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *plog, 
+                 apr_pool_t *ptemp, server_rec *s_main);
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
+/* 
+ * The three primary logging functions, ap_log_error, ap_log_rerror, and 
+ * ap_log_perror use a printf style format string to build the log message.  
+ * It is VERY IMPORTANT that you not include any raw data from the network, 
+ * such as the request-URI or request header fields, within the format 
+ * string.  Doing so makes the server vulnerable to a denial-of-service 
+ * attack and other messy behavior.  Instead, use a simple format string 
+ * like "%s", followed by the string containing the untrusted data.
+ */
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
-    }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+/**
+ * One of the primary logging routines in Apache.  This uses a printf-like
+ * format to log messages to the error_log.
+ * @param file The file in which this function is called
+ * @param line The line number on which this function is called
+ * @param level The level of this error message
+ * @param status The status code from the previous command
+ * @param s The server on which we are logging
+ * @param fmt The format string
+ * @param ... The arguments to use to fill out fmt.
+ * @tip Use APLOG_MARK to fill out file and line
+ * @warning It is VERY IMPORTANT that you not include any raw data from 
+ * the network, such as the request-URI or request header fields, within 
+ * the format string.  Doing so makes the server vulnerable to a 
+ * denial-of-service attack and other messy behavior.  Instead, use a 
+ * simple format string like "%s", followed by the string containing the 
+ * untrusted data.

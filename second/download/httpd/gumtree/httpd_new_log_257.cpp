@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "unable to compile pattern \"%s\"", rexp);
+r(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool,
+		 "loaded module %s", modname);

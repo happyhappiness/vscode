@@ -1,28 +1,13 @@
-	     */
-	    break;
+    else 
 #endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    {
+        /* A simple malloc will suffice */
+        void *sb_mem = calloc(1, scoreboard_size);
+        if (sb_mem == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                         "(%d)%s: cannot allocate scoreboard",
+                         errno, strerror(errno));
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_init_scoreboard(sb_mem);
     }
-
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);

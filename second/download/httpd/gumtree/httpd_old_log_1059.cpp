@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: %s\n", argv[0], record);

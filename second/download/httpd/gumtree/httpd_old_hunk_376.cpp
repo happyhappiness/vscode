@@ -1,14 +1,35 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+    SHMCBHeader *header;
+    SHMCBQueue queue;
+    SHMCBCache cache;
+    unsigned char masked_index;
+    BOOL res;
+
+    ssl_log(s, SSL_LOG_TRACE, "inside shmcb_remove_session");
+    if (id == NULL) {
+        ssl_log(s, SSL_LOG_ERROR, "remove called with NULL session_id!");
+        return FALSE;
+    }
+
+    /* Get the header structure, which division this session remove
+     * will happen in etc. */
+    shmcb_get_header(shm_segment, &header);
+    masked_index = id[0] & header->division_mask;
+    ssl_log(s, SSL_LOG_TRACE, "id[0]=%u, masked index=%u",
+            id[0], masked_index);
+    if (!shmcb_get_division(header, &queue, &cache, (unsigned int)masked_index)) {
+        ssl_log(s, SSL_LOG_ERROR, "shmcb_remove_session, internal error");
+        header->num_removes_miss++;
+        return FALSE;
+    }
+    res = shmcb_remove_session_id(s, &queue, &cache, id, idlen);
+    if (res)
+        header->num_removes_hit++;
+    else
+        header->num_removes_miss++;
+    ssl_log(s, SSL_LOG_TRACE, "leaving shmcb_remove_session");
+    return res;
+}
+
+
+/* 
+**

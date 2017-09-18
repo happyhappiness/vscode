@@ -1,10 +1,14 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
-
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+                        * Ben Hyde noted that temporary ENETDOWN situations
+                        * occur in mobile IP.
+                        */
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                            "apr_accept: giving up.");
+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, bucket_alloc);
+                }
+                else {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_accept: (client socket)");
+                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
+                }
+            }
+        }

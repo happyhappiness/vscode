@@ -1,109 +1,79 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
+#define MAX_PATH        1024
+#endif
 
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
+int main (int argc, const char * const argv[])
 {
-    const char *gt = (cmd->cmd->name[0] == '<'
-		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
+    char buf[BUFSIZE], buf2[MAX_PATH], errbuf[ERRMSGSZ];
+    int tLogEnd = 0, tRotation, utc_offset = 0;
+    int nMessCount = 0;
+    apr_size_t nRead, nWrite;
+    int use_strftime = 0;
+    int now;
+    const char *szLogRoot;
+    apr_file_t *f_stdin, *nLogFD = NULL, *nLogFDprev = NULL;
+    apr_pool_t *pool;
 
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <VirtualHost> section", NULL);
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
 
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Limit> section", NULL);
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Directory/Location/Files> section", NULL);
-    
-    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
-	    || cmd->end_token == end_directorymatch_section)) ||
-	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
-	    || cmd->end_token == end_locationmatch_section)) ||
-	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
-	    || cmd->end_token == end_filesmatch_section)))
-	
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <", cmd->end_token+2,
-		       " section", NULL);
-
-    return NULL;
-}
-
-static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
-
-static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory (arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
+    apr_pool_create(&pool, NULL);
+    if (argc < 3 || argc > 4) {
+        fprintf(stderr,
+                "Usage: %s <logfile> <rotation time in seconds> "
+                "[offset minutes from UTC]\n\n",
+                argv[0]);
+#ifdef OS2
+        fprintf(stderr,
+                "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
+                argv[0]);
+#else
+        fprintf(stderr,
+                "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+                argv[0]);
+#endif
+        fprintf(stderr,
+                "to httpd.conf. The generated name will be /some/where.nnnn "
+                "where nnnn is the\nsystem time at which the log nominally "
+                "starts (N.B. this time will always be a\nmultiple of the "
+                "rotation time, so you can synchronize cron scripts with it).\n"
+                "At the end of each rotation time a new log is started.\n");
+        exit(1);
     }
-    
-    conf->ap_document_root = arg;
-    return NULL;
-}
 
-static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
-				char *line)
-{
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-  
-    w = ap_getword_conf_nc (cmd->pool, &line);
-    error_number = atoi(w);
-
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
-        index_number = idx500;
-    else if ((index_number = ap_index_of_response(error_number)) == idx500)
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
-                
-    /* Store it... */
-
-    if( conf->response_code_strings == NULL ) {
-	conf->response_code_strings = ap_pcalloc(cmd->pool,
-	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
+    szLogRoot = argv[1];
+    if (argc >= 4) {
+        utc_offset = atoi(argv[3]) * 60;
     }
-    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
+    tRotation = atoi(argv[2]);
+    if (tRotation <= 0) {
+        fprintf(stderr, "Rotation time must be > 0\n");
+        exit(6);
+    }
 
-    return NULL;
-}
+    use_strftime = (strchr(szLogRoot, '%') != NULL);
+    if (apr_file_open_stdin(&f_stdin, pool) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to open stdin\n");
+        exit(1);
+    }
 
-/* access.conf commands...
- *
+    for (;;) {
+        nRead = sizeof(buf);
+        if (apr_file_read(f_stdin, buf, &nRead) != APR_SUCCESS)
+            exit(3);
+        now = (int)(apr_time_now() / APR_USEC_PER_SEC) + utc_offset;
+        if (nRead == 0)
+            exit(3);
+        if (nLogFD != NULL && (now >= tLogEnd || nRead < 0)) {
+            nLogFDprev = nLogFD;
+            nLogFD = NULL;
+        }
+        if (nLogFD == NULL) {
+            int tLogStart = (now / tRotation) * tRotation;
+            if (use_strftime) {
+		apr_time_t tNow = tLogStart * APR_USEC_PER_SEC;
+                apr_time_exp_t e;
+                apr_size_t rs;
+
+                apr_time_exp_gmt(&e, tNow);
+                apr_strftime(buf2, &rs, sizeof(buf2), szLogRoot, &e);
+            }

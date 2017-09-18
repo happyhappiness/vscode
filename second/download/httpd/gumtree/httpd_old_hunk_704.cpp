@@ -1,13 +1,16 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
+                        r->connection->pool);
+        ap_sock_disable_nagle(csd);
+        ap_set_module_config(r->connection->conn_config, &core_module, csd);
+        return OK;
     }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    else {
+        /* sconf is the server config for this vhost, so if our socket
+         * is not the same that was set in the config, then the request
+         * needs to be passed to another child. */
+        if (sconf->sd != child_info_table[child_num].sd) {
+            if (pass_request(r) == -1) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             ap_server_conf, "Could not pass request to proper "
+                             "child, request will not be honored.");
+            }
+            longjmp(jmpbuffer, 1); 

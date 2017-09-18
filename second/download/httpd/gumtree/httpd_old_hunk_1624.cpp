@@ -1,13 +1,13 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+        for (i = 0; i < arr->nelts; ++i) {
+            ap_rvputs(r, elts[i].key, "=", elts[i].val, "\n", NULL);
+        }
+        return 0;
     }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    else {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "printenv directive does not take tags in %s",
+		    r->filename);
+        ap_rputs(error, r);
+        return -1;
+    }
+}

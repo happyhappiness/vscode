@@ -1,13 +1,12 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+    ap_init_scoreboard(sb_shared);
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+}
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+/* 
+ * get_listeners_from_parent()
+ * The listen sockets are opened in the parent. This function, which runs
+ * exclusively in the child process, receives them from the parent and
+ * makes them availeble in the child.
+ */

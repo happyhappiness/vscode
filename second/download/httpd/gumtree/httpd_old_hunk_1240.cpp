@@ -1,15 +1,13 @@
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: connection complete to %pI (%s)",
+                     p_conn->addr, p_conn->name);
+
+        /* set up the connection filters */
+        ap_run_pre_connection(*origin, p_conn->sock);
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+    return OK;
+}
+
+static
+apr_status_t ap_proxy_http_request(apr_pool_t *p, request_rec *r,

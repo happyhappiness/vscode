@@ -1,13 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+            output_results();
+        }
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+        /* Timeout of 30 seconds. */
+        timeout.tv_sec = 30;
+        timeout.tv_usec = 0;
+        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
+        if (!n) {
+            printf("\nServer timed out\n\n");
+            exit(1);
+        }
+        if (n < 1)
+            err("select");

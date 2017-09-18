@@ -1,20 +1,14 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    if (osver.dwPlatformId != VER_PLATFORM_WIN32_WINDOWS)
+    	apr_thread_mutex_destroy(qlock);
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
+}
+
+#endif /* def WIN32 */

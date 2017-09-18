@@ -1,24 +1,13 @@
-    buff[35] = ' ';
-    ap_proxy_sec2hex(c->len, buff + 36);
-    buff[44] = '\n';
-    buff[45] = '\0';
+static int log_scripterror(request_rec *r, cgid_server_conf * conf, int ret, 
+                           apr_status_t rv, char *error) 
+{ 
+    apr_file_t *f = NULL; 
+    struct stat finfo; 
+    char time_str[APR_CTIME_LEN];
+    int log_flags = rv ? APLOG_ERR : APLOG_NOERRNO | APLOG_ERR;
 
-/* if file not modified */
-    if (r->status == 304) {
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-		if (curpos == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    Explain0("Remote document not modified, use local copy");
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
+    ap_log_rerror(APLOG_MARK, log_flags, rv, r, 
+                "%s: %s", error, r->filename); 
+
+    /* XXX Very expensive mainline case! Open, then getfileinfo! */
+    if (!conf->logname || 

@@ -1,14 +1,12 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
+		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
+	clean_child_exit(APEXIT_CHILDFATAL);
     }
-#endif
+}
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+#else
+/* Default --- no serialization.  Other methods *could* go here,
+ * as #elifs...
+ */
+#if !defined(MULTITHREAD)
+/* Multithreaded systems don't complete between processes for

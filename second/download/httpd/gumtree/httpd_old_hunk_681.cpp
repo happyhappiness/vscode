@@ -1,20 +1,28 @@
-	     */
-	    break;
+                apr_sockaddr_t *pasv_addr;
+                apr_port_t pasvport = (p1 << 8) + p0;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                          "proxy: FTP: PASV contacting host %d.%d.%d.%d:%d",
+                             h3, h2, h1, h0, pasvport);
+
+                if ((rv = apr_socket_create(&data_sock, APR_INET, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "proxy: error creating PASV socket");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+
+#if !defined (TPF) && !defined(BEOS)
+                if (conf->recv_buffer_size > 0 && (rv = apr_setsocketopt(data_sock, APR_SO_RCVBUF,
+                                                 conf->recv_buffer_size))) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "proxy: FTP: setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+                }
 #endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+                /* make the connection */
+                apr_sockaddr_info_get(&pasv_addr, apr_psprintf(p, "%d.%d.%d.%d", h3, h2, h1, h0), APR_INET, pasvport, 0, p);
+                rv = apr_connect(data_sock, pasv_addr);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                                 "proxy: FTP: PASV attempt to connect to %pI failed - Firewall/NAT?", pasv_addr);
+                    return ap_proxyerror(r, HTTP_BAD_GATEWAY, apr_psprintf(r->pool,
+                                                                           "PASV attempt to connect to %pI failed - firewall/NAT?", pasv_addr));

@@ -1,13 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+#else
+	memcpy(c->cbuff + c->cbx, buffer, space);
+#endif				/* NOT_ASCII */
+	c->cbx += tocopy;
+	space -= tocopy;
+	c->cbuff[c->cbx] = 0;	/* terminate for benefit of strstr */
+	if (verbosity >= 4) {
+	    printf("LOG: header received:\n%s\n", c->cbuff);
+	}
+	s = strstr(c->cbuff, "\r\n\r\n");
+	/*
+	 * this next line is so that we talk to NCSA 1.5 which blatantly
+	 * breaks the http specifaction

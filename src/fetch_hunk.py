@@ -204,9 +204,52 @@ def fetch_version_diff():
     hunk_file.close()
 
 """
+@ param
+@ return
+@ involve sort dir by version
+"""
+def compare_version_dir(version_a, version_b):
+    pattern = r'.*-(\d*)\.(\d*)\.(\d*)'
+    info_a = re.match(pattern, version_a)
+    info_b = re.match(pattern, version_b)
+    if info_a and info_b:
+        info_a = info_a.groups()
+        info_b = info_b.groups()
+        for i in range(len(info_a)):
+            if int(info_a[i]) == int(info_b[i]):
+                continue
+            else:
+                if int(info_a[i]) > int(info_b[i]):
+                    return 1
+                else:
+                    return -1
+    else:
+        print 'can not deal with %s and %s' %(version_a, version_b)
+        return 0
+
+
+
+"""
+@ param
+@ return
+@ involve create version diff
+"""
+def create_version_diff():
+    versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
+    versions = versions.split('\n')
+    versions.sort(compare_version_dir)
+    size = len(versions)
+    for i in range(size - 1):
+        print 'now creating patch for %s and %s' %(versions[i], versions[i + 1])
+        patch = commands.getoutput('diff -BEr -U 6 ' + my_constant.REPOS_DIR + versions[i] + ' '\
+                                + my_constant.REPOS_DIR + versions[i + 1] + ' > ' \
+                                + my_constant.PATCH_DIR + versions[i] + '_diff_' + versions[i + 1])
+                       
+"""
 main function
 """
 if __name__ == "__main__":
+    create_version_diff()
     fetch_version_diff()
 
 

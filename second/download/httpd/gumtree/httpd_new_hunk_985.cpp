@@ -1,13 +1,14 @@
+     * segment. */
+    apr_file_remove(fname, pool); /* ignore errors */
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, fname, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "unable to create scoreboard \"%s\" "
+                     "(name-based shared memory failure)", fname);
+        return rv;
+    }
+#endif /* APR_HAS_SHARED_MEMORY */
+    return APR_SUCCESS;
+}
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */

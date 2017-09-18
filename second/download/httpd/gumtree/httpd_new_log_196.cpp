@@ -1,1 +1,3 @@
-ap_rvputs(parm->req, key, ": ", value, CRLF, NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" to tag if in %s", tag, 
+                            r->filename);

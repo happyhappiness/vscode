@@ -1,13 +1,15 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+	else
+	    ret = FORBIDDEN;
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+    if (ret == FORBIDDEN
+	&& (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		  "client %pI denied by server configuration: %s",
+		  &r->connection->remote_addr, r->filename);
+    }
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    return ret;
+}
+
+

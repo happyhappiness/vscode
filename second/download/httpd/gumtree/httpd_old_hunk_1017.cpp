@@ -1,41 +1,31 @@
-	    return cond_status;
-	}
+                         mc->szMutexFile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex");
+        return FALSE;
+    }
+#if !defined(OS2) && !defined(WIN32) && !defined(BEOS) && !defined(NETWARE)
+    if (mc->szMutexFile && mc->ChownMutexFile == TRUE)
+        chown(mc->szMutexFile, unixd_config.user_id, -1);
+#endif
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+#if APR_HAS_SYSVSEM_SERIALIZE
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (mc->nMutexMech == APR_LOCK_DEFAULT || 
+        mc->nMutexMech == APR_LOCK_SYSVSEM) {
+#else
+    if (mc->nMutexMech == APR_LOCK_SYSVSEM) {
+#endif
+        rv = unixd_set_global_mutex_perms(mc->pMutex);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Could not set permissions on ssl_mutex; check User "
+                         "and Group directives");
+            return FALSE;
+        }
+    }
+#endif
+    return TRUE;
+}
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+int ssl_mutex_reinit(server_rec *s, apr_pool_t *p)

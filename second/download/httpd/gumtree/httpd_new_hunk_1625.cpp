@@ -1,13 +1,13 @@
+                  ap_escape_shell_cmd(r->pool, arg_copy));
+    }
 
     while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
+        if (!find_string(f, STARTING_SEQUENCE, r, printing)) {
+            if (get_directive(f, directive, sizeof(directive), r->pool)) {
+		ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+			    "mod_include: error reading directive in %s",
+			    r->filename);
+		ap_rputs(error, r);
+                return;
             }
-            else {
-                ap_rputs("(none)", r);
+            if (!strcmp(directive, "if")) {

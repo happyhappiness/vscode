@@ -1,13 +1,24 @@
-    /* Set the status (for logging) */
-    if (ecb->dwHttpStatusCode)
-	r->status = ecb->dwHttpStatusCode;
+{
+    /*
+     * check for important parameters and the
+     * possibility that the user forgot to set them.
+     */
+    if (!mctx->pks->cert_files[0]) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "No SSL Certificate set [hint: SSLCertificateFile]");
+        ssl_die();
+    }
 
-    /* Check for a log message - and log it */
-    if (ecb->lpszLogData && strcmp(ecb->lpszLogData, ""))
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "%s: %s", ecb->lpszLogData, r->filename);
-
-    /* All done with the DLL... get rid of it */
-    if (isapi_term) (*isapi_term)(HSE_TERM_MUST_UNLOAD);
-    FreeLibrary(isapi_handle);
+    /*
+     *  Check for problematic re-initializations
+     */
+    if (mctx->pks->certs[SSL_AIDX_RSA] ||
+        mctx->pks->certs[SSL_AIDX_DSA])
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(theoretically shouldn't happen!)");
+        ssl_die();
+    }
+}
 

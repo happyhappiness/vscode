@@ -1,13 +1,12 @@
+    st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
+    st->ssl_support = 0;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    return st;
+}
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+static apr_status_t util_ldap_cleanup_module(void *data)
+{
+    server_rec *s = data;
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
+                                          s->module_config, &ldap_module);

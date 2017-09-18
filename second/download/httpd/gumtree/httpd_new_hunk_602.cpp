@@ -1,13 +1,14 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+	else
+	    meantot = stats[requests / 2].time;
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+	printf("\nConnection Times (ms)\n");
+
+	if (confidence) {
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
+	    printf("              min  mean[+/-sd] median   max\n");
+	    printf("Connect:    " CONF_FMT_STRING, 
+                   mincon, (int) (totalcon + 0.5), sdcon, meancon, maxcon);
+	    printf("Processing: " CONF_FMT_STRING,
+		   mind, (int) (totald + 0.5), sdd, meand, maxd);
+	    printf("Waiting:    " CONF_FMT_STRING,
+	           minwait, (int) (totalwait + 0.5), sdwait, meanwait, maxwait);

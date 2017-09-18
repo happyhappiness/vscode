@@ -1,14 +1,13 @@
-    ap_hard_timeout("send directory", r);
+    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
+        return result;
+    }
 
-    /* Spew HTML preamble */
+    if (doc == NULL || !dav_validate_root(doc, "label")) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The request body does not contain "
+                      "a \"label\" element.");
+        return HTTP_BAD_REQUEST;
+    }
 
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    /* check for add, set, or remove element */

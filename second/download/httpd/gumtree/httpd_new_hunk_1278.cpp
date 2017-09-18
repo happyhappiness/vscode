@@ -1,13 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
+        argv0++;
     else
-	ap_bputs(CRLF, f);
+        argv0 = r->filename;
+ 
+    nph = !(strncmp(argv0, "nph-", 4)); 
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    argv0 = r->filename; 
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r)) 
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, 
+                               "Options ExecCGI is off in this directory"); 
+    if (nph && is_included) 
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, 

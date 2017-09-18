@@ -1,42 +1,12 @@
-	ap_destroy_sub_req(pa_req);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                      "[%d] ldap cache init: %s", 
+                      getpid(), buf);
 }
 
 
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
+command_rec util_ldap_cmds[] = {
+    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
+                  "Sets the size of the shared memory cache in bytes. "
+                  "Zero means disable the shared memory cache. Defaults to 100KB."),
 
-    if (buffer)
-	*buffer = '\0';
-    w = buffer ? buffer : x;
-
-    ap_hard_timeout("read script header", r);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015')
-		w[p - 2] = '\0';
-	    else
-		w[p - 1] = '\0';
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+    AP_INIT_TAKE1("LDAPCacheEntries", util_ldap_set_cache_entries, NULL, RSRC_CONF,

@@ -1,13 +1,13 @@
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-			       "Options ExecCGI is off in this directory");
-    if (nph && is_included)
-	return log_scripterror(r, conf, FORBIDDEN, APLOG_NOERRNO,
-			       "attempt to include NPH CGI script");
+	}
+    }
 
-#if defined(__EMX__) || defined(WIN32)
-    /* Allow for cgi files without the .EXE extension on them under OS/2 */
-    if (r->finfo.st_mode == 0) {
-	struct stat statbuf;
+    /* clean up and return */
+    result[res_pos] = 0;
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
+#endif
+    return result;
+}
 
-	r->filename = ap_pstrcat(r->pool, r->filename, ".EXE", NULL);
-
+/* states for the state-machine algorithm in magic_rsl_to_request() */

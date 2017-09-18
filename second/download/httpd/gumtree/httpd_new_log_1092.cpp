@@ -1,0 +1,2 @@
+ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
+                              NULL, AP_FTYPE_CONTENT_SET);

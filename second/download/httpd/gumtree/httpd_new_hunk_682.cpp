@@ -1,31 +1,23 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    if (!connect) {
+        apr_sockaddr_t *local_addr;
+        char *local_ip;
+        apr_port_t local_port;
+        unsigned int h0, h1, h2, h3, p0, p1;
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+        if ((rv = apr_socket_create(&local_sock, connect_addr->family, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: FTP: error creating local socket");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        apr_socket_addr_get(&local_addr, APR_LOCAL, sock);
+        apr_sockaddr_port_get(&local_port, local_addr);
+        apr_sockaddr_ip_get(&local_ip, local_addr);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+        if ((rv = apr_socket_opt_set(local_sock, APR_SO_REUSEADDR, one)) 
+                != APR_SUCCESS) {
+#ifndef _OSD_POSIX              /* BS2000 has this option "always on" */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: FTP: error setting reuseaddr option");
+            return HTTP_INTERNAL_SERVER_ERROR;
+#endif                          /* _OSD_POSIX */
+        }

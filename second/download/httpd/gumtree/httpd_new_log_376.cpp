@@ -1,1 +1,2 @@
-printf("Non-2xx responses:      %d\n", err_response);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: HTTP: serving URL %s", url);

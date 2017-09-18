@@ -1,13 +1,13 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+    apr_md5_ctx_t context;
+    unsigned char digest[16];
+    char string[MAX_STRING_LEN];
+    char pwin[MAX_STRING_LEN];
+    char pwv[MAX_STRING_LEN];
+    unsigned int i;
+    apr_size_t len = sizeof(pwin);
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
+	fprintf(stderr, "password too long");
+	exit(5);
+    }
+    len = sizeof(pwin);

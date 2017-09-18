@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+                              "AuthDigestEnableQueryStringHack")) {
+                d_uri.query = r_uri.query;
+            }
+        }
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }

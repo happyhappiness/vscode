@@ -1,14 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
+
+    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
+
+    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
+
+    if (err != NULL)
+	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
+		     "%s", err);
+
+    r->hostname = host;
+
+    return host;		/* ought to return the port, too */
 }
-
-
-static const handler_rec autoindex_handlers[] =
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800

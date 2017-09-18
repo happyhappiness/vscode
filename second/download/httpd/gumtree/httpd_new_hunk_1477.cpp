@@ -1,13 +1,18 @@
+	exit(0);
+    }
+    else if (argc != 3)
+	usage();
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    tn = tmpnam(NULL);
+    if (!(tfp = fopen(tn, "w+"))) {
+	fprintf(stderr, "Could not open temp file.\n");
+	exit(1);
+    }
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    if (!(f = fopen(argv[1], "r+"))) {
+	fprintf(stderr,
+		"Could not open passwd file %s for reading.\n", argv[1]);
+	fprintf(stderr, "Use -c option to create new one.\n");
+	exit(1);
+    }
+    strcpy(user, argv[2]);

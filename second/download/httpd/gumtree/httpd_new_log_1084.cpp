@@ -1,0 +1,1 @@
+ap_register_output_filter(filter->name, ef_output_filter, NULL, filter->ftype);

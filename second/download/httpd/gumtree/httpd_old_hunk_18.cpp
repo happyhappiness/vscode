@@ -1,22 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    client_list->table[bucket] = entry;
+    client_list->num_created++;
+    client_list->num_entries++;
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    apr_global_mutex_unlock(client_lock);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, 0, s,
+                 "allocated new client %lu", key);
+
+    return entry;
+}
+
+

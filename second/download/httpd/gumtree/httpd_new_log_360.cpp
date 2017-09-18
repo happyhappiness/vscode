@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, NULL,
-                 "dyld found undefined symbol: %s\n"
-                 "Aborting.\n",
-                 symbolName);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: keepalive address mismatch / connection has"
+                         " changed (close old socket (%s/%s, %d/%d))", 
+                         p_conn->name, backend->hostname, p_conn->port,
+                         backend->port);

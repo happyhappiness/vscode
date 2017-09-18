@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwnam: invalid username %s", username);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The request body must be present and must be a "
+                      "DAV:merge element.");

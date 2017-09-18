@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: -c and -n options conflict\n", argv[0]);

@@ -1,98 +1,49 @@
-	    }
-	}
-#endif
-	return (pid);
-    }
-#else
-    if (ap_suexec_enabled
-	&& ((r->server->server_uid != ap_user_id)
-	    || (r->server->server_gid != ap_group_id)
-	    || (!strncmp("/~", r->uri, 2)))) {
-
-	char *execuser, *grpname;
-	struct passwd *pw;
-	struct group *gr;
-
-	if (!strncmp("/~", r->uri, 2)) {
-	    gid_t user_gid;
-	    char *username = ap_pstrdup(r->pool, r->uri + 2);
-	    char *pos = strchr(username, '/');
-
-	    if (pos) {
-		*pos = '\0';
-	    }
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
-	    if ((gr = getgrgid(user_gid)) == NULL) {
-	        if ((grpname = ap_palloc(r->pool, 16)) == NULL) {
-		    return (pid);
-		}
-		else {
-		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
-		}
-	    }
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-
-	if (shellcmd) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else {
-	    execve(SUEXEC_BIN,
-		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
-			       argv0, r->args),
-		   env);
-	}
-    }
     else {
-        if (shellcmd) {
-	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
-	}
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(r->filename, argv0, NULL, env);
-	}
-
-	else {
-	    execve(r->filename,
-		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
-		   env);
-	}
+        /* give the system some time to recover before kicking into
+            * exponential mode */
+        hold_off_on_exponential_spawning = 10;
     }
-    return (pid);
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+		"AcceptMutex: %s (default: %s)",
+		apr_proc_mutex_name(accept_mutex),
+		apr_proc_mutex_defname());
 #endif
-}
-++ apache_1.3.1/src/main/util_uri.c	1998-07-16 07:49:13.000000000 +0800
+    restart_pending = shutdown_pending = 0;
+
+    server_main_loop(remaining_children_to_start);
+
+    if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         * (By "gracefully" we don't mean graceful in the same sense as 
+         * "apachectl graceful" where we allow old connections to finish.)
+         */
+	if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGTERM");
+	}
+        ap_reclaim_child_processes(1);                /* Start with SIGTERM */
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+            if ( pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long)getpid());
+    
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
+        }
+        return 1;
+    }
+
+    /* we've been told to restart */

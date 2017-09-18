@@ -1,13 +1,13 @@
-            }
+	    if (*s == '-')
+		m->in.offset = -m->in.offset;
+	}
+	else
+	    t = l;
+	if (*t++ != ')') {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, serv,
+			MODNAME ": missing ')' in indirect offset");
+	}
+	l = t;
+    }
 
-            value += 2;         /* jump over the '..' that we found in the
-                                   value */
-        }
-        else if (directory) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "invalid directory name in map file: %s", r->uri);
-            return NULL;
-        }
 
-        if (!strncmp(value, "/../", 4) || !strcmp(value, "/..")) {
-            value++;            /* step over the '/' if there are more '..'

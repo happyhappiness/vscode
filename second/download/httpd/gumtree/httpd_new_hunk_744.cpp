@@ -1,13 +1,14 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    /* I would love to print this stuff out to the file, but I will
+     * get that working later.  :)  For now, just return.
+     */
+    return -1;
+}
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    int cc;
+    va_list ap;
+    char *buf;
+    int len;
+

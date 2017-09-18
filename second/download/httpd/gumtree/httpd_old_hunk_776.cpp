@@ -1,26 +1,23 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+        /* XXX log message */
+	return rv;
     }
 
-    /* Pass two --- wildcard matches */
+    r->status = atoi(urlbuff);                           /* Save status line into request rec  */
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
+    rv = apr_file_gets(&urlbuff[0], urllen, dobj->hfd);               /* Read status line */
+    if (rv != APR_SUCCESS) {
+        /* XXX log message */
+	return rv;
     }
 
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    if ((temp = strchr(&urlbuff[0], '\n')) != NULL)       /* trim off new line character */
+	*temp = '\0';              /* overlay it with the null terminator */
+
+    r->status_line = apr_pstrdup(r->pool, urlbuff);            /* Save status line into request rec  */
+
+    apr_file_close(dobj->hfd);
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "disk_cache: Served headers for URL %s",  dobj->name);
+    return APR_SUCCESS;
+}

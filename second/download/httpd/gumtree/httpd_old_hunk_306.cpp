@@ -1,14 +1,14 @@
-            if (space)
-                return;
-            else {
-                /* header is in invalid or too big - close connection */
-                close(c->fd);
-                if (bad++ > 10) {
-                    printf("\nTest aborted after 10 failures\n\n");
-                    exit(1);
-                }
-                FD_CLR(c->fd, &writebits);
-                start_connect(c);
-            }
-        }
-        else {
+void ssl_init_ConfigureServer(server_rec *s,
+                              apr_pool_t *p,
+                              apr_pool_t *ptemp,
+                              SSLSrvConfigRec *sc)
+{
+    if (sc->enabled) {
+        ssl_log(s, SSL_LOG_INFO|SSL_INIT,
+                "Configuring server for SSL protocol");
+        ssl_init_server_ctx(s, p, ptemp, sc);
+    }
+
+    if (sc->proxy_enabled) {
+        ssl_init_proxy_ctx(s, p, ptemp, sc);
+    }

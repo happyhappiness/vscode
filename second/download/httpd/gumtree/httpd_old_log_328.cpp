@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                    "cannot access type map file: %s", rr->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
+		     "proxy: CONNECT: Returning 200 OK Status");

@@ -1,1 +1,0 @@
-fprintf(pid_file,"%ld\n",(long)getpid());

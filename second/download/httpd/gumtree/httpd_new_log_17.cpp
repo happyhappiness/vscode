@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_DATA): failed to set memory "
-			 "usage limit");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "get_client(): client %lu found", key);

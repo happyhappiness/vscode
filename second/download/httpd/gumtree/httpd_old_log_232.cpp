@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "Could not open password file: %s", auth_pwfile);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                         "Cannot get media subtype.");

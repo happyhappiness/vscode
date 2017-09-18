@@ -1,33 +1,30 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+        ctx.label_op = DAV_LABEL_SET;
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
-
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
+    else if ((child = dav_find_child(doc->root, "remove")) != NULL) {
+        ctx.label_op = DAV_LABEL_REMOVE;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The \"label\" element does not contain "
+                      "an \"add\", \"set\", or \"remove\" element.");
+        return HTTP_BAD_REQUEST;
     }
-    ap_rputs("</BODY></HTML>\n", r);
 
-    ap_kill_timeout(r);
+    /* get the label string */
+    if ((child = dav_find_child(child, "label-name")) == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The label command element does not contain "
+                      "a \"label-name\" element.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
+                   &ctx.label, &tsize);
+    if (tsize == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A \"label-name\" element does not contain "
+                      "a label name.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* do the label operation walk */

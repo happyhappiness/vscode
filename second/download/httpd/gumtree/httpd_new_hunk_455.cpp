@@ -1,28 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+         */
+        if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "killpg SIGTERM");
+        }
+        ap_reclaim_child_processes(1);      /* Start with SIGTERM */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                     ap_server_conf, "SIGHUP received.  Attempting to restart");
     }
+    return 0;
+}
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+/* This really should be a post_config hook, but the error log is already

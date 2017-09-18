@@ -1,13 +1,17 @@
+                return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                apr_pstrcat(p, "Corrupt status line returned by remote "
+                            "server: ", buffer, NULL));
+            }
+            backasswards = 0;
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
+            buffer[12] = '\0';
+            r->status = atoi(&buffer[9]);
 
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
+            buffer[12] = ' ';
+            r->status_line = apr_pstrdup(p, &buffer[9]);
 
-/*****************************************************************
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
+
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,

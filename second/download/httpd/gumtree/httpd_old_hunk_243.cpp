@@ -1,13 +1,23 @@
-            }
-            if (!printing) {
-                continue;
-            }
-            if (!strcmp(directive, "exec")) {
-                if (noexec) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                                "httpd: exec used but not allowed in %s",
-                                r->filename);
-                    if (printing) {
-                        ap_rputs(error, r);
-                    }
-                    ret = find_string(f, ENDING_SEQUENCE, r, 0);
+        ap_cpystrn(message, cmd, sizeof message);
+        if ((crlf = strchr(message, '\r')) != NULL ||
+            (crlf = strchr(message, '\n')) != NULL)
+            *crlf = '\0';
+        if (strncmp(message,"PASS ", 5) == 0)
+            strcpy(&message[5], "****");
+        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                     "proxy:>FTP: %s", message);
+    }
+
+    rc = ftp_getrc_msg(ftp_ctrl, bb, message, sizeof message);
+    if (rc == -1 || rc == 421)
+        strcpy(message,"<unable to read result>");
+    if ((crlf = strchr(message, '\r')) != NULL ||
+        (crlf = strchr(message, '\n')) != NULL)
+        *crlf = '\0';
+    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
+                 "proxy:<FTP: %3.3u %s", rc, message);
+
+    if (pmessage != NULL)
+        *pmessage = ap_pstrdup(r->pool, message);
+
+    return rc;

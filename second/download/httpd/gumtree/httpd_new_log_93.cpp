@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: error reading the headers");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "a \"propertyupdate\" element.");

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy connect to %s port %d failed",
-		     inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                                  "missing expr in if statement: %s", 
+                                  r->filename);

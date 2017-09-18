@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+{
+    configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *rpw, *w;
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    if (!(f = ap_pcfg_openfile(r->pool, auth_pwfile))) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+		    "Could not open password file: %s", auth_pwfile);
+	return NULL;
+    }
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+	if ((l[0] == '#') || (!l[0]))
+	    continue;

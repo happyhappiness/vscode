@@ -1,25 +1,13 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+                                         REWRITELOCK_MODE)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", conf->rewritelockfile);
+        exit(1);
     }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+#if !defined(OS2) && !defined(WIN32)
+    /* make sure the childs have access to this file */
+    if (geteuid() == 0 /* is superuser */)
+        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
 #endif
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+    return;

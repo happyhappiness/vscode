@@ -1,18 +1,32 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+}
+
+#ifdef SSLC_VERSION_NUMBER
+static int ssl_init_FindCAList_X509NameCmp(char **a, char **b)
+{
+    return(X509_NAME_cmp((void*)*a, (void*)*b));
+}
+#else
+static int ssl_init_FindCAList_X509NameCmp(X509_NAME **a, X509_NAME **b)
+{
+    return(X509_NAME_cmp(*a, *b));
+}
+#endif
+
+static void ssl_init_PushCAList(STACK_OF(X509_NAME) *ca_list,
+                                server_rec *s, const char *file)
+{
+    int n;
+    STACK_OF(X509_NAME) *sk;
+
+    sk = (STACK_OF(X509_NAME) *)
+             SSL_load_client_CA_file(MODSSL_PCHAR_CAST file);
+
+    if (!sk) {
+        return;
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    for (n = 0; n < sk_X509_NAME_num(sk); n++) {

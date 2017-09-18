@@ -1,20 +1,13 @@
-#endif
+		       0,	     /* reserved */
+		       REG_MULTI_SZ, /* type */
+		       buf,	     /* value data */
+		       (DWORD) bufsize); /* for size of "value" */
 
-    ap_soft_timeout("send body", r);
+    if (rv == ERROR_SUCCESS) {
+	ap_log_error(APLOG_MARK,APLOG_INFO|APLOG_NOERRNO,rv,NULL,
+	    "Registry stored HKLM\\" REGKEY "\\%s", key);
+    }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    /* Make sure we close the key even if there was an error storing
+     * the data
+     */

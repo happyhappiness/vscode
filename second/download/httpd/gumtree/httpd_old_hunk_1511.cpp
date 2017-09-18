@@ -1,13 +1,12 @@
-
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
      */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    if (r->read_body == REQUEST_CHUNKED_PASS)
+        bufsiz -= 2;
+    if (bufsiz <= 0)
+        return -1;              /* Cannot read chunked with a small buffer */
 
-    ap_hard_timeout("send headers", r);
+    if (r->remaining == 0) {    /* Start of new chunk */
 
-    ap_basic_http_header(r);
+        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
+        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
+            || !isxdigit(*buffer)) {
+            r->connection->keepalive = -1;

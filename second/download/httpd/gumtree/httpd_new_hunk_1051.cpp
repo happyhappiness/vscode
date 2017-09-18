@@ -1,133 +1,84 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-static const char end_ifdefine_section[] = "</IfDefine>";
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
-					      unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
-                         ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <VirtualHost> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Limit> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
-	&& cmd->path != NULL) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Directory/Location/Files> "
-			  "section", NULL);
-    }
-    
-    if (((forbidden & NOT_IN_DIRECTORY)
-	 && (cmd->end_token == end_directory_section
-	     || cmd->end_token == end_directorymatch_section)) 
-	|| ((forbidden & NOT_IN_LOCATION)
-	    && (cmd->end_token == end_location_section
-		|| cmd->end_token == end_locationmatch_section)) 
-	|| ((forbidden & NOT_IN_FILES)
-	    && (cmd->end_token == end_files_section
-		|| cmd->end_token == end_filesmatch_section))) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <", cmd->end_token+2,
-			  " section", NULL);
-    }
-
-    return NULL;
-}
-
-static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
-
-static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory(arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
-		    arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
-    }
-    
-    conf->ap_document_root = arg;
-    return NULL;
-}
-
-static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
-				      char *line)
-{
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
      */
-  
-    w = ap_getword_conf_nc(cmd->pool, &line);
-    error_number = atoi(w);
-
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
-        index_number = idx500;
+    if ((*conf->xbithack != xbithack_full)
+        || !(f->r->finfo.valid & APR_FINFO_GPROT)
+        || !(f->r->finfo.protection & APR_GEXECUTE)) {
+        f->r->no_local_copy = 1;
     }
-    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
-			  w, NULL);
-    }
-                
-    /* Store it... */
 
-    if (conf->response_code_strings == NULL) {
-	conf->response_code_strings =
-	    ap_pcalloc(cmd->pool,
-		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
+    /* Don't allow ETag headers to be generated - see RFC2616 - 13.3.4.
+     * We don't know if we are going to be including a file or executing
+     * a program - in either case a strong ETag header will likely be invalid.
+     */
+    apr_table_setn(f->r->notes, "no-etag", "");
 
-    return NULL;
+    return OK;
 }
 
-/* access.conf commands...
- *
+static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
+{
+    request_rec *r = f->r;
+    ssi_ctx_t *ctx = f->ctx;
+    request_rec *parent;
+    include_dir_config *conf = 
+                   (include_dir_config *)ap_get_module_config(r->per_dir_config,
+                                                              &include_module);
+
+    include_server_config *sconf= ap_get_module_config(r->server->module_config,
+                                                              &include_module);
+
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed");
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, b);
+    }
+
+    if (!f->ctx) {
+        /* create context for this filter */
+        f->ctx = ctx = apr_palloc(f->c->pool, sizeof(*ctx));
+        ctx->ctx = apr_pcalloc(f->c->pool, sizeof(*ctx->ctx));
+        ctx->ctx->pool = f->r->pool;
+        apr_pool_create(&ctx->dpool, ctx->ctx->pool);
+
+        /* configuration data */
+        ctx->end_seq_len = strlen(sconf->default_end_tag);
+        ctx->r = f->r;
+
+        /* runtime data */
+        ctx->tmp_bb = apr_brigade_create(ctx->ctx->pool, f->c->bucket_alloc);
+        ctx->seen_eos = 0;
+        ctx->state = PARSE_PRE_HEAD;
+        ctx->ctx->flags = (FLAG_PRINTING | FLAG_COND_TRUE);
+        if (ap_allow_options(f->r) & OPT_INCNOEXEC) {
+            ctx->ctx->flags |= FLAG_NO_EXEC;
+        }
+        ctx->ctx->if_nesting_level = 0;
+        ctx->ctx->re_string = NULL;
+        ctx->ctx->error_str_override = NULL;
+        ctx->ctx->time_str_override = NULL;
+
+        ctx->ctx->error_str = conf->default_error_msg;
+        ctx->ctx->time_str = conf->default_time_fmt;
+        ctx->ctx->start_seq_pat = &sconf->start_seq_pat;
+        ctx->ctx->start_seq  = sconf->default_start_tag;
+        ctx->ctx->start_seq_len = sconf->start_tag_len;
+        ctx->ctx->end_seq = sconf->default_end_tag;
+
+        /* legacy compat stuff */
+        ctx->ctx->state = PARSED; /* dummy */
+        ctx->ctx->ssi_tag_brigade = apr_brigade_create(f->c->pool,
+                                                       f->c->bucket_alloc);
+        ctx->ctx->status = APR_SUCCESS;
+        ctx->ctx->head_start_index = 0;
+        ctx->ctx->tag_start_index = 0;
+        ctx->ctx->tail_start_index = 0;
+    }
+    else {
+        ctx->ctx->bytes_parsed = 0;
+    }
+
+    if ((parent = ap_get_module_config(r->request_config, &include_module))) {
+        /* Kludge --- for nested includes, we want to keep the subprocess
+         * environment of the base document (for compatibility); that means
+         * torquing our own last_modified date as well so that the

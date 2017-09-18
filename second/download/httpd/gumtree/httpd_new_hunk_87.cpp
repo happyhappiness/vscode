@@ -1,18 +1,13 @@
-	exit(0);
-    }
-    else if (argc != 3)
-	usage();
+                     */
+                    if (last_xlate_ctx == f->ctx) {
+                        last_xlate_ctx->noop = 1;
+                        if (debug >= DBGLVL_PMC) {
+                            const char *symbol = output ? "->" : "<-";
 
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w+"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
-
-    if (!(f = fopen(argv[1], "r+"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                          0, f->r,
+                                          "%s %s - disabling "
+                                          "translation %s%s%s; existing "
+                                          "translation %s%s%s",
+                                          f->r->uri ? "uri" : "file",
+                                          f->r->uri ? f->r->uri : f->r->filename,

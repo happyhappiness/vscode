@@ -1,21 +1,13 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+            }
+            else if (is_graceful) {
+                /* Great, we've probably just lost a slot in the
+                 * scoreboard.  Somehow we don't know about this
+                 * child.
+                 */
+                 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
+			                  "long lost child came home! (pid %ld)", pid.pid);
+            }
+	    
+            /* Don't perform idle maintenance when a child dies,
+             * only do it when there's a timeout.  Remember only a
+             * finite number of children can die, and it's pretty

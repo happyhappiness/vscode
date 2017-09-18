@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-	     MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);
+r(APLOG_MARK, APLOG_DEBUG, 0, r,
+		    MODNAME ": rule matched, line=%d type=%d %s",
+		    m->lineno, m->type,
+		    (m->type == STRING) ? m->value.s : "");

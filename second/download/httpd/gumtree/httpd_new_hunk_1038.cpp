@@ -1,13 +1,36 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+     *
+     * In addition, we make HTTP/1.1 age calculations and write them away
+     * too.
+     */
+
+    /* Read the date. Generate one if one is not supplied */
+    dates = apr_table_get(r->err_headers_out, "Date");
+    if (dates != NULL) {
+        date_in_errhdr = 1;
+    }
+    else {
+        dates = apr_table_get(r->headers_out, "Date");
+    }
+    if (dates != NULL) {
+        info->date = apr_date_parse_http(dates);
+    }
+    else {
+        info->date = APR_DATE_BAD;
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    now = apr_time_now();
+    if (info->date == APR_DATE_BAD) {  /* No, or bad date */
+        char *dates;
+        /* no date header (or bad header)! */
+        /* add one; N.B. use the time _now_ rather than when we were checking
+         * the cache 
+         */
+        if (date_in_errhdr == 1) {
+            apr_table_unset(r->err_headers_out, "Date");
+        }
+        date = now;
+        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
+        apr_rfc822_date(dates, now);
+        apr_table_set(r->headers_out, "Date", dates);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: Added date header");

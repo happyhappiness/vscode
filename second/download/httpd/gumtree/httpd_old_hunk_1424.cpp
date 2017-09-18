@@ -1,13 +1,13 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
-
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+		    /* else nothing needs be done because
+		     * then the backslash is escaped and
+		     * we just strip to a single one
+		     */
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+#endif
+		return 0;

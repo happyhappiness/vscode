@@ -1,0 +1,1 @@
+fprintf(stderr, "Processing config directory: %s\n", fname);

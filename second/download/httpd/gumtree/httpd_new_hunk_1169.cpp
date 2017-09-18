@@ -1,31 +1,29 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+	getword(x, l, ':');
+	if (strcmp(user, w) || strcmp(realm, x)) {
+	    putline(tfp, line);
+	    continue;
+	}
+	else {
+            apr_file_printf(errfile, "Changing password for user %s in realm %s\n", 
+                    user, realm);
+	    add_password(user, realm, tfp);
+	    found = 1;
+	}
     }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    if (!found) {
+        apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
+	add_password(user, realm, tfp);
     }
+    apr_file_close(f);
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
+                APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], argv[1]);
     }
+    apr_file_close(tfp);
 
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    return 0;
+}

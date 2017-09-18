@@ -1,109 +1,50 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc, 
+                                 const char * const * argv, int reconfig)
 {
-    const char *gt = (cmd->cmd->name[0] == '<'
-		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <VirtualHost> section", NULL);
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Limit> section", NULL);
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Directory/Location/Files> section", NULL);
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    apr_status_t(rv);
     
-    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
-	    || cmd->end_token == end_directorymatch_section)) ||
-	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
-	    || cmd->end_token == end_locationmatch_section)) ||
-	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
-	    || cmd->end_token == end_filesmatch_section)))
-	
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <", cmd->end_token+2,
-		       " section", NULL);
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+		   : "Installing the %s service\n", mpm_display_name);
 
-    return NULL;
-}
-
-static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
-
-static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory (arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "GetModuleFileName failed");
+        return rv;
     }
+
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        SC_HANDLE   schService;
+        SC_HANDLE   schSCManager;
     
-    conf->ap_document_root = arg;
-    return NULL;
-}
+        // TODO: Determine the minimum permissions required for security
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_ALL_ACCESS);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
+        }
 
-static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
-				char *line)
-{
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) return err;
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
 
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-  
-    w = ap_getword_conf_nc (cmd->pool, &line);
-    error_number = atoi(w);
-
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
-        index_number = idx500;
-    else if ((index_number = ap_index_of_response(error_number)) == idx500)
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
-                
-    /* Store it... */
-
-    if( conf->response_code_strings == NULL ) {
-	conf->response_code_strings = ap_pcalloc(cmd->pool,
-	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
-
-    return NULL;
-}
-
-/* access.conf commands...
- *
+        if (reconfig) {
+            schService = OpenService(schSCManager, mpm_service_name, 
+                                     SERVICE_ALL_ACCESS);
+            if (!schService) {
+                ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR, 
+                             apr_get_os_error(), NULL,
+                             "OpenService failed");
+            }
+            else if (!ChangeServiceConfig(schService, 
+                                          SERVICE_WIN32_OWN_PROCESS,
+                                          SERVICE_AUTO_START,
+                                          SERVICE_ERROR_NORMAL,
+                                          launch_cmd, NULL, NULL, 
+                                          "Tcpip\0Afd\0", NULL, NULL,

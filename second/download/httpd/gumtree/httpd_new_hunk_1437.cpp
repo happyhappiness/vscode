@@ -1,17 +1,13 @@
+	return ap_proxyerror(r, err);	/* give up */
+
+    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == -1) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+		     "proxy: error creating socket");
+	return HTTP_INTERNAL_SERVER_ERROR;
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+    if (conf->recv_buffer_size) {
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
+		       (const char *) &conf->recv_buffer_size, sizeof(int))
+	    == -1) {

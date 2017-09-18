@@ -1,104 +1,52 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-		ap_send_size(ar[x]->size, r);
-		ap_rputs("  ", r);
-	    }
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-		if (ar[x]->desc) {
-		    ap_rputs(terminate_description(d, ar[x]->desc, autoindex_opts), r);
-		}
-	    }
+    i = ap_proxy_cache_update(c, resp_hdrs, !backasswards, nocache);
+    if (i != DECLINED) {
+	ap_bclose(f);
+	return i;
+    }
+
+    cache = c->fp;
+
+    ap_hard_timeout("proxy receive", r);
+
+/* write status line */
+    if (!r->assbackwards)
+	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
+    if (cache != NULL)
+	if (ap_bvputs(cache, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
+	    cache = ap_proxy_cache_error(c);
+
+/* send headers */
+    for (i = 0; i < resp_hdrs->nelts; i++) {
+	if (hdr[i].field == NULL || hdr[i].value == NULL ||
+	    hdr[i].value[0] == '\0')
+	    continue;
+	if (!r->assbackwards) {
+	    ap_rvputs(r, hdr[i].field, ": ", hdr[i].value, CRLF, NULL);
+	    ap_table_set(r->headers_out, hdr[i].field, hdr[i].value);
 	}
-	else
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-	ap_rputc('\n', r);
-    }
-    if (autoindex_opts & FANCY_INDEXING) {
-	ap_rputs("</PRE>", r);
-    }
-    else {
-	ap_rputs("</UL>", r);
-    }
-}
-
-
-static int dsortf(struct ent **e1, struct ent **e2)
-{
-    char *s1;
-    char *s2;
-    char *s3;
-    int result;
-
-    /*
-     * Choose the right values for the sort keys.
-     */
-    switch ((*e1)->key) {
-    case K_LAST_MOD:
-	s1 = (*e1)->lm_cmp;
-	s2 = (*e2)->lm_cmp;
-	break;
-    case K_SIZE:
-	s1 = (*e1)->size_cmp;
-	s2 = (*e2)->size_cmp;
-	break;
-    case K_DESC:
-	s1 = (*e1)->desc;
-	s2 = (*e2)->desc;
-	break;
-    case K_NAME:
-    default:
-	s1 = (*e1)->name;
-	s2 = (*e2)->name;
-	break;
-    }
-    /*
-     * If we're supposed to sort in DEscending order, reverse the arguments.
-     */
-    if (!(*e1)->ascending) {
-	s3 = s1;
-	s1 = s2;
-	s2 = s3;
+	if (cache != NULL)
+	    if (ap_bvputs(cache, hdr[i].field, ": ", hdr[i].value, CRLF,
+		       NULL) == -1)
+		cache = ap_proxy_cache_error(c);
     }
 
-    /*
-     * Take some care, here, in case one string or the other (or both) is
-     * NULL.
-     */
+    if (!r->assbackwards)
+	ap_rputs(CRLF, r);
+    if (cache != NULL)
+	if (ap_bputs(CRLF, cache) == -1)
+	    cache = ap_proxy_cache_error(c);
 
-    /*
-     * Two valid strings, compare normally.
-     */
-    if ((s1 != NULL) && (s2 != NULL)) {
-	result = strcmp(s1, s2);
+    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
+    r->sent_bodyct = 1;
+/* Is it an HTTP/0.9 respose? If so, send the extra data */
+    if (backasswards) {
+	ap_bwrite(r->connection->client, buffer, len);
+	if (cache != NULL)
+	    if (ap_bwrite(f, buffer, len) != len)
+		cache = ap_proxy_cache_error(c);
     }
-    /*
-     * Two NULL strings - primary keys are equal (fake it).
-     */
-    else if ((s1 == NULL) && (s2 == NULL)) {
-	result = 0;
-    }
-    /*
-     * s1 is NULL, but s2 is a string - so s2 wins.
-     */
-    else if (s1 == NULL) {
-	result = -1;
-    }
-    /*
-     * Last case: s1 is a string and s2 is NULL, so s1 wins.
-     */
-    else {
-	result = 1;
-    }
-    /*
-     * If the keys were equal, the file name is *always* the secondary key -
-     * in ascending order.
-     */
-    if (!result) {
-	result = strcmp((*e1)->name, (*e2)->name);
-    }
-    return result;
-}
+    ap_kill_timeout(r);
 
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-{
-    char *title_name = ap_escape_html(r->pool, r->uri);
+#ifdef CHARSET_EBCDIC
+    /* What we read/write after the header should not be modified
+     * (i.e., the cache copy is ASCII, not EBCDIC, even for text/html)

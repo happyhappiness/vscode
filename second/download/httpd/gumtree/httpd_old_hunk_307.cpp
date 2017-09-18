@@ -1,21 +1,25 @@
-                    while (*p > 32)
-                        *q++ = *p++;
-                }
-                *q = 0;
-            }
+     * for the HTTP port or vice versa
+     */
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
 
-            c->gotheader = 1;
-            *s = 0;             /* terminate at end of header */
-            if (keepalive &&
-                (strstr(c->cbuff, "Keep-Alive")
-                 || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
-                char *cl;
-                cl = strstr(c->cbuff, "Content-Length:");
-                /* for cacky servers like NCSA which break the spec and send a 
-                   lower case 'l' */
-                if (!cl)
-                    cl = strstr(c->cbuff, "Content-length:");
-                if (cl) {
-                    c->keepalive = 1;
-                    c->length = atoi(cl + 16);
-                }
+        if (sc->enabled && (s->port == DEFAULT_HTTP_PORT)) {
+            ssl_log(base_server, SSL_LOG_WARN,
+                    "Init: (%s) You configured HTTPS(%d) "
+                    "on the standard HTTP(%d) port!",
+                    ssl_util_vhostid(p, s),
+                    DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
+        }
+
+        if (!sc->enabled && (s->port == DEFAULT_HTTPS_PORT)) {
+            ssl_log(base_server, SSL_LOG_WARN,
+                    "Init: (%s) You configured HTTP(%d) "
+                    "on the standard HTTPS(%d) port!",
+                    ssl_util_vhostid(p, s),
+                    DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);
+        }
+    }
+
+    /*
+     * Give out warnings when more than one SSL-aware virtual server uses the
+     * same IP:port. This doesn't work because mod_ssl then will always use

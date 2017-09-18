@@ -1,29 +1,16 @@
-	}
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+/*
+ * worker_main()
+ * Main entry point for the worker threads. Worker threads block in 
+ * win*_get_connection() awaiting a connection to service.
+ */
+static void worker_main(long thread_num)
+{
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    ap_sb_handle_t *sbh;
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;

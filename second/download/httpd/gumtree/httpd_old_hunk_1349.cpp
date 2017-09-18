@@ -1,13 +1,12 @@
-    if (!method_restricted)
-	return OK;
+        }
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    return status;
 }
 
-module MODULE_VAR_EXPORT auth_module =
+static void ssl_io_input_add_filter(ssl_filter_ctx_t *filter_ctx, conn_rec *c,
+                                    SSL *ssl)
 {
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    bio_filter_in_ctx_t *inctx;
+
+    inctx = apr_palloc(c->pool, sizeof(*inctx));

@@ -1,4 +1,2 @@
-r(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    MODNAME ": rule matched, line=%d type=%d %s",
-		    m->lineno, m->type,
-		    (m->type == STRING) ? m->value.s : "");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+			"%lu > %lu = %d", v, l, matched);

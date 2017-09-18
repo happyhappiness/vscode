@@ -1,28 +1,30 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+                                 cmd->temp_pool)) != APR_SUCCESS) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+	    "mod_file_cache: unable to stat(%s), skipping", fspec);
+	return;
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
+    if (tmp.finfo.filetype != APR_REG) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
+	    "mod_file_cache: %s isn't a regular file, skipping", fspec);
+	return;
+    }
+    if (tmp.finfo.size > AP_MAX_SENDFILE) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
+	    "mod_file_cache: %s is too large to cache, skipping", fspec);
 	return;
     }
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+    rc = apr_file_open(&fd, fspec, APR_READ | APR_BINARY | APR_XTHREAD,
+                       APR_OS_DEFAULT, cmd->pool);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                     "mod_file_cache: unable to open(%s, O_RDONLY), skipping", fspec);
+	return;
+    }
+    apr_file_set_inherit(fd);
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    /* WooHoo, we have a file to put in the cache */
+    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
+    new_file->finfo = tmp.finfo;
+
+#if APR_HAS_MMAP

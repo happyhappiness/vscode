@@ -1,13 +1,13 @@
-    /*
-     *  only do something under runtime if the engine is really enabled,
-     *  for this directory, else return immediately!
-     */
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-        /* FollowSymLinks is mandatory! */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-                     "which implies that RewriteRule directive is forbidden: "
-                     "%s", r->filename);
-        return FORBIDDEN;
-    }
-    else {
+		"</STRONG>", NULL));
+
+    /* Allow "error-notes" string to be printed by ap_send_error_response() */
+    apr_table_setn(r->notes, "verbose-error-to", apr_pstrdup(r->pool, "*"));
+
+    r->status_line = apr_psprintf(r->pool, "%3.3u Proxy Error", statuscode);
+    ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, r,
+			 "proxy: %s returned by %s", message, r->uri);
+    return statuscode;
+}
+
+static const char *
+     proxy_get_host_of_request(request_rec *r)

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r->server,
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                          "The version element does not contain "
+                          "an \"href\" element.");

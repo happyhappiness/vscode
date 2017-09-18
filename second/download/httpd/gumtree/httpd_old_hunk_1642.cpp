@@ -1,20 +1,13 @@
-	     */
-	    break;
+	 * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
+	 * ))
+	 */
+	m = m->next;
+	while (m && (m->cont_level != 0)) {
+#if MIME_MAGIC_DEBUG
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
+			MODNAME ": match line=%d cont=%d type=%d %s",
+			m->lineno, m->cont_level, m->type,
+			(m->type == STRING) ? m->value.s : "");
 #endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
-
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+	    if (cont_level >= m->cont_level) {
+		if (cont_level > m->cont_level) {

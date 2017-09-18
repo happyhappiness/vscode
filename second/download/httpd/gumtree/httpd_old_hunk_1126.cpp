@@ -1,29 +1,26 @@
-	}
+    
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    /* check if we have a registered command for the extension*/
+    *cmd = apr_table_get(d->file_type_handlers, ext);
+    if (*cmd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Could not find a command associated with the %s extension", ext);
+        return APR_EBADF;
+    }
+    if (!stricmp(*cmd, "OS")) {
+        /* If it is an NLM then restore *cmd and just execute it */
+        *cmd = cmd_only;
+    }
+    else {
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, *cmd, " ", cmd_only, NULL);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+        /* Run in its own address space if specified */
+        detached = apr_table_get(d->file_handler_mode, ext);
+        if (detached) {
+            e_info->cmd_type = APR_PROGRAM_ENV;
+        }

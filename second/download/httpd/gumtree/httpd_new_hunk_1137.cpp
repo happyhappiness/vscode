@@ -1,21 +1,18 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+
+    /* do syntatic check.
+     * We break the URL into host, port, path, search
+     */
+    port = def_port;
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    /* now parse path/search args, according to rfc1738 */
+    /* N.B. if this isn't a true proxy request, then the URL _path_
+     * has already been decoded.  True proxy requests have r->uri
+     * == r->unparsed_uri, and no others have that property.
+     */

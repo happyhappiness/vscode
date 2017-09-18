@@ -1,22 +1,17 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+        rv = cache_create_entity(r, cache->types, url, size);
+    }
+    
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        if (split_point) {
+            apr_bucket_brigade *already_sent = in;
+            in = apr_brigade_split(in, split_point);
+            apr_brigade_destroy(already_sent);
+        }
+        return ap_pass_brigade(f->next, in);
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", url);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();

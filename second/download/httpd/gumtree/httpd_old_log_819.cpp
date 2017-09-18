@@ -1,0 +1,3 @@
+ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    " increasing MaxClients to %d.",
+                    ap_threads_per_child);

@@ -1,20 +1,40 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
+    else {
+        fname = ap_server_root_relative(p, s->error_fname);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
+                         "%s: Invalid error log path %s.",
+                         ap_server_argv0, s->error_fname);
+            return DONE;
+        }
+        if ((rc = apr_file_open(&s->error_log, fname,
+                               APR_APPEND | APR_READ | APR_WRITE | APR_CREATE,
+                               APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "%s: could not open error log file %s.",
+                         ap_server_argv0, fname);
+            return DONE;
+        }
+
+        apr_file_inherit_set(s->error_log);
+    }
+
+    return OK;
+}
+
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
+                 apr_pool_t *ptemp, server_rec *s_main)
 {
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
+    apr_status_t rc = APR_SUCCESS;
+    server_rec *virt, *q;
+    int replace_stderr;
+    apr_file_t *errfile = NULL;
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    if (open_error_log(s_main, p) != OK) {
+        return DONE;
+    }
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    replace_stderr = 1;
+    if (s_main->error_log) {
+        /* replace stderr with this new log */
+        apr_file_flush(s_main->error_log);
+        if ((rc = apr_file_open_stderr(&errfile, p)) == APR_SUCCESS) {

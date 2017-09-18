@@ -1,26 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+  
+    if (r->proxyreq) {
+        return HTTP_FORBIDDEN;
+    }
+    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
+	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+		     "Invalid URI in request %s", r->the_request);
+	return BAD_REQUEST;
+    }
+    
+    if (r->server->path 
+	&& !strncmp(r->uri, r->server->path, r->server->pathlen)

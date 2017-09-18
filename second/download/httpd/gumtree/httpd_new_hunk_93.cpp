@@ -1,13 +1,13 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
+	*temp = '\0';              /* overlay it with the null terminator */
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
+    r->status_line = apr_pstrdup(r->pool, urlbuff);            /* Save status line into request rec  */
 
-    /* Pass two --- wildcard matches */
+    apr_file_close(dobj->hfd);
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "disk_cache: Served headers for URL %s",  dobj->name);
+    return APR_SUCCESS;
+}
+
+static apr_status_t read_body(cache_handle_t *h, apr_pool_t *p, apr_bucket_brigade *bb) 
+{

@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
+                     APR_EBADPATH, NULL, "Invalid -E error log file %s",
+                     fname);
+        return APR_EBADPATH;
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+    if ((rc = apr_file_open(&stderr_file, filename,
+                            APR_APPEND | APR_READ | APR_WRITE | APR_CREATE,
+                            APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "%s: could not open error log file %s.",
+                     ap_server_argv0, fname);
+        return rc;
+    }

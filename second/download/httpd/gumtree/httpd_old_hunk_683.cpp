@@ -1,20 +1,13 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
-    }
+static void ap_proxy_ftp_register_hook(apr_pool_t *p)
+{
+    /* hooks */
+    proxy_hook_scheme_handler(ap_proxy_ftp_handler, NULL, NULL, APR_HOOK_MIDDLE);
+    proxy_hook_canon_handler(ap_proxy_ftp_canon, NULL, NULL, APR_HOOK_MIDDLE);
+    /* filters */
+    ap_register_output_filter("PROXY_SEND_DIR", ap_proxy_send_dir_filter, AP_FTYPE_RESOURCE);
+}
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+module AP_MODULE_DECLARE_DATA proxy_ftp_module = {
+    STANDARD20_MODULE_STUFF,
+    NULL,                       /* create per-directory config structure */
+    NULL,                       /* merge per-directory config structures */

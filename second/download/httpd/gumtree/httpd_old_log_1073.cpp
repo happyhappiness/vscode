@@ -1,0 +1,1 @@
+fprintf(stderr, "Error witing to the file %s\n", buf2);

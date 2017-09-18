@@ -1,65 +1,28 @@
-
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
 }
 
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
 {
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
+    apr_status_t sts;
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
+    if (sts != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");
+        return;
     }
     else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
     }
 }
 
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
+command_rec util_ldap_cmds[] = {
+    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
+                  "Sets the size of the shared memory cache in bytes. "
+                  "Zero means disable the shared memory cache. Defaults to 100KB."),
 
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
-    }
-
-    /* Add extra strings to array. */
-    n = n + 2;
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;

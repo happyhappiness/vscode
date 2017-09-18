@@ -1,17 +1,17 @@
+        }
+        if (!(autoindex_opts & SUPPRESS_DESC)) {
+            emit_link(r, "Description", K_DESC, keyid, direction,
+                      colargs, static_columns);
+        }
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs(">", r);
+        }
+        else {
+            ap_rputc('\n', r);
+        }
     }
     else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }

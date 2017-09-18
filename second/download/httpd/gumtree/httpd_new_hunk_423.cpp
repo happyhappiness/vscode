@@ -1,28 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, s,
+            "couldn't bind UDP socket!");
+        return 1;
+    }
+ 
+    if ((num_listening_sockets = ap_setup_listeners(ap_server_conf)) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+            "no listening sockets available, shutting down");
+        return 1;
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    ap_log_pid(pconf, ap_pid_fname);
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);

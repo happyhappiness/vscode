@@ -1,13 +1,12 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+    apr_size_t r;
+    apr_status_t status;
+    char *part;
+    char respcode[4];		/* 3 digits and null */
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    r = sizeof(buffer);
+    status = apr_recv(c->aprsock, buffer, &r);
+    if (APR_STATUS_IS_EAGAIN(status))
+	return;
+    else if (r == 0 && APR_STATUS_IS_EOF(status)) {
+	good++;
+	close_connection(c);

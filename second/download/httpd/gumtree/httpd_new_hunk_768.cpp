@@ -1,13 +1,14 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* fudge response into a conditional */

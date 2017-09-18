@@ -1,20 +1,15 @@
-#endif
+    if (err != NULL) {
+        return err;
+    }
 
-    ap_soft_timeout("send body", r);
+    max_spare_threads = atoi(arg);
+    if (max_spare_threads >= thread_limit) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    "WARNING: detected MinSpareThreads set higher than");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    "ThreadLimit. Resetting to %d", thread_limit);
+       max_spare_threads = thread_limit;
+    }
+    return NULL;
+}
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)

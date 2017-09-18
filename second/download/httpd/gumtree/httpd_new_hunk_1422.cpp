@@ -1,14 +1,15 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+        }
 
+        r->read_chunked = 1;
+    }
+    else if (lenp) {
+        const char *pos = lenp;
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+        while (ap_isdigit(*pos) || ap_isspace(*pos))
+            ++pos;
+        if (*pos != '\0') {
+            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                        "Invalid Content-Length %s", lenp);
+            return HTTP_BAD_REQUEST;
+        }

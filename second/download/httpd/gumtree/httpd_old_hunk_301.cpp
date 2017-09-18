@@ -1,25 +1,25 @@
-/* --------------------------------------------------------- */
+    X509 *cert;
 
-/* simple little function to perror and exit */
+    if (!(asn1 = ssl_asn1_table_get(mc->tPublicCert, id))) {
+        return FALSE;
+    }
 
-static void err(char *s)
-{
-    perror(s);
-    exit(errno);
-}
+    ssl_log(s, SSL_LOG_TRACE|SSL_INIT,
+            "Configuring %s server certificate", type);
 
-/* --------------------------------------------------------- */
+    ptr = asn1->cpData;
+    if (!(cert = d2i_X509(NULL, &ptr, asn1->nData))) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                "Unable to import %s server certificate", type);
+        ssl_die();
+    }
 
-/* write out request to a connection - assumes we can write 
-   (small) request out in one go into our new socket buffer  */
+    if (SSL_CTX_use_certificate(mctx->ssl_ctx, cert) <= 0) {
+        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
+                "Unable to configure %s server certificate", type);
+        ssl_die();
+    }
 
-static void write_request(struct connection *c)
-{
-    gettimeofday(&c->connect, 0);
-    write(c->fd, request, reqlen);
-    c->state = STATE_READ;
-    FD_SET(c->fd, &readbits);
-    FD_CLR(c->fd, &writebits);
-}
+    mctx->pks->certs[idx] = cert;
 
-/* --------------------------------------------------------- */
+    return TRUE;

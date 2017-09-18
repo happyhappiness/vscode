@@ -1,13 +1,13 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+                    current->token.type = token_group;
+                    break;
+                }
+                current = current->parent;
+            }
+            if (current == (struct parse_node *) NULL) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                            "Unmatched ')' in \"%s\" in file %s",
+			    expr, r->filename);
+                ap_rputs(error, r);
+                goto RETURN;
+            }
+            break;

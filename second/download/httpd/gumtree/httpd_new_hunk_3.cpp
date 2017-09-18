@@ -1,9 +1,21 @@
-/*
- *  compat.h -- backward compatibility header for ap_compat.h
- */
-
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_compat.h instead"
-#endif
-
-#include "ap_compat.h"
+	   && ((!conf->anon_auth_mustemail) || strlen(sent_pw))
+    /* does the password look like an email address ? */
+	   && ((!conf->anon_auth_verifyemail)
+	       || ((strpbrk("@", sent_pw) != NULL)
+		   && (strpbrk(".", sent_pw) != NULL)))) {
+	if (conf->anon_auth_logemail && ap_is_initial_req(r)) {
+	    ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r,
+			"Anonymous: Passwd <%s> Accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	}
+	return OK;
+    }
+    else {
+	if (conf->anon_auth_authoritative) {
+	    ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
+			"Anonymous: Authoritative, Passwd <%s> not accepted",
+			sent_pw ? sent_pw : "\'none\'");
+	    return HTTP_UNAUTHORIZED;
+	}
+	/* Drop out the bottom to return DECLINED */
+    }

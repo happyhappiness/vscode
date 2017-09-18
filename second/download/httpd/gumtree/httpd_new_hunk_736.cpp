@@ -1,20 +1,13 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    /* on some platforms (e.g., FreeBSD), the kernel won't accept many
+     * queued connections before it starts blocking local connects...
+     * we need to keep from blocking too long and instead return an error,
+     * because the MPM won't want to hold up a graceful restart for a
+     * long time
+     */
+    rv = apr_socket_timeout_set(sock, apr_time_from_sec(3));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "set timeout on socket to connect to listener");
+        apr_socket_close(sock);
+        return rv;
     }
-
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

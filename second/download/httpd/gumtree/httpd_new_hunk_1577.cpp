@@ -1,13 +1,13 @@
+	if (r->filename[strlen(r->filename) - 1] != '/') {
+	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
+	}
+	return index_directory(r, d);
+    }
+    else {
+	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
+		     "Directory index forbidden by rule: %s", r->filename);
+	return HTTP_FORBIDDEN;
+    }
+}
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);

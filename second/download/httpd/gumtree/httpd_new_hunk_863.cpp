@@ -1,13 +1,24 @@
-	return ap_proxyerror(r, err);	/* give up */
+    s = c->base_server;
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
+        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
+        if (rc >= 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "%s: %s %ld/%d bytes %s BIO#%pp [mem: %pp] %s",
+                    SSL_LIBRARY_NAME,
+                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
+                    rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
+                    bio, argp,
+                    (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
+            if (argp != NULL)
+                ssl_io_data_dump(s, argp, rc);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "%s: I/O error, %d bytes expected to %s on BIO#%pp [mem: %pp]",
+                    SSL_LIBRARY_NAME, argi,
+                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
+                    bio, argp);
+        }
     }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    return rc;

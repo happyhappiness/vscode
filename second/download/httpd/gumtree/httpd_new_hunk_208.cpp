@@ -1,13 +1,13 @@
     }
-
-    return HTTP_INTERNAL_SERVER_ERROR;        /* If we make it this far,
-                                                 we failed. They lose! */
-
-need_2_fields:
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		"map file %s, line %d syntax error: requires at "
-                "least two fields", r->uri, imap->line_number);
-    /* fall through */
-menu_bail:
-    ap_cfg_closefile(imap);
-    if (showmenu) {
+    else if (strncmp(l, "ledate", NLEDATE) == 0) {
+	m->type = LEDATE;
+	l += NLEDATE;
+    }
+    else {
+	ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
+		    MODNAME ": type %s invalid", l);
+	return -1;
+    }
+    /* New-style anding: "0 byte&0x80 =0x80 dynamically linked" */
+    if (*l == '&') {
+	++l;

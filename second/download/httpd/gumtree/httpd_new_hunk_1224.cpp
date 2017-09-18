@@ -1,88 +1,68 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-		ap_send_size(ar[x]->size, r);
-		ap_rputs("  ", r);
-	    }
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-		if (ar[x]->desc) {
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-						   autoindex_opts), r);
-		}
-	    }
-	}
-	else {
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-	}
-	ap_rputc('\n', r);
+                }
+                else if (h1 && h2 && !strcmp(h1, h2)) {
+                    /* both headers exist and are equal - do nothing */
+                }
+                else {
+                    /* headers do not match, so Vary failed */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server,
+                                "cache_select_url(): Vary header mismatch.");
+                    return DECLINED;
+                }
+            }
+
+            cache->provider = list->provider;
+            cache->provider_name = list->provider_name;
+
+            /* Is our cached response fresh enough? */
+            fresh = ap_cache_check_freshness(h, r);
+            if (!fresh) {
+                cache_info *info = &(h->cache_obj->info);
+
+                /* Make response into a conditional */
+                /* FIXME: What if the request is already conditional? */
+                if (info && info->etag) {
+                    /* if we have a cached etag */
+                    cache->stale_headers = apr_table_copy(r->pool,
+                                                          r->headers_in);
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
+                    cache->stale_handle = h;
+                }
+                else if (info && info->lastmods) {
+                    /* if we have a cached Last-Modified header */
+                    cache->stale_headers = apr_table_copy(r->pool,
+                                                          r->headers_in);
+                    apr_table_set(r->headers_in, "If-Modified-Since",
+                                  info->lastmods);
+                    cache->stale_handle = h;
+                }
+
+                return DECLINED;
+            }
+
+            /* Okay, this response looks okay.  Merge in our stuff and go. */
+            apr_table_setn(r->headers_out, "Content-Type",
+                           ap_make_content_type(r, h->content_type));
+            r->filename = apr_pstrdup(r->pool, h->cache_obj->info.filename);
+            accept_headers(h, r);
+
+            cache->handle = h;
+            return OK;
+        }
+        case DECLINED: {
+            /* try again with next cache type */
+            list = list->next;
+            continue;
+        }
+        default: {
+            /* oo-er! an error */
+            return rv;
+        }
+        }
     }
-    if (autoindex_opts & FANCY_INDEXING) {
-	ap_rputs("</PRE>", r);
-    }
-    else {
-	ap_rputs("</UL>", r);
-    }
+    return DECLINED;
 }
 
-/*
- * Compare two file entries according to the sort criteria.  The return
- * is essentially a signum function value.
- */
-
-static int dsortf(struct ent **e1, struct ent **e2)
+apr_status_t cache_generate_key_default( request_rec *r, apr_pool_t*p, char**key ) 
 {
-    struct ent *c1;
-    struct ent *c2;
-    int result = 0;
-
-    /*
-     * First, see if either of the entries is for the parent directory.
-     * If so, that *always* sorts lower than anything else.
-     */
-    if (is_parent((*e1)->name)) {
-        return -1;
-    }
-    if (is_parent((*e2)->name)) {
-        return 1;
-    }
-    /*
-     * All of our comparisons will be of the c1 entry against the c2 one,
-     * so assign them appropriately to take care of the ordering.
-     */
-    if ((*e1)->ascending) {
-        c1 = *e1;
-        c2 = *e2;
-    }
-    else {
-        c1 = *e2;
-        c2 = *e1;
-    }
-    switch (c1->key) {
-    case K_LAST_MOD:
-	if (c1->lm > c2->lm) {
-            return 1;
-        }
-        else if (c1->lm < c2->lm) {
-            return -1;
-        }
-        break;
-    case K_SIZE:
-        if (c1->size > c2->size) {
-            return 1;
-        }
-        else if (c1->size < c2->size) {
-            return -1;
-        }
-        break;
-    case K_DESC:
-        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
-        if (result) {
-            return result;
-        }
-        break;
-    }
-    return strcmp(c1->name, c2->name);
-}
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-{
-    char *title_name = ap_escape_html(r->pool, r->uri);
+    if (r->hostname) {

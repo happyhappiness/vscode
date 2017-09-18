@@ -1,18 +1,35 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
+
+    /* check if we have a registered command for the extension*/
+    new_cmd = apr_table_get(d->file_type_handlers, ext);
+    if (new_cmd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Could not find a command associated with the %s extension", ext);
+        return APR_EBADF;
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+    if (stricmp(new_cmd, "OS")) {
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, new_cmd, " ", cmd_only, NULL);
+
+        /* Run in its own address space if specified */
+        detached = apr_table_get(d->file_handler_mode, ext);
+        if (detached) {
+            e_info->cmd_type = APR_PROGRAM_ENV;
+        }
+        else {
+            e_info->cmd_type = APR_PROGRAM;
+        }
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    /* Tokenize the full command string into its arguments */
+    apr_tokenize_to_argv(*cmd, (char***)argv, p);
+    e_info->detached = 1;
+
+    /* The first argument should be the executible */
+    *cmd = ap_server_root_relative(p, *argv[0]);
+
+    return APR_SUCCESS;
+}

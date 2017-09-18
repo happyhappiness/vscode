@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, f->r,
+                      "couldn't find definition of filter '%s'",
+                      f->frec->name);

@@ -1,20 +1,17 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+            else if (w < 0) {
+                if (r->connection->aborted)
+                    break;
+                else if (errno == EAGAIN)
+                    continue;
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
+                     "%s client stopped connection before send body completed",
+                                ap_get_remote_host(r->connection,
+                                                r->per_dir_config,
+                                                REMOTE_NAME));
+                    ap_bsetflag(r->connection->client, B_EOUT, 1);
+                    r->connection->aborted = 1;
+                    break;
+                }
+            }
+        }

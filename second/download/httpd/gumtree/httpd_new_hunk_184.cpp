@@ -1,13 +1,26 @@
-#else
-    q.dsize = strlen(q.dptr) + 1;
-#endif
+    apr_snprintf(str3, sizeof(str3),
+                "%s %s [%s/sid#%lx][rid#%lx/%s%s] (%d) %s" APR_EOL_STR, str1,
+                current_logtime(r), ap_get_server_name(r),
+                (unsigned long)(r->server), (unsigned long)r,
+                type, redir, level, str2);
 
-
-    if (!(f = dbm_open(auth_dbmpwfile, O_RDONLY, 0664))) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "could not open dbm auth file: %s", auth_dbmpwfile);
-	return NULL;
+    rv = apr_global_mutex_lock(rewrite_log_lock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_lock(rewrite_log_lock) failed");
+        /* XXX: Maybe this should be fatal? */
+    }
+    nbytes = strlen(str3);
+    apr_file_write(conf->rewritelogfp, str3, &nbytes);
+    rv = apr_global_mutex_unlock(rewrite_log_lock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_unlock(rewrite_log_lock) failed");
+        /* XXX: Maybe this should be fatal? */
     }
 
-    d = dbm_fetch(f, q);
+    va_end(ap);
+    return;
+}
 
+static char *current_logtime(request_rec *r)

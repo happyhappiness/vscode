@@ -1,14 +1,20 @@
-    ap_hard_timeout("send directory", r);
+            else
+                *tlength += 4 + strlen(r->boundary) + 4;
+        }
+        return 0;
+    }
 
-    /* Spew HTML preamble */
+    range = ap_getword_nc(r->pool, r_range, ',');
+    if (!parse_byterange(range, r->clength, &range_start, &range_end))
+        /* Skip this one */
+        return internal_byterange(realreq, tlength, r, r_range, offset,
+                                  length);
 
-    title_endp = title_name + strlen(title_name) - 1;
+    if (r->byterange > 1) {
+        char *ct = r->content_type ? r->content_type : ap_default_type(r);
+        char ts[MAX_STRING_LEN];
 
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
+                    r->clength);
+        if (realreq)
+            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

@@ -1,13 +1,13 @@
+    void *sconf = r->server->module_config;
+    cache_server_conf *conf =
+        (cache_server_conf *) ap_get_module_config(sconf, &cache_module);
+    void *scache = r->request_config;
+    cache_request_rec *cache =
+        (cache_request_rec *) ap_get_module_config(scache, &cache_module);
+    apr_bucket *split_point = NULL;
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "cache: running CACHE_IN filter");
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+    /* check first whether running this filter has any point or not */

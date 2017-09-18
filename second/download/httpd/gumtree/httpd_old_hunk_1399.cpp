@@ -1,13 +1,19 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+                    return;
+                }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool,
+                                                              last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
+                
+                tmp_field = value - 1; /* last character of field-name */
+
+                *value++ = '\0'; /* NUL-terminate at colon */

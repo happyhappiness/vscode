@@ -1,13 +1,15 @@
-	return ap_proxyerror(r, err);	/* give up */
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
+    /* ### I really don't think this is needed; gotta test */
+    r->status_line = ap_get_status_line(err->status);
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+
+    /* since we're returning DONE, ensure the request body is consumed. */
+    (void) ap_discard_request_body(r);
+
+    ap_rputs(DAV_XML_HEADER DEBUG_CR
+             "<D:error xmlns:D=\"DAV:\"", r);
+
+    if (err->desc != NULL) {
+        /* ### should move this namespace somewhere (with the others!) */
+        ap_rputs(" xmlns:m=\"http://apache.org/dav/xmlns\"", r);

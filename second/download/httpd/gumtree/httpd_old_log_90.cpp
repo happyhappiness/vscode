@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "request failed for %s, reason: URI too long",
-            ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME));
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "The \"options\" element was not found.");

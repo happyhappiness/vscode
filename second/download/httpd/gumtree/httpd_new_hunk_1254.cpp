@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+    return 0;
+}
+
+
+static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+{
+    int i;

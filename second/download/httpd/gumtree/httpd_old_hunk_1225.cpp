@@ -1,14 +1,12 @@
-    ap_hard_timeout("send directory", r);
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+    }
 
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
+                      getpid());

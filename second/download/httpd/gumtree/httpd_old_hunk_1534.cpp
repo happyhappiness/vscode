@@ -1,13 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
+
+	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
+	    direct_connect = list[ii].matcher(&list[ii], r);
+	}
+#if DEBUGGING
+	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
+		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
+		     r->uri);
+#endif
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+/* firstly, try a proxy, unless a NoProxy directive is active */

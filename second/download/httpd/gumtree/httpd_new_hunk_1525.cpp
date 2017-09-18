@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = garbage_now;	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+	perror("Unable to gethostname");
+	exit(1);
     }
-    else {
+    str[MAXHOSTNAMELEN] = '\0';
+    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
+	fprintf(stderr, "httpd: cannot determine local host name.\n");
+	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
+	exit(1);
+    }
+
+    return server_hostname;
+}
+

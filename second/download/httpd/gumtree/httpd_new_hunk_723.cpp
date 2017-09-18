@@ -1,31 +1,20 @@
+                                   int fixed_args)
+{
+    apr_array_header_t *svc_args = NULL;
+    char conf_key[MAX_PATH];
+    char **cmb_data;
+    apr_status_t rv;
+    ap_regkey_t *key;
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+    apr_snprintf(conf_key, sizeof(conf_key), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, conf_key, APR_READ, p);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_get(&svc_args, key, "ConfigArgs", p);
+        ap_regkey_close(key);
     }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    if (rv != APR_SUCCESS) {
+        if (rv == ERROR_FILE_NOT_FOUND) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
+                         "No ConfigArgs registered for %s, perhaps "
+                         "this service is not installed?", 
+                         mpm_service_name);

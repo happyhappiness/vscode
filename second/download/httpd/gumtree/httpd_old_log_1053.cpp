@@ -1,0 +1,1 @@
+fprintf(stderr, "Automatically using MD5 format.\n");

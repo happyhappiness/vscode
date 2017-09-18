@@ -1,31 +1,32 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+		*colon = '\0';
+	    }
+	    if (strcmp(user, scratch) != 0) {
+		putline(ftemp, line);
+		continue;
+	    }
+            else {
+                /* We found the user we were looking for, add him to the file.
+                 */
+                apr_file_printf(errfile, "Updating ");
+                putline(ftemp, record);
+            }
+	}
     }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    if (!found) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
     }
+    apr_file_printf(errfile, "password for user %s\n", user);
+    apr_file_close(fpw);
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+#if defined(OS2) || defined(WIN32)
+    str = apr_psprintf(pool, "copy \"%s\" \"%s\"", tn, pwfilename);
+#else
+    str = apr_psprintf(pool, "cp %s %s", tn, pwfilename);
+#endif
+    system(str);
+    apr_file_close(ftemp);
+    return 0;
+}

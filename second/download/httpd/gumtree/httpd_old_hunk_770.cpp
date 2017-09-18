@@ -1,13 +1,17 @@
+{
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "cache: running CACHE_CONDITIONAL filter");
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    if (f->r->status == HTTP_NOT_MODIFIED) {
+        /* replace ourselves with CACHE_OUT filter */
+        ap_add_output_filter("CACHE_OUT", NULL, f->r, f->r->connection);
+    }
+    else {
+        /* replace ourselves with CACHE_IN filter */
+        ap_add_output_filter("CACHE_IN", NULL, f->r, f->r->connection);
+    }
+    ap_remove_output_filter(f);
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    return ap_pass_brigade(f->next, in);
+}
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */

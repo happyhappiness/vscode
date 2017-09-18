@@ -1,13 +1,15 @@
-    if (!method_restricted)
-	return OK;
+#define APLOG_MARK	__FILE__,__LINE__
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+void ap_open_logs (server_rec *, pool *p);
+API_EXPORT(void) ap_log_error(const char *file, int line, int level,
+			     const server_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,5,6)));
+API_EXPORT(void) ap_error_log2stderr (server_rec *);     
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+void ap_log_pid (pool *p, char *fname);
+API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
+API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
+			     const char *msg, server_rec *s);
+API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,2,3)));
+API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,

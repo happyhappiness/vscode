@@ -1,17 +1,15 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+        /*
+         * Emulate the OpenSSL internal pass phrase dialog
+         * (see crypto/pem/pem_lib.c:def_callback() for details)
+         */
+        prompt = "Enter pass phrase:";
+
+        for (;;) {
+            apr_file_puts(prompt, writetty);
+            if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE); 
+            }  
+            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+                i = EVP_read_pw_string(buf, bufsize, "", FALSE); 
+            }  

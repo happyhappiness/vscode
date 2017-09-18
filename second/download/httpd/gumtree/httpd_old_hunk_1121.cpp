@@ -1,13 +1,22 @@
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            return r;
+        }
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
 
-    ap_hard_timeout("send headers", r);
+    if ((access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_run_log_transaction(r);
+        return NULL;
+    }
 
-    ap_basic_http_header(r);
+    return r;
+}

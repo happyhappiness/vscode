@@ -1,30 +1,35 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+         */
+        new->real = r;
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+    new->fake = f;
+    new->handler = cmd->info;
 
-    sub_garbage_coll(r, files, cachedir, "/");
+    /* check for overlapping (Script)Alias directives
+     * and throw a warning if found one
+     */
+    if (!use_regex) {
+        for (i = 0; i < conf->aliases->nelts - 1; ++i) {
+            alias_entry *p = &entries[i];
 
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+            if (  (!p->regexp &&  alias_matches(f, p->fake) > 0)
+                || (p->regexp && !ap_regexec(p->regexp, f, 0, NULL, 0))) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             "The %s directive in %s at line %d will probably "
+                             "never match because it overlaps an earlier "
+                             "%sAlias%s.",
+                             cmd->cmd->name, cmd->directive->filename,
+                             cmd->directive->line_num,
+                             p->handler ? "Script" : "",
+                             p->regexp ? "Match" : "");
+
+                break; /* one warning per alias should be sufficient */
+            }
+        }
     }
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+    return NULL;
+}
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+static const char *add_alias(cmd_parms *cmd, void *dummy, const char *f,
+                             const char *r)
+{

@@ -1,13 +1,29 @@
-    if (!method_restricted)
-	return OK;
+                "be a multiple of the rotation time, so you can synchronize\n"
+                "cron scripts with it). At the end of each rotation time or "
+                "when the file size\nis reached a new log is started.\n");
+        exit(1);
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    szLogRoot = argv[1];
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+    ptr = strchr (argv[2], 'M');
+    if (ptr) {
+        if (*(ptr+1) == '\0') {
+            sRotation = atoi(argv[2]) * 1048576;
+        }
+        if (sRotation == 0) {
+            fprintf(stderr, "Invalid rotation size parameter\n");
+            exit(1);
+        }
+    }
+    else {
+        if (argc >= 4) {
+            utc_offset = atoi(argv[3]) * 60;
+        }
+        tRotation = atoi(argv[2]);
+        if (tRotation <= 0) {
+            fprintf(stderr, "Rotation time must be > 0\n");
+            exit(6);
+        }
+    }
 
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

@@ -1,13 +1,13 @@
-            /* it should be go on as an internal proxy request */
 
-            /* check if the proxy module is enabled, so
-             * we can actually use it!
-             */
-            if (!proxy_available) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                             "attempt to make remote request from mod_rewrite "
-                             "without proxy enabled: %s", r->filename);
-                return FORBIDDEN;
-            }
+	    if (!apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
+		/* Nope, it wasn't even an extra HTTP header. Give up. */
+		return NULL;
+	    }
 
-            /* make sure the QUERY_STRING and
+	    ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r->server,
+			 "proxy: Ignoring duplicate HTTP header "
+			 "returned by %s (%s)", r->uri, r->method);
+	    continue;
+	}
+
+        *value = '\0';

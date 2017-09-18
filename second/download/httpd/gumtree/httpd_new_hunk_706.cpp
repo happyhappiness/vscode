@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+                     NULL, "no listening sockets available, shutting down");
+        return DONE;
     }
 
-    Explain0("FTP: connected.");
+#if APR_O_NONBLOCK_INHERITED
+    for(lr = ap_listeners ; lr != NULL ; lr = lr->next) {
+        apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
+    }
+#endif /* APR_O_NONBLOCK_INHERITED */
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    if (!one_process) {
+        if ((rv = ap_mpm_pod_open(pconf, &pod))) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,

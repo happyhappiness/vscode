@@ -1,13 +1,14 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+            
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
+
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+                p_conn->close += 1;

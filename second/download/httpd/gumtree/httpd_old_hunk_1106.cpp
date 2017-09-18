@@ -1,26 +1,13 @@
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, 
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+    /* Shutdown the worker threads */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
         }
     }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */

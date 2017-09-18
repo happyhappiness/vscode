@@ -1,26 +1,33 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+	getword(x, l, ':');
+	if (strcmp(user, w) || strcmp(realm, x)) {
+	    putline(tfp, line);
+	    continue;
+	}
+	else {
+	    printf("Changing password for user %s in realm %s\n", user, realm);
+	    add_password(user, realm, tfp);
+	    found = 1;
+	}
     }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
+    if (!found) {
+	printf("Adding user %s in realm %s\n", user, realm);
+	add_password(user, realm, tfp);
     }
+    apr_file_close(f);
+#if defined(OS2) || defined(WIN32)
+    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
+#else
+    sprintf(command, "cp %s %s", tn, argv[1]);
+#endif
 
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+#ifdef OMIT_DELONCLOSE
+    apr_file_close(tfp);
+    system(command);
+    apr_file_remove(tn, cntxt);
+#else
+    system(command);
+    apr_file_close(tfp);
+#endif
+
+    return 0;
+}

@@ -1,52 +1,33 @@
-#endif
-
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-    ap_hard_timeout("proxy send body", r);
-
-    while (!con->aborted && f != NULL) {
-	n = ap_bread(f, buf, IOBUFSIZE);
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_sent += n;
-
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
-
-	while (n && !con->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0) {
-		if (f2 != NULL) {
-		    ap_pclosef(c->req->pool, c->fp->fd);
-		    c->fp = NULL;
-		    f2 = NULL;
-		    con->aborted = 1;
-		    unlink(c->tempfile);
-		}
-		break;
-	    }
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-	    n -= w;
-	    o += w;
 	}
     }
-    if (!con->aborted)
-	ap_bflush(con->client);
+    return 0;
+}
+#endif
 
-    ap_kill_timeout(r);
-    return total_bytes_sent;
+/* handle all varieties of core dumping signals */
+static void sig_coredump(int sig)
+{
+    chdir(ap_coredump_dir);
+    apr_signal(sig, SIG_DFL);
+    if (ap_my_pid == parent_pid) {
+            ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                         0, ap_server_conf,
+                         "seg fault or similar nasty error detected "
+                         "in the parent process");
+    }
+    kill(getpid(), sig);
+    /* At this point we've got sig blocked, because we're still inside
+     * the signal handler.  When we leave the signal handler it will
+     * be unblocked, and we'll take the signal... and coredump or whatever
+     * is appropriate for this particular Unix.  In addition the parent
+     * will see the real signal we received -- whereas if we called
+     * abort() here, the parent would only see SIGABRT.
+     */
 }
 
-/*
- * Read a header from the array, returning the first entry
+/*****************************************************************
+ * Connection structures and accounting...
  */
-struct hdr_entry *
+
+static void just_die(int sig)
+{

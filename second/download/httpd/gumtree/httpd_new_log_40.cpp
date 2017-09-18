@@ -1,1 +1,3 @@
-printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);

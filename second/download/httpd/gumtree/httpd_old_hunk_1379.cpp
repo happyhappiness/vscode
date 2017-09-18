@@ -1,13 +1,12 @@
+void ssl_io_filter_init(conn_rec *c, SSL *ssl)
+{
+    ssl_filter_ctx_t *filter_ctx;
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
 
-    ap_hard_timeout("send headers", r);
+    filter_ctx->nobuffer        = 0;
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter_ctx, NULL, c);
 
-    ap_basic_http_header(r);
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);

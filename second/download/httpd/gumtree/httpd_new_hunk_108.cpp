@@ -1,31 +1,22 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
+            memcpy((char *) finfo, (const char *) &rr->finfo,
+                   sizeof(rr->finfo));
+            ap_destroy_sub_req(rr);
+            return 0;
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "unable to get information about \"%s\" "
+                        "in parsed file %s",
+                        tag_val, r->filename);
+            ap_destroy_sub_req(rr);
+            return -1;
+        }
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "unknown parameter \"%s\" to tag %s in %s",
+                    tag, directive, r->filename);
+        return -1;
+    }
+}
 
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-    }
-#elif defined(MAP_TMPFILE)
-    {
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-	int fd = mkstemp(mfile);
-	if (fd == -1) {
-	    perror("open");
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (m == (caddr_t) - 1) {
-	    perror("mmap");
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	close(fd);
-	unlink(mfile);
-    }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");

@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+	    return OK;
+	}
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
+	/* if we see a bogus header don't ignore it. Shout and scream */
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+	if (!(l = strchr(w, ':'))) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+			"malformed header in meta file: %s", r->filename);
+	    return SERVER_ERROR;
+	}
+
+	*l++ = '\0';
+	while (*l && ap_isspace(*l))

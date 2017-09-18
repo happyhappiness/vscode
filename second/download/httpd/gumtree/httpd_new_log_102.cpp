@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-                     "client stopped connection before send body completed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Unlock failed (%s):  "
+                      "No Lock-Token specified in header", r->filename);

@@ -1,26 +1,14 @@
+{
+    SHMCBHeader *header;
+    SHMCBIndex *idx = NULL;
+    unsigned int gap, new_pos, loop, new_offset;
+    int need;
 
-    /* Pass one --- direct matches */
+    ssl_log(s, SSL_LOG_TRACE, "entering shmcb_insert_encoded_session, "
+            "*queue->pos_count = %u", shmcb_get_safe_uint(queue->pos_count));
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    /* If there's entries to expire, ditch them first thing. */
+    shmcb_expire_division(s, queue, cache);
+    header = cache->header;
+    gap = header->cache_data_size - shmcb_get_safe_uint(cache->pos_count);
+    if (gap < encoded_len) {

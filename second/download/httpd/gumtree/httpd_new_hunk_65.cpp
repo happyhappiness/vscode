@@ -1,26 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
+        return result;
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+    if (doc == NULL
+        || !dav_validate_root(doc, "mkworkspace")) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "a \"mkworkspace\" element.");
+        return HTTP_BAD_REQUEST;
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
+    /* Check request preconditions */

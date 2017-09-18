@@ -1,1 +1,3 @@
-fprintf(stderr, "Use ServerName to set it manually.\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "A \"label-name\" or \"href\" element does not contain "
+                      "any content.");

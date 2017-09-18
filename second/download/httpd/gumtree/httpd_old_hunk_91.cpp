@@ -1,15 +1,13 @@
-#define APLOG_MARK	__FILE__,__LINE__
+    h->read_body = &read_body;
+    h->read_headers = &read_headers;
+    h->write_body = &write_body;
+    h->write_headers = &write_headers;
+    h->remove_entity = &remove_entity;
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
+                 "disk_cache: Caching URL %s",  key);
 
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
+    return OK;
+}
+
+static int open_entity(cache_handle_t *h, request_rec *r, const char *type, const char *key)

@@ -1,19 +1,21 @@
-    if (!method_restricted)
-	return OK;
+#define APLOG_MARK	__FILE__,__LINE__
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+void ap_open_logs (server_rec *, pool *p);
+API_EXPORT(void) ap_log_error(const char *file, int line, int level,
+			     const server_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,5,6)));
+API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
+			     const request_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,5,6)));
+API_EXPORT(void) ap_error_log2stderr (server_rec *);     
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+void ap_log_pid (pool *p, char *fname);
+/* These are for legacy code, new code should use ap_log_error,
+ * or ap_log_rerror.
+ */
+API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
+API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
+			     const char *msg, server_rec *s);
+API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
+			    __attribute__((format(printf,2,3)));
+API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,

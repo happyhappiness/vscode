@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-		    MODNAME ": invalid type %d in mcheck().", m->type);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		MODNAME ": revision_suffix checking %s", r->filename);

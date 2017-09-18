@@ -1,15 +1,12 @@
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error_log");
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+    return rc;
+}
+
+static int log_child(apr_pool_t *p, const char *progname,
+                     apr_file_t **fpin)
+{
+    /* Child process code for 'ErrorLog "|..."';
+     * may want a common framework for this, since I expect it will
+     * be common for other foo-loggers to want this sort of thing...

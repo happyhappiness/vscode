@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+    apr_status_t rv;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    pconf = p;
+    ap_server_conf = s;
+
+    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT|APLOG_STARTUP, 0,
+                     NULL, "no listening sockets available, shutting down");
+        return DONE;
+    }
+
+    if (!one_process) {
+        if ((rv = ap_mpm_pod_open(pconf, &pod))) {

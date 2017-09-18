@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
     }
 
-    Explain0("FTP: connected.");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring permitted SSL ciphers [%s]", 
+                 suite);
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    if (!SSL_CTX_set_cipher_list(ctx, MODSSL_PCHAR_CAST suite)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure permitted SSL ciphers");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
+}

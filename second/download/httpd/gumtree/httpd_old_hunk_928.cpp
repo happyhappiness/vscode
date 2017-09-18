@@ -1,13 +1,34 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+    struct accept_rec accept_info;
+    void *new_var;
+    int anymatch = 0;
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    clean_var_rec(&mime_info);
+
+    if (r->proxyreq || !r->filename 
+                    || !ap_os_is_path_absolute(neg->pool, r->filename)) {
+        return DECLINED;
+    }
+
+    /* Only absolute paths here */
+    if (!(filp = strrchr(r->filename, '/'))) {
+        return DECLINED;
+    }
+    ++filp;
+    prefix_len = strlen(filp);
+
+    if ((status = apr_dir_open(&dirp, neg->dir_name, neg->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                    "cannot read directory for multi: %s", neg->dir_name);
+        return HTTP_FORBIDDEN;
+    }
+
+    while (apr_dir_read(&dirent, APR_FINFO_DIRENT, dirp) == APR_SUCCESS) {
+        apr_array_header_t *exception_list;
+        request_rec *sub_req;
+        
+        /* Do we have a match? */
+#ifdef CASE_BLIND_FILESYSTEM
+        if (strncasecmp(dirent.name, filp, prefix_len)) {
+#else
+        if (strncmp(dirent.name, filp, prefix_len)) {
+#endif

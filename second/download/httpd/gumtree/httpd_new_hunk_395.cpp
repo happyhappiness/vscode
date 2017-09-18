@@ -1,13 +1,13 @@
-
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    *accepted = NULL;
+    status = apr_accept(&csd, lr->sd, ptrans);
+    if (status == APR_SUCCESS) { 
+        *accepted = csd;
+        apr_os_sock_get(&sockdes, csd);
+        if (sockdes >= FD_SETSIZE) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                         "new file descriptor %d is too large; you probably need "
+                         "to rebuild Apache with a larger FD_SETSIZE "
+                         "(currently %d)",
+                         sockdes, FD_SETSIZE);
+            apr_socket_close(csd);
+            return APR_EINTR;

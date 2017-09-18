@@ -1,13 +1,16 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+            {
+                renegotiate = TRUE;
+                /* optimization */
 
-    Explain0("FTP: connected.");
+                if ((dc->nOptions & SSL_OPT_OPTRENEGOTIATE) &&
+                    (verify_old == SSL_VERIFY_NONE) &&
+                    ((cert = SSL_get_peer_certificate(ssl)) != NULL))
+                {
+                    renegotiate_quick = TRUE;
+                    X509_free(cert);
+                }
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "Changed client verification type will force "
+                             "%srenegotiation",

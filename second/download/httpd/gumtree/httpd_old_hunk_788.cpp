@@ -1,22 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+     * teased out...
+     */
+
+    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s: module \"%s\" is not compatible with this "
+                     "version of Apache.", ap_server_argv0, m->name);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Please contact the vendor for the correct version.");
+        exit(1);
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    if (m->next == NULL) {

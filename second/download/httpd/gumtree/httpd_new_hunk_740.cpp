@@ -1,36 +1,40 @@
-#endif
+    else {
+        frec = apr_palloc(FILTER_POOL, sizeof(*frec));
+        node->frec = frec;
+        frec->name = normalized_name;
+    }
+    frec->filter_func = filter_func;
+    frec->filter_init_func = filter_init;
+    frec->ftype = ftype;
+    
+    apr_pool_cleanup_register(FILTER_POOL, NULL, filter_cleanup, 
+                              apr_pool_cleanup_null);
+    return frec;
+}
 
-    ap_soft_timeout("send body", r);
+AP_DECLARE(ap_filter_rec_t *) ap_register_input_filter(const char *name,
+                                          ap_in_filter_func filter_func,
+                                          ap_init_filter_func filter_init,
+                                          ap_filter_type ftype)
+{
+    ap_filter_func f;
+    f.in_func = filter_func;
+    return register_filter(name, f, filter_init, ftype,
+                           &registered_input_filters);
+}                                                                    
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
+                                           ap_out_filter_func filter_func,
+                                           ap_init_filter_func filter_init,
+                                           ap_filter_type ftype)
+{
+    ap_filter_func f;
+    f.out_func = filter_func;
+    return register_filter(name, f, filter_init, ftype,
+                           &registered_output_filters);
+}
 
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+static ap_filter_t *add_any_filter_handle(ap_filter_rec_t *frec, void *ctx, 
+                                          request_rec *r, conn_rec *c, 
+                                          ap_filter_t **r_filters,
+                                          ap_filter_t **p_filters,

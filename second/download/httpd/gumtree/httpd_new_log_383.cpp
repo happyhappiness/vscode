@@ -1,3 +1,2 @@
-printf("Processing: %5d %5d %5d\n", 
-            mintot - mincon, (total/requests) - (totalcon/requests),
-            maxtot - maxcon);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));

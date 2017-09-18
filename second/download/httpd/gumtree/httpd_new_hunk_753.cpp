@@ -1,30 +1,13 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
-    }
-
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+                double d = (double)avg - mean; \
+                if (d < 0) d = -d; \
+                if (d > 2 * sd ) \
+                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
+                           "       deviation apart. These results are NOT reliable.\n"); \
+                else if (d > sd ) \
+                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
+                           "        These results are probably not that reliable.\n"); \
+            }
+	    SANE("the initial connection time", totalcon, meancon, sdcon);
+	    SANE("the processing time", totald, meand, sdd);
+	    SANE("the waiting time", totalwait, meanwait, sdwait);
+	    SANE("the total time", total, meantot, sdtot);

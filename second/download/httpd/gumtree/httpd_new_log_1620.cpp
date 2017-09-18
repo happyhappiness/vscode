@@ -1,0 +1,1 @@
+info = &(cache->handle->cache_obj->info);

@@ -1,15 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
-
-	i = read(fd, line, 26);
+                    rewritelog(r, 5, "map lookup FAILED: map=%s key=%s",
+                               s->name, key);
+                }
+            }
+            else if (s->type == MAPTYPE_RND) {
+                if (stat(s->checkfile, &st) == -1) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
+                                 "mod_rewrite: can't access text RewriteMap "
+                                 "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open RewriteMap file, "
+                               "see error log");
+                    return NULL;
+                }

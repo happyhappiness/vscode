@@ -1,13 +1,24 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+
+static char *lcase_header_name_return_body(char *header, request_rec *r)
+{
+    char *cp = header;
+
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = tolower(*cp);
     }
 
-    Explain0("FTP: connected.");
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no ':': %s", r->filename);
+        return NULL;
+    }
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    do {
+        ++cp;
+    } while (*cp && isspace(*cp));
+
+    if (!*cp) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    "Syntax error in type map --- no header body: %s",
+                    r->filename);
+        return NULL;

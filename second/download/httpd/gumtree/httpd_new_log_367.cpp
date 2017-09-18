@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "%s: %s", ecb->lpszLogData, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: error reading status line from remote "
+                          "server %s", p_conn->name);

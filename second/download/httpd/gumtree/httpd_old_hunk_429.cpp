@@ -1,20 +1,24 @@
-#endif
+    if (err != NULL) {
+        return err;
+    }
 
-    ap_soft_timeout("send body", r);
+    ap_thread_limit = atoi(arg);
+    if (ap_thread_limit > HARD_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    "WARNING: MaxClients of %d exceeds compile time limit "
+                    "of %d servers,", ap_thread_limit, HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    " lowering MaxClients to %d.  To increase, please "
+                    "see the", HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                    " HARD_THREAD_LIMIT define in server/mpm/beos/mpm_default.h.");
+       ap_thread_limit = HARD_THREAD_LIMIT;
+    } 
+    else if (ap_thread_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
+                     "WARNING: Require MaxClients > 0, setting to %d", HARD_THREAD_LIMIT);
+        ap_thread_limit = HARD_THREAD_LIMIT;
+    }
+    return NULL;
+}
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)

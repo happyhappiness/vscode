@@ -1,20 +1,13 @@
-#endif
 
-    ap_soft_timeout("send body", r);
+    result = ap_run_handler(r);
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+    r->handler = old_handler;
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    if (result == DECLINED && r->handler && r->filename) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, r,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
+
+    return result == DECLINED ? HTTP_INTERNAL_SERVER_ERROR : result;
+}
+

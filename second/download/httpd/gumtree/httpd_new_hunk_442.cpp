@@ -1,10 +1,17 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    if (err != NULL) {
+        return err;
+    }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    min_spare_threads = atoi(arg);
+    if (min_spare_threads <= 0) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: detected MinSpareThreads set to non-positive.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Resetting to 1 to avoid almost certain Apache failure.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Please read the documentation.");
+       min_spare_threads = 1;
+    }
+       
+    return NULL;
+}

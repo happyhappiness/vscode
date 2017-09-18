@@ -1,29 +1,13 @@
-	}
+    ap_sb_handle_t *sbh;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
+    apr_os_sock_get(&csd, sock);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    if (csd >= FD_SETSIZE) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, NULL,
+                     "new file descriptor %d is too large; you probably need "
+                     "to rebuild Apache with a larger FD_SETSIZE "
+                     "(currently %d)", 
+                     csd, FD_SETSIZE);
+        apr_socket_close(sock);
+        return;

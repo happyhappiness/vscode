@@ -1,17 +1,13 @@
+{
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    ap_sb_handle_t *sbh;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %d starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */

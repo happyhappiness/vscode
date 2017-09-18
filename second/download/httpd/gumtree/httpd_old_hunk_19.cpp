@@ -1,20 +1,23 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    if (!conf->check_nc || !client_shm) {
+        return OK;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    nc = strtol(snc, &endptr, 16);
+    if (endptr < (snc+strlen(snc)) && !apr_isspace(*endptr)) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                      "Digest: invalid nc %s received - not a number", snc);
+        return !OK;
+    }
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    if (!resp->client) {
+        return !OK;
+    }
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    if (nc != resp->client->nonce_count) {
+        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+                      "Digest: Warning, possible replay attack: nonce-count "
+                      "check failed: %lu != %lu", nc,
+                      resp->client->nonce_count);
+        return !OK;
+    }
+

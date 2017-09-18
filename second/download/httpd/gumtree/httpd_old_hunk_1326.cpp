@@ -1,40 +1,41 @@
-	return;
+
+            if (rc == 0)
+                thefile->bufpos = 0;
+        }
+
+        return rc;
+    } else {
+        FlushFileBuffers(thefile->filehand);
+        return APR_SUCCESS;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
+}
 
-    help_proxy_garbage_coll(r);
+static int printf_flush(apr_vformatter_buff_t *vbuff)
+{
+    /* I would love to print this stuff out to the file, but I will
+     * get that working later.  :)  For now, just return.
+     */
+    return -1;
+}
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    int cc;
+    va_list ap;
+    char *buf;
+    int len;
+
+    buf = malloc(HUGE_STRING_LEN);
+    if (buf == NULL) {
+        return 0;
+    }
+    va_start(ap, format);
+    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
+    cc = apr_file_puts(buf, fptr);
+    va_end(ap);
+    free(buf);
+    return (cc == APR_SUCCESS) ? len : -1;
 }
 
 
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

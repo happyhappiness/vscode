@@ -1,13 +1,15 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+        lr->next = ap_listeners;
+        ap_listeners = lr;
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+    /* Open the pipe to the parent process to receive the inherited socket
+     * data. The sockets have been set to listening in the parent process.
+     */
+    pipe = GetStdHandle(STD_INPUT_HANDLE);
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO), 
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);

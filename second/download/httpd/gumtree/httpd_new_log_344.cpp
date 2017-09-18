@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Server status unavailable in inetd mode");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                          "proxy: FTP: PASV contacting host %d.%d.%d.%d:%d",
+                             h3, h2, h1, h0, pasvport);

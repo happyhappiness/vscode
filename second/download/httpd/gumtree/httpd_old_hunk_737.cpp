@@ -1,18 +1,32 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
+    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
+    r->the_request     = NULL;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    /* Get the request... */
+    if (!read_request_line(r)) {
+        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: URI too long");
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            return r;
+        }
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+        return NULL;
+    }
+
+    if (!r->assbackwards) {
+        ap_get_mime_headers(r);
+        if (r->status != HTTP_REQUEST_TIME_OUT) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_run_log_transaction(r);
+            return r;
+        }
+    }
+    else {
+        if (r->header_only) {
+            /*

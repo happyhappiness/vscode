@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-				MODNAME ": bad state %d (ns)", state);
+r(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
+		    MODNAME ": matched after %d rules", rule_counter);

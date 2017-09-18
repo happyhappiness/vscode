@@ -1,40 +1,35 @@
-	return;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > HARD_THREAD_LIMIT) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: ThreadsPerChild of %d exceeds compile time"
+                     " limit of %d threads,", ap_threads_per_child, 
+                     HARD_THREAD_LIMIT);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the  HARD_THREAD_LIMIT define in %s.", 
+                     HARD_THREAD_LIMIT, AP_MPM_HARD_LIMITS_FILE);
+        ap_threads_per_child = HARD_THREAD_LIMIT;
+    }
+    else if (ap_threads_per_child < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+	ap_threads_per_child = 1;
+    }
+    return NULL;
 }
 
+static const command_rec winnt_cmds[] = {
+LISTEN_COMMANDS,
+{ "ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF, TAKE1,
+  "Number of threads each child creates" },
+{ NULL }
+};
 
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+/*
+ * Signalling Apache on NT.

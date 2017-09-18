@@ -1,13 +1,13 @@
-		while (groups[0]) {
-		    v = ap_getword(r->pool, &groups, ',');
-		    if (!strcmp(v, w))
-			return OK;
-		}
-	    }
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			"user %s not in right group: %s", user, r->filename);
-	    ap_note_basic_auth_failure(r);
-	    return AUTH_REQUIRED;
-	}
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s, 
+                         "mod_rewrite: could not open RewriteLog "
+                         "file %s", fname);
+            exit(1);
+        }
+        apr_file_inherit_set(conf->rewritelogfp);
     }
+    return;
+}
 
+static void rewritelog(request_rec *r, int level, const char *text, ...)
+{

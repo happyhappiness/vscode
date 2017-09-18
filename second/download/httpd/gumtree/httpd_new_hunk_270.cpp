@@ -1,13 +1,13 @@
+            /* In order for ap_set_keepalive to work properly, we can NOT
+             * have any length information stored in the output headers.
+             */
+            apr_table_unset(r->headers_out,"Transfer-Encoding");
+            apr_table_unset(r->headers_out,"Content-Length");
 
-    /* We are not using multiviews */
-    neg->count_multiviews_variants = 0;
-
-    map = ap_pfopen(neg->pool, rr->filename, "r");
-    if (map == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                    "cannot access type map file: %s", rr->filename);
-        return HTTP_FORBIDDEN;
-    }
-
-    clean_var_rec(&mime_info);
-
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: start body send");
+             
+            /*
+             * if we are overriding the errors, we can't put the content
+             * of the page into the brigade
+             */

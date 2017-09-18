@@ -1,22 +1,16 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+#if MIME_MAGIC_DEBUG
+    prevm = 0;
+    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+		MODNAME ": apprentice test");
+    for (m = conf->magic; m; m = m->next) {
+	if (isprint((((unsigned long) m) >> 24) & 255) &&
+	    isprint((((unsigned long) m) >> 16) & 255) &&
+	    isprint((((unsigned long) m) >> 8) & 255) &&
+	    isprint(((unsigned long) m) & 255)) {
+	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
+			MODNAME ": apprentice: POINTER CLOBBERED! "
+			"m=\"%c%c%c%c\" line=%d",
+			(((unsigned long) m) >> 24) & 255,
+			(((unsigned long) m) >> 16) & 255,
+			(((unsigned long) m) >> 8) & 255,

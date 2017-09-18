@@ -1,30 +1,26 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+ * selected again.  Non-active fields always start in ascending order.
+ */
+static void emit_link(request_rec *r, const char *anchor, char column,
+                      char curkey, char curdirection,
+                      const char *colargs, int nosort)
+{
+    if (!nosort) {
+        char qvalue[9];
+
+        qvalue[0] = '?';
+        qvalue[1] = 'C';
+        qvalue[2] = '=';
+        qvalue[3] = column;
+        qvalue[4] = ';';
+        qvalue[5] = 'O';
+        qvalue[6] = '=';
+                    /* reverse? */
+        qvalue[7] = ((curkey == column) && (curdirection == D_ASCENDING))
+                      ? D_DESCENDING : D_ASCENDING;
+        qvalue[8] = '\0';
+        ap_rvputs(r, "<a href=\"", qvalue, colargs ? colargs : "",
+                     "\">", anchor, "</a>", NULL);
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+    else {
+        ap_rputs(anchor, r);
     }
-
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {

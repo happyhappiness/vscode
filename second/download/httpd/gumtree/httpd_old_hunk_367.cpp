@@ -1,14 +1,16 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+
+    /* We've kludged our pointer into the other cache's member variable. */
+    shm_segment = (void *) mc->tSessionCacheDataTable;
+    ssl_mutex_on(s);
+    if (!shmcb_store_session(s, shm_segment, id, idlen, pSession, timeout))
+        /* in this cache engine, "stores" should never fail. */
+        ssl_log(s, SSL_LOG_ERROR, "'shmcb' code was unable to store a "
+                "session in the cache.");
+    else {
+        ssl_log(s, SSL_LOG_TRACE, "shmcb_store successful");
+        to_return = TRUE;
+    }
+    ssl_mutex_off(s);
+    return to_return;
+}
+

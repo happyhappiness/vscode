@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Done with config file %s", fp->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
+                      "Depth must be zero for UPDATE with a version");

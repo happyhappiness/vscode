@@ -1,13 +1,48 @@
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+            /* NEVER save an EOS in here.  If we are saving a brigade with
+             * an EOS bucket, then we are doing keepalive connections, and
+             * we want to process to second request fully.
+             */
+            if (APR_BUCKET_IS_EOS(last_e)) {
+                apr_bucket *bucket;
+                int file_bucket_saved = 0;
+                apr_bucket_delete(last_e);
+                for (bucket = APR_BRIGADE_FIRST(b);
+                     bucket != APR_BRIGADE_SENTINEL(b);
+                     bucket = APR_BUCKET_NEXT(bucket)) {
 
-    ap_hard_timeout("send headers", r);
+                    /* Do a read on each bucket to pull in the
+                     * data from pipe and socket buckets, so
+                     * that we don't leave their file descriptors
+                     * open indefinitely.  Do the same for file
+                     * buckets, with one exception: allow the
+                     * first file bucket in the brigade to remain
+                     * a file bucket, so that we don't end up
+                     * doing an mmap+memcpy every time a client
+                     * requests a <8KB file over a keepalive
+                     * connection.
+                     */
+                    if (APR_BUCKET_IS_FILE(bucket) && !file_bucket_saved) {
+                        file_bucket_saved = 1;
+                    }
+                    else {
+                        const char *buf;
+                        apr_size_t len = 0;
+                        rv = apr_bucket_read(bucket, &buf, &len,
+                                             APR_BLOCK_READ);
+                        if (rv != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                                         c->base_server, "core_output_filter:"
+                                         " Error reading from bucket.");
+                            return HTTP_INTERNAL_SERVER_ERROR;
+                        }
+                    }
+                }
+            }
+            ap_save_brigade(f, &ctx->b, &b, c->pool);
 
-    ap_basic_http_header(r);
+            return APR_SUCCESS;
+        }
+
+        if (fd) {
+            apr_hdtr_t hdtr;
