@@ -42,10 +42,11 @@ FETCH_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_log_fetch.csv'
 ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_gumtree_analyze.csv'
 ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_analyze.csv'
 ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + REPOS + '_repos_basic_block_analyze.csv'
-ANALYZE_OLD_NEW_LLVM_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_joern_analyze.csv'
+ANALYZE_OLD_NEW_LLVM_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_llvm_analyze.csv'
 ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + REPOS + '_clone_statistics.csv'
-STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics.csv'
+CLUSTER_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_feature.csv'
+CLUSTER_EDITION_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition.csv'
 STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics_temp.csv'
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
 ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class.csv'
@@ -86,10 +87,11 @@ ANALYZE_EDIT_WORD = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_words')
 ANALYZE_EDIT_FEATURE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_feature')
 
 ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_check', 'old_variable', 'new_check', 'new_variable', 'ddg_codes', 'ddg_locs']
-ANALYZE_OLD_LOG = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_log')
-ANALYZE_NEW_LOG = ANALYZE_OLD_NEW_LLVM_TITLE.index('new_log')
 ANALYZE_OLD_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_check')
-STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
+ANALYZE_NEW_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('new_check')
+ANALYZE_OLD_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_variable')
+ANALYZE_NEW_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('new_variable')
+CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 
 
 """
