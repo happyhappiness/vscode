@@ -1,24 +1,39 @@
-#include <iostream>
-#include <string>
-using namespace std;
-
+#include <stdio.h>
+int add(int i, int j)
+{
+	return i + j;
+}
+int mul(int i, int j)
+{
+	return i*j;
+}
+int eval(int i)
+{
+	return i > 10;
+}
+double eval(double i)
+{
+	return i > 10;
+}
 int main()
 {
-	int a, n;
-	int sum = 0;
-	cin >> sum;
-	int i = 0;
-	while(i < n)
-	{
-		// int a = 3;
-		cin >> a;
-		// sum positive value
-		if(a > 0)
-		{
-			sum += a;
-		}
+	int a = 10;
+	int b = 10;
+	int i = add(a, b);
+	int j = mul(a, b);
+	double k = 0;
+	if(i * j < 100)
+	{ 
+		if(i + eval(i + j + k) + j)
+			printf("%d * %d < 100\n", i, j);
+		eval(k);
+		// i = 5;
 	}
-	cout << "sum is " << sum << endl;
+	else
+	{
+		printf("%d * %d >= 100\n", i, j);
+		// j = 5;
+	}
 
 	return 0;
 }
