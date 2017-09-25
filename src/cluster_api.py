@@ -131,17 +131,22 @@ def cluster_record_with_similarity(feature_lists, cluster_similarity = 0.95):
         index += 1
     return cluster_lists
 
-
 """
 @ param vector a and b for comparing
 @ return true or false
 @ involve compute equality between vectors (the least similar cond_list pairs)
 """
 def compute_equality(vec_a, vec_b, z3_api):
+    check_a = vec_a[0]
+    var_a = vec_a[1]
+
+    check_b = vec_b[0]
+    var_b = vec_b[1]
     if z3_api:
-        return z3_api.judge_equality_for_statments(vec_a, vec_b)
+        return z3_api.judge_equality_for_statments(check_a, check_b) \
+                    and var_a.sort() == var_b.sort()
     else:
-        return vec_a == vec_b
+        return check_a.sort() == check_a.sort() and var_a.sort() == var_b.sort()
 
 """
 @ param cluster a and b for comparing, similarity_dic
@@ -170,11 +175,11 @@ def compute_equality_for_cluster(cluster_a, cluster_b, similarity_dic, z3_api):
         return compute_equality_for_cluster(cluster_a, cluster_b.children[0], similarity_dic, z3_api)
 
 """
-@param: cdg_lists(entiry vectors), cluster_similarity = 0.90
+@param: cdg_lists(entiry vectors)
 @return cluster index for each entity
 @involve: cluster entities based on equality(true/false)
 """
-def cluster_record_with_equality(feature_lists, z3_api):
+def cluster_record_with_equality(feature_lists, z3_api=None):
 
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=feature_lists[i], id=i) for i in range(len(feature_lists))]

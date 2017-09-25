@@ -14,6 +14,7 @@ import base64
 import json
 from itertools import islice
 from gumtree_api import Gumtree
+from llvm_api import LLVM
 import my_constant
 import myUtil
 
@@ -90,12 +91,21 @@ def analyze_old_new(is_rebuild = False):
 
     total_record = 0
     total_log = 0
+    llvm_api = LLVM()
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
-        old_check = []
-        new_check = []
-        old_variable = []
-        new_variable = []
+        # get old and new check and variable
+        old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
+        old_file = record[my_constant.FETCH_LOG_OLD_FILE]
+        llvm_api.set_log_loc(int(old_loc))
+        llvm_api.set_in_file(old_file + '.bc')
+        old_check, old_variable = llvm_api.get_cdg_ddg_list()
+
+        new_loc = record[my_constant.FETCH_LOG_NEW_LOC]
+        new_file = record[my_constant.FETCH_LOG_NEW_FILE]
+        llvm_api.set_log_loc(int(new_loc))
+        llvm_api.set_in_file(new_file + '.bc')
+        new_check, new_variable = llvm_api.get_cdg_ddg_list()
         # depended statement locations
         ddg_codes = set()
         ddg_locs = set()
@@ -119,7 +129,7 @@ def analyze_old_new(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new(True)
+    analyze_old_new(False)
 
     # analyze_old_new_joern(False)
     # gumtree = Gumtree()

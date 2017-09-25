@@ -1,0 +1,11 @@
+patch_file,old_file,new_file,old_hunk_file,new_hunk_file,old_loc,new_loc,old_log,new_log,action_type,old_log_file,new_log_file,edit_words,edit_feature,old_check,old_variable,new_check,new_variable,ddg_codes,ddg_locs
+httpd-2.0.36_diff_httpd-2.0.39,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.36/modules/aaa/mod_access.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.39/modules/aaa/mod_access.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_2.cpp,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_2.cpp,323,323,"ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
+            ""client denied by server configuration: %s"",
+            r->filename);","ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            ""client denied by server configuration: %s"",
+            r->filename);",3,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_log_0.cpp,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_log_0.cpp,"[['APLOG_NOERRNO'], []]",[5860044687670995332],[],[],[],[],set([]),set([])
+httpd-2.0.36_diff_httpd-2.0.39,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.36/modules/aaa/mod_auth_anon.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.39/modules/aaa/mod_auth_anon.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_3.cpp,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_3.cpp,226,226,"ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, APR_SUCCESS, r,
+			""Anonymous: Passwd <%s> Accepted"",
+			sent_pw ? sent_pw : ""\'none\'"");","ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r,
+			""Anonymous: Passwd <%s> Accepted"",
+			sent_pw ? sent_pw : ""\'none\'"");",3,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_log_1.cpp,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_log_1.cpp,"[['APLOG_NOERRNO'], []]",[5860044687670995332],[],[],[],[],set([]),set([])
