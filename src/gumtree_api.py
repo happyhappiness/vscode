@@ -278,7 +278,7 @@ if __name__ == "__main__":
     # gumtree.set_old_loc(7)
     # gumtree.get_new_log()
     gumtree.get_word_edit_from_log('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
-    
+
 
 
   
