@@ -1,13 +1,14 @@
-                    *inserted_head = tmp_buck;
-                }
-            }
-            return 0;
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "printenv directive does not take tags in %s", 
-                        r->filename);
-            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-            return -1;
-        }
-    }
+		}
+		/* blast trailing whitespace */
+		while (i > 0 && apr_isspace(buf[i - 1]))
+		    --i;
+		buf[i] = '\0';
+#ifdef DEBUG_CFG_LINES
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                             "Read config: %s", buf);
+#endif
+		return 0;
+	    }
+	    buf[i] = c;
+	    ++i;
+	    c = cfp->getch(cfp->param);

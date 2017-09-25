@@ -1,15 +1,17 @@
+#endif
+
+    /* when `RewriteEngine off' was used in the per-server
+     * context then the rewritemap-programs were not spawned.
+     * In this case using such a map (usually in per-dir context)
+     * is useless because it is not available.
+     */
+    if (fpin == NULL || fpout == NULL) {
+        return NULL;
     }
 
-    for (n = 0; n < sk_X509_NAME_num(sk); n++) {
-        char name_buf[256];
-        X509_NAME *name = sk_X509_NAME_value(sk, n);
+    /* take the lock */
 
-        ssl_log(s, SSL_LOG_TRACE,
-                "CA certificate: %s",
-                X509_NAME_oneline(name, name_buf, sizeof(name_buf)));
-
-        /*
-         * note that SSL_load_client_CA_file() checks for duplicates,
-         * but since we call it multiple times when reading a directory
-         * we must also check for duplicates ourselves.
-         */
+    if (rewrite_mapr_lock_acquire) {
+        rv = apr_global_mutex_lock(rewrite_mapr_lock_acquire);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,

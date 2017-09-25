@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
+printf("Processing: " CONF_FMT_STRING,
+		   mind, (int) (meand + 0.5), sdd, mediand, maxd);

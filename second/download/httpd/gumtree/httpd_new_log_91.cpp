@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"propfind\" element was not found.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "mem_cache: URL %s failed the size check and will not be cached.",
+                     key);

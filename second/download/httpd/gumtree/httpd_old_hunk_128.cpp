@@ -1,13 +1,13 @@
-    apr_bucket *tmp_buck;
+    if (name == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+               "Internal error: pcfg_openfile() called with NULL filename");
+        return APR_EBADF;
+    }
 
-    *inserted_head = NULL;
-    if (!ctx->if_nesting_level) {
-        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, 1);
-        if ((tag != NULL) || (tag_val != NULL)) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                        "else directive does not take tags in %s", r->filename);
-            if (ctx->flags & FLAG_PRINTING) {
-                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-            }
-            return -1;
-        }
+    status = apr_file_open(&file, name, APR_READ | APR_BUFFERED, APR_OS_DEFAULT, p);
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                "Opening config file %s (%s)",
+                name, (status != APR_SUCCESS) ? 
+                apr_strerror(status, buf, sizeof(buf)) : "successful");
+#endif

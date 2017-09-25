@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                  "access to %s failed, reason: user %s not allowed access",
-                  r->uri, user);
+ap_add_output_filter("CACHE_IN", NULL, r, r->connection);

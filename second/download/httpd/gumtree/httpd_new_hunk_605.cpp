@@ -1,13 +1,22 @@
-#else
-	memcpy(c->cbuff + c->cbx, buffer, space);
-#endif				/* NOT_ASCII */
-	c->cbx += tocopy;
-	space -= tocopy;
-	c->cbuff[c->cbx] = 0;	/* terminate for benefit of strstr */
-        if (verbosity >= 2) {
-	    printf("LOG: header received:\n%s\n", c->cbuff);
-	}
-	s = strstr(c->cbuff, "\r\n\r\n");
-	/*
-	 * this next line is so that we talk to NCSA 1.5 which blatantly
-	 * breaks the http specifaction
+    }
+    return HTTP_INTERNAL_SERVER_ERROR;
+}
+
+static void menu_header(request_rec *r, char *menu)
+{
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+
+    ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
+              ap_escape_html(r->pool, r->uri),
+              "</title>\n</head><body>\n", NULL);
+
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<h1>Menu for ", 
+                  ap_escape_html(r->pool, r->uri),
+                  "</h1>\n<hr />\n\n", NULL);
+    }
+
+    return;
+}
+
+static void menu_blank(request_rec *r, char *menu)

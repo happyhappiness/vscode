@@ -1,13 +1,84 @@
-    /* we break the URL into host, port, uri */
-    if (APR_SUCCESS != apr_uri_parse_hostinfo(p, url, &uri)) {
-	return ap_proxyerror(r, HTTP_BAD_REQUEST,
-			     apr_pstrcat(p, "URI cannot be parsed: ", url, NULL));
+     * Note: this is a teeny bit of overkill since we know there are no
+     * '<' or '>' characters, but who cares.
+     */
+    return apr_xml_quote_string(p, e_uri, 0);
+}
+
+static void dav_send_multistatus(request_rec *r, int status,
+                                 dav_response *first,
+                                 apr_array_header_t *namespaces)
+{
+    /* Set the correct status and Content-Type */
+    r->status = status;
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+
+    /* Send the headers and actual multistatus response now... */
+    ap_rputs(DAV_XML_HEADER DEBUG_CR
+             "<D:multistatus xmlns:D=\"DAV:\"", r);
+
+    if (namespaces != NULL) {
+       int i;
+
+       for (i = namespaces->nelts; i--; ) {
+           ap_rprintf(r, " xmlns:ns%d=\"%s\"", i,
+                      APR_XML_GET_URI_ITEM(namespaces, i));
+       }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-		 "proxy: CONNECT: connecting %s to %s:%d", url, uri.hostname, uri.port);
+    /* ap_rputc('>', r); */
+    ap_rputs(">" DEBUG_CR, r);
 
-    /* do a DNS lookup for the destination host */
-    err = apr_sockaddr_info_get(&uri_addr, uri.hostname, APR_UNSPEC, uri.port, 0, p);
+    for (; first != NULL; first = first->next) {
+        apr_text *t;
 
-    /* are we connecting directly, or via a proxy? */
+        if (first->propresult.xmlns == NULL) {
+            ap_rputs("<D:response>", r);
+        }
+        else {
+            ap_rputs("<D:response", r);
+            for (t = first->propresult.xmlns; t; t = t->next) {
+                ap_rputs(t->text, r);
+            }
+            ap_rputc('>', r);
+        }
+
+        ap_rputs(DEBUG_CR "<D:href>", r);
+        ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
+        ap_rputs("</D:href>" DEBUG_CR, r);
+
+        if (first->propresult.propstats == NULL) {
+            /* use the Status-Line text from Apache.  Note, this will
+             * default to 500 Internal Server Error if first->status
+             * is not a known (or valid) status code.
+             */
+            ap_rprintf(r,
+                       "<D:status>HTTP/1.1 %s</D:status>" DEBUG_CR,
+                       ap_get_status_line(first->status));
+        }
+        else {
+            /* assume this includes <propstat> and is quoted properly */
+            for (t = first->propresult.propstats; t; t = t->next) {
+                ap_rputs(t->text, r);
+            }
+        }
+
+        if (first->desc != NULL) {
+            /*
+             * We supply the description, so we know it doesn't have to
+             * have any escaping/encoding applied to it.
+             */
+            ap_rputs("<D:responsedescription>", r);
+            ap_rputs(first->desc, r);
+            ap_rputs("</D:responsedescription>" DEBUG_CR, r);
+        }
+
+        ap_rputs("</D:response>" DEBUG_CR, r);
+    }
+
+    ap_rputs("</D:multistatus>" DEBUG_CR, r);
+}
+
+/*
+ * dav_log_err()
+ *
+ * Write error information to the log.

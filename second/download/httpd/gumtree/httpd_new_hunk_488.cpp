@@ -1,13 +1,13 @@
-    if (pReportRec->fHandlerFlags & EH_NESTED_CALL) {
-        return XCPT_CONTINUE_SEARCH;
+     *
+     * !! BUT ALL THIS IS STILL NOT RE-IMPLEMENTED FOR APACHE 2.0 !!
+     */
+    if (renegotiate && !renegotiate_quick && (r->method_number == M_POST)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "SSL Re-negotiation in conjunction "
+                     "with POST method not supported! "
+                     "hint: try SSLOptions +OptRenegotiate");
+
+        return HTTP_METHOD_NOT_ALLOWED;
     }
 
-    if (pReportRec->ExceptionNum == XCPT_ACCESS_VIOLATION ||
-        pReportRec->ExceptionNum == XCPT_INTEGER_DIVIDE_BY_ZERO) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                     "caught exception in worker thread, initiating child shutdown pid=%d", getpid());
-        for (c=0; c<HARD_THREAD_LIMIT; c++) {
-            if (ap_scoreboard_image->servers[child_slot][c].tid == _gettid()) {
-                ap_scoreboard_image->servers[child_slot][c].status = SERVER_DEAD;
-                break;
-            }
+    /*

@@ -1,13 +1,29 @@
-        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
-                     "Digest: error generating secret: %s", 
-                     apr_strerror(status, buf, sizeof(buf)));
-        return status;
+
+            /* if we don't get the content-length, see if we have all the 
+             * buckets and use their length to calculate the size 
+             */
+            apr_bucket *e;
+            int all_buckets_here=0;
+            size=0;
+            APR_BRIGADE_FOREACH(e, in) {
+                if (APR_BUCKET_IS_EOS(e)) {
+                    all_buckets_here=1;
+                    break;
+                }
+                if (APR_BUCKET_IS_FLUSH(e)) {
+                    continue;
+                }
+                if (e->length < 0) {
+                    break;
+                }
+                size += e->length;
+            }
+
+            if (!all_buckets_here) {
+                size = -1;
+            }
+        }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, "Digest: done");
-
-    return APR_SUCCESS;
-}
-
-static void log_error_and_cleanup(char *msg, apr_status_t sts, server_rec *s)
-{
+    /* It's safe to cache the response.
+     *

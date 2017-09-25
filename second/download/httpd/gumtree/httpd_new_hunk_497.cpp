@@ -1,44 +1,27 @@
-}
+        apr_signal(SIGTERM, just_die);
+        child_main(slot);
 
-static void accept_mutex_on(void)
-{
-    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
-    if (rv != APR_SUCCESS) {
-        const char *msg = "couldn't grab the accept mutex";
-
-        if (ap_my_generation != 
-            ap_scoreboard_image->global->running_generation) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
-            clean_child_exit(0);
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
-            exit(APEXIT_CHILDFATAL);
-        }
+        clean_child_exit(0);
     }
-}
-
-static void accept_mutex_off(void)
-{
-    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
-    if (rv != APR_SUCCESS) {
-        const char *msg = "couldn't release the accept mutex";
-
-        if (ap_my_generation != 
-            ap_scoreboard_image->global->running_generation) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
-            /* don't exit here... we have a connection to
-             * process, after which point we'll see that the
-             * generation changed and we'll exit cleanly
-             */
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
-            exit(APEXIT_CHILDFATAL);
-        }
+    /* else */
+    if (ap_scoreboard_image->parent[slot].pid != 0) {
+        /* This new child process is squatting on the scoreboard
+         * entry owned by an exiting child process, which cannot
+         * exit until all active requests complete.
+         * Don't forget about this exiting child process, or we
+         * won't be able to kill it if it doesn't exit by the
+         * time the server is shut down.
+         */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
+                     ap_scoreboard_image->parent[slot].pid,
+                     ap_scoreboard_image->parent[slot].quiescing ?
+                         " (quiescing)" : "");
+        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
     }
+    ap_scoreboard_image->parent[slot].quiescing = 0;
+    ap_scoreboard_image->parent[slot].pid = pid;
+    return 0;
 }
 
-/* On some architectures it's safe to do unserialized accept()s in the single
- * Listen case.  But it's never safe to do it in the case where there's
- * multiple Listen statements.  Define SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+/* start up a bunch of children */

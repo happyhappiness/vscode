@@ -1,27 +1,12 @@
-          || sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-        char *prompt;
-        int i;
 
-        if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-            if (!readtty) {
-                ssl_log(s, SSL_LOG_INFO,
-                        "Init: Creating pass phrase dialog pipe child '%s'",
-                        sc->server->pphrase_dialog_path);
-	        if (ssl_pipe_child_create(p, sc->server->pphrase_dialog_path)
-                        != APR_SUCCESS) {
-                    ssl_log(s, SSL_LOG_ERROR,
-                            "Init: Failed to create pass phrase pipe '%s'",
-                            sc->server->pphrase_dialog_path);
-                    PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-                    memset(buf, 0, (unsigned int)bufsize);
-                    return (-1);
-                }
-            }
-            ssl_log(s, SSL_LOG_INFO,
-                    "Init: Requesting pass phrase via piped dialog");
-        }
-        else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */ 
-#ifdef WIN32
-            PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-            memset(buf, 0, (unsigned int)bufsize);
-            return (-1);
+    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
+                               ap_accept_lock_mech, _pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        return 1;
+    }
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
+        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {

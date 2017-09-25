@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "A \"prop\" element is missing inside "
-                          "the propertyupdate command.");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                         "MCacheMaxStreamingBuffer must be less than or equal to MCacheMaxObjectSize. "
+                         "Resetting MCacheMaxStreamingBuffer to MCacheMaxObjectSize.");

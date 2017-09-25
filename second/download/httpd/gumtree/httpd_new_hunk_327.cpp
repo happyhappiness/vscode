@@ -1,17 +1,22 @@
-     * BUFF code again. This way the data flows twice through the Apache BUFF, of
-     * course. But this way the solution doesn't depend on any Apache specifics
-     * and is fully transparent to Apache modules.
-     *
-     * !! BUT ALL THIS IS STILL NOT RE-IMPLEMENTED FOR APACHE 2.0 !!
-     */
-    if (renegotiate && !renegotiate_quick && (r->method_number == M_POST)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "SSL Re-negotiation in conjunction "
-                     "with POST method not supported!\n"
-                     "hint: try SSLOptions +OptRenegotiate");
+}
 
-        return HTTP_METHOD_NOT_ALLOWED;
+static void set_signals(void)
+{
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+#endif
+
+    if (!one_process) {
+        ap_fatal_signal_setup(ap_server_conf, pconf);
     }
 
-    /*
-     * now do the renegotiation if anything was actually reconfigured
+#ifndef NO_USE_SIGACTION
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)

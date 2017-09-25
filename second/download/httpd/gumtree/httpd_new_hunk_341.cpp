@@ -1,22 +1,13 @@
-{
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    char name_buf[256];
-    X509_NAME *name;
-    const char *dn;
+    
+    if (is_graceful) {
+	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		    "Graceful restart requested, doing restart");
 
-    if (s->loglevel < APLOG_DEBUG) {
-        return;
-    }
+	/* kill off the idle ones */
+        ap_mpm_pod_killpg(pod, ap_max_daemons_limit);
 
-    name = X509_get_subject_name(info->x509);
-    dn = X509_NAME_oneline(name, name_buf, sizeof(name_buf));
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 SSLPROXY_CERT_CB_LOG_FMT "%s, sending %s", 
-                 sc->vhost_id, msg, dn ? dn : "-uknown-");
-}
-
-/*
- * caller will decrement the cert and key reference
- * so we need to increment here to prevent them from
- * being freed.
+	/* This is mostly for debugging... so that we know what is still
+	    * gracefully dealing with existing request.  This will break
+	    * in a very nasty way if we ever have the scoreboard totally
+	    * file-based (no shared memory)
+	    */

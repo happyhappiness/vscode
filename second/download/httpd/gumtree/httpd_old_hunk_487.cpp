@@ -1,13 +1,25 @@
+
+	/* every zero-byte counts as 8 zero-bits */
+	bits = 8 * quads;
+
+	if (bits != 32)		/* no warning for fully qualified IP address */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld\n",
+		 inet_ntoa(This->addr), bits);
     }
 
-    /* Find our pid in the scoreboard so we know what slot our parent allocated us */
-    for (child_slot = 0; ap_scoreboard_image->parent[child_slot].pid != my_pid && child_slot < HARD_SERVER_LIMIT; child_slot++);
+    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
 
-    if (child_slot == HARD_SERVER_LIMIT) {
-        ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, ap_server_conf,
-                     "child pid not found in scoreboard, exiting");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "Warning: NetMask and IP-Addr disagree in %s/%ld\n",
+		inet_ntoa(This->addr), bits);
+	This->addr.s_addr &= This->mask.s_addr;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "         Set to %s/%ld\n",
+		inet_ntoa(This->addr), bits);
     }
 
-    ap_my_generation = ap_scoreboard_image->parent[child_slot].generation;
-    memset(ap_scoreboard_image->servers[child_slot], 0, sizeof(worker_score) * HARD_THREAD_LIMIT);
+    if (*addr == '\0') {
+	This->matcher = proxy_match_ipaddr;
+	return 1;

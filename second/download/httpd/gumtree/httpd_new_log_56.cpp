@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: missing HttpExtensionProc() in %s",
-                     isa->filename);
+apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");

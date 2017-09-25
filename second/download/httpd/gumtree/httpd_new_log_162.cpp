@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "disk_cache: Caching headers for URL %s",  dobj->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not find the UTF-8 charset in the file %s.", 
+                     charset_confname);

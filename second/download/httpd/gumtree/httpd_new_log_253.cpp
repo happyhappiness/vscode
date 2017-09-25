@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", lockname);
+fprintf(stderr, "%s: could not open config directory %s: %s\n",
+                    ap_server_argv0, path,
+                    apr_strerror(rv, errmsg, sizeof errmsg));

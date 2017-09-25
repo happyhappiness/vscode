@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
+ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);

@@ -1,13 +1,19 @@
-            dav_close_propdb(propdb);
-
-            /* undo any auto-checkout */
-            dav_auto_checkin(r, resource, 1 /*undo*/, 0 /*unlock*/, &av_info);
-
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          "A \"prop\" element is missing inside "
-                          "the propertyupdate command.");
-            return HTTP_BAD_REQUEST;
-        }
-
-        for (one_prop = prop_group->first_child; one_prop;
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
+    }
+    c->start = apr_time_now();
+    if ((rv = apr_connect(c->aprsock, destsa)) != APR_SUCCESS) {
+	if (APR_STATUS_IS_EINPROGRESS(rv)) {
+	    c->state = STATE_CONNECTING;
+	    c->rwrite = 0;
+	    apr_poll_socket_add(readbits, c->aprsock, APR_POLLOUT);
+	    return;
+	}
+	else {
+	    apr_poll_socket_remove(readbits, c->aprsock);
+	    apr_socket_close(c->aprsock);
+	    err_conn++;
+	    if (bad++ > 10) {
+		fprintf(stderr,
+			"\nTest aborted after 10 failures\n\n");
+		apr_err("apr_connect()", rv);

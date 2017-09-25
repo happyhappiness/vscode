@@ -1,13 +1,14 @@
-        /* by default AIX binds to a single processor
-         * this bit unbinds children which will then bind to another cpu
-         */
-	int status = bindprocessor(BINDPROCESS, (int)getpid(), 
-				   PROCESSOR_CLASS_ANY);
-	if (status != OK) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, errno, 
-                         ap_server_conf, "processor unbind failed %d", status);
-	}
-#endif
-	RAISE_SIGSTOP(MAKE_CHILD);
-        AP_MONCONTROL(1);
-        /* Disable the parent's signal handlers and set up proper handling in
+        }
+
+        if (status == APEXIT_CHILDFATAL) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT,
+                         0, ap_server_conf,
+                         "Child %" APR_PID_T_FMT
+                         " returned a Fatal error..." APR_EOL_STR
+                         "Apache is exiting!",
+                         pid->pid);
+            return APEXIT_CHILDFATAL;
+        }
+
+        return 0;
+    }

@@ -1,13 +1,16 @@
-		    frag = req_dat->tail;
-		    break;
-		}
-		else {
-		    /* should not be possible */
-		    /* abandon malfunctioning module */
-		    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
-				MODNAME ": bad state %d (ws)", state);
-		    return DECLINED;
-		}
-		/* NOTREACHED */
-	    }
-	    else if (state == rsl_type &&
+    exit(1);
+}
+
+static void interrupted(void)
+{
+    fprintf(stderr, "Interrupted.\n");
+    if (tfp) {
+        apr_file_close(tfp);
+    }
+    exit(1);
+}
+
+static void terminate(void)
+{
+#ifdef NETWARE
+    pressanykey();

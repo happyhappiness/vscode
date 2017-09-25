@@ -1,13 +1,15 @@
+        lr->next = ap_listeners;
+        ap_listeners = lr;
+    }
 
-                    ic = new_ipaddr_chain(p, s, sar);
-                    ic->next = *iphash_table_tail[bucket];
-                    *iphash_table_tail[bucket] = ic;
-                }
-                else if (!add_name_vhost_config(p, main_s, s, sar, ic)) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING,
-                                 0, main_s, "VirtualHost %s:%u overlaps "
-                                 "with VirtualHost %s:%u, the first has "
-                                 "precedence, perhaps you need a "
-                                 "NameVirtualHost directive",
-                                 sar->virthost, sar->host_port,
-                                 ic->sar->virthost, ic->sar->host_port);
+    /* Open the pipe to the parent process to receive the inherited socket
+     * data. The sockets have been set to listening in the parent process.
+     */
+    pipe = GetStdHandle(STD_INPUT_HANDLE);
+
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO), 
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);

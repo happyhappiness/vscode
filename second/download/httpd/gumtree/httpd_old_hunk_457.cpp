@@ -1,13 +1,34 @@
-    else {
-        /* sconf is the server config for this vhost, so if our socket
-         * is not the same that was set in the config, then the request
-         * needs to be passed to another child. */
-        if (sconf->sd != child_info_table[child_num].sd) {
-            if (pass_request(r) == -1) {
-                ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0,
-                             ap_server_conf, "Could not pass request to proper "
-                             "child, request will not be honored.");
+                 * to remove the object, update the size and re-add the 
+                 * object, all under protection of the lock.
+                 */
+                if (sconf->lock) {
+                    apr_thread_mutex_lock(sconf->lock);
+                }
+                if (obj->cleanup) {
+                    /* If obj->cleanup is set, the object has been prematurly 
+                     * ejected from the cache by the garbage collector. Add the
+                     * object back to the cache. If an object with the same key is 
+                     * found in the cache, eject it in favor of the completed obj.
+                     */
+                    cache_object_t *tmp_obj =
+                      (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
+                    if (tmp_obj) {
+                        cache_remove(sconf->cache_cache, tmp_obj);
+                        tmp_obj->cleanup = 1;
+                        if (!tmp_obj->refcount) {
+                            cleanup_cache_object(tmp_obj);
+                        }
+                    }
+                    obj->cleanup = 0;
+                }
+                else {
+                    cache_remove(sconf->cache_cache, obj);
+                }
+                mobj->m_len = obj->count;
+                cache_insert(sconf->cache_cache, obj);                
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
             }
-            longjmp(jmpbuffer, 1); 
-        }
-        return OK;
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,

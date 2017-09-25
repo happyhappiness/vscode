@@ -1,13 +1,15 @@
-    int(*getch)(void *param),
-    void *(*getstr) (void *buf, size_t bufsiz, void *param),
-    int(*close_func)(void *param))
-{
-    ap_configfile_t *new_cfg = apr_palloc(p, sizeof(*new_cfg));
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Opening config handler %s", descr);
-#endif
-    new_cfg->param = param;
-    new_cfg->name = descr;
-    new_cfg->getch = getch;
-    new_cfg->getstr = getstr;
-    new_cfg->close = close_func;
+        apr_bucket *bucket;
+
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+       
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        APR_BRIGADE_FOREACH(bucket, bb) {
+            const char *data;
+            apr_size_t len;
+

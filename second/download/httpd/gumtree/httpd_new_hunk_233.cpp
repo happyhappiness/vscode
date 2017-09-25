@@ -1,13 +1,27 @@
-int ap_proxy_connect_canon(request_rec *r, char *url)
-{
-
-    if (r->method_number != M_CONNECT) {
-	return DECLINED;
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-		 "proxy: CONNECT: canonicalising URL %s", url);
 
-    return OK;
+    if (mutual) {
+        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
+
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
+        }
+    }
+
+    optParam = SO_TLS_UNCLEAN_SHUTDOWN;
+    WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam, sizeof(optParam), 
+             NULL, 0, NULL, NULL, NULL);
+
+    return s;
 }
 
-/* CONNECT handler */
+int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
+{
+	int rcode;

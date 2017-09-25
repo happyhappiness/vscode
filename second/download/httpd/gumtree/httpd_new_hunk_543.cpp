@@ -1,13 +1,13 @@
-            else if (!workers_may_exit) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                             "ap_queue_pop failed");
-            }
-            continue;
-        }
-        is_idle = 0;
-        worker_sockets[thread_slot] = csd;
-        process_socket(ptrans, csd, process_slot, thread_slot, bucket_alloc);
-        worker_sockets[thread_slot] = NULL;
-        requests_this_child--; /* FIXME: should be synchronized - aaron */
-        apr_pool_clear(ptrans);
-        last_ptrans = ptrans;
+        return rv;
+    }
+
+    /* TerminateExtension() is an optional interface */
+    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
+                     "TerminateExtension");
+    apr_set_os_error(0);
+
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s", 

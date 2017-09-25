@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "division_offset = %u", header->division_offset);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);

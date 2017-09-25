@@ -1,22 +1,15 @@
-        /* terminate the free list */
-        if (free_length == 0) {
-            /* only report this condition once */
-            static int reported = 0;
+                                            &arr_parms, NULL,
+                                            arr_elts_getstr, arr_elts_close);
 
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                    "server reached MaxClients setting, consider"
-                    " raising the MaxClients setting");
-                reported = 1;
-            }
-            idle_spawn_rate = 1;
-        }
-        else {
-            if (idle_spawn_rate >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                    "server seems busy, (you may need "
-                    "to increase StartServers, or Min/MaxSpareServers), "
-                    "spawning %d children, there are %d idle, and "
-                    "%d total children", idle_spawn_rate,
-                    idle_count, total_non_dead);
-            }
+    errmsg = ap_build_config(&parms, p, ptemp, conftree);
+    if (errmsg) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Syntax error in -C/-c directive:");
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s", errmsg);
+        exit(1);
+    }
+
+    ap_cfg_closefile(parms.config_file);
+}
+

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The request body, if present, must be a "
-                          "DAV:checkin element.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: Ignoring bogus HTTP header "
+			 "returned by %s (%s)", r->uri, r->method);

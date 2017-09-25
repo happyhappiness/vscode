@@ -1,17 +1,14 @@
-    if (err != NULL) {
-        return err;
+        /* set no timeout */
+        apr_socket_timeout_set(p_conn->sock, 0);
+        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
+        /* put back old timeout */
+        apr_socket_timeout_set(p_conn->sock, current_timeout);
+        if ( APR_STATUS_IS_EOF(socket_status) ) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "proxy: HTTP: previous connection is closed");
+            new = 1;
+        }
     }
+    if (new) {
 
-    min_spare_threads = atoi(arg);
-    if (min_spare_threads <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Please read the documentation.");
-       min_spare_threads = 1;
-    }
-       
-    return NULL;
-}
+        /* create a new socket */

@@ -1,13 +1,19 @@
-        else
-            ret = HTTP_FORBIDDEN;
-    }
+void cache_pq_dump(cache_pqueue_t *q,
+                   FILE*out,
+                   cache_pqueue_print_entry print)
+{
+    int i;
 
-    if (ret == HTTP_FORBIDDEN
-        && (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-            "client denied by server configuration: %s",
-            r->filename);
+    fprintf(stdout,"posn\tleft\tright\tparent\tminchild\t...\n");
+    for (i = 1; i < q->size ;i++) {
+        fprintf(stdout,
+                "%d\t%d\t%d\t%d\t%" APR_SSIZE_T_FMT "\t",
+                i,
+                left(i), right(i), parent(i),
+                minchild(q, i));
+        print(out, q->d[i]);
     }
-
-    return ret;
 }
+
+/*
+ * this is a debug function.. so it's EASY not fast

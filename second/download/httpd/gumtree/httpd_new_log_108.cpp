@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Within the DAV:activity-set element, the "
-                                  "DAV:new element must be used, or at least "
-                                  "one DAV:href must be specified.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: No HTTP headers "
+			 "returned by %s (%s)", r->uri, r->method);

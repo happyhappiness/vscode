@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_init_memory()");
+fprintf(stderr, "[%s] [crit] (%d) %s: %s failed "
+                        "to initial context, exiting\n", 
+                        ctimebuff, stat, (*argv)[0], failed);

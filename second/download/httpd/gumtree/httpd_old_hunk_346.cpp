@@ -1,27 +1,13 @@
- */
-                             /* ``Real programmers confuse
-                                  Christmas and Halloween
-                                  because DEC 25 = OCT 31.''
-                                             -- Unknown     */
-#include "mod_ssl.h"
-
-int ssl_mutex_init(server_rec *s, apr_pool_t *p)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE) 
-        return TRUE;
-
-    if (apr_global_mutex_create(&mc->pMutex, mc->szMutexFile,
-                                APR_LOCK_DEFAULT, p) != APR_SUCCESS) {
-        ssl_log(s, SSL_LOG_ERROR,
-                   "Cannot create SSLMutex file `%s'",
-                    mc->szMutexFile);
-        return FALSE;
     }
-    return TRUE;
-}
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
 
-int ssl_mutex_reinit(server_rec *s, apr_pool_t *p)
-{
-    SSLModConfigRec *mc = myModConfig(s);
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    if (osver.dwPlatformId != VER_PLATFORM_WIN32_WINDOWS) {
+    	apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);

@@ -1,22 +1,27 @@
-    int errdepth = X509_STORE_CTX_get_error_depth(ctx);
-    int depth, verify;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    /*
-     * Log verification information
-     */
-    if (sc->log_level >= SSL_LOG_TRACE) {
-        X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
-        char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-        char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
+    	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		    "Graceful restart requested, doing restart");
 
-        ssl_log(s, SSL_LOG_TRACE,
-                "Certificate Verification: depth: %d, subject: %s, issuer: %s",
-                errdepth,
-                sname ? sname : "-unknown-",
-                iname ? iname : "-unknown-");
-
-        if (sname) {
-            free(sname);
+        /* Wait for all of the threads to terminate before initiating the restart */
+        DBPRINT0 ("Restart pending. Waiting for threads to terminate...\n");
+        while (worker_thread_count > 0) {
+            apr_thread_yield();
         }
+        DBPRINT0 ("restarting...\n");
+    }
 
-        if (iname) {
+    return 0;
+}
+
+static int netware_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
+{
+    int debug;
+    char *addrname = NULL;
+
+    debug = ap_exists_config_define("DEBUG");
+
+    is_graceful = 0;
+    ap_my_pid = getpid();
+    addrname = getaddressspacename (NULL, NULL);
+    if (addrname) {

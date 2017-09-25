@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_CLOSE_CONNECTION "
-                          "is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                           "proxy: origin server sent 401 without w-a header");

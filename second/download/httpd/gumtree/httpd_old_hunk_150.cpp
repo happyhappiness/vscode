@@ -1,13 +1,23 @@
-                        return 1;
-                    }
-                }
-                if (!strcmp(tag, "cmd")) {
-                    cgid_pfn_ps(r, ctx, tag_val, parsed_string, sizeof(parsed_string), 1);
-                    if (include_cmd(ctx, bb, parsed_string, r, f) == -1) {
-                        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                                    "execution failure for parameter \"%s\" "
-                                    "to tag exec in file %s", tag, r->filename);
-                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-                    }
-                    /* just in case some stooge changed directories */
-                }
+        qvalue[7] = 'p';
+        qvalue[8] = ';';
+        qvalue[9] = 'O';
+        qvalue[10] = '=';
+        qvalue[11] = reverse ? D_DESCENDING : D_ASCENDING;
+        qvalue[12] = '\0';
+        ap_rvputs(r, "<a href=\"", qvalue, colargs ? colargs : "", 
+                     "\">", anchor, "</a>", NULL);
+    }
+    else {
+        ap_rputs(anchor, r);
+    }
+}
+
+static void output_directories(struct ent **ar, int n,
+                               autoindex_config_rec *d, request_rec *r,
+                               apr_int32_t autoindex_opts, char keyid, 
+                               char direction, const char *colargs)
+{
+    int x;
+    apr_size_t rv;
+    char *name = r->uri;
+    char *tp;

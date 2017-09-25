@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "shmcb_remove_session, internal error");
+apr_table_unset(r->headers_out, "Content-Length");

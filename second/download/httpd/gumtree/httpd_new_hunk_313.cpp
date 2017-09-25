@@ -1,13 +1,15 @@
+ */
+void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+{
+    unsigned long e;
 
-        /* XXX: probably a better way to determine this */
-        if (SSL_total_renegotiations(ctx->pssl)) {
-            reason = "likely due to failed renegotiation";
-        }
+    while ((e = ERR_get_error())) {
+        char err[256], *annotation;
 
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                "failed to write %d of %d bytes (%s)",
-                n > 0 ? len - n : len, len, reason);
+        ERR_error_string_n(e, err, sizeof err);
+        annotation = ssl_log_annotation(err);
 
-        return APR_EINVAL;
-    }
-
+        if (annotation) {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %ld %s %s",
+                         e, err, annotation); 

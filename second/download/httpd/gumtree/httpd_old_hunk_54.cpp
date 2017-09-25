@@ -1,13 +1,20 @@
+/* ------------------------------------------------------- */
 
-    if ((result = ap_xml_parse_input(r, &doc)) != OK)
-        return result;
-
-    depth = dav_get_depth(r, DAV_INFINITY);
-    if (depth != 0 && depth != DAV_INFINITY) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "Depth must be 0 or \"infinity\" for LOCK.");
-        return HTTP_BAD_REQUEST;
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.116 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
     }
+    else {
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.116 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
 
-    /* Ask repository module to resolve the resource */
-    err = dav_get_resource(r, 0 /* label_allowed */, 0 /* use_checked_in */,

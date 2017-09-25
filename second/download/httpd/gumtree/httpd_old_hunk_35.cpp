@@ -1,29 +1,17 @@
-                    interpreter = "";
-                }
-            }
+            destroy_and_exit_process(process, exit_status);
         }
     }
-    if (!interpreter) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
-        return APR_EBADF;
+
+    apr_pool_clear(plog);
+
+    /* It is assumed that if you are going to fail the open_logs phase, then
+     * you will print out your own message that explains what has gone wrong.
+     * The server doesn't need to do that for you.
+     */
+    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+        destroy_and_exit_process(process, 1);
     }
 
-    *argv = (const char **)(split_argv(p, interpreter, *cmd,
-                                       args)->elts);
-    *cmd = (*argv)[0];
-    return APR_SUCCESS;
-}
-
-APR_DECLARE_OPTIONAL_FN(apr_status_t, ap_cgi_build_command,
-                        (const char **cmd, const char ***argv, 
-                         request_rec *r, apr_pool_t *p, 
-                         int replace_cmd, apr_cmdtype_e *type));
-
-static void register_hooks(apr_pool_t *p)
-{
-    APR_REGISTER_OPTIONAL_FN(ap_cgi_build_command);
-}
-
-static const command_rec win32_cmds[] = {
+    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed\n");

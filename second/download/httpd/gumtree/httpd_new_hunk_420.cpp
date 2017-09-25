@@ -1,13 +1,13 @@
-    }
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: %s not cached. Reason: %s", url, reason);
+        /* remove this object from the cache 
+         * BillS Asks.. Why do we need to make this call to remove_url?
+         * leave it in for now..
+         */
+        cache_remove_url(r, url);
 
-    ap_update_child_status_from_indexes(0, child_slot, SERVER_DEAD, (request_rec*)NULL);
+        /* remove this filter from the chain */
+        ap_remove_output_filter(f);
 
-    apr_bucket_alloc_destroy(bucket_alloc);
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
-                 "worker_thread %ld exiting", find_thread(NULL));
-    
-    apr_thread_mutex_lock(worker_thread_count_mutex);
-    worker_thread_count--;
-    apr_thread_mutex_unlock(worker_thread_count_mutex);
-
+        /* ship the data up the stack */
+        return ap_pass_brigade(f->next, in);

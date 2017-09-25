@@ -1,95 +1,96 @@
+                 "Set to off to disable auth_ldap, even if it's been enabled in a higher tree"),
+ 
+    AP_INIT_FLAG("AuthLDAPFrontPageHack", ap_set_flag_slot,
+                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, frontpage_hack), OR_AUTHCFG,
+                 "Set to 'on' to support Microsoft FrontPage"),
 
-    /* Transmute ourselves into the script.
-     * NB only ISINDEX scripts get decoded arguments.
-     */
-    if (((rc = apr_procattr_create(&procattr, p)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_io_set(procattr,
-                                   e_info->in_pipe,
-                                   e_info->out_pipe,
-                                   e_info->err_pipe)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_dir_set(procattr, 
-                        ap_make_dirstr_parent(r->pool,
-                                              r->filename))) != APR_SUCCESS) ||
-#ifdef RLIMIT_CPU
-        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_CPU,
-                                      conf->limit_cpu)) != APR_SUCCESS) ||
-#endif
-#if defined(RLIMIT_DATA) || defined(RLIMIT_VMEM) || defined(RLIMIT_AS)
-        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_MEM,
-                                      conf->limit_mem)) != APR_SUCCESS) ||
-#endif
-#ifdef RLIMIT_NPROC
-        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_NPROC,
-                                      conf->limit_nproc)) != APR_SUCCESS) ||
-#endif
-        ((rc = apr_procattr_cmdtype_set(procattr,
-                                        e_info->cmd_type)) != APR_SUCCESS) ||
+    AP_INIT_TAKE1("AuthLDAPCharsetConfig", set_charset_config, NULL, RSRC_CONF,
+                  "Character set conversion configuration file. If omitted, character set"
+                  "conversion is disabled."),
 
-        ((rc = apr_procattr_detach_set(procattr,
-                                        e_info->detached)) != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-		      "couldn't set child process attributes: %s", r->filename);
-    }
-    else {
-        procnew = apr_pcalloc(p, sizeof(*procnew));
-        if (e_info->prog_type == RUN_AS_SSI) {
-            SPLIT_AND_PASS_PRETAG_BUCKETS(*(e_info->bb), e_info->ctx,
-                                          e_info->next, rc);
-            if (rc != APR_SUCCESS) {
-                return rc;
-            }
-        }
+    {NULL}
+};
 
-        rc = ap_os_create_privileged_process(r, procnew, command, argv, env,
-                                             procattr, p);
+static int auth_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
+{
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    const char *charset_confname = ap_get_module_config(s->module_config,
+                                                      &auth_ldap_module);
+    apr_status_t status;
     
-        if (rc != APR_SUCCESS) {
-            /* Bad things happened. Everyone should have cleaned up. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "couldn't create child process: %d: %s", rc,
-                          r->filename);
-        }
-        else {
-            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
+    /*
+    mod_auth_ldap_config_t *sec = (mod_auth_ldap_config_t *)
+                                    ap_get_module_config(s->module_config, 
+                                                         &auth_ldap_module);
 
-            *script_in = procnew->out;
-            if (!*script_in)
-                return APR_EBADF;
-            apr_file_pipe_timeout_set(*script_in, r->server->timeout);
-
-            if (e_info->prog_type == RUN_AS_CGI) {
-                *script_out = procnew->in;
-                if (!*script_out)
-                    return APR_EBADF;
-                apr_file_pipe_timeout_set(*script_out, r->server->timeout);
-
-                *script_err = procnew->err;
-                if (!*script_err)
-                    return APR_EBADF;
-                apr_file_pipe_timeout_set(*script_err, r->server->timeout);
-            }
+    if (sec->secure)
+    {
+        if (!util_ldap_ssl_supported(s))
+        {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
+                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
+            return(!OK);
         }
     }
-#ifdef DEBUG_CGI
-    fclose(dbg);
-#endif
-    return (rc);
+    */
+
+    if (!charset_confname) {
+        return OK;
+    }
+
+    charset_confname = ap_server_root_relative(p, charset_confname);
+    if (!charset_confname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     "Invalid charset conversion config path %s", 
+                     (const char *)ap_get_module_config(s->module_config,
+                                                        &auth_ldap_module));
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if ((status = ap_pcfg_openfile(&f, ptemp, charset_confname)) 
+                != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not open charset conversion config file %s.", 
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    charset_conversions = apr_hash_make(p);
+
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        const char *ll = l;
+        char *lang;
+
+        if (l[0] == '#') {
+            continue;
+        }
+        lang = ap_getword_conf(p, &ll);
+        ap_str_tolower(lang);
+
+        if (ll[0]) {
+            char *charset = ap_getword_conf(p, &ll);
+            apr_hash_set(charset_conversions, lang, APR_HASH_KEY_STRING, charset);
+        }
+    }
+    ap_cfg_closefile(f);
+    
+    to_charset = derive_codepage_from_lang (p, "utf-8");
+    if (to_charset == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not find the UTF-8 charset in the file %s.", 
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return OK;
 }
 
-
-static apr_status_t default_build_command(const char **cmd, const char ***argv,
-                                          request_rec *r, apr_pool_t *p,
-                                          cgi_exec_info_t *e_info)
+static void mod_auth_ldap_register_hooks(apr_pool_t *p)
 {
-    int numwords, x, idx;
-    char *w;
-    const char *args = NULL;
+    ap_hook_post_config(auth_ldap_post_config,NULL,NULL,APR_HOOK_MIDDLE);
+    ap_hook_check_user_id(mod_auth_ldap_check_user_id, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_auth_checker(mod_auth_ldap_auth_checker, NULL, NULL, APR_HOOK_MIDDLE);
+}
 
-    if (e_info->process_cgi) {
-        /* Allow suexec's "/" check to succeed */
-        const char *argv0 = strrchr(r->filename, '/');
-        if (argv0 != NULL)
-            argv0++;
-        else
-            argv0 = r->filename;
+module auth_ldap_module = {
+   STANDARD20_MODULE_STUFF,

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "SSLSessionCache required");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                       "Could not open group file: %s", grpfile);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
-                             "%s: %s%s%s%s", SSL_LIBRARY_NAME, cpE,
-                             cpA != NULL ? " [Hint: " : "",
-                             cpA != NULL ? cpA : "", cpA != NULL ? "]" : "");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.\n");

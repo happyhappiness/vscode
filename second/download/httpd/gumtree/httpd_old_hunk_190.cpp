@@ -1,13 +1,14 @@
-	    if (r->parsed_uri.query)
-		nuri = apr_pstrcat(r->pool, nuri, "?", r->parsed_uri.query, NULL);
+            }
 
-            apr_table_setn(r->headers_out, "Location",
-			  ap_construct_url(r->pool, nuri, r));
+            /* Check the listen queue on all sockets for requests */
+            memcpy(&main_fds, &listenfds, sizeof(fd_set));
+            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
 
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, APR_SUCCESS,
-			  r, 
-			  ref ? "Fixed spelling: %s to %s from %s"
-			      : "Fixed spelling: %s to %s",
-			  r->uri, nuri, ref);
+            if (srv <= 0)
+                continue;
 
-            return HTTP_MOVED_PERMANENTLY;
+            /* remember the last_lr we searched last time around so that
+            we don't end up starving any particular listening socket */
+            if (last_lr == NULL) {
+                lr = ap_listeners;
+            }

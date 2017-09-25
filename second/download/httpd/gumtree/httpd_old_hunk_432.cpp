@@ -1,13 +1,12 @@
-    ap_sb_handle_t *sbh;
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
+}
 
-    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
-    apr_os_sock_get(&csd, sock);
 
-    if (csd >= FD_SETSIZE) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, NULL,
-                     "new file descriptor %d is too large; you probably need "
-                     "to rebuild Apache with a larger FD_SETSIZE "
-                     "(currently %d)", 
-                     csd, FD_SETSIZE);
-        apr_socket_close(sock);
-        return;
+command_rec util_ldap_cmds[] = {
+    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
+                  "Sets the size of the shared memory cache in bytes. "
+                  "Zero means disable the shared memory cache. Defaults to 100KB."),
+

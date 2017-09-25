@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-			"%lu > %lu = %d", v, l, matched);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "piped log program '%s' failed unexpectedly",
+                         pl->program);

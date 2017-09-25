@@ -1,25 +1,19 @@
-    if (err != NULL) {
-        return err;
+        return DECLINED;
+
+    is_included = !strcmp(r->protocol, "INCLUDED");
+
+    p = r->main ? r->main->pool : r->pool;
+
+    if (r->method_number == M_OPTIONS) {
+        /* 99 out of 100 CGI scripts, this is all they support */
+        r->allowed |= (AP_METHOD_BIT << M_GET);
+        r->allowed |= (AP_METHOD_BIT << M_POST);
+        return DECLINED;
     }
 
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > thread_limit) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                     "value of %d", ap_threads_per_child,
-                     thread_limit);
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "threads, lowering ThreadsPerChild to %d. To increase, please"
-                     " see the", thread_limit);
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     " ThreadLimit directive.");
-        ap_threads_per_child = thread_limit;
-    }
-    else if (ap_threads_per_child < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
-        ap_threads_per_child = 1;
-    }
-    return NULL;
-}
+    argv0 = apr_filename_of_pathname(r->filename);
+    nph = !(strncmp(argv0, "nph-", 4));
+    conf = ap_get_module_config(r->server->module_config, &cgi_module);
 
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,

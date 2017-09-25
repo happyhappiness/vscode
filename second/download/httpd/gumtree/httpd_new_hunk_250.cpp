@@ -1,13 +1,18 @@
-            }
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                         "mod_rewrite: could not init rewrite_mapr_lock_acquire"
+                         " in child");
+        }
+    }
 
-            if (pstr) {
-                apr_sockaddr_t *epsv_addr;
-                data_port = atoi(pstr + 3);
+    rv = apr_global_mutex_child_init(&rewrite_log_lock, NULL, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: could not init rewrite log lock in child");
+    }
+    
+    /* create the lookup cache */
+    cachep = init_cache(p);
+}
 
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "proxy: FTP: EPSV contacting remote host on port %d",
-                             data_port);
 
-                if ((rv = apr_socket_create(&data_sock, APR_INET, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: FTP: error creating EPSV socket");
+/*

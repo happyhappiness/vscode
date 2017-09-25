@@ -1,14 +1,36 @@
-    /* So we have 'granularity' divisions, set 'temp' equal to the
-     * number of indexes in each division. */
-    temp /= granularity;
 
-    /* Too small? Bail ... */
-    if (temp < 5) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
-        return FALSE;
+static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    /* OK, we're sorted - from here on in, the return should be TRUE */
-    header = (SHMCBHeader *)shm_mem;
-    header->division_mask = (unsigned char)(granularity - 1);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file - %s", 
+                       file);
+
+    st->cert_auth_file = ap_server_root_relative(cmd->pool, file);
+
+    return(NULL);
+}
+
+
+const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
+{
+    util_ldap_state_t *st = 
+    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+                                              &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file type - %s", 
+                       Type);
+
+    if (0 == strcmp("DER_FILE", Type))

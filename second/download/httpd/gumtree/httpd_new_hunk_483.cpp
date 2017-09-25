@@ -1,18 +1,13 @@
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    }
 
-        if (!restart) {
-            const char *pidfile = ap_server_root_relative(pconf, ap_pid_fname);
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
 
-            if (pidfile != NULL && remove(pidfile) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
-                             ap_server_conf, "removed PID file %s (pid=%d)",
-                             pidfile, getpid());
-            }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+}
 
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "caught SIGTERM, shutting down");
-            return 1;
-        }
-    }  /* Parent process */
 
-    return 0; /* Restart */
+static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+{
+    int i;

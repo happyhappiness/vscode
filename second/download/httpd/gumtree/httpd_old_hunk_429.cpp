@@ -1,24 +1,14 @@
-    if (err != NULL) {
-        return err;
-    }
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
 
-    ap_thread_limit = atoi(arg);
-    if (ap_thread_limit > HARD_THREAD_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: MaxClients of %d exceeds compile time limit "
-                    "of %d servers,", ap_thread_limit, HARD_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering MaxClients to %d.  To increase, please "
-                    "see the", HARD_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " HARD_THREAD_LIMIT define in server/mpm/beos/mpm_default.h.");
-       ap_thread_limit = HARD_THREAD_LIMIT;
-    } 
-    else if (ap_thread_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require MaxClients > 0, setting to %d", HARD_THREAD_LIMIT);
-        ap_thread_limit = HARD_THREAD_LIMIT;
-    }
+    st->cache_bytes = atol(bytes);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
+                      getpid(), st->cache_bytes);
+
     return NULL;
 }
 
+static const char *util_ldap_set_cache_file(cmd_parms *cmd, void *dummy, const char *file)
+{

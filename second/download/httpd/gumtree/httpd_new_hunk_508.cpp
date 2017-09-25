@@ -1,17 +1,13 @@
-    if (err != NULL) {
-        return err;
-    }
+                              "AuthDigestEnableQueryStringHack")) {
+                d_uri.query = r_uri.query;
+            }
+        }
 
-    ap_daemons_min_free = atoi(arg);
-    if (ap_daemons_min_free <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: detected MinSpareServers set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Please read the documentation.");
-       ap_daemons_min_free = 1;
-    }
-       
-    return NULL;
-}
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }

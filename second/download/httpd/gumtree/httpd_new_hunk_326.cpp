@@ -1,41 +1,30 @@
-        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
-        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
-
-        cert_store = X509_STORE_new();
-
-        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "Unable to reconfigure verify locations "
-                         "for client authentication");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-
-            X509_STORE_free(cert_store);
-
-            return HTTP_FORBIDDEN;
-        }
-
-        /* SSL_free will free cert_store */
-        SSL_set_cert_store(ssl, cert_store);
-
-        if (!(ca_list = ssl_init_FindCAList(r->server, r->pool,
-                                            ca_file, ca_path)))
-        {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "Unable to determine list of available "
-                         "CA certificates for client authentication");
-
-            return HTTP_FORBIDDEN;
-        }
-
-        SSL_set_client_CA_list(ssl, ca_list);
-        renegotiate = TRUE;
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Changed client verification locations will force "
-                     "renegotiation");
+        case AP_MPMQ_MAX_REQUESTS_DAEMON:
+            *result = ap_max_requests_per_child;
+            return APR_SUCCESS;
+        case AP_MPMQ_MAX_DAEMONS:
+            *result = ap_daemons_limit;
+            return APR_SUCCESS;
+        case AP_MPMQ_MPM_STATE:
+            *result = mpm_state;
+            return APR_SUCCESS;
     }
-#endif /* HAVE_SSL_SET_CERT_STORE */
+    return APR_ENOTIMPL;
+}
 
-    /* 
-     * SSL renegotiations in conjunction with HTTP
-     * requests using the POST method are not supported.
+/* a clean exit from a child with proper cleanup */ 
+static void clean_child_exit(int code) __attribute__ ((noreturn));
+static void clean_child_exit(int code)
+{
+    mpm_state = AP_MPMQ_STOPPING;
+    if (pchild) {
+        apr_pool_destroy(pchild);
+    }
+    exit(code);
+}
+
+static void just_die(int sig)
+{
+    clean_child_exit(0);
+}
+
+/*****************************************************************

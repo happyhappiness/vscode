@@ -1,13 +1,12 @@
-            p_conn->close += 1;
-        }
+    }
 
-        if ( r->status != HTTP_CONTINUE ) {
-            received_continue = 0;
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, 0, NULL,
-                         "proxy: HTTP: received 100 CONTINUE");
-        }
+    apr_pool_tag(global_pool, "APR global pool");
 
-        /* we must accept 3 kinds of date, but generate only 1 kind of date */
-        {
-            const char *buf;
+    apr_pools_initialized = 1;
+
+#if (APR_POOL_DEBUG & APR_POOL_DEBUG_VERBOSE_ALL)
+    apr_file_open_stderr(&file_stderr, global_pool);
+    if (file_stderr) {
+        apr_file_printf(file_stderr,
+            "POOL DEBUG: [PID"
+#if APR_HAS_THREADS

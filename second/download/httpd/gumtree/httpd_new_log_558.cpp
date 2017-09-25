@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init allocated %u bytes of shared memory",
-                 shm_segsize);
+printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");

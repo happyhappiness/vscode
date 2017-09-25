@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                         "Init: Requesting pass phrase via piped dialog");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "proxy: server %s returned Transfer-Encoding and Content-Length",
+                             p_conn->name);

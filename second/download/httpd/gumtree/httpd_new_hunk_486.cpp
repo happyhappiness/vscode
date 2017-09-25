@@ -1,17 +1,26 @@
-        return err;
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        timeOut.tv_sec = st->connectionTimeout;
     }
 
-    ap_min_spare_threads = atoi(arg);
-
-    if (ap_min_spare_threads <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Please read the documentation.");
-       ap_min_spare_threads = 1;
+    if (st->connectionTimeout >= 0) {
+        rc = ldap_set_option(NULL, LDAP_OPT_NETWORK_TIMEOUT, (void *)&timeOut);
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "LDAP: Could not set the connection timeout" );
+        }
     }
-       
-    return NULL;
+#endif
+
+    return(OK);
 }
+
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t sts;

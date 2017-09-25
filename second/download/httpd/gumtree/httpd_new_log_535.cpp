@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 pServ, 
-                                 "encrypted %s private key - pass phrase"
-                                 " reused", an);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: %s Transfer-Encoding is not supported",
+                     old_te_val);

@@ -1,13 +1,25 @@
+                            const char *description)
+{
+    apr_file_t *stderr_log;
+    char errbuf[200];
 
-    ap_log_pid(pconf, ap_pid_fname);
+    apr_file_open_stderr(&stderr_log, pool);
+    /* Escape the logged string because it may be something that
+     * came in over the network.
+     */
+    apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+#ifdef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    description
+#else
+                    ap_escape_logitem(pool, description)
+#endif
+                    );
+}
 
-    first_server_limit = server_limit;
-    first_thread_limit = thread_limit;
-    if (changed_limit_at_restart) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
-                     "ignored during restart");
-        changed_limit_at_restart = 0;
-    }
-    
-    /* Initialize cross-process accept lock */
+static apr_status_t run_cgi_child(apr_file_t **script_out,
+                                  apr_file_t **script_in,
+                                  apr_file_t **script_err, 
+                                  const char *command,

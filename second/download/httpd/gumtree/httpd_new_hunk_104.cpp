@@ -1,25 +1,16 @@
-                                         &include_module, r);
+            {
+                renegotiate = TRUE;
+                /* optimization */
 
-                if (!error_fmt && ap_run_sub_req(rr)) {
-                    error_fmt = "unable to include \"%s\" in parsed file %s";
-                }
-                if (error_fmt) {
-                    ap_log_rerror(APLOG_MARK, loglevel,
-                                  0, r, error_fmt, tag_val, r->filename);
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
-                                        *inserted_head);
+                if ((dc->nOptions & SSL_OPT_OPTRENEGOTIATE) &&
+                    (verify_old == SSL_VERIFY_NONE) &&
+                    ((cert = SSL_get_peer_certificate(ssl)) != NULL))
+                {
+                    renegotiate_quick = TRUE;
+                    X509_free(cert);
                 }
 
-                /* destroy the sub request */
-                if (rr != NULL) {
-                    ap_destroy_sub_req(rr);
-                }
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "unknown parameter \"%s\" to tag include in %s",
-                            tag, r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-            }
-        }
-    }
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "Changed client verification type will force "
+                             "%srenegotiation",

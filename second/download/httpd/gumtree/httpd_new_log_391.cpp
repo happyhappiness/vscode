@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-			     "%s/", inet_ntoa(This->addr));
+apr_file_printf(errfile, "Use -c option to create new one.\n");

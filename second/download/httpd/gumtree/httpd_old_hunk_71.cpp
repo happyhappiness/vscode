@@ -1,18 +1,13 @@
-    /*
-     * Which cache module (if any) should handle this request?
-     */
-    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
-        return DECLINED;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                 "cache: URL %s is being handled by %s", path, types);
 
-    urllen = strlen(url);
-    if (urllen > MAX_URL_LENGTH) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                     "cache: URL exceeds length threshold: %s", url);
-        return DECLINED;
-    }
-    /* DECLINE urls ending in / */
-    if (url[urllen-1] == '/') {
-        return DECLINED;
+    lookup = dav_lookup_uri(dest, r, 1 /* must_be_absolute */);
+    if (lookup.rnew == NULL) {
+        if (lookup.err.status == HTTP_BAD_REQUEST) {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          lookup.err.desc);
+            return HTTP_BAD_REQUEST;
+        }
+
+        /* ### this assumes that dav_lookup_uri() only generates a status
+         * ### that Apache can provide a status line for!! */
+

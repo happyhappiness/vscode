@@ -1,19 +1,24 @@
-
-        if (!child_fatal) {
-            /* cleanup pid file on normal shutdown */
-            const char *pidfile = NULL;
-            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-            if (pidfile != NULL && unlink(pidfile) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0,
-                             ap_server_conf,
-                             "removed PID file %s (pid=%ld)",
-                             pidfile, (long)getpid());
-            }
-    
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0,
-                         ap_server_conf, "caught SIGTERM, shutting down");
-        }
-        return 1;
+	totalbread += r;
     }
 
-    /* we've been told to restart */
+    if (c->keepalive && (c->bread >= c->length)) {
+	/* finished a keep-alive connection */
+	good++;
+	doneka++;
+	/* save out time */
+	if (good == 1) {
+	    /* first time here */
+	    doclen = c->bread;
+	}
+	else if (c->bread != doclen) {
+	    bad++;
+	    err_length++;
+	}
+	if (done < requests) {
+	    struct data s;
+	    if (done && heartbeatres && !(done % heartbeatres)) {
+		fprintf(stderr, "Completed %ld requests\n", done);
+		fflush(stderr);
+	    }
+	    c->done = apr_time_now();
+	    s.read = c->read;

@@ -1,3 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The request body does not contain "
-                          "a \"version-control\" element.");
+                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL",
+                  pid);

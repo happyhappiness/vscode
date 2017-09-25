@@ -1,36 +1,60 @@
-        }
-    }
-    ap_max_daemons_limit = last_non_dead + 1;
+    util_dn_compare_node_t *node = (util_dn_compare_node_t *)n;
+    util_ald_free(cache, node->reqdn);
+    util_ald_free(cache, node->dn);
+    util_ald_free(cache, node);
+}
 
-    if (idle_thread_count > max_spare_threads) {
-        /* Kill off one child */
-        ap_mpm_pod_signal(pod);
-        idle_spawn_rate = 1;
+void util_ldap_dn_compare_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
+{
+    util_dn_compare_node_t *node = (util_dn_compare_node_t *)n;
+    char *buf;
+
+    buf = apr_psprintf(r->pool, 
+             "<tr valign='top'>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<tr>",
+         node->reqdn,
+         node->dn);
+
+    ap_rputs(buf, r);
+}
+
+
+/* ------------------------------------------------------------------ */
+apr_status_t util_ldap_cache_child_kill(void *data);
+apr_status_t util_ldap_cache_module_kill(void *data);
+
+apr_status_t util_ldap_cache_module_kill(void *data)
+{
+    util_ldap_state_t *st = (util_ldap_state_t *)data;
+
+    util_ald_destroy_cache(st->util_ldap_cache);
+#if APR_HAS_SHARED_MEMORY
+    if (st->cache_rmm != NULL) {
+        apr_rmm_destroy (st->cache_rmm);
+        st->cache_rmm = NULL;
     }
-    else if (idle_thread_count < min_spare_threads) {
-        /* terminate the free list */
-        if (free_length == 0) {
-            /* only report this condition once */
-            static int reported = 0;
-            
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, 
-                             ap_server_conf,
-                             "server reached MaxClients setting, consider"
-                             " raising the MaxClients setting");
-                reported = 1;
-            }
-            idle_spawn_rate = 1;
-        }
-        else {
-            if (free_length > idle_spawn_rate) {
-                free_length = idle_spawn_rate;
-            }
-            if (idle_spawn_rate >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, 
-                             ap_server_conf,
-                             "server seems busy, (you may need "
-                             "to increase StartServers, ThreadsPerChild "
-                             "or Min/MaxSpareThreads), "
-                             "spawning %d children, there are around %d idle "
-                             "threads, and %d total children", free_length,
+    if (st->cache_shm != NULL) {
+        apr_status_t result = apr_shm_destroy(st->cache_shm);
+        st->cache_shm = NULL;
+        apr_file_remove(st->cache_file, st->pool);
+        return result;
+    }
+#endif
+    return APR_SUCCESS;
+}
+
+apr_status_t util_ldap_cache_init(apr_pool_t *pool, util_ldap_state_t *st)
+{
+#if APR_HAS_SHARED_MEMORY
+    apr_status_t result;
+
+    result = apr_shm_create(&st->cache_shm, st->cache_bytes, st->cache_file, st->pool);
+    if (result == APR_EEXIST) {
+        /*
+         * The cache could have already been created (i.e. we may be a child process).  See
+         * if we can attach to the existing shared memory
+         */
+        result = apr_shm_attach(&st->cache_shm, st->cache_file, st->pool);
+    } 

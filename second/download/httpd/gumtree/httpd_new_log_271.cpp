@@ -1,2 +1,5 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-				MODNAME ": bad state %d (ws)", state);
+                                  "unknown directive \"%s\" in parsed doc %s",
+                                  apr_pstrmemdup(r->pool, ctx->directive,
+                                                 ctx->ctx->directive_length),
+                                                 r->filename);

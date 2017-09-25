@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The DAV:source element must contain a DAV:href "
-                      "element.");
+ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                         "SSL library error %d writing data", ssl_err);

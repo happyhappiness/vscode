@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          "The version element does not contain "
-                          "an \"href\" element.");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             c->base_server,
+                             "SSL handshake stopped: connection was closed");

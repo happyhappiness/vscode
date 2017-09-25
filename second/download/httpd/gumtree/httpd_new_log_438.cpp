@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to import %s server private key", type);
+ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                         "LDAP cache: error while creating a shared memory segment: %s", buf);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The request is missing a Destination header.");
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL,
+                     "Error in ssl_hook_CloseConnection");

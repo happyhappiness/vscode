@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, r,
-                         "ISAPI ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
-                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+apr_file_printf(errfile, "%s: cannot open file %s for read access\n"
+                    "%s: existing auth data would be lost on "
+                    "password mismatch",
+                    argv[0], pwfilename, argv[0]);

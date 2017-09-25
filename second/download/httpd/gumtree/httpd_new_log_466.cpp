@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: I/O error, %d bytes expected to %s on BIO#%p [mem: %p]",
-                    SSL_LIBRARY_NAME, argi,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    bio, argp);
+fprintf(stderr, "%s: Directory %s exceeds the maximum include "
+                    "directory nesting level of %u. You have probably a "
+                    "recursion somewhere.\n", ap_server_argv0, path,
+                    AP_MAX_INCLUDE_DIR_DEPTH);

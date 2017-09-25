@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The DAV:merge element must contain a DAV:source "
-                      "element.");
+ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                        "SSL output filter write failed.");

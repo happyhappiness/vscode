@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                          rv, r, error_fmt, to_send, r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support available" );

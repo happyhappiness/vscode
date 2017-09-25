@@ -1,26 +1,64 @@
-    dsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_DSA);
+            }
+        }
+    } 
+    return -1; 
+} 
 
-    have_rsa = ssl_server_import_cert(s, mctx, rsa_id, SSL_AIDX_RSA);
-    have_dsa = ssl_server_import_cert(s, mctx, dsa_id, SSL_AIDX_DSA);
+static int cgid_init(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, 
+                      server_rec *main_server) 
+{ 
+    apr_proc_t *procnew;
+    void *data;
+    int first_time = 0;
+    const char *userdata_key = "cgid_init";
+    module **m;
 
-    if (!(have_rsa || have_dsa)) {
-        ssl_log(s, SSL_LOG_ERROR|SSL_INIT,
-                "Oops, no RSA or DSA server certificate found?!");
-        ssl_die();
+    apr_pool_userdata_get(&data, userdata_key, main_server->process->pool);
+    if (!data) {
+        first_time = 1;
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                         apr_pool_cleanup_null, main_server->process->pool);
     }
 
-    for (i = 0; i < SSL_AIDX_MAX; i++) {
-        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
+    if (!first_time) {
+        total_modules = 0;
+        for (m = ap_preloaded_modules; *m != NULL; m++)
+            total_modules++;
+
+        daemon_should_exit = 0; /* clear setting from previous generation */
+        if ((daemon_pid = fork()) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
+                         "mod_cgid: Couldn't spawn cgid daemon process"); 
+            return DECLINED;
+        }
+        else if (daemon_pid == 0) {
+            apr_pool_create(&pcgi, p); 
+            cgid_server(main_server);
+            exit(-1);
+        } 
+        procnew = apr_pcalloc(p, sizeof(*procnew));
+        procnew->pid = daemon_pid;
+        procnew->err = procnew->in = procnew->out = NULL;
+        apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
+#if APR_HAS_OTHER_CHILD
+        apr_proc_other_child_register(procnew, cgid_maint, &procnew->pid, NULL, p);
+#endif
+
+        cgid_pfn_reg_with_ssi = APR_RETRIEVE_OPTIONAL_FN(ap_register_include_handler);
+        cgid_pfn_gtv          = APR_RETRIEVE_OPTIONAL_FN(ap_ssi_get_tag_and_value);
+        cgid_pfn_ps           = APR_RETRIEVE_OPTIONAL_FN(ap_ssi_parse_string);
+
+        if ((cgid_pfn_reg_with_ssi) && (cgid_pfn_gtv) && (cgid_pfn_ps)) {
+            /* Required by mod_include filter. This is how mod_cgid registers
+             *   with mod_include to provide processing of the exec directive.
+             */
+            cgid_pfn_reg_with_ssi("exec", handle_exec);
+        }
     }
+    return OK;
+} 
 
-    have_rsa = ssl_server_import_key(s, mctx, rsa_id, SSL_AIDX_RSA);
-    have_dsa = ssl_server_import_key(s, mctx, dsa_id, SSL_AIDX_DSA);
-
-    if (!(have_rsa || have_dsa)) {
-        ssl_log(s, SSL_LOG_ERROR|SSL_INIT,
-                "Oops, no RSA or DSA server private key found?!");
-        ssl_die();
-    }
-}
-
-static void ssl_init_proxy_certs(server_rec *s,
+static void *create_cgid_config(apr_pool_t *p, server_rec *s) 
+{ 
+    cgid_server_conf *c = 
+    (cgid_server_conf *) apr_pcalloc(p, sizeof(cgid_server_conf)); 

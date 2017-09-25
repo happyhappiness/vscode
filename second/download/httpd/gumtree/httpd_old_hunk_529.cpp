@@ -1,25 +1,18 @@
-                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
-        shutdown_pending = 1;
-    }
-    else if (cld == SHUTDOWN_HANDLE) {
-        /* shutdown_event signalled */
-        shutdown_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, APR_SUCCESS, s, 
-                     "Parent: Received shutdown signal -- Shutting down the server.");
-        if (ResetEvent(shutdown_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "ResetEvent(shutdown_event)");
-        }
-    }
-    else if (cld == RESTART_HANDLE) {
-        /* Received a restart event. Prepare the restart_event to be reused 
-         * then signal the child process to exit. 
-         */
-        restart_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s, 
-                     "Parent: Received restart signal -- Restarting the server.");
-        if (ResetEvent(restart_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: ResetEvent(restart_event) failed.");
-        }
-        if (SetEvent(child_exit_event) == 0) {
+
+static int core_pre_connection(conn_rec *c, void *csd)
+{
+    core_net_rec *net = apr_palloc(c->pool, sizeof(*net));
+
+#ifdef AP_MPM_DISABLE_NAGLE_ACCEPTED_SOCK
+    /* BillS says perhaps this should be moved to the MPMs. Some OSes
+     * allow listening socket attributes to be inherited by the
+     * accept sockets which means this call only needs to be made
+     * once on the listener
+     */
+    ap_sock_disable_nagle(csd);
+#endif
+    net->c = c;
+    net->in_ctx = NULL;
+    net->out_ctx = NULL;
+    net->client_socket = csd;
+

@@ -1,13 +1,13 @@
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && apr_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, NULL, "Read config: %s", buf);
-#endif
-		return 0;
-	    }
-	    buf[i] = c;
-	    ++i;
-	    c = cfp->getch(cfp->param);
+                    ap_rputs(")\n", r);
+                    ap_rprintf(r,
+                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
+                               ap_escape_html(r->pool,
+                                              ws_record->client),
+                               ap_escape_html(r->pool,
+                                              ws_record->request),
+                               ap_escape_html(r->pool,
+                                              ws_record->vhost));
+                }
+                else { /* !no_table_report */
+                    if (ws_record->status == SERVER_DEAD)
+                        ap_rprintf(r,

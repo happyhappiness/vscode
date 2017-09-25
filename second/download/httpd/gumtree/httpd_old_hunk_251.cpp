@@ -1,13 +1,61 @@
+** |              rewriting logfile support
+** |                                                       |
+** +-------------------------------------------------------+
+*/
 
-            if (pstr != NULL && (sscanf(pstr,
-                 "%d,%d,%d,%d,%d,%d", &h3, &h2, &h1, &h0, &p1, &p0) == 6)) {
 
-                apr_sockaddr_t *pasv_addr;
-                apr_port_t pasvport = (p1 << 8) + p0;
-                ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                          "proxy: FTP: PASV contacting host %d.%d.%d.%d:%d",
-                             h3, h2, h1, h0, pasvport);
+static void open_rewritelog(server_rec *s, apr_pool_t *p)
+{
+    rewrite_server_conf *conf;
+    const char *fname;
+    apr_status_t rc;
+    piped_log *pl;
+    int rewritelog_flags = ( APR_WRITE | APR_APPEND | APR_CREATE );
+    apr_fileperms_t rewritelog_mode = ( APR_UREAD | APR_UWRITE |
+                                        APR_GREAD | APR_WREAD );
 
-                if ((rv = apr_socket_create(&data_sock, APR_INET, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: error creating PASV socket");
+    conf = ap_get_module_config(s->module_config, &rewrite_module);
+
+    if (conf->rewritelogfile == NULL) {
+        return;
+    }
+    if (*(conf->rewritelogfile) == '\0') {
+        return;
+    }
+    if (conf->rewritelogfp != NULL) {
+        return; /* virtual log shared w/ main server */
+    }
+
+    if (*conf->rewritelogfile == '|') {
+        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "mod_rewrite: could not open reliable pipe "
+                         "to RewriteLog filter %s", conf->rewritelogfile+1);
+            exit(1);
+        }
+        conf->rewritelogfp = ap_piped_log_write_fd(pl);
+    }
+    else if (*conf->rewritelogfile != '\0') {
+        fname = ap_server_root_relative(p, conf->rewritelogfile);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                         "mod_rewrite: Invalid RewriteLog "
+                         "path %s", conf->rewritelogfile);
+            exit(1);
+        }
+        if ((rc = apr_file_open(&conf->rewritelogfp, fname,
+                                rewritelog_flags, rewritelog_mode, p))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not open RewriteLog "
+                         "file %s", fname);
+            exit(1);
+        }
+    }
+    return;
+}
+
+static void rewritelog(request_rec *r, int level, const char *text, ...)
+{
+    rewrite_server_conf *conf;
+    conn_rec *conn;

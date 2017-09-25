@@ -1,13 +1,14 @@
-    apr_bucket *tmp_buck;
+#if defined(WIN32) || defined(OS2) || defined(NETWARE)
+        strcasecmp(apr_filename_of_pathname(name), "nul") != 0) {
+#else
+        strcmp(name, "/dev/null") != 0) {
+#endif /* WIN32 || OS2 */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "Access to file %s denied by server: not a regular file",
+                     name);
+        apr_file_close(file);
+        return APR_EBADF;
+    }
 
-    *inserted_head = NULL;
-    if (!ctx->if_nesting_level) {
-        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, 1);
-        if ((tag != NULL) || (tag_val != NULL)) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                       "endif directive does not take tags in %s", r->filename);
-            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-            return -1;
-        }
-        else {
-            LOG_COND_STATUS(ctx, tmp_buck, head_ptr, *inserted_head, "endif");
+#ifdef WIN32
+    /* Some twisted character [no pun intended] at MS decided that a

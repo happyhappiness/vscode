@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
-                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "cache: not caching streamed response for "
+                                 "%s because length %s", url,
+                                 (unresolved_length ?
+                                  "cannot be determined" :
+                                  "> CacheMaxStreamingBuffer"));

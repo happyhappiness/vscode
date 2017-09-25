@@ -1,20 +1,14 @@
-    /* We've kludged our pointer into the other cache's member variable. */
-    shm_segment = (void *) mc->tSessionCacheDataTable;
-    ssl_mutex_on(s);
-    pSession = shmcb_retrieve_session(s, shm_segment, id, idlen);
-    ssl_mutex_off(s);
-    if (pSession)
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "shmcb_retrieve had a hit");
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "shmcb_retrieve had a miss");
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Client requested a 'session-resume' but "
-                     "we have no such session.");
-    }
-    return pSession;
-}
-
-void ssl_scache_shmcb_remove(server_rec *s, UCHAR *id, int idlen)
-{
+                                  "require dn: authorisation successful", getpid());
+                    return OK;
+                }
+                default: {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require dn \"%s\": LDAP error [%s][%s]",
+                                  getpid(), t, ldc->reason, ldap_err2string(result));
+                }
+            }
+        }
+        else if (strcmp(w, "group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;

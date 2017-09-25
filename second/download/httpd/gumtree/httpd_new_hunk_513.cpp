@@ -1,16 +1,21 @@
-                             "set_listeners_noninheritable: SetHandleInformation failed.");
-            }
+
+        result = apr_global_mutex_create(&st->util_ldap_cache_lock, st->lock_file, APR_LOCK_DEFAULT, st->pool);
+        if (result != APR_SUCCESS) {
+            return result;
         }
-    }
 
-    if (my_pid == parent_pid) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "Parent: Marked listeners as not inheritable.");
-    } else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "Child %d: Marked listeners as not inheritable.", my_pid);
-    }
-    return 1;
-}
+#ifdef UTIL_LDAP_SET_MUTEX_PERMS
+        result = unixd_set_global_mutex_perms(st->util_ldap_cache_lock);
+        if (result != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, result, s, 
+                         "LDAP cache: failed to set mutex permissions");
+            return result;
+        }
+#endif
 
-/*
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+
+#if APR_HAS_SHARED_MEMORY

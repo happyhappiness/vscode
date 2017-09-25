@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		          "Failed to query lock-null status for %s",
-			  r->filename);
+filter_ctx->pInputFilter = ap_add_input_filter(ssl_io_filter, inctx, NULL, c);

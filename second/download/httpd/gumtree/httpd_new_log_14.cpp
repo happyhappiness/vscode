@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                     cmd->server, "Digest: WARNING: nonce-count checking "
-                     "is not supported on platforms without shared-memory "
-                     "support - disabling check");
+cache_conditional_filter_handle =
+        ap_register_output_filter("CACHE_CONDITIONAL", 
+                                  cache_conditional_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET);

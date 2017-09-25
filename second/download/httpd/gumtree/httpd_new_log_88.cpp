@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be \"infinity\" for DELETE of a collection.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache_disk: URL %s failed the size check, "
+                     "or is incomplete", 
+                     key);

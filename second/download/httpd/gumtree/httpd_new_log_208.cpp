@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Directory index forbidden by rule: %s", r->filename);
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");

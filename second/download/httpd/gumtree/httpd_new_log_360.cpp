@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: keepalive address mismatch / connection has"
-                         " changed (close old socket (%s/%s, %d/%d))", 
-                         p_conn->name, backend->hostname, p_conn->port,
-                         backend->port);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                          "[%d] auth_ldap authorise: require group: testing for group membership in \"%s\"", 
+		          getpid(), t);

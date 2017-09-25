@@ -1,13 +1,13 @@
-        /* set no timeout */
-        apr_setsocketopt(p_conn->sock, APR_SO_TIMEOUT, 0);
-        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
-        /* put back old timeout */
-        apr_setsocketopt(p_conn->sock, APR_SO_TIMEOUT, current_timeout);
-        if ( APR_STATUS_IS_EOF(socket_status) ) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, NULL,
-                         "proxy: HTTP: previous connection is closed");
-            new = 1;
-        }
-    }
-    if (new) {
-
+                    max_clients, ap_daemons_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " and would exceed the ServerLimit value of %d.",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " Automatically lowering MaxClients to %d.  To increase,",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " please see the ServerLimit directive.");
+       ap_daemons_limit = server_limit;
+    } 
+    else if (ap_daemons_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 

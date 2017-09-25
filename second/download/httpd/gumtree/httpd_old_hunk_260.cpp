@@ -1,13 +1,13 @@
-    }
-    else {
-        return DECLINED;
-    }
-    def_port = apr_uri_default_port_for_scheme(scheme);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-             "proxy: HTTP: canonicalising URL %s", url);
-
-    /* do syntatic check.
-     * We break the URL into host, port, path, search
-     */
-    port = def_port;
+                    max_clients, ap_daemons_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " and would exceed the ServerLimit value of %d.",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " Automatically lowering MaxClients to %d.  To increase,",
+                    server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " please see the ServerLimit directive.");
+       ap_daemons_limit = server_limit;
+    } 
+    else if (ap_daemons_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 

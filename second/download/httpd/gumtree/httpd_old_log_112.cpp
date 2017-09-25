@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The \"update\" element does not contain "
-                      "a \"label-name\" or \"version\" element.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                 c->base_server,
+                                 "SSL handshake interrupted by system "
+                                 "[Hint: Stop button pressed in browser?!]");

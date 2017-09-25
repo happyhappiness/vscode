@@ -1,21 +1,13 @@
-        changed_limit_at_restart = 1;
-        return NULL;
-    }
-    thread_limit = tmp_thread_limit;
-    
-    if (thread_limit > MAX_THREAD_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: ThreadLimit of %d exceeds compile time limit "
-                    "of %d servers,", thread_limit, MAX_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
-       thread_limit = MAX_THREAD_LIMIT;
-    } 
-    else if (thread_limit < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require ThreadLimit > 0, setting to 1");
-	thread_limit = 1;
-    }
-    return NULL;
-}
+        if (apr_fnmatch_test(path)) {
+            fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                    "%s\n", ap_server_argv0, fname);
+            exit(1);
+        }
 
+        if (!ap_is_rdirectory(p, path)){ 
+            fprintf(stderr, "%s: Include directory '%s' not found",
+                    ap_server_argv0, path);
+            exit(1);
+        }
+
+        if (!apr_fnmatch_test(pattern)) {

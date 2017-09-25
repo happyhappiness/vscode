@@ -1,16 +1,14 @@
-     * should take place. This cannot work.
-     */
-    if (mctx->auth.verify_mode == SSL_CVERIFY_REQUIRE) {
-        ca_list = (STACK_OF(X509_NAME) *)SSL_CTX_get_client_CA_list(ctx);
-
-        if (sk_X509_NAME_num(ca_list) == 0) {
-            ssl_log(s, SSL_LOG_WARN,
-                    "Init: Oops, you want to request client authentication, "
-                    "but no CAs are known for verification!? "
-                    "[Hint: SSLCACertificate*]");
         }
-    }
-}
+        else {
+            t2 = t;
+        }
 
-static void ssl_init_ctx_cipher_suite(server_rec *s,
-                                      apr_pool_t *p,
+        if (autoindex_opts & TABLE_INDEXING) {
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<tr><td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,

@@ -1,14 +1,22 @@
-        }
-        else if (ssl_err == SSL_ERROR_SSL) {
-            /*
-             * Log SSL errors
-             */
-            conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-            ssl_log(c->base_server, SSL_LOG_ERROR|SSL_ADD_SSLERR,
-                    "SSL error on reading data");
-        }
-    }
+                apr_pstrcat(p, "Corrupt status line returned by remote "
+                            "server: ", buffer, NULL));
+            }
+            backasswards = 0;
 
-    return rc;
-}
+            keepchar = buffer[12];
+            if (keepchar == '\0') {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d status line "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+            }
+            buffer[12] = '\0';
+            r->status = atoi(&buffer[9]);
 
+            buffer[12] = keepchar;
+            r->status_line = apr_pstrdup(p, &buffer[9]);
+            
+
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */

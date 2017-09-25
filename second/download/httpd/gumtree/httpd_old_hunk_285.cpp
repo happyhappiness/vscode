@@ -1,15 +1,12 @@
-    int n, err;
-    long verify_result;
+                apr_bucket *tmp_buck;
 
-    if (!SSL_is_init_finished(filter->pssl)) {
-        if (sslconn->is_proxy) {
-            if ((n = SSL_connect(filter->pssl)) <= 0) {
-                ssl_log(c->base_server,
-                        SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_ADD_ERRNO,
-                        "SSL Proxy connect failed");
-                return ssl_abort(filter, c);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "unknown parameter \"%s\" to tag config in %s",
+                              tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
             }
-
-            return APR_SUCCESS;
         }
+    }
+    return 0;
+}
 

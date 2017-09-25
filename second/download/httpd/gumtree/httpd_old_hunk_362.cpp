@@ -1,24 +1,27 @@
+	    if ((rv & APR_POLLERR) || (rv & APR_POLLNVAL)) {
+		bad++;
+		err_except++;
+		start_connect(c);
+		continue;
+	    }
+	    if (rv & APR_POLLOUT)
+		write_request(c);
 
-void ssl_scache_dbm_remove(server_rec *s, UCHAR *id, int idlen)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_dbm_t *dbm;
-    apr_datum_t dbmkey;
-
-    /* create DBM key and values */
-    dbmkey.dptr  = (char *)id;
-    dbmkey.dsize = idlen;
-
-    /* and delete it from the DBM file */
-    ssl_mutex_on(s);
-    if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool) != APR_SUCCESS) {
-        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
-                "Cannot open SSLSessionCache DBM file `%s' for writing (delete)",
-                mc->szSessionCacheDataFile);
-        ssl_mutex_off(s);
-        return;
-    }
-    apr_dbm_delete(dbm, dbmkey);
-    apr_dbm_close(dbm);
-    ssl_mutex_off(s);
+	    /*
+	     * When using a select based poll every time we check the bits
+	     * are reset. In 1.3's ab we copied the FD_SET's each time
+	     * through, but here we're going to check the state and if the
+	     * connection is in STATE_READ or STATE_CONNECTING we'll add the
+	     * socket back in as APR_POLLIN.
+	     */
+#ifdef USE_SSL
+            if (ssl != 1)
+#endif
+	    if (c->state == STATE_READ ||
+                c->state == STATE_CONNECTING) {
+                    apr_pollfd_t new_pollfd;
+                    new_pollfd.desc_type = APR_POLL_SOCKET;
+                    new_pollfd.reqevents = APR_POLLIN;
+                    new_pollfd.desc.s = c->aprsock;
+                    new_pollfd.client_data = c;
+                    apr_pollset_add(readbits, &new_pollfd);

@@ -1,13 +1,21 @@
-    apr_status_t rv;
+}
 
-    pconf = p;
-    ap_server_conf = s;
+static void register_hooks(apr_pool_t *p)
+{
+    ap_hook_pre_config(header_pre_config,NULL,NULL,APR_HOOK_MIDDLE);
+    ap_hook_insert_filter(ap_headers_insert_output_filter, NULL, NULL, APR_HOOK_LAST);
+    ap_hook_fixups(ap_headers_fixup, NULL, NULL, APR_HOOK_LAST);
+    ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
+                              NULL, AP_FTYPE_CONTENT_SET);
+}
 
-    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT|APLOG_STARTUP, 0,
-                     NULL, "no listening sockets available, shutting down");
-        return DONE;
-    }
-
-    if (!one_process) {
-        if ((rv = ap_mpm_pod_open(pconf, &pod))) {
+module AP_MODULE_DECLARE_DATA headers_module =
+{
+    STANDARD20_MODULE_STUFF,
+    create_headers_dir_config,  /* dir config creater */
+    merge_headers_config,       /* dir merger --- default is to override */
+    create_headers_config,      /* server config */
+    merge_headers_config,       /* merge server configs */
+    headers_cmds,               /* command apr_table_t */
+    register_hooks		/* register hooks */
+};

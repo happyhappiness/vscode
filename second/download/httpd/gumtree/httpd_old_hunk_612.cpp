@@ -1,21 +1,12 @@
-				 * connections. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    else
-	heartbeatres = 0;
 
-#ifdef USE_SSL
-    SSL_library_init();
-    if (!(ctx = SSL_CTX_new(SSLv2_client_method()))) {
-	fprintf(stderr, "Could not init SSL CTX");
-	ERR_print_errors_fp(stderr);
-	exit(1);
-    }
-#endif
-#if SIGPIPE
-    signal(SIGPIPE, SIG_IGN);	        /* Ignore writes to connections that
-					 * have been closed at the other end. */
-#endif
-    copyright();
-    test();
-    apr_pool_destroy(cntxt);
-
+    expires = base + additional;
+    apr_table_mergen(t, "Cache-Control",
+                     apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
+                                  apr_time_sec(expires - r->request_time)));
+    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+    apr_rfc822_date(timestr, expires);
+    apr_table_setn(t, "Expires", timestr);

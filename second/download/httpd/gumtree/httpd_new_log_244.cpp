@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "no acceptable variant: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "data size too large for DBM session cache: %d >= %d",
+                 (idlen + nData), PAIRMAX);

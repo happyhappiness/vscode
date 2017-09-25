@@ -1,13 +1,15 @@
-
-static void check_restart(void *data)
-{
-    if (!restart_pending && !shutdown_pending) {
-        int slot = (int)data;
-        make_worker(slot);
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
-            "spawning a new worker thread in slot %d", slot);
-    }
-}
-
-/* start up a bunch of children */
-static void startup_threads(int number_to_start)
+    /* cache filters 
+     * XXX The cache filters need to run right after the handlers and before
+     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
+     * Make them AP_FTYPE_CONTENT for now.
+     * XXX ianhH:they should run AFTER all the other content filters.
+     */
+    cache_save_filter_handle = 
+        ap_register_output_filter("CACHE_SAVE", 
+                                  cache_save_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    /* CACHE_OUT must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this 
+     * happens.
+     */

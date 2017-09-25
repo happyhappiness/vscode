@@ -1,13 +1,13 @@
-            /* At this point, everything between ctx->head_start_bucket and
-             * ctx->tail_start_bucket is an SSI
-             * directive, we just have to deal with it now.
-             */
-            if (get_combined_directive(ctx, r, *bb, tmp_buf,
-                                        TMP_BUF_SIZE) != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "mod_include: error copying directive in %s",
-                            r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_bkt, dptr, content_head);
-
-                /* DO CLEANUP HERE!!!!! */
-                tmp_dptr = ctx->head_start_bucket;
+	   "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+	   trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+	   "<td colspan=2 %s>%d</td></tr>\n",
+	   trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+	   "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
+	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
+           (long)apr_time_usec(timetaken));
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+	   "<td colspan=2 %s>%ld</td></tr>\n",
+	   trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"

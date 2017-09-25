@@ -235,6 +235,9 @@ def compare_version_dir(version_a, version_b):
 @ involve create version diff
 """
 def create_version_diff():
+    # clear old patch file
+    clear = commands.getoutput('rm ' + my_constant.PATCH_DIR + '*')
+    # get all versions
     versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
     versions = versions.split('\n')
     versions.sort(compare_version_dir)

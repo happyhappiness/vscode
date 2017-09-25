@@ -1,25 +1,27 @@
-	    return 0;
+     *
+     * In addition, we make HTTP/1.1 age calculations and write them away
+     * too.
+     */
 
-	/* every zero-byte counts as 8 zero-bits */
-	bits = 8 * quads;
-
-	if (bits != 32)		/* no warning for fully qualified IP address */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld\n",
-		 inet_ntoa(This->addr), bits);
+    /* Read the date. Generate one if one is not supplied */
+    dates = apr_table_get(r->headers_out, "Date");
+    if (dates != NULL) {
+        info->date = apr_date_parse_http(dates);
+    }
+    else {
+        info->date = APR_DATE_BAD;
     }
 
-    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
-
-    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-	    "Warning: NetMask and IP-Addr disagree in %s/%ld\n",
-		inet_ntoa(This->addr), bits);
-	This->addr.s_addr &= This->mask.s_addr;
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-	    "         Set to %s/%ld\n",
-		inet_ntoa(This->addr), bits);
-    }
-
-    if (*addr == '\0') {
-	This->matcher = proxy_match_ipaddr;
+    now = apr_time_now();
+    if (info->date == APR_DATE_BAD) {  /* No, or bad date */
+        char *dates;
+        /* no date header! */
+        /* add one; N.B. use the time _now_ rather than when we were checking
+         * the cache 
+         */
+        date = now;
+        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
+        apr_rfc822_date(dates, now);
+        apr_table_set(r->headers_out, "Date", dates);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: Added date header");

@@ -1,13 +1,13 @@
 
-    ap_log_pid(pconf, ap_pid_fname);
-
-    first_server_limit = server_limit;
-    first_thread_limit = thread_limit;
-    if (changed_limit_at_restart) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
-                     "ignored during restart");
-        changed_limit_at_restart = 0;
-    }
-    
-    /* Initialize cross-process accept lock */
+        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+        
+        /* Presume the handle was opened with the CORRECT semantics
+         * for TransmitFile 
+         */

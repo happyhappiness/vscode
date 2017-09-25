@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, NULL,
-                         "proxy: HTTP: previous connection is closed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));

@@ -1,23 +1,28 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "CACHE_OUT enabled unexpectedly");
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, bb);
-    }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-            "cache: running CACHE_OUT filter");
-
-    /* cache_read_entity_headers() was called in cache_select_url() */
-    cache_read_entity_body(cache->handle, r->pool, bb);
-
-    /* This filter is done once it has served up its content */
-    ap_remove_output_filter(f);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-            "cache: serving cached version of %s", r->uri);
-    return ap_pass_brigade(f->next, bb);
-}
+#define DAV_DO_COPY		0
+#define DAV_DO_MOVE		1
 
 
-/*
- * CACHE_CONDITIONAL filter
+#if 1
+#define DAV_DEBUG        1
+#define DEBUG_CR         "\n"
+#define DBG0(f)          ap_log_error(APLOG_MARK, \
+				APLOG_ERR, 0, NULL, (f))
+#define DBG1(f,a1)       ap_log_error(APLOG_MARK, \
+				APLOG_ERR, 0, NULL, f, a1)
+#define DBG2(f,a1,a2)    ap_log_error(APLOG_MARK, \
+				APLOG_ERR, 0, NULL, f, a1, a2)
+#define DBG3(f,a1,a2,a3) ap_log_error(APLOG_MARK, \
+                                APLOG_ERR, 0, NULL, f, a1, a2, a3)
+#else
+#undef DAV_DEBUG
+#define DEBUG_CR	""
+#endif
+
+#define DAV_INFINITY    INT_MAX    /* for the Depth: header */
+
+/* Create a set of DAV_DECLARE(type), DAV_DECLARE_NONSTD(type) and 
+ * DAV_DECLARE_DATA with appropriate export and import tags for the platform
+ */
+#if !defined(WIN32)
+#define DAV_DECLARE(type)            type

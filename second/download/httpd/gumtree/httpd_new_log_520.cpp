@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, pServ,
-                     "Loading certificate & private key of SSL-aware server");
+ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGKILL",
+                     pid);

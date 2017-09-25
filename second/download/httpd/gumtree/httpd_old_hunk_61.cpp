@@ -1,13 +1,13 @@
-    /* ### dav_lookup_uri only allows absolute URIs; is that OK? */
-    if (!is_label) {
-        lookup = dav_lookup_uri(target, r, 0 /* must_be_absolute */);
-        if (lookup.rnew == NULL) {
-            if (lookup.err.status == HTTP_BAD_REQUEST) {
-                /* This supplies additional information for the default message. */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                              lookup.err.desc);
-                return HTTP_BAD_REQUEST;
-            }
-
-            /* ### this assumes that dav_lookup_uri() only generates a status
-             * ### that Apache can provide a status line for!! */
+                    cache->exp = exp;
+                    cache->lastmod = lastmod;
+                    cache->info = info;
+                }
+                APR_BRIGADE_FOREACH(e, in) {
+                    apr_bucket *copy;
+                    apr_bucket_copy(e, &copy);
+                    APR_BRIGADE_INSERT_TAIL(cache->saved_brigade, copy);
+                }
+                cache->saved_size += size;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: Response length still unknown, setting "
+                             "aside content for url: %s", url);

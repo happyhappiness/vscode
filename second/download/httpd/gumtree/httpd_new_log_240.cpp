@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Syntax error in type map, no ':' in %s for header %s", 
-                      r->filename, header);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);

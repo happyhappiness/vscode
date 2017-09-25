@@ -1,13 +1,13 @@
-                ;
-            ftpmessage[j] = '\0';
-            if (ftpmessage[0] != '\0')
-                 size = ftpmessage; /* already pstrdup'ed: no copy necessary */
-        }
-        else if (rc == 550) {    /* Not a regular file */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: FTP: SIZE shows this is a directory");
-            dirlisting = 1;
-            rc = proxy_ftp_command(apr_pstrcat(p, "CWD ", 
-                           ftp_escape_globbingchars(p, path), CRLF, NULL),
-                           r, origin, bb, &ftpmessage);
-            /* possible results: 250, 421, 500, 501, 502, 530, 550 */
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                     "mod_rewrite: Parent could not create RewriteLock "
+                     "file %s", lockname);
+        return rc;
+    }
+
+#ifdef MOD_REWRITE_SET_MUTEX_PERMS
+    rc = unixd_set_global_mutex_perms(rewrite_mapr_lock_acquire);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                     "mod_rewrite: Parent could not set permissions "
+                     "on RewriteLock; check User and Group directives");
+        return rc;

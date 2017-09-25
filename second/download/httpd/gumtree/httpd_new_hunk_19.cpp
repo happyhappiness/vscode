@@ -1,23 +1,19 @@
-    if (!conf->check_nc || !client_shm) {
-        return OK;
+        strs[i] = process_item(r, orig, &items[i]);
     }
 
-    nc = strtol(snc, &endptr, 16);
-    if (endptr < (snc+strlen(snc)) && !apr_isspace(*endptr)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: invalid nc %s received - not a number", snc);
-        return !OK;
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
     }
-
-    if (!resp->client) {
-        return !OK;
+    if (!log_writer) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
+                "log writer isn't correctly setup");
+         return HTTP_INTERNAL_SERVER_ERROR;
     }
+    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
+    /* xxx: do we return an error on log_writer? */
+    return OK;
+}
 
-    if (nc != resp->client->nonce_count) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: Warning, possible replay attack: nonce-count "
-                      "check failed: %lu != %lu", nc,
-                      resp->client->nonce_count);
-        return !OK;
-    }
-
+static int multi_log_transaction(request_rec *r)
+{
+    multi_log_state *mls = ap_get_module_config(r->server->module_config,

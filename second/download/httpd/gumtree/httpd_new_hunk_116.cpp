@@ -1,13 +1,13 @@
-                case token_ne:
-                case token_ge:
-                case token_gt:
-                case token_le:
-                case token_lt:
-                default:
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
-                    *was_error = 1;
-                    return retval;
-                }
-                break;
+        destroy_and_exit_process(process, 1);
+    }
+
+    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+    ap_fixup_virtual_hosts(pconf, server_conf);
+    ap_fini_vhost_config(pconf, server_conf);
+    apr_hook_sort_all();
+    if (configtestonly) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+        destroy_and_exit_process(process, 0);
+    }
+
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);

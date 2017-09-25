@@ -1,13 +1,12 @@
-	    (*hooks->close_lockdb)(lockdb);
-        }
+    else {
+        cid->ecb->cbTotalBytes = 0;
+        cid->ecb->cbAvailable = 0;
+        cid->ecb->lpbData = NULL;
+    }
 
-        if (err != NULL) {
-	    /* ### don't log an error. return err. add higher-level desc. */
+    /* All right... try and run the sucker */
+    rv = (*isa->HttpExtensionProc)(cid->ecb);
 
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-		          "Failed to query lock-null status for %s",
-			  r->filename);
-
-	    return DAV_RESOURCE_ERROR;
-        }
-
+    /* Check for a log message - and log it */
+    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,

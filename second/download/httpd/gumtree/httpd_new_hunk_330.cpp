@@ -1,32 +1,20 @@
-        if (ok < 0) {
-            cp = apr_psprintf(r->pool,
-                              "Failed to execute "
-                              "SSL requirement expression: %s",
-                              ssl_expr_get_error());
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                          "access to %s failed, reason: %s",
-                          r->filename, cp);
-
-            /* remember forbidden access for strict require option */
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-            return HTTP_FORBIDDEN;
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");
+            mpm_state = AP_MPMQ_STOPPING;
+            return 1;
         }
+    }
 
-        if (ok != 1) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Access to %s denied for %s "
-                         "(requirement expression not fulfilled)",
-                         r->filename, r->connection->remote_ip);
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Failed expression: %s", req->cpExpr);
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled "
-                          "(see SSL logfile for more details)");
-
-            /* remember forbidden access for strict require option */
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            mpm_state = AP_MPMQ_STOPPING;
+            return 1;
+        }
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
+         */
+        ap_scoreboard_image->global->running_generation = ap_my_generation;

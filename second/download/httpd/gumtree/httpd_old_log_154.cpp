@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                          "xlate output filter not added implicitly because %s",
-                          !reqinfo->output_ctx ? 
-                          "no output configuration available" :
-                          "another module added the filter");
+apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], tn);

@@ -1,13 +1,12 @@
-        }
-        conf->qop_list[0] = "none";
-        return NULL;
+        rv = cache_create_entity(r, cache->types, url, size);
+    }
+    
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, in);
     }
 
-    if (!strcasecmp(op, "auth-int")) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, cmd->server,
-                     "Digest: WARNING: qop `auth-int' currently only works "
-                     "correctly for responses with no entity");
-    }
-    else if (strcasecmp(op, "auth")) {
-        return apr_pstrcat(cmd->pool, "Unrecognized qop: ", op, NULL);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", url);
+

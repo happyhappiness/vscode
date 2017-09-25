@@ -1,19 +1,22 @@
+ * 20020903.6 (2.0.49-dev) add insert_error_filter hook
+ * 20020903.7 (2.0.49-dev) added XHTML Doctypes
+ * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
+ *                         ap_finalize_sub_req_protocol on Win32 and NetWare
+ * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+ *                         calling ap_setup_prelinked_modules
+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+ */
 
-	/* cleanup pid file on normal shutdown */
-	{
-	    const char *pidfile = NULL;
-	    pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-	    if ( pidfile != NULL && unlink(pidfile) == 0)
-		ap_log_error(APLOG_MARK, APLOG_INFO,
-				0, ap_server_conf,
-				"removed PID file %s (pid=%ld)",
-				pidfile, (long)getpid());
-	}
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
-	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "caught SIGTERM, shutting down");
-	return 1;
-    }
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 11                    /* 0...n */
 
-    /* we've been told to restart */
-    apr_signal(SIGHUP, SIG_IGN);
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

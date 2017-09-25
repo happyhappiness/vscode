@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                                  "Init: Can't open server private key file "
-                                  "%s",szPath);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                                 "LDAP: Could not set the connection timeout" );

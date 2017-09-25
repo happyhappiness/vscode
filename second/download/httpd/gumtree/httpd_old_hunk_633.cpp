@@ -1,14 +1,20 @@
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be zero for UPDATE with a version");
-        return HTTP_BAD_REQUEST;
+        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
+                 || (strcmp(if_range, match) != 0)) {
+            return 0;
+        }
     }
 
-    /* get the target value (a label or a version URI) */
-    ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
-                   &target, &tsize);
-    if (tsize == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" or \"href\" element does not contain "
-                      "any content.");
-        return HTTP_BAD_REQUEST;
+    if (!ap_strchr_c(range, ',')) {
+        /* a single range */
+        num_ranges = 1;
     }
+    else {
+        /* a multiple range */
+        num_ranges = 2;
+    }
+
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = range + 6;
+
+    return num_ranges;
+}

@@ -1,47 +1,23 @@
-            need = (int) encoded_len - (int) gap -
-                shmcb_cyclic_space(header->cache_data_size,
-                                   shmcb_get_safe_uint(cache->first_pos),
-                                   shmcb_get_safe_uint(&(idx->offset)));
+ */
+void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+{
+    unsigned long e;
+
+    while ((e = ERR_get_error())) {
+        char err[256], *annotation;
+
+        ERR_error_string_n(e, err, sizeof err);
+        annotation = ssl_log_annotation(err);
+
+        if (annotation) {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %ld %s %s",
+                         e, err, annotation); 
         }
-        if (loop > 0) {
-            ssl_log(s, SSL_LOG_TRACE, "about to scroll %u sessions from %u",
-                    loop, shmcb_get_safe_uint(queue->pos_count));
-            /* We are removing "loop" items from the cache. */
-            shmcb_set_safe_uint(cache->pos_count,
-                                shmcb_get_safe_uint(cache->pos_count) -
-                                shmcb_cyclic_space(header->cache_data_size,
-                                                   shmcb_get_safe_uint(cache->first_pos),
-                                                   shmcb_get_safe_uint(&(idx->offset))));
-            shmcb_set_safe_uint(cache->first_pos, shmcb_get_safe_uint(&(idx->offset)));
-            shmcb_set_safe_uint(queue->pos_count, shmcb_get_safe_uint(queue->pos_count) - loop);
-            shmcb_set_safe_uint(queue->first_pos, new_pos);
-            ssl_log(s, SSL_LOG_TRACE, "now only have %u sessions",
-                    shmcb_get_safe_uint(queue->pos_count));
-            /* Update the stats!!! */
-            header->num_scrolled += loop;
+        else {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %ld %s",
+                         e, err); 
         }
     }
-
-    /* probably unecessary checks, but I'll leave them until this code
-     * is verified. */
-    if (shmcb_get_safe_uint(cache->pos_count) + encoded_len >
-        header->cache_data_size) {
-        ssl_log(s, SSL_LOG_ERROR, "shmcb_insert_encoded_session, "
-                "internal error");
-        return FALSE;
-    }
-    if (shmcb_get_safe_uint(queue->pos_count) == header->index_num) {
-        ssl_log(s, SSL_LOG_ERROR, "shmcb_insert_encoded_session, "
-                "internal error");
-        return FALSE;
-    }
-    ssl_log(s, SSL_LOG_TRACE, "we have %u bytes and %u indexes free - "
-            "enough", header->cache_data_size -
-            shmcb_get_safe_uint(cache->pos_count), header->index_num -
-            shmcb_get_safe_uint(queue->pos_count));
-
-
-    /* HERE WE ASSUME THAT THE NEW SESSION SHOULD GO ON THE END! I'M NOT
-     * CHECKING WHETHER IT SHOULD BE GENUINELY "INSERTED" SOMEWHERE.
-     *
-     * We either fix that, or find out at a "higher" (read "mod_ssl")
+}

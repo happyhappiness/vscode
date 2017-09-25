@@ -1,2 +1,6 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "invalid directory name in map file: %s", r->uri);
+                              "Request exceeded the limit of %d internal "
+                              "redirects due to probable configuration error. "
+                              "Use 'LimitInternalRecursion' to increase the "
+                              "limit if necessary. Use 'LogLevel debug' to get "
+                              "a backtrace.", rlimit);

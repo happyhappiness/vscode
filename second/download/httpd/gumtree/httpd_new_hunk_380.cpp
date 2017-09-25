@@ -1,16 +1,22 @@
-{
-    SHMCBHeader *header;
-    SHMCBIndex *idx = NULL;
-    unsigned int gap, new_pos, loop, new_offset;
-    int need;
+     * working.  (IMHO what they really fix is a bug in the users of the code
+     * - failing to program correctly for shadow passwords).  We need,
+     * therefore, to provide a password. This password can be matched by
+     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
+     * This is just the crypted variant of the word "password" ;-)
+     */
+    auth_line = apr_pstrcat(r->pool, "Basic ", 
+                            ap_pbase64encode(r->pool, 
+                                             apr_pstrcat(r->pool, clientdn, 
+                                                         ":password", NULL)),
+                            NULL);
+    apr_table_set(r->headers_in, "Authorization", auth_line);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "entering shmcb_insert_encoded_session, "
-                 "*queue->pos_count = %u",
-                 shmcb_get_safe_uint(queue->pos_count));
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                 auth_line);
 
-    /* If there's entries to expire, ditch them first thing. */
-    shmcb_expire_division(s, queue, cache);
-    header = cache->header;
-    gap = header->cache_data_size - shmcb_get_safe_uint(cache->pos_count);
-    if (gap < encoded_len) {
+    return DECLINED;
+}
+
+/* authorization phase */
+int ssl_hook_Auth(request_rec *r)

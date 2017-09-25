@@ -1,13 +1,15 @@
-{
-#if APR_HAS_SHARED_MEMORY
-    if (!detached) {
-        return APR_SUCCESS;
-    }
-    if (apr_shm_size_get(ap_scoreboard_shm) < scoreboard_size) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
-                     "Fatal error: shared scoreboard too small for child!");
-        apr_shm_detach(ap_scoreboard_shm);
-        ap_scoreboard_shm = NULL;
-        return APR_EINVAL;
-    }
-    /* everything will be cleared shortly */
+
+    case HSE_REQ_ASYNC_READ_CLIENT:
+    {
+        apr_uint32_t read = 0;
+        int res;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: asynchronous I/O not supported: %s",
+                            r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+
+        if (r->remaining < *buf_size) {

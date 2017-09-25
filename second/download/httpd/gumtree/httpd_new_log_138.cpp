@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                             r->server,
-                             "cache: conditional - add cache_in filter and "
-                             "DECLINE");
+ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);

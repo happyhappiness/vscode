@@ -1,4 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, p,
-                      "Maximum new request methods %d reached while "
-                      "registering method %s.",
-                      METHOD_NUMBER_LAST, methname);
+ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" element does not contain "
-                      "a label name.");
+ap_log_error(APLOG_MARK, APLOG_INFO, inctx->rc, c->base_server,
+                            "SSL library error %d reading data", ssl_err);

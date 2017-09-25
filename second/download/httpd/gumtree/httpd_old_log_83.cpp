@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, NULL,
-                         "\"DAV Off\" cannot be used to turn off a subtree "
-                         "of a DAV-enabled location.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                         "cache: not caching streamed response for "
+                                         "%s because length %s", url,
+                                          "> CacheMaxStreamingBuffer");

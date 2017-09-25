@@ -1,15 +1,13 @@
-
-    r->allowed |= (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-
-    ap_set_content_type(r, "text/html");
-    if (r->header_only) {
-        return 0;
-    }
-
-    ap_rputs(DOCTYPE_HTML_3_2
-	     "<html><head><title>Server Information</title></head>\n", r);
-    ap_rputs("<body><h1 align=\"center\">Apache Server Information</h1>\n", r);
-    if (!r->args || strcasecmp(r->args, "list")) {
-        if (!r->args) {
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+                    ap_rputs(" />", r);
+                }
+                else {
+                    ap_rputs("&nbsp;", r);            
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a></td>", r);
+                }
+                else {
+                    ap_rputs("</td>", r);

@@ -1,26 +1,13 @@
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    ENGINE *e;
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
+                ap_rputs(" /></th>", r);
+            }
+            else {
+                ap_rputs("&nbsp;</th>", r);
+            }
 
-    if (mc->szCryptoDevice) {
-        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
-            ssl_log(s, SSL_LOG_ERROR,
-                    "Init: Failed to load Crypto Device API `%s'",
-                    mc->szCryptoDevice);
-            ssl_die();
-        }
-
-        if (strEQ(mc->szCryptoDevice, "chil")) {
-            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
-        }
-
-        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-            ssl_log(s, SSL_LOG_ERROR,
-                    "Init: Failed to enable Crypto Device API `%s'",
-                    mc->szCryptoDevice);
-            ssl_die();
-        }
-
-        ENGINE_free(e);
-    }
-}
+            ++cols;

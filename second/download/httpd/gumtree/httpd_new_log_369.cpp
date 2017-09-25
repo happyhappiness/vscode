@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                         "proxy: HTTP: received 100 CONTINUE");
+ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err);

@@ -1,17 +1,12 @@
-        return err;
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
     }
-
-    ap_min_spare_threads = atoi(arg);
-
-    if (ap_min_spare_threads <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Please read the documentation.");
-       ap_min_spare_threads = 1;
-    }
-       
-    return NULL;
+    
+    return(OK);
 }
+
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t sts;

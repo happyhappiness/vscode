@@ -1,2 +1,0 @@
-ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
-                 "disk_cache: Serving Cached URL %s",  dobj->name);

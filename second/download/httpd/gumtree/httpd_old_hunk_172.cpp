@@ -1,13 +1,20 @@
-                char *tag = apr_pstrdup(neg->pool, body);
-                char *eol = strchr(tag, '\0');
-                apr_size_t len = MAX_STRING_LEN;
-                while (--eol >= tag && apr_isspace(*eol)) 
-                    *eol = '\0';
-                if ((mime_info.body = get_body(buffer, &len, tag, *map)) < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                                  "Syntax error in type map, no end tag '%s'"
-                                  "found in %s for Body: content.", 
-                                  tag, r->filename);
-                     break;
-                }
-                mime_info.bytes = len;
+*/
+
+static void init_child(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t rv;
+
+    if (lockname != NULL && *(lockname) != '\0')
+    {
+        rv = apr_global_mutex_child_init(&rewrite_mapr_lock_acquire,
+                                       lockname, p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                         "mod_rewrite: could not init rewrite_mapr_lock_acquire "
+                         "in child");
+        }
+    }
+
+    /* create the lookup cache */
+    cachep = init_cache(p);
+}

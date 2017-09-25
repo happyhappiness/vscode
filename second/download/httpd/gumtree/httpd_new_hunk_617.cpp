@@ -1,32 +1,13 @@
-		*colon = '\0';
-	    }
-	    if (strcmp(user, scratch) != 0) {
-		putline(ftemp, line);
-		continue;
-	    }
-            else {
-                /* We found the user we were looking for, add him to the file.
-                 */
-                apr_file_printf(errfile, "Updating ");
-                putline(ftemp, record);
-            }
-	}
-    }
-    if (!found) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
-    apr_file_close(fpw);
+                                  modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = NULL;
+    SSL_METHOD *method = NULL;
+    char *cp;
+    int protocol = mctx->protocol;
+    SSLSrvConfigRec *sc = mySrvConfig(s);
 
-    /* The temporary file has all the data, just copy it to the new location.
+    /*
+     *  Create the new per-server SSL context
      */
-#if defined(OS2) || defined(WIN32)
-    str = apr_psprintf(pool, "copy \"%s\" \"%s\"", tn, pwfilename);
-#else
-    str = apr_psprintf(pool, "cp %s %s", tn, pwfilename);
-#endif
-    system(str);
-    apr_file_close(ftemp);
-    return 0;
-}
+    if (protocol == SSL_PROTOCOL_NONE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,

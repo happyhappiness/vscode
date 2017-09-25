@@ -1,23 +1,32 @@
-    char *scope_id;
-    apr_status_t rv;
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
+    else if (!one_process && !ap_my_generation) {
+        /* Open a null handle to soak stdout in this process.
+         * We need to emulate apr_proc_detach, unix performs this
+         * same check in the pre_config hook (although it is
+         * arguably premature).  Services already fixed this.
+         */
+        apr_file_t *nullfile;
+        apr_status_t rv;
+        apr_pool_t *pproc = apr_pool_parent_get(pconf);
 
-    /* Save a copy for the proxy */
-    fullurl = apr_pstrdup(cntxt, url);
+        if ((rv = apr_file_open(&nullfile, "NUL",
+                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                                pproc)) == APR_SUCCESS) {
+            apr_file_t *nullstdout;
+            if (apr_file_open_stdout(&nullstdout, pproc)
+                    == APR_SUCCESS)
+                apr_file_dup2(nullstdout, nullfile, pproc);
+            apr_file_close(nullfile);
+        }
+    }
 
-    if (strlen(url) > 7 && strncmp(url, "http://", 7) == 0) {
-	url += 7;
-#if USE_SSL
-	ssl = 0;
-#endif
+    /* Win9x: disable AcceptEx */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        use_acceptex = 0;
     }
-    else
-#ifdef USE_SSL
-    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
-	url += 8;
-	ssl = 1;
-    }
-#else
-    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
-	fprintf(stderr, "SSL not compiled in; no https support\n");
-	exit(1);
-    }
+

@@ -1,13 +1,13 @@
-		       0,	/* reserved */
-		       REG_SZ,	/* type */
-		       value,	/* value data */
-		       (DWORD) strlen(value) + 1); /* for size of "value" */
-
-    if (rv == ERROR_SUCCESS) {
-	ap_log_error(APLOG_MARK,APLOG_INFO|APLOG_NOERRNO,rv,NULL,
-	    "Registry stored HKLM\\" REGKEY "\\%s value %s", key, value);
-    }
-
-    /* Make sure we close the key even if there was an error storing
-     * the data
-     */
+                }
+            }
+        }
+        else {
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+            }
+            break;
+        }

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_global_mutex_lock(rewrite_log_lock) failed");
+fprintf(stderr, "%s: Include directory '%s' not found",
+                    ap_server_argv0, path);

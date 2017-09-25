@@ -1,15 +1,13 @@
-		status, inbytes_left, outbytes_left);
-	exit(1);
-    }
-#endif				/* NOT_ASCII */
+    apr_rfc822_date(dates, r->request_time);
+    apr_table_setn(r->headers_out, "Date", dates);
+    apr_table_setn(r->headers_out, "Server", ap_get_server_version());
 
-    /* This only needs to be done once */
-#ifdef USE_SSL
-    if (ssl != 1)
-#endif
-    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
-	!= APR_SUCCESS) {
-	char buf[120];
-	apr_snprintf(buf, sizeof(buf),
-		     "apr_sockaddr_info_get() for %s", connecthost);
-	apr_err(buf, rv);
+    /* set content-type */
+    if (dirlisting) {
+        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+    }
+    else {
+        if (r->content_type) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: Content-Type set to %s", r->content_type);
+        }

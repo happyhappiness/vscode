@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, main_server,
-                "mod_unique_id: using ip addr %s",
-                 ipaddrstr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGILL)");

@@ -1,2 +1,2 @@
-r(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->pool,
-		 "loaded module %s", modname);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "the listener thread didn't exit");

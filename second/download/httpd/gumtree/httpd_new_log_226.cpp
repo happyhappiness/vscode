@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "chunked Transfer-Encoding forbidden: %s", r->uri);
+dav_send_one_response(first, bb, r->output_filters, subpool);

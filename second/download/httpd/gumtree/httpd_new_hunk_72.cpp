@@ -1,24 +1,13 @@
-     *
-     * Caching is forbidden under the following circumstances:
-     *
-     * - RFC2616 14.9.2 Cache-Control: no-store
-     * - Pragma: no-cache
-     * - Any requests requiring authorization.
-     */
-    if (conf->ignorecachecontrol_set == 1 && conf->ignorecachecontrol == 1 && auth == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-            "incoming request is asking for a uncached version of %s, but we know better and are ignoring it", url);
-    }
-    else {
-        if (ap_cache_liststr(cc_in, "no-store", NULL) ||
-            ap_cache_liststr(pragma, "no-cache", NULL) || (auth != NULL)) {
-            /* delete the previously cached file */
-            cache_remove_url(r, cache->types, url);
+    if (!is_label) {
+        lookup = dav_lookup_uri(target, r, 0 /* must_be_absolute */);
+        if (lookup.rnew == NULL) {
+            if (lookup.err.status == HTTP_BAD_REQUEST) {
+                /* This supplies additional information for the default message. */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "%s", lookup.err.desc);
+                return HTTP_BAD_REQUEST;
+            }
 
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                        "cache: no-store forbids caching of %s", url);
-            return DECLINED;
-        }
-    }
+            /* ### this assumes that dav_lookup_uri() only generates a status
+             * ### that Apache can provide a status line for!! */
 
-    /*

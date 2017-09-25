@@ -1,15 +1,12 @@
-     * Process CA certificate path files
-     */
-    if (ca_path) {
-        apr_dir_t *dir;
-        apr_finfo_t direntry;
-        apr_int32_t finfo_flags = APR_FINFO_MIN|APR_FINFO_NAME;
+    return;
+}
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+    ap_hook_insert_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+}
 
-        if (apr_dir_open(&dir, ca_path, ptemp) != APR_SUCCESS) {
-            ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO|SSL_INIT,
-                    "Failed to open SSLCACertificatePath `%s'",
-                    ca_path);
-            ssl_die();
-        }
-
-        while ((apr_dir_read(&direntry, finfo_flags, dir)) == APR_SUCCESS) {
+module AP_MODULE_DECLARE_DATA expires_module =
+{
+    STANDARD20_MODULE_STUFF,

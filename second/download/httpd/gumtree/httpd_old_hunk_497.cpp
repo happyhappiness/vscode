@@ -1,23 +1,12 @@
-}
+        apr_signal(SIGTERM, just_die);
+        child_main(slot);
 
-static void accept_mutex_on(void)
-{
-    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "couldn't grab the accept mutex");
-        exit(APEXIT_CHILDFATAL);
+        clean_child_exit(0);
     }
+    /* else */
+    ap_scoreboard_image->parent[slot].quiescing = 0;
+    ap_scoreboard_image->parent[slot].pid = pid;
+    return 0;
 }
 
-static void accept_mutex_off(void)
-{
-    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "couldn't release the accept mutex");
-        exit(APEXIT_CHILDFATAL);
-    }
-}
-
-/* On some architectures it's safe to do unserialized accept()s in the single
- * Listen case.  But it's never safe to do it in the case where there's
- * multiple Listen statements.  Define SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+/* start up a bunch of children */

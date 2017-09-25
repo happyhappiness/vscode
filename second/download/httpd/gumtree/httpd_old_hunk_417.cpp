@@ -1,39 +1,14 @@
-    ap_server_root = def_server_root;
-    if (temp_error_log) {
-        ap_replace_stderr_log(process->pool, temp_error_log);
-    }
-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR| APLOG_NOERRNO, 0,
-                     NULL, "Pre-configuration failed\n");
-        destroy_and_exit_process(process, 1);
+        return ap_pass_brigade(f->next, bb);
     }
 
-    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-    ap_fixup_virtual_hosts(pconf, server_conf);
-    ap_fini_vhost_config(pconf, server_conf);
-    apr_sort_hooks();
-    if (configtestonly) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                     "Syntax OK\n");
-        destroy_and_exit_process(process, 0);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: running CACHE_OUT filter");
 
-    apr_pool_clear(plog);
+    /* cache_read_entity_headers() was called in cache_select_url() */
+    cache_read_entity_body(cache->handle, r->pool, bb);
 
-    /* It is assumed that if you are going to fail the open_logs phase, then
-     * you will print out your own message that explains what has gone wrong.
-     * The server doesn't need to do that for you.
-     */
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        destroy_and_exit_process(process, 1);
-    }
+    /* This filter is done once it has served up its content */
+    ap_remove_output_filter(f);
 
-    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR| APLOG_NOERRNO, 0,
-                     NULL, "Configuration Failed\n");
-        destroy_and_exit_process(process, 1);
-    }
-
-    apr_pool_destroy(ptemp);
-
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: serving %s", r->uri);

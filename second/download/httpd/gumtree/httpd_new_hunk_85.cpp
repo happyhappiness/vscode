@@ -1,25 +1,43 @@
-    if (reqinfo) {
-        if (reqinfo->output_ctx && !configured_on_output(r, XLATEOUT_FILTER_NAME)) {
-            ap_add_output_filter(XLATEOUT_FILTER_NAME, reqinfo->output_ctx, r, 
-                                 r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because %s",
-                          !reqinfo->output_ctx ? 
-                          "no output configuration available" :
-                          "another module added the filter");
-        }
+    /* Iterate accross the brigade and populate the cache storage */
+    APR_BRIGADE_FOREACH(e, b) {
+        const char *s;
+        apr_size_t len;
 
-        if (reqinfo->input_ctx && !configured_on_input(r, XLATEIN_FILTER_NAME)) {
-            ap_add_input_filter(XLATEIN_FILTER_NAME, reqinfo->input_ctx, r,
-                                r->connection);
+        if (APR_BUCKET_IS_EOS(e)) {
+            if (mobj->m_len > obj->count) {
+                /* Caching a streamed response. Reallocate a buffer of the 
+                 * correct size and copy the streamed response into that 
+                 * buffer */
+                char *buf = malloc(obj->count);
+                if (!buf) {
+                    return APR_ENOMEM;
+                }
+                memcpy(buf, mobj->m, obj->count);
+                free(mobj->m);
+                mobj->m = buf;
+
+                /* Now comes the crufty part... there is no way to tell the
+                 * cache that the size of the object has changed. We need
+                 * to remove the object, update the size and re-add the 
+                 * object, all under protection of the lock.
+                 */
+                if (sconf->lock) {
+                    apr_thread_mutex_lock(sconf->lock);
+                }
+                cache_remove(sconf->cache_cache, obj);
+                mobj->m_len = obj->count;
+                cache_insert(sconf->cache_cache, obj);                
+                sconf->cache_size -= (mobj->m_len - obj->count);
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
+            }
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached url: %s", obj->key);
+            obj->complete = 1;
+            break;
         }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate input filter not added implicitly because %s",
-                          !reqinfo->input_ctx ?
-                          "no input configuration available" :
-                          "another module added the filter");
-        }
-    }
+        rv = apr_bucket_read(e, &s, &len, eblock);
+        if (rv != APR_SUCCESS) {
+            return rv;

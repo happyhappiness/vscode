@@ -1,13 +1,13 @@
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            /* Use this instead of Apache's default error string */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-
-        r->read_chunked = 1;
-    }
+	    /* read rest next time */
+	    if (space) {
+		return;
+	    }
+	    else {
+		/* header is in invalid or too big - close connection */
+		apr_poll_socket_remove(readbits, c->aprsock);
+		apr_socket_close(c->aprsock);
+		err_response++;
+		if (bad++ > 10) {
+		    err("\nTest aborted after 10 failures\n\n");
+		}
+		start_connect(c);

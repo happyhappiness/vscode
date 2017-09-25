@@ -1,15 +1,26 @@
-                               shmcb_get_safe_uint(cache->pos_count) -
-                               shmcb_cyclic_space(header->cache_data_size,
-                                                  shmcb_get_safe_uint(cache->first_pos),
-                                                  shmcb_get_safe_uint(&(idx->offset))));
-            shmcb_set_safe_uint(cache->first_pos, shmcb_get_safe_uint(&(idx->offset)));
-        }
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "we now have %u sessions",
-                     shmcb_get_safe_uint(queue->pos_count));
-    }
-    header->num_expiries += loop;
-    return loop;
+
+    return APR_SUCCESS;
 }
 
-/* Inserts a new encoded session into a queue/cache pair - expiring
+static apr_status_t ssl_io_filter_cleanup(void *data)
+{
+    ssl_filter_ctx_t *filter_ctx = data;
+
+    if (filter_ctx->pssl) {
+        conn_rec *c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+        SSLConnRec *sslconn = myConnConfig(c);
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                     "SSL connection destroyed without being closed");
+
+        SSL_free(filter_ctx->pssl);
+        sslconn->ssl = filter_ctx->pssl = NULL;
+    }
+  
+    return APR_SUCCESS;
+}
+
+/*
+ * The hook is NOT registered with ap_hook_process_connection. Instead, it is
+ * called manually from the churn () before it tries to read any data.
+ * There is some problem if I accept conn_rec *. Still investigating..

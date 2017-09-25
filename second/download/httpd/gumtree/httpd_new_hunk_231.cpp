@@ -1,17 +1,23 @@
-    /* otherwise, try it direct */
-    /* N.B. what if we're behind a firewall, where we must use a proxy or
-     * give up??
+     * All the file access checks (if any) have been made.  Time to go to work;
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
      */
-
-    /* handle the scheme */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "Trying to run scheme_handler");
-    access_status = proxy_run_scheme_handler(r, conf, url, NULL, 0);
-    if (DECLINED == access_status) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-                    "proxy: No protocol handler was valid for the URL %s. "
-                    "If you are using a DSO version of mod_proxy, make sure "
-                    "the proxy submodules are included in the configuration "
-                    "using LoadModule.", r->uri);
-        return HTTP_FORBIDDEN;
+    if (!(mask & APHTP_DELUSER)) {
+        i = mkrecord(user, record, sizeof(record) - 1,
+                     password, alg);
+        if (i != 0) {
+            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
+            exit(i);
+        }
+        if (mask & APHTP_NOFILE) {
+            printf("%s\n", record);
+            exit(0);
+        }
     }
+
+    /*
+     * We can access the files the right way, and we have a record
+     * to add or update.  Let's do it..
+     */

@@ -1,26 +1,17 @@
-    int protocol = mctx->protocol;
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
 
-    /*
-     *  Create the new per-server SSL context
-     */
-    if (protocol == SSL_PROTOCOL_NONE) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "No SSL protocols available [hint: SSLProtocol]");
-        ssl_die();
-    }
-
-    cp = apr_pstrcat(p,
-                     (protocol & SSL_PROTOCOL_SSLV2 ? "SSLv2, " : ""),
-                     (protocol & SSL_PROTOCOL_SSLV3 ? "SSLv3, " : ""),
-                     (protocol & SSL_PROTOCOL_TLSV1 ? "TLSv1, " : ""),
-                     NULL);
-    cp[strlen(cp)-2] = NUL;
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Creating new SSL context (protocols: %s)", cp);
-
-    if (protocol == SSL_PROTOCOL_SSLV2) {
-        method = mctx->pkp ?
-            SSLv2_client_method() : /* proxy */
-            SSLv2_server_method();  /* server */
-        ctx = SSL_CTX_new(method);  /* only SSLv2 is left */
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("> ", r);
+            }
+            else {
+                ap_rputs("      ", r);
+            }
+        }
+        emit_link(r, "Name", K_NAME, keyid, direction,

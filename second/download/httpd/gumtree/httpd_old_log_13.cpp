@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, cmd->server,
-                     "Digest: WARNING: qop `auth-int' currently only works "
-                     "correctly for responses with no entity");
+ap_register_output_filter("CACHE_OUT", 
+                              cache_out_filter, 
+                              NULL,
+                              AP_FTYPE_CONTENT_SET-1);

@@ -1,29 +1,19 @@
-    return TRUE;
-}
-
-int ssl_mutex_on(server_rec *s)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if (apr_global_mutex_lock(mc->pMutex) != APR_SUCCESS) {
-        ssl_log(s, SSL_LOG_WARN, "Failed to acquire global mutex lock");
-        return FALSE;
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+	thread_limit = 1;
     }
-    return TRUE;
+    return NULL;
 }
 
-int ssl_mutex_off(server_rec *s)
-{
-    SSLModConfigRec *mc = myModConfig(s);
+static const command_rec winnt_cmds[] = {
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF,
+  "Number of threads each child creates" ),
+AP_INIT_TAKE1("ThreadLimit", set_thread_limit, NULL, RSRC_CONF,
+  "Maximum worker threads in a server for this run of Apache"),
+{ NULL }
+};
 
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if (apr_global_mutex_unlock(mc->pMutex) != APR_SUCCESS) {
-        ssl_log(s, SSL_LOG_WARN, "Failed to release global mutex lock");
-        return FALSE;
-    }
-    return TRUE;
-}
 
+/*
+ * Signalling Apache on NT.

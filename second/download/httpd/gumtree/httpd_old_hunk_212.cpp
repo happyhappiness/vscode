@@ -1,13 +1,14 @@
-    union VALUETYPE p;
-    magic_server_config_rec *conf = (magic_server_config_rec *)
-		ap_get_module_config(r->server->module_config, &mime_magic_module);
-    struct magic *m;
+     */
+    if (mctx->auth.ca_cert_file || mctx->auth.ca_cert_path) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Configuring client authentication");
 
-#if MIME_MAGIC_DEBUG
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, r,
-		MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
-		conf,
-		conf->magicfile ? conf->magicfile : "NULL",
-		conf->magic ? "set" : "NULL",
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
+        if (!SSL_CTX_load_verify_locations(ctx,
+                                           mctx->auth.ca_cert_file,
+                                           mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();

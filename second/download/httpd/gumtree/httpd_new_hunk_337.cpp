@@ -1,17 +1,12 @@
-    }
-    else {
-        depth = mctx->auth.verify_depth;
-    }
-
-    if (errdepth > depth) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Certificate Verification: Certificate Chain too long "
-                     "(chain has %d certificates, but maximum allowed are "
-                     "only %d)",
-                     errdepth, depth);
-
-        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
-
-        ok = FALSE;
-    }
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+#ifdef SIGXCPU
+	apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+	apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */

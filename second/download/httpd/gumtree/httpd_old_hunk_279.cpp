@@ -1,13 +1,12 @@
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; apr_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-        continue;
+                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
+                      getpid(), st->cache_bytes);
 
-#if 0
-    if (addr[i] == ':') {
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                     "@@@@ handle optional port in proxy_is_domainname()");
-	/* @@@@ handle optional port */
-    }
-#endif
+    return NULL;
+}
 
-    if (addr[i] != '\0')
+static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy, const char *ttl)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
+

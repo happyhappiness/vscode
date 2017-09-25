@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                          "mime type is %s; no translation selected",
-                          mime_type);
+printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+	   "<td colspan=2 %s>%qd.%03ld seconds</td></tr>\n",
+	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
+           (long)apr_time_usec(timetaken));

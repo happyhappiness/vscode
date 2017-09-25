@@ -1,41 +1,13 @@
- */
-                             /* ``Real programmers confuse
-                                  Christmas and Halloween
-                                  because DEC 25 = OCT 31.''
-                                             -- Unknown     */
-#include "mod_ssl.h"
-#if !defined(OS2) && !defined(WIN32) && !defined(BEOS) && !defined(NETWARE)
-#include "unixd.h"
-#endif
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
 
-int ssl_mutex_init(server_rec *s, apr_pool_t *p)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_status_t rv;
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE) 
-        return TRUE;
-
-    if ((rv = apr_global_mutex_create(&mc->pMutex, mc->szMutexFile,
-                                APR_LOCK_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot create SSLMutex file `%s'",
-                     mc->szMutexFile);
-        return FALSE;
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    if (use_acceptex) {
+    	apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
     }
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    rv = unixd_set_global_mutex_perms(mc->pMutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Could not set permissions on ssl_mutex; check User "
-                     "and Group directives");
-        return FALSE;
-    }
-#endif
-    return TRUE;
-}
-
-int ssl_mutex_reinit(server_rec *s, apr_pool_t *p)
-{
-    SSLModConfigRec *mc = myModConfig(s);
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);

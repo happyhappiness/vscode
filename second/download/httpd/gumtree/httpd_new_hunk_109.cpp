@@ -1,13 +1,13 @@
-    regex_t *compiled;
-    const apr_size_t nres = sizeof(*ctx->re_result) / sizeof(regmatch_t);
-    int regex_error;
+                   mc->nSessionCacheDataSize, mc->pPool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot initialize rmm");
+        ssl_die();
+    }
+    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                 "initialize MM %pp RMM %pp",
+                 mc->pSessionCacheDataMM, mc->pSessionCacheDataRMM);
 
-    compiled = ap_pregcomp(r->pool, rexp, REG_EXTENDED | REG_NOSUB);
-    if (compiled == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "unable to compile pattern \"%s\"", rexp);
-        return -1;
-    }
-    if (!ctx->re_result) {
-        ctx->re_result = apr_pcalloc(r->pool, sizeof(*ctx->re_result));
-    }
+    /*
+     * Create hash table in shared memory segment
+     */
+    avail = mc->nSessionCacheDataSize;

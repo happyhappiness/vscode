@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Reconfigured cipher suite will force renegotiation");
+printf("Total:      " CONF_FMT_STRING,
+		   mintot, (int) (meantot + 0.5), sdtot, mediantot, maxtot);

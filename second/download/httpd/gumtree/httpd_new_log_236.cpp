@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "invalid base directive in map file: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "subrequested from r->uri = %s",
+                          top->uri ? top->uri : "(unexpectedly NULL)");

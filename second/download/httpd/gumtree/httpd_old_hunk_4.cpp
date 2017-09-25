@@ -1,20 +1,13 @@
-    }
-
-    if (!(real_pw = get_pw(r, r->user, conf->auth_pwfile))) {
-        if (!(conf->auth_authoritative)) {
-            return DECLINED;
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter("CACHE_IN", NULL, r, r->connection);
         }
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                      "user %s not found: %s", r->user, r->uri);
-        ap_note_basic_auth_failure(r);
-        return HTTP_UNAUTHORIZED;
+        return DECLINED;
     }
-    invalid_pw = apr_password_validate(sent_pw, real_pw);
-    if (invalid_pw != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                      "user %s: authentication failure for \"%s\": "
-                      "Password Mismatch",
-                      r->user, r->uri);
-        ap_note_basic_auth_failure(r);
-        return HTTP_UNAUTHORIZED;
-    }
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);

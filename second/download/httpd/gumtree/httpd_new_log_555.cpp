@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot open SSLSessionCache DBM file `%s' for status "
-                     "retrival",
-                     mc->szSessionCacheDataFile);
+printf("Compiled using: APR %s, APR-UTIL %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);

@@ -1,13 +1,12 @@
-	real_file = last_slash;
-	real_file++;
-	*last_slash = '\0';
+        /* Create the worker thread dispatch IOCP */
+        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
+                                                    NULL,
+                                                    0,
+                                                    0); /* CONCURRENT ACTIVE THREADS */
+        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
     }
-    else {
-	/* no last slash, buh?! */
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-		    "internal error in mod_cern_meta: %s", r->filename);
-	/* should really barf, but hey, let's be friends... */
-	return DECLINED;
-    };
 
-    metafilename = apr_pstrcat(r->pool, scrap_book, "/",
+    /* 
+     * Create the pool of worker threads
+     */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 

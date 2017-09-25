@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                         "mod_rewrite: could not fork child for "
-                         "RewriteMap process");
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "the listener thread didn't exit");

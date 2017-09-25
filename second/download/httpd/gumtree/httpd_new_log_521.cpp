@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
-                         "Server should be SSL-aware but has no certificate "
-                         "configured [Hint: SSLCertificateFile]");
+ap_log_error(APLOG_MARK, APLOG_ALERT,
+                         0, ap_server_conf,
+                         "Child %" APR_PID_T_FMT
+                         " returned a Fatal error... Apache is exiting!",
+                         pid->pid);

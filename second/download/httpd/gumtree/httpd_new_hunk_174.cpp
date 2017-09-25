@@ -1,13 +1,28 @@
-    * is for the algorithm to operate on the best available precision
-    * regardless of who runs it.  Since the above calculation may
-    * result in significant variance at 1e-12, rounding would be bogus.
-    */
+    }
 
-#ifdef NEG_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-           "Variant: file=%s type=%s lang=%s sourceq=%1.3f "
-           "mimeq=%1.3f langq=%1.3f charq=%1.3f encq=%1.3f "
-           "q=%1.5f definite=%d",            
-            (variant->file_name ? variant->file_name : ""),
-            (variant->mime_type ? variant->mime_type : ""),
-            (variant->content_languages
+    /*
+     *  only do something under runtime if the engine is really enabled,
+     *  for this directory, else return immediately!
+     */
+    if (dconf->state == ENGINE_DISABLED) {
+        return DECLINED;
+    }
+
+    /*
+     *  Do the Options check after engine check, so
+     *  the user is able to explicitely turn RewriteEngine Off.
+     */
+    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
+        /* FollowSymLinks is mandatory! */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
+                     "which implies that RewriteRule directive is forbidden: "
+                     "%s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
+
+    /*
+     *  remember the current filename before rewriting for later check
+     *  to prevent deadlooping because of internal redirects
+     *  on final URL/filename which can be equal to the inital one.
+     */

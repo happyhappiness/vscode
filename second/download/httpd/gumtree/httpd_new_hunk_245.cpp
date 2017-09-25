@@ -1,22 +1,20 @@
-    /* stuff for PASV mode */
-    int connect = 0, use_port = 0;
-    char dates[AP_RFC822_DATE_LEN];
+ * set to ASCII, then send it.
+ * @param r   the current request
+ * @param ... the strings to write, followed by a NULL pointer
+ */
+int ap_rvputs_proto_in_ascii(request_rec *r, ...);
 
-    /* is this for us? */
-    if (proxyhost) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: declining URL %s - proxyhost %s specified:", url, proxyhost);
-        return DECLINED;        /* proxy connections are via HTTP */
-    }
-    if (strncasecmp(url, "ftp:", 4)) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: declining URL %s - not ftp:", url);
-        return DECLINED;        /* only interested in FTP */
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: FTP: serving URL %s", url);
+#else   /* APR_CHARSET_EBCDIC */
 
-    /* create space for state information */
-    backend = (proxy_conn_rec *) ap_get_module_config(c->conn_config, &proxy_ftp_module);
-    if (!backend) {
-        backend = ap_pcalloc(c->pool, sizeof(proxy_conn_rec));
+#define ap_xlate_proto_to_ascii(x,y)          /* NOOP */
+#define ap_xlate_proto_from_ascii(x,y)        /* NOOP */
+
+#define ap_rvputs_proto_in_ascii  ap_rvputs
+
+#endif  /* APR_CHARSET_EBCDIC */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  /* !APACHE_UTIL_EBCDIC_H */

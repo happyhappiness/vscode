@@ -1,15 +1,18 @@
-                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
-            }
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");
+            return 1;
         }
+    }
 
-        /* configure new state */
-        if (!modssl_set_cipher_list(ssl, dc->szCipherSuite)) {
-            ssl_log(r->server, SSL_LOG_WARN|SSL_ADD_SSLERR,
-                    "Unable to reconfigure (per-directory) "
-                    "permitted SSL ciphers");
-
-            if (cipher_list_old) {
-                sk_SSL_CIPHER_free(cipher_list_old);
-            }
-
-            return HTTP_FORBIDDEN;
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            return 1;
+        }
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
+         */
+        ap_scoreboard_image->global->running_generation = ap_my_generation;

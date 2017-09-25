@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_offset = %u", header->index_offset);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not split line from buffered SSL brigade");

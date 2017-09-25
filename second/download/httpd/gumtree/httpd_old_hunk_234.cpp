@@ -1,17 +1,12 @@
-    apr_uri_t uri;
-    const char *connectname;
-    int connectport = 0;
+	{
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+		return rcode;
+	}
 
-    /* is this for us? */
-    if (r->method_number != M_CONNECT) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-		     "proxy: CONNECT: declining URL %s", url);
-	return DECLINED;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-		 "proxy: CONNECT: serving URL %s", url);
+    /* setup the socket for SSL */
+    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+    sWS2Opts.options = &sNWTLSOpts;
 
-
-    /*
-     * Step One: Determine Who To Connect To
-     *
+    if (numcerts) {

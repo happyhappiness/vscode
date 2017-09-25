@@ -1,26 +1,58 @@
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
 
-    /* Get the request... */
-    if (!read_request_line(r)) {
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            return r;
+            if (rc == 0)
+                thefile->bufpos = 0;
         }
 
-        return NULL;
+        return rc;
     }
 
-    if (!r->assbackwards) {
-        ap_get_mime_headers(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            return r;
-        }
+    /* There isn't anything to do if we aren't buffering the output
+     * so just return success.
+     */
+    return APR_SUCCESS; 
+}
+
+struct apr_file_printf_data {
+    apr_vformatter_buff_t vbuff;
+    apr_file_t *fptr;
+    char *buf;
+};
+
+static int file_printf_flush(apr_vformatter_buff_t *buff)
+{
+    struct apr_file_printf_data *data = (struct apr_file_printf_data *)buff;
+
+    if (apr_file_write_full(data->fptr, data->buf,
+                            data->vbuff.curpos - data->buf, NULL)) {
+        return -1;
     }
+
+    data->vbuff.curpos = data->buf;
+    return 0;
+}
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    struct apr_file_printf_data data;
+    va_list ap;
+    int count;
+
+    data.buf = malloc(HUGE_STRING_LEN);
+    if (data.buf == NULL) {
+        return 0;
+    }
+    data.vbuff.curpos = data.buf;
+    data.vbuff.endpos = data.buf + HUGE_STRING_LEN;
+    data.fptr = fptr;
+    va_start(ap, format);
+    count = apr_vformatter(file_printf_flush,
+                           (apr_vformatter_buff_t *)&data, format, ap);
+    /* apr_vformatter does not call flush for the last bits */
+    if (count >= 0) file_printf_flush((apr_vformatter_buff_t *)&data);
+
+    va_end(ap);
+
+    free(data.buf);
+    return count;
+}

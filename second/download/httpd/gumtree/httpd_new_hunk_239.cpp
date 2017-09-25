@@ -1,13 +1,13 @@
-            else if ((pollevent & APR_POLLERR) || (pollevent & APR_POLLHUP))
-		break;
+        int failed = 1;
+        while (connect_addr) {
 
+	    if ((rv = apr_socket_create(&sock, connect_addr->family, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+			      "proxy: FTP: error creating socket");
+                connect_addr = connect_addr->next;
+		continue;
+	    }
 
-            apr_poll_revents_get(&pollevent, client_socket, pollfd);
-            if (pollevent & APR_POLLIN) {
-/*		ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: CONNECT: client was set");*/
-                nbytes = sizeof(buffer);
-                if (apr_recv(client_socket, buffer, &nbytes) == APR_SUCCESS) {
-                    o = 0;
-                    i = nbytes;
-                    while(i > 0)
+#if !defined(TPF) && !defined(BEOS)
+	    if (conf->recv_buffer_size > 0
+		&& (rv = apr_socket_opt_set(sock, APR_SO_RCVBUF,

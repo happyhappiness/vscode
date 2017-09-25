@@ -1,21 +1,25 @@
-        return DECLINED;
-    }
-
-    /*
-     * Log information about incoming HTTPS requests
-     */
-    if (SSLConnLogApplies(sslconn, SSL_LOG_INFO) && ap_is_initial_req(r)) {
-        ssl_log(r->server, SSL_LOG_INFO,
-                "%s HTTPS request received for child %d (server %s)",
-                (r->connection->keepalives <= 0 ?
-                 "Initial (No.1)" :
-                 apr_psprintf(r->pool, "Subsequent (No.%d)",
-                              r->connection->keepalives+1)),
-                r->connection->id,
-                ssl_util_vhostid(r->pool, r->server));
-    }
-
-    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
-     * so they won't change across keepalive requests
-     */
-    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
+                     "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+        apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+        apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+        apr_signal(SIGABORT, sig_coredump);
+#endif /* SIGABORT */
+#ifdef SIGABRT
+        apr_signal(SIGABRT, sig_coredump);
+#endif /* SIGABRT */
+#ifdef SIGILL
+        apr_signal(SIGILL, sig_coredump);
+#endif /* SIGILL */
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */
+#ifdef SIGXFSZ
+        apr_signal(SIGXFSZ, SIG_DFL);
+#endif /* SIGXFSZ */

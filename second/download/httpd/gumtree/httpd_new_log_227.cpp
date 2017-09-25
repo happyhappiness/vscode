@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid Content-Length");
+ap_fputs(r->output_filters, bb, "</D:multistatus>" DEBUG_CR);

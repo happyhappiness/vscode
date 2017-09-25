@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                                  "Invalid expression \"%s\" in file %s",
-                                  expr, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
+                     "which implies that RewriteRule directive is forbidden: "
+                     "%s", r->filename);

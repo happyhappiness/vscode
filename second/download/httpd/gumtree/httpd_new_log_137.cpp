@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: stale cache - test conditional");
+filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter_ctx, NULL, c);

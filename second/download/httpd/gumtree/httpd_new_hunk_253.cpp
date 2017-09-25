@@ -1,13 +1,13 @@
-    /* 550 Requested action not taken. */
-    if (rc == -1 || rc == 421) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             "Error reading from remote server");
-    }
-    if (rc == 550) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: RETR failed, trying LIST instead");
+            SSL_do_handshake(ssl);
 
-        /* Directory Listings should always be fetched in ASCII mode */
-        dirlisting = 1;
-        ftp_set_TYPE('A', r, origin, bb, NULL);
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Awaiting re-negotiation handshake");
 

@@ -1,15 +1,21 @@
+
+static apr_status_t ef_close_file(void *vfile)
 {
-    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+    return apr_file_close(vfile);
+}
 
-    SSLConnRec *sslconn = ssl_init_connection_ctx(c);
+static void child_errfn(apr_pool_t *p, apr_status_t err, const char *desc)
+{
+    request_rec *r;
+    void *vr;
 
-    if (!sc->proxy_enabled) {
-        ssl_log(c->base_server, SSL_LOG_ERROR,
-                "SSL Proxy requested for %s but not enabled "
-                "[Hint: SSLProxyEngine]", sc->vhost_id);
+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, p);
+    r = vr;
+    
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
+}
 
-        return 0;
-    }
-
-    sslconn->is_proxy = 1;
-    sslconn->disabled = 0;
+/* init_ext_filter_process: get the external filter process going
+ * This is per-filter-instance (i.e., per-request) initialization.
+ */
+static apr_status_t init_ext_filter_process(ap_filter_t *f)

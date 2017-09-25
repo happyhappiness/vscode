@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         r->server,
-                         "Unable to reconfigure (per-directory) "
-                         "permitted SSL ciphers");
+printf("Waiting:    " CONF_FMT_STRING,
+	           minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "%s: Exit: error in %s",
-                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
+		 inet_ntoa(This->addr), bits);

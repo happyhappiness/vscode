@@ -1,42 +1,35 @@
-    SHMCBHeader *header;
-    SHMCBQueue queue;
-    SHMCBCache cache;
-    unsigned char masked_index;
-    SSL_SESSION *pSession;
+         */
+        new->real = r;
+    }
+    new->fake = f;
+    new->handler = cmd->info;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "inside shmcb_retrieve_session");
-    if (idlen < 2) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short session_id provided "
-                "(%u bytes)", idlen);
-        return FALSE;
+    /* check for overlapping (Script)Alias directives
+     * and throw a warning if found one
+     */
+    if (!use_regex) {
+        for (i = 0; i < conf->aliases->nelts - 1; ++i) {
+            alias_entry *p = &entries[i];
+
+            if (  (!p->regexp &&  alias_matches(f, p->fake) > 0)
+                || (p->regexp && !ap_regexec(p->regexp, f, 0, NULL, 0))) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             "The %s directive in %s at line %d will probably "
+                             "never match because it overlaps an earlier "
+                             "%sAlias%s.",
+                             cmd->cmd->name, cmd->directive->filename,
+                             cmd->directive->line_num,
+                             p->handler ? "Script" : "",
+                             p->regexp ? "Match" : "");
+
+                break; /* one warning per alias should be sufficient */
+            }
+        }
     }
 
-    /* Get the header structure, which division this session lookup
-     * will come from etc. */
-    shmcb_get_header(shm_segment, &header);
-    masked_index = id[0] & header->division_mask;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "id[0]=%u, masked index=%u", id[0], masked_index);
-    if (!shmcb_get_division(header, &queue, &cache, (unsigned int) masked_index)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shmcb_retrieve_session internal error");
-        header->num_retrieves_miss++;
-        return FALSE;
-    }
-
-    /* Get the session corresponding to the session_id or NULL if it
-     * doesn't exist (or is flagged as "removed"). */
-    pSession = shmcb_lookup_session_id(s, &queue, &cache, id, idlen);
-    if (pSession)
-        header->num_retrieves_hit++;
-    else
-        header->num_retrieves_miss++;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_retrieve_session");
-    return pSession;
+    return NULL;
 }
 
-static BOOL shmcb_remove_session(
-    server_rec *s, void *shm_segment,
-    UCHAR *id, int idlen)
+static const char *add_alias(cmd_parms *cmd, void *dummy, const char *f,
+                             const char *r)
+{

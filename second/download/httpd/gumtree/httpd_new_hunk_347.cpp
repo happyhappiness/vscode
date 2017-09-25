@@ -1,33 +1,34 @@
-    return TRUE;
-}
-
-int ssl_mutex_on(server_rec *s)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_status_t rv;
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to acquire global mutex lock");
-        return FALSE;
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+	thread_limit = 1;
     }
-    return TRUE;
+    return NULL;
 }
-
-int ssl_mutex_off(server_rec *s)
+static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy, char *arg) 
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_status_t rv;
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if ((rv = apr_global_mutex_unlock(mc->pMutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to release global mutex lock");
-        return FALSE;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    return TRUE;
+    if (use_acceptex) {
+        use_acceptex = 0;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL, 
+                     "Disabled use of AcceptEx() WinSock2 API");
+    }
+    return NULL;
 }
 
+static const command_rec winnt_cmds[] = {
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF,
+  "Number of threads each child creates" ),
+AP_INIT_TAKE1("ThreadLimit", set_thread_limit, NULL, RSRC_CONF,
+  "Maximum worker threads in a server for this run of Apache"),
+AP_INIT_NO_ARGS("Win32DisableAcceptEx", set_disable_acceptex, NULL, RSRC_CONF,
+  "Disable use of the high performance AcceptEx WinSock2 API to work around buggy VPN or Firewall software"),
+{ NULL }
+};
+
+
+/*
+ * Signalling Apache on NT.

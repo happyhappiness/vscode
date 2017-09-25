@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body does not contain "
-                      "a \"mkworkspace\" element.");
+ap_log_error(APLOG_MARK, APLOG_INFO, inctx->rc, c->base_server,
+                                "SSL input filter read failed.");

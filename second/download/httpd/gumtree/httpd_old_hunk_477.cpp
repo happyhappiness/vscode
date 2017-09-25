@@ -1,17 +1,13 @@
-    if (err != NULL) {
-        return err;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+          "proxy: FTP: an error occurred creating the transfer connection");
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    min_spare_threads = atoi(arg);
-    if (min_spare_threads <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Please read the documentation.");
-       min_spare_threads = 1;
-    }
-       
-    return NULL;
-}
+    /* set up the connection filters */
+    ap_run_pre_connection(data, data_sock);
+
+    /*
+     * VI: Receive the Response ------------------------
+     *
+     * Get response from the remote ftp socket, and pass it up the filter chain.
+     */

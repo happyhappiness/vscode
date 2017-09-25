@@ -1,13 +1,12 @@
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "%s: could not open error log file %s.",
-                         ap_server_argv0, fname);
-            exit(1);
+        if (d_uri.path) {
+            ap_unescape_url(d_uri.path);
+        }
+        if (d_uri.query) {
+            ap_unescape_url(d_uri.query);
         }
 
-        apr_file_set_inherit(s->error_log);
-    }
-}
-
-void ap_open_logs(server_rec *s_main, apr_pool_t *p)
-{
-    apr_status_t rc = APR_SUCCESS;
+        if (r->method_number == M_CONNECT) {
+            if (strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);

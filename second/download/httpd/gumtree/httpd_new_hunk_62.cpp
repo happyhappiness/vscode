@@ -1,13 +1,23 @@
-    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
-        return result;
-    }
+            if ((buf = apr_table_get(r->headers_out, "URI")) != NULL) {
+                apr_table_set(r->headers_out, "URI",
+                              ap_proxy_location_reverse_map(r, conf, buf));
+            }
+        }
 
-    if (doc == NULL || !dav_validate_root(doc, "label")) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body does not contain "
-                      "a \"label\" element.");
-        return HTTP_BAD_REQUEST;
-    }
+      if ((r->status == 401) && (conf->error_override != 0)) {
+          const char *buf;
+          const char *wa = "WWW-Authenticate";
+          if ((buf = apr_table_get(r->headers_out, wa))) {
+              apr_table_set(r->err_headers_out, wa, buf);
+          } else {
+              ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                           "proxy: origin server sent 401 without w-a header");
+          }
+      }
 
-    /* check for add, set, or remove element */
+        r->sent_bodyct = 1;
+        /* Is it an HTTP/0.9 response? If so, send the extra data */
+        if (backasswards) {
+            apr_ssize_t cntr = len;
+            e = apr_bucket_heap_create(buffer, cntr, NULL, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);

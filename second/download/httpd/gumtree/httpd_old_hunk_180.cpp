@@ -1,13 +1,13 @@
-        return NULL;
+    if (rr->status != HTTP_OK) {
+	ap_destroy_sub_req(rr);
+	return DECLINED;
     }
+    ap_destroy_sub_req(rr);
 
-    /* take the lock */
-
-    if (rewrite_mapr_lock_acquire) {
-        apr_global_mutex_lock(rewrite_mapr_lock_acquire);
-    }
-
-    /* write out the request key */
-#ifdef NO_WRITEV
-    nbytes = strlen(key);
-    apr_file_write(fpin, key, &nbytes);
+    retcode = apr_file_open(&f, metafilename, APR_READ | APR_CREATE, APR_OS_DEFAULT, r->pool);
+    if (retcode != APR_SUCCESS) {
+	if (APR_STATUS_IS_ENOENT(retcode)) {
+	    return DECLINED;
+	}
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+	      "meta file permissions deny server access: %s", metafilename);

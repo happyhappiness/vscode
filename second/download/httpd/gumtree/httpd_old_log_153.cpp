@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                      "charset_source: %s charset_default: %s",
-                      dc && dc->charset_source ? dc->charset_source : "(none)",
-                      dc && dc->charset_default ? dc->charset_default : "(none)");
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.120 $");

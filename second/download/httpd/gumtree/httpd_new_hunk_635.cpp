@@ -1,13 +1,19 @@
-{
-    int i;
 
-    fprintf(stdout,"posn\tleft\tright\tparent\tminchild\t...\n");
-    for (i = 1; i < q->size ;i++) {
-        fprintf(stdout,
-                "%d\t%d\t%d\t%d\t%" APR_SSIZE_T_FMT "\t",
-                i,
-                left(i), right(i), parent(i),
-                minchild(q, i));
-        print(out, q->d[i]);
+        /* cleanup */
+        if (cipher_list_old) {
+            sk_SSL_CIPHER_free(cipher_list_old);
+        }
+
+        if (renegotiate) {
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+            if (sc->cipher_server_pref == TRUE) {
+                SSL_set_options(ssl, SSL_OP_CIPHER_SERVER_PREFERENCE);
+            }
+#endif
+            /* tracing */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reconfigured cipher suite will force renegotiation");
+        }
     }
-}
+
+    /*

@@ -1,13 +1,23 @@
-            if (errno == ECONNREFUSED && connect_tries < DEFAULT_CONNECT_ATTEMPTS) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, errno, r,
-                              "connect #%d to cgi daemon failed, sleeping before retry",
-                              connect_tries);
-                close(sd);
-                apr_sleep(sliding_timer);
-                if (sliding_timer < apr_time_from_sec(2)) {
-                    sliding_timer *= 2;
-                }
-            }
-            else {
-                close(sd);
-                return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno, 
+
+static apr_status_t ef_close_file(void *vfile)
+{
+    return apr_file_close(vfile);
+}
+
+static void child_errfn(apr_pool_t *p, apr_status_t err, const char *desc)
+{
+    request_rec *r;
+    void *vr;
+
+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, p);
+    r = vr;
+    
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
+}
+
+/* init_ext_filter_process: get the external filter process going
+ * This is per-filter-instance (i.e., per-request) initialization.
+ */
+static apr_status_t init_ext_filter_process(ap_filter_t *f)
+{
+    ef_ctx_t *ctx = f->ctx;

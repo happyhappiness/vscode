@@ -1,13 +1,24 @@
-       
-        r = apr_pcalloc(ptrans, sizeof(request_rec)); 
-        procnew = apr_pcalloc(ptrans, sizeof(*procnew));
-        r->pool = ptrans; 
-        rc = get_req(sd2, r, &argv0, &env, &req_type); 
-        if (rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0,
-                         main_server,
-                         "Error reading request on cgid socket");
-            close(sd2);
-            continue;
-        }
-        apr_os_file_put(&r->server->error_log, &errfileno, 0, r->pool);
+            b = apr_bucket_pool_create(buf, 8, r->pool, f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Zlib: Compressed %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+
+            if (c->noteName) {
+                if (ctx->stream.total_in > 0) {
+                    int total;
+
+                    total = ctx->stream.total_out * 100 / ctx->stream.total_in;
+
+                    apr_table_setn(r->notes, c->noteName,
+                                   apr_itoa(r->pool, total));
+                }
+                else {
+                    apr_table_setn(r->notes, c->noteName, "-");
+                }
+            }
+
+            deflateEnd(&ctx->stream);
+
+            /* Remove EOS from the old list, and insert into the new. */
+            APR_BUCKET_REMOVE(e);

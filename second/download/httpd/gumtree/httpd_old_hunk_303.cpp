@@ -1,51 +1,33 @@
-
-    /*
-     * Some information about the certificate(s)
-     */
-
-    if (SSL_X509_isSGC(cert)) {
-        ssl_log(s, SSL_LOG_INFO|SSL_INIT,
-                "%s server certificate enables "
-                "Server Gated Cryptography (SGC)", 
-                ssl_asn1_keystr(type));
-    }
-
-    if (SSL_X509_getBC(cert, &is_ca, &pathlen)) {
-        if (is_ca) {
-            ssl_log(s, SSL_LOG_WARN|SSL_INIT,
-                    "%s server certificate is a CA certificate "
-                    "(BasicConstraints: CA == TRUE !?)",
-                    ssl_asn1_keystr(type));
-        }
-
-        if (pathlen > 0) {
-            ssl_log(s, SSL_LOG_WARN|SSL_INIT,
-                    "%s server certificate is not a leaf certificate "
-                    "(BasicConstraints: pathlen == %d > 0 !?)",
-                    ssl_asn1_keystr(type), pathlen);
-        }
-    }
-
-    if (SSL_X509_getCN(ptemp, cert, &cn)) {
-        int fnm_flags = FNM_PERIOD|FNM_CASE_BLIND;
-
-        if (apr_is_fnmatch(cn) &&
-            (apr_fnmatch(cn, s->server_hostname,
-                         fnm_flags) == FNM_NOMATCH))
-        {
-            ssl_log(s, SSL_LOG_WARN|SSL_INIT,
-                    "%s server certificate wildcard CommonName (CN) `%s' "
-                    "does NOT match server name!?",
-                    ssl_asn1_keystr(type), cn);
-        }
-        else if (strNE(s->server_hostname, cn)) {
-            ssl_log(s, SSL_LOG_WARN|SSL_INIT,
-                    "%s server certificate CommonName (CN) `%s' "
-                    "does NOT match server name!?",
-                    ssl_asn1_keystr(type), cn);
-        }
-    }
+    return av;
 }
 
-static void ssl_init_server_certs(server_rec *s,
-                                  apr_pool_t *p,
+#if APR_HAS_OTHER_CHILD
+static void cgid_maint(int reason, void *data, apr_wait_t status)
+{
+    pid_t *sd = data;
+
+    switch (reason) {
+        case APR_OC_REASON_DEATH:
+        case APR_OC_REASON_RESTART:
+            /* don't do anything; server is stopping or restarting */
+            apr_proc_other_child_unregister(data);
+            break;
+        case APR_OC_REASON_LOST:
+            /* it would be better to restart just the cgid child
+             * process but for now we'll gracefully restart the entire 
+             * server by sending AP_SIG_GRACEFUL to ourself, the httpd 
+             * parent process
+             */
+            kill(getpid(), AP_SIG_GRACEFUL);
+            break;
+        case APR_OC_REASON_UNREGISTER:
+            /* we get here when pcgi is cleaned up; pcgi gets cleaned
+             * up when pconf gets cleaned up
+             */
+            kill(*sd, SIGHUP); /* send signal to daemon telling it to die */
+            break;
+    }
+}
+#endif
+
+/* deal with incomplete reads and signals

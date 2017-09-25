@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, serv,
-			MODNAME ": indirect offset type %c invalid", *l);
+ap_rvputs(r, DOCTYPE_HTML_3_2,
+              "<html>\n <head>\n  <title>Index of ", title,
+              "</title>\n </head>\n <body>\n", NULL);

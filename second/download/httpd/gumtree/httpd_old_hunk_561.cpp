@@ -1,21 +1,13 @@
-        case AP_SIG_GRACEFUL:
-        case SIGKILL:
-            break;
-
-        default:
-            if (APR_PROC_CHECK_CORE_DUMP(why)) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
-                             0, ap_server_conf,
-                             "child pid %ld exit signal %s (%d), "
-                             "possible coredump in %s",
-                             (long)pid->pid, sigdesc, signum,
-                             ap_coredump_dir);
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
-                             0, ap_server_conf,
-                             "child pid %ld exit signal %s (%d)",
-                             (long)pid->pid, sigdesc, signum);
-            }
         }
+#endif
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+        e = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+
+        return ap_pass_brigade(r->output_filters, bb);
     }
+    else {              /* unusual method (not GET or POST) */
+        if (r->method_number == M_INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid method in request %s", r->the_request);
+            return HTTP_NOT_IMPLEMENTED;

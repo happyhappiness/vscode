@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shmcb_store_session internal error");
+fprintf(stderr, "table_set: val not in ancestor pool of t\n");

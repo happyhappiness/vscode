@@ -1,20 +1,27 @@
-    apr_status_t status;
-#ifdef DEBUG
-    char buf[120];
-#endif
+ **********************************************************/
 
-    if (name == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, NULL,
-               "Internal error: pcfg_openfile() called with NULL filename");
-        return APR_EBADF;
+static int isapi_pre_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp)
+{
+    apr_status_t rv;
+
+    apr_pool_sub_make(&loaded.pool, pconf, NULL);
+    if (!loaded.pool) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, APR_EGENERAL, NULL,
+	             "ISAPI: could not create the isapi cache pool");
+        return APR_EGENERAL;
+    }
+    
+    loaded.hash = apr_hash_make(loaded.pool);
+    if (!loaded.hash) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ISAPI: Failed to create module cache");
+        return APR_EGENERAL;
     }
 
-    status = apr_file_open(&file, name, APR_READ | APR_BUFFERED, APR_OS_DEFAULT, p);
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, NULL,
-                "Opening config file %s (%s)",
-                name, (status != APR_SUCCESS) ? 
-                apr_strerror(status, buf, sizeof(buf)) : "successful");
-#endif
-    if (status != APR_SUCCESS)
-        return status;
+    rv = apr_thread_mutex_create(&loaded.lock, APR_THREAD_MUTEX_DEFAULT, 
+                                 loaded.pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, rv, 0, NULL,
+                     "ISAPI: Failed to create module cache lock");
+        return rv;
+    }

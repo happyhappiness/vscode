@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	    "         Set to %s/%ld\n",
-		inet_ntoa(This->addr), bits);
+apr_file_printf(errfile, "They don't match, sorry.\n");

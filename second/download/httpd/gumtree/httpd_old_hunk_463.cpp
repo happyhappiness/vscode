@@ -1,21 +1,37 @@
-        changed_limit_at_restart = 1;
-        return NULL;
+                }
+                else if (h1 && h2 && !strcmp(h1, h2)) {
+                    /* both headers exist and are equal - do nothing */
+                }
+                else {
+                    /* headers do not match, so Vary failed */
+                    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
+                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");
+                    apr_table_clear(r->headers_out);
+                    r->status_line = NULL;
+                    cache->handle = NULL;
+                    return DECLINED;
+                }
+            }
+            cache->provider = list->provider;
+            cache->provider_name = list->provider_name;
+            return OK;
+        }
+        case DECLINED: {
+            /* try again with next cache type */
+            list = list->next;
+            continue;
+        }
+        default: {
+            /* oo-er! an error */
+            cache->handle = NULL;
+            return rv;
+        }
+        }
     }
-    server_limit = tmp_server_limit;
-    
-    if (server_limit > MAX_SERVER_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
-       server_limit = MAX_SERVER_LIMIT;
-    } 
-    else if (server_limit < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require ServerLimit > 0, setting to 1");
-	server_limit = 1;
-    }
-    return NULL;
+    cache->handle = NULL;
+    return DECLINED;
 }
 
+apr_status_t cache_generate_key_default( request_rec *r, apr_pool_t*p, char**key ) 
+{
+    if (r->hostname) {

@@ -1,26 +1,37 @@
-     * modules to proceed, we will permit the not-a-path filename to pass the
-     * following two tests.  This behavior may be revoked in future versions
-     * of Apache.  We still must catch it later if it's heading for the core
-     * handler.  Leave INFO notes here for module debugging.
-     */
-    if (r->filename == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, r,
-                      "Module bug?  Request filename is missing for URI %s",
-                      r->uri);
-       return OK;
+
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;
+        apr_uint32_t len;
+        subreq = ap_sub_req_lookup_uri(apr_pstrndup(r->pool, file, *buf_size),
+                                       r, NULL);
+
+        len = apr_cpystrn(file, subreq->filename, *buf_size) - file;
+
+
+        /* IIS puts a trailing slash on directories, Apache doesn't */
+        if (subreq->finfo.filetype == APR_DIR) {
+            if (len < *buf_size - 1) {
+                file[len++] = '\\';
+                file[len] = '\0';
+            }
+        }
+        *buf_size = len;
+        return 1;
     }
 
-    /* Canonicalize the file path without resolving filename case or aliases
-     * so we can begin by checking the cache for a recent directory walk.
-     * This call will ensure we have an absolute path in the same pass.
-     */
-    if ((rv = apr_filepath_merge(&entry_dir, NULL, r->filename,
-                                 APR_FILEPATH_NOTRELATIVE, r->pool))
-                  != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, r,
-                      "Module bug?  Request filename path %s is invalid or "
-                      "or not absolute for uri %s",
-                      r->filename, r->uri);
-        return OK;
-    }
-
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+        
+    case HSE_APPEND_LOG_PARAMETER:
+        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
+         */
+        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+        if (cid->dconf.log_to_query) {
+            if (r->args)

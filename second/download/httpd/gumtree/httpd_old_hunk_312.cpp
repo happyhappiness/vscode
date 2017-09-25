@@ -1,14 +1,18 @@
+                /* bio_filter_out_flush() already passed down a flush bucket
+                 * if there was any data to be flushed.
+                 */
+                apr_bucket_delete(bucket);
+            }
         }
-        else if (ssl_err == SSL_ERROR_SSL) {
-            /*
-             * Log SSL errors
-             */
-            conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-            ssl_log(c->base_server, SSL_LOG_ERROR|SSL_ADD_SSLERR,
-                    "SSL error on writing data");
-        }
-        /*
-         * XXX - Just trying to reflect the behaviour in 
-         * openssl_state_machine.c [mod_tls]. TBD
-         */
-        rc = 0;
+        else {
+            /* filter output */
+            const char *data;
+            apr_size_t len;
+            
+            status = apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+
+            if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
+                break;
+            }
+
+            status = ssl_filter_write(f, data, len);

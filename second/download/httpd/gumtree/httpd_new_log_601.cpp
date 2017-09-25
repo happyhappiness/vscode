@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "will be expiring %u sessions", loop);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                          "Request header exceeds LimitRequestFieldSize: "
+                          "%.*s", field_name_len(field), field);

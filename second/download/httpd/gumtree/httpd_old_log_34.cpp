@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                      "Digest: received invalid opaque - got `%s'",
-                      resp->opaque);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, ptrans,
+                 "trying to receive request from other child");

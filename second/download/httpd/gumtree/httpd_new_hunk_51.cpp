@@ -1,13 +1,17 @@
-        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
-            ++pos;
-        }
+    apr_status_t status;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
 
-        if (*pos != '\0') {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
+    if (isproxy) {
+	connecthost = apr_pstrdup(cntxt, proxyhost);
+	connectport = proxyport;
     }
+    else {
+	connecthost = apr_pstrdup(cntxt, hostname);
+	connectport = port;
+    }
+
+    if (!use_html) {
+	printf("Benchmarking %s ", hostname);
+	if (isproxy)

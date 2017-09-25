@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, NULL,
-                         "A subtree cannot specify a different DAV provider "
-                         "than its parent.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: Response length still unknown, setting "
+                             "aside content for url: %s", url);

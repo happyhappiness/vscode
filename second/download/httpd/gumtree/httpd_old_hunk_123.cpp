@@ -1,27 +1,12 @@
-#endif
-            current->done = 1;
-            current = current->parent;
-            break;
-
-        case token_lbrace:
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                        "Unmatched '(' in \"%s\" in file %s",
-                        expr, r->filename);
-            *was_error = 1;
-            return retval;
-
-        case token_rbrace:
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                        "Unmatched ')' in \"%s\" in file %s",
-                        expr, r->filename);
-            *was_error = 1;
-            return retval;
-
-        default:
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                          "bad token type");
-            *was_error = 1;
-            return retval;
+            return;
         }
-    }
 
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name, 
+                                 SERVICE_INTERROGATE | SERVICE_QUERY_STATUS | 
+                                 SERVICE_START | SERVICE_STOP);
+
+        if (schService == NULL) {
+            /* Could not open the service */
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                         "Failed to open the %s Service", mpm_display_name);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                         "couldn't set child process attributes: %s", r->filename);

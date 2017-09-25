@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, r,
-                          "ISAPI ServerSupportFunction HSE_REQ_IO_COMPLETION "
-                          "is not supported: %s", r->filename);
+apr_file_printf(errfile, "%s: cannot open file %s for read access\n",
+                    argv[0], pwfilename);

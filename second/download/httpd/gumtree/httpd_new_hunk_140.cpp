@@ -1,13 +1,13 @@
-    first = 1;
-    APR_BRIGADE_FOREACH(e, bb) {
-        if (APR_BUCKET_IS_EOS(e)) {
-            break;
-        }
-        rv = apr_bucket_read(e, &buf, &len, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS || (len == 0)) {
-            break;
-        }
-        if (first) {
-            apr_file_puts("%stdout\n", f);
-            first = 0;
-        }
+        return DECLINED;
+    }
+
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  mod_auth_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 

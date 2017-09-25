@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                     "proxy: FTP: declining URL %s - proxyhost %s specified:", url, proxyhost);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf,
+                       "winnt_accept: AcceptEx failed due to early client "
+                       "disconnect. Reallocate the accept socket and try again.");

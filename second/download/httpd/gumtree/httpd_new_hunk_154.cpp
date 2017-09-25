@@ -1,13 +1,15 @@
-    stat_buffer = apr_palloc(r->pool, server_limit * thread_limit * sizeof(char));
-
-    nowtime = apr_time_now();
-    tu = ts = tcu = tcs = 0;
-
-    if (!ap_exists_scoreboard_image()) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Server status unavailable in inetd mode");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    r->allowed = (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
+                                 &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }

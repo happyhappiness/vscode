@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		    MODNAME ": invalid type %d in mcheck().", m->type);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                                 "could not initialize buffered log mutex, "
+                                 "transfer log may become corrupted");

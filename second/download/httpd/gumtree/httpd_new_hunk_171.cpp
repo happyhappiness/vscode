@@ -1,24 +1,13 @@
+             * proxy cache (we know of) will cache and return 300
+             * responses (they certainly won't if they conform to the
+             * HTTP/1.0 specification).
+             */
+            return HTTP_MULTIPLE_CHOICES;
+        }
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = apr_tolower(*cp);
+        if (!*bestp) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "no acceptable variant: %s", r->filename);
+            return HTTP_NOT_ACCEPTABLE;
+        }
     }
-
-    if (!*cp) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Syntax error in type map, no ':' in %s for header %s", 
-                      r->filename, header);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && apr_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Syntax error in type map --- no header body: %s for %s",
-                      r->filename, header);
-        return NULL;
-    }
-
-    return cp;

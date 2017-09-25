@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "SSL Proxy requested for %s but not enabled "
-                     "[Hint: SSLProxyEngine]", sc->vhost_id);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog,
+                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);

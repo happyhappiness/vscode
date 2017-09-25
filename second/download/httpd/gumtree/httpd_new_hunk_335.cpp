@@ -1,16 +1,12 @@
-        return TRUE;
+	}
     }
+    return 0;
+}
+#endif
 
-    if (ssl_verify_error_is_optional(errnum) &&
-        (verify == SSL_CVERIFY_OPTIONAL_NO_CA))
-    {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Certificate Verification: Verifiable Issuer is "
-                     "configured as optional, therefore we're accepting "
-                     "the certificate");
+/*****************************************************************
+ * Connection structures and accounting...
+ */
 
-        sslconn->verify_info = "GENEROUS";
-        ok = TRUE;
-    }
-
-    /*
+static void just_die(int sig)
+{

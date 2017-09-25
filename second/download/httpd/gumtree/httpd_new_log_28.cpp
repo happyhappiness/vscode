@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: need AuthName: %s", r->uri);
+fprintf(stderr, "%s: Include directory '%s' not found",
+                        ap_server_argv0, path);

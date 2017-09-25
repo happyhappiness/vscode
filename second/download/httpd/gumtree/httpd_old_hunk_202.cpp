@@ -1,13 +1,13 @@
-	r->content_encoding = tmp;
+	if (bar != NULL)
+	    printf("%s %s\n", hoststring, bar + 1);
+	else
+	    puts(hoststring);
     }
 
-    /* detect memory allocation or other errors */
-    if (!r->content_type ||
-	(state == rsl_encoding && !r->content_encoding)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
-                      MODNAME ": unexpected state %d; could be caused by bad "
-                      "data in magic file",
-                      state);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+#ifdef WIN32
+     WSACleanup();
+#endif
 
+    if (statfile != NULL) {
+	FILE *fp;
+	fp = fopen(statfile, "w");

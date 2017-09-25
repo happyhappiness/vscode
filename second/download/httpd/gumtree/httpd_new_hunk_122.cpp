@@ -1,13 +1,27 @@
-            debug_pos += sizeof ("     Evaluate ge/gt/le/lt\n");
-#endif
-            if ((current->left == (struct parse_node *) NULL) ||
-                (current->right == (struct parse_node *) NULL) ||
-                (current->left->token.type != token_string) ||
-                (current->right->token.type != token_string)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                *was_error = 1;
-                return retval;
+                      0,
+                      PADDED_ADDR_SIZE, 
+                      PADDED_ADDR_SIZE,
+                      &BytesRead,
+                      &context->Overlapped)) {
+            rv = apr_get_netos_error();
+            if ((rv == APR_FROM_OS_ERROR(WSAEINVAL)) ||
+                (rv == APR_FROM_OS_ERROR(WSAENOTSOCK))) {
+                /* Hack alert. Occasionally, TransmitFile will not recycle the 
+                 * accept socket (usually when the client disconnects early). 
+                 * Get a new socket and try the call again.
+                 */
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf,
+                       "winnt_accept: AcceptEx failed due to early client "
+                       "disconnect. Reallocate the accept socket and try again.");
+                continue;
             }
-            buffer = ap_ssi_parse_string(r, ctx, current->left->token.value,
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                             "winnt_accept: AcceptEx failed. Attempting to recover.");
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                Sleep(100);
+                continue;

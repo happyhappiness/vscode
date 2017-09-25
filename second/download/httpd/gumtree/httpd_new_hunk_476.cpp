@@ -1,13 +1,20 @@
-    ap_listen_rec *lr;
+     *
+     * Log into the ftp server, send the username & password, change to the
+     * correct directory...
+     */
 
-    pconf = p;
-    ap_server_conf = s;
-
-    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
-                     NULL, "no listening sockets available, shutting down");
-        return DONE;
+    /* set up the connection filters */
+    rc = ap_run_pre_connection(origin, sock);
+    if (rc != OK && rc != DONE) {
+        origin->aborted = 1;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: pre_connection setup failed (%d)",
+                     rc);
+        return rc;
     }
 
-#if APR_O_NONBLOCK_INHERITED
-    for(lr = ap_listeners ; lr != NULL ; lr = lr->next) {
+    /* possible results: */
+    /* 120 Service ready in nnn minutes. */
+    /* 220 Service ready for new user. */
+    /* 421 Service not available, closing control connection. */
+    rc = proxy_ftp_command(NULL, r, origin, bb, &ftpmessage);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      MODNAME ": unexpected state %d; could be caused by bad "
-                      "data in magic file",
-                      state);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
+                          "name in parsed document %s", ctx->r->filename);

@@ -1,13 +1,13 @@
-            if (APR_STATUS_IS_EAGAIN(rv)) {
-#if APR_FILES_AS_SOCKETS
-                int num_events;
-                
-                rv = apr_poll(ctx->pollset,
-                              &num_events,
-                              f->r->server->timeout * APR_USEC_PER_SEC);
-                if (rv || dc->debug >= DBGLVL_GORY) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                                  rv, f->r, "apr_poll()");
-                }
-                if (rv != APR_SUCCESS && !APR_STATUS_IS_EINTR(rv)) { 
-                    /* some error such as APR_TIMEUP */
+    /*
+     * Process CA certificate path files
+     */
+    if (ca_path) {
+        apr_dir_t *dir;
+        apr_finfo_t direntry;
+        apr_int32_t finfo_flags = APR_FINFO_MIN|APR_FINFO_NAME;
+        apr_status_t rv;
+
+        if ((rv = apr_dir_open(&dir, ca_path, ptemp)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                    "Failed to open SSLCACertificatePath `%s'",
+                    ca_path);

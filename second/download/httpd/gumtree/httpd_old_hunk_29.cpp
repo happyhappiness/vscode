@@ -1,13 +1,13 @@
-
-        /* calculate rspauth attribute
-         */
-        if (resp->algorithm && !strcasecmp(resp->algorithm, "MD5-sess")) {
-            ha1 = get_session_HA1(r, resp, conf, 0);
-            if (!ha1) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                              "Digest: internal error: couldn't find session "
-                              "info for user %s", resp->username);
-                return !OK;
+            /*
+             * Now recurse these... we handle errors and subdirectories
+             * via the recursion, which is nice
+             */
+            for (current = 0; current < candidates->nelts; ++current) {
+                fnew = &((fnames *) candidates->elts)[current];
+                fprintf(stderr, " Processing config file: %s\n", fnew->fname);
+                ap_process_resource_config(s, fnew->fname, conftree, p, ptemp);
             }
         }
-        else {
+
+        return;
+    }

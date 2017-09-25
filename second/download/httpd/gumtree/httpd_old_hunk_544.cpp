@@ -1,13 +1,13 @@
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, errno, 
-                         ap_server_conf,
-                         "processor unbind failed %d", status);
-#endif
-        RAISE_SIGSTOP(MAKE_CHILD);
+        else if (cid->dconf.log_unsupported) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);
+        }
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-        apr_signal(SIGTERM, just_die);
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;

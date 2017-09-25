@@ -1,13 +1,13 @@
-#endif
-            }
-            else if (is_graceful) {
-                /* Great, we've probably just lost a slot in the
-                 * scoreboard.  Somehow we don't know about this child.
-                 */
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             ap_server_conf,
-                             "long lost child came home! (pid %ld)",
-                             (long)pid.pid);
-            }
-            /* Don't perform idle maintenance when a child dies,
-             * only do it when there's a timeout.  Remember only a
+            return 1;
+        }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "ISAPI: ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_TRANSMIT_FILE:
+    {
+        /* we do nothing with (tf->dwFlags & HSE_DISCONNECT_AFTER_SEND)
+         */

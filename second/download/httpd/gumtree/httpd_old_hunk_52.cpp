@@ -1,22 +1,33 @@
+	n = concurrency;
+#ifdef USE_SSL
+        if (ssl == 1)
+            status = APR_SUCCESS;
+        else
+#endif
+	status = apr_poll(readbits, concurrency, &n, aprtimeout);
+	if (status != APR_SUCCESS)
+	    apr_err("apr_poll", status);
 
-        if (nscp_host != NULL && nscp_path != NULL)
-            dest = apr_psprintf(r->pool, "http://%s%s", nscp_host, nscp_path);
-    }
-    if (dest == NULL) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The request is missing a Destination header.");
-        return HTTP_BAD_REQUEST;
-    }
+	if (!n) {
+	    err("\nServer timed out\n\n");
+	}
 
-    lookup = dav_lookup_uri(dest, r, 1 /* must_be_absolute */);
-    if (lookup.rnew == NULL) {
-        if (lookup.err.status == HTTP_BAD_REQUEST) {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          lookup.err.desc);
-            return HTTP_BAD_REQUEST;
-        }
+	for (i = 0; i < concurrency; i++) {
+	    /*
+	     * If the connection isn't connected how can we check it?
+	     */
+	    if (con[i].state == STATE_UNCONNECTED)
+		continue;
 
-        /* ### this assumes that dav_lookup_uri() only generates a status
-         * ### that Apache can provide a status line for!! */
+#ifdef USE_SSL
+            if (ssl == 1)
+                rv = APR_POLLIN;
+            else
+#endif
+	    apr_poll_revents_get(&rv, con[i].aprsock, readbits);
+	    /*
+	     * Notes: APR_POLLHUP is set after FIN is received on some
+	     * systems, so treat that like APR_POLLIN so that we try to read
+	     * again.
+	     *
+	     * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
