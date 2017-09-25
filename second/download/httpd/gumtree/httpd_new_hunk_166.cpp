@@ -1,20 +1,18 @@
-    if ((ret = try_alias_list(r, dirconf->redirects, 1, &status)) != NULL) {
-        if (ap_is_HTTP_REDIRECT(status)) {
-            if (ret[0] == '/') {
-                char *orig_target = ret;
-
-                ret = ap_construct_url(r->pool, ret, r);
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "incomplete redirection target of '%s' for "
-                              "URI '%s' modified to '%s'",
-                              orig_target, r->uri, ret);
+                mime_info.description = desc;
             }
-            if (!ap_is_url(ret)) {
-                status = HTTP_INTERNAL_SERVER_ERROR;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "cannot redirect '%s' to '%s'; "
-                              "target is not a valid absoluteURI or abs_path",
-                              r->uri, ret);
+            else if (!strncmp(buffer, "body:", 5)) {
+                char *tag = apr_pstrdup(neg->pool, body);
+                char *eol = strchr(tag, '\0');
+                apr_size_t len = MAX_STRING_LEN;
+                while (--eol >= tag && apr_isspace(*eol))
+                    *eol = '\0';
+                if ((mime_info.body = get_body(buffer, &len, tag, *map)) < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Syntax error in type map, no end tag '%s'"
+                                  "found in %s for Body: content.",
+                                  tag, r->filename);
+                     break;
+                }
+                mime_info.bytes = len;
+                mime_info.file_name = apr_filename_of_pathname(rr->filename);
             }
-            else {
-                apr_table_setn(r->headers_out, "Location", ret);

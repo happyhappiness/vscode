@@ -1,13 +1,12 @@
-    ULONG rc;
-
-    printf("%s \n", ap_get_server_version());
-    set_signals();
-
-    if (ap_setup_listeners(ap_server_conf) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, 0, s,
-                     "no listening sockets available, shutting down");
-        return FALSE;
+                     "Child %d: Child process is exiting", my_pid);        
+        return 1;
     }
+    else 
+    {
+        /* A real-honest to goodness parent */
 
-    /* Allocate a shared memory block for the array of listeners */
-    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {
+        restart = master_main(ap_server_conf, shutdown_event, restart_event);
+
+        if (!restart) 
+        {
+            /* Shutting down. Clean up... */

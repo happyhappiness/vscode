@@ -1,13 +1,33 @@
-}
-
-#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
-static const char *no_set_limit(cmd_parms *cmd, void *conf_,
-                                const char *arg, const char *arg2)
-{
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, cmd->server,
-                "%s not supported on this platform", cmd->cmd->name);
-
-    return NULL;
-}
+	getword(x, l, ':');
+	if (strcmp(user, w) || strcmp(realm, x)) {
+	    putline(tfp, line);
+	    continue;
+	}
+	else {
+	    printf("Changing password for user %s in realm %s\n", user, realm);
+	    add_password(user, realm, tfp);
+	    found = 1;
+	}
+    }
+    if (!found) {
+	printf("Adding user %s in realm %s\n", user, realm);
+	add_password(user, realm, tfp);
+    }
+    apr_file_close(f);
+#if defined(OS2) || defined(WIN32)
+    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
+#else
+    sprintf(command, "cp %s %s", tn, argv[1]);
 #endif
 
+#ifdef OMIT_DELONCLOSE
+    apr_file_close(tfp);
+    system(command);
+    apr_file_remove(tn, cntxt);
+#else
+    system(command);
+    apr_file_close(tfp);
+#endif
+
+    return 0;
+}

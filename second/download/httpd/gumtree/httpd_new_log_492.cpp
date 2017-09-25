@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL has invalid nextUpdate field");
+ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET-2);

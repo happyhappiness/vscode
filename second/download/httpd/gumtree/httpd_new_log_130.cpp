@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: URL %s is being handled by %s", path, types);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                         c->base_server,
+                         "SSL Proxy connect failed");

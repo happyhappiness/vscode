@@ -1,13 +1,15 @@
-        additional = atoi(&code[1]) * APR_USEC_PER_SEC;
-        break;
-    default:
-        /* expecting the add_* routines to be case-hardened this 
-         * is just a reminder that module is beta
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: bad expires code: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+                                   r);
+                }
+            }
+            break;
 
-    expires = base + additional;
-    apr_table_mergen(r->headers_out, "Cache-Control",
+        case SATISFY_ANY:
+            if (((access_status = ap_run_access_checker(r)) != 0)) {
+                if (!ap_some_auth_required(r)) {
+                    return decl_die(access_status, "check access", r);
+                }
+
+                if (((access_status = ap_run_check_user_id(r)) != 0)
+                    || !ap_auth_type(r)) {
+                    return decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  No user file?"

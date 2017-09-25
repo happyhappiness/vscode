@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "%s server certificate is a CA certificate "
-                         "(BasicConstraints: CA == TRUE !?)",
-                         ssl_asn1_keystr(type));
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());

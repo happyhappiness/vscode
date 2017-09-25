@@ -1,13 +1,14 @@
-     * Test our assumption that the pid is 32-bits.  It's possible that
-     * 64-bit machines will declare pid_t to be 64 bits but only use 32
-     * of them.  It would have been really nice to test this during
-     * global_init ... but oh well.
-     */
-    if ((pid_t)cur_unique_id.pid != pid) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
-                    "oh no! pids are greater than 32-bits!  I'm broken!");
+    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
+	fprintf(stderr,
+		"Could not open passwd file %s for reading.\n", argv[1]);
+	fprintf(stderr, "Use -c option to create new one.\n");
+	cleanup_tempfile_and_exit(1);
     }
+    apr_cpystrn(user, argv[3], sizeof(user));
+    apr_cpystrn(realm, argv[2], sizeof(realm));
 
-    cur_unique_id.in_addr = global_in_addr;
-
-    /*
+    found = 0;
+    while (!(get_line(line, MAX_STRING_LEN, f))) {
+	if (found || (line[0] == '#') || (!line[0])) {
+	    putline(tfp, line);
+	    continue;

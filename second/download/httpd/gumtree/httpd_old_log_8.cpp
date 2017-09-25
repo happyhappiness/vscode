@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                            "user %s not in DBM group file %s: %s",
-                            user, conf->auth_dbmgrpfile, r->filename);
+ap_add_output_filter("CACHE_IN", NULL, f->r, f->r->connection);

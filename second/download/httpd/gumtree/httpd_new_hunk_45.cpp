@@ -1,13 +1,13 @@
-    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
-        return result;
+    max_clients = atoi(arg);
+    if (max_clients < ap_threads_per_child) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: MaxClients (%d) must be at least as large",
+                    max_clients);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " as ThreadsPerChild (%d). Automatically",
+                    ap_threads_per_child);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " increasing MaxClients to %d.",
+                    ap_threads_per_child);
+       max_clients = ap_threads_per_child;
     }
-    /* note: doc == NULL if no request body */
-
-    if (doc && !dav_validate_root(doc, "options")) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"options\" element was not found.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* determine which providers are available */
-    dav_level = "1";

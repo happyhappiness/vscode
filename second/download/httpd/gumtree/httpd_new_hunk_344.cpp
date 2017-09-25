@@ -1,69 +1,43 @@
-        return;
-    }
-
-    /*
-     * create the various trace messages
-     */
-    if (s->loglevel >= APLOG_DEBUG) {
-        if (where & SSL_CB_HANDSHAKE_START) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Handshake: start", SSL_LIBRARY_NAME);
-        }
-        else if (where & SSL_CB_HANDSHAKE_DONE) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Handshake: done", SSL_LIBRARY_NAME);
-        }
-        else if (where & SSL_CB_LOOP) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Loop: %s",
-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
-        else if (where & SSL_CB_READ) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Read: %s",
-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
-        else if (where & SSL_CB_WRITE) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Write: %s",
-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-        }
-        else if (where & SSL_CB_ALERT) {
-            char *str = (where & SSL_CB_READ) ? "read" : "write";
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Alert: %s:%s:%s\n",
-                         SSL_LIBRARY_NAME, str,
-                         SSL_alert_type_string_long(rc),
-                         SSL_alert_desc_string_long(rc));
-        }
-        else if (where & SSL_CB_EXIT) {
-            if (rc == 0) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "%s: Exit: failed in %s",
-                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+                      PADDED_ADDR_SIZE,
+                      &BytesRead,
+                      &context->Overlapped)) {
+            rv = apr_get_netos_error();
+            if ((rv == APR_FROM_OS_ERROR(WSAEINVAL)) ||
+                (rv == APR_FROM_OS_ERROR(WSAENOTSOCK))) {
+                /* We can get here when:
+                 * 1) the client disconnects early
+                 * 2) TransmitFile does not properly recycle the accept socket (typically
+                 *    because the client disconnected)
+                 * 3) there is VPN or Firewall software installed with buggy AcceptEx implementation
+                 * 4) the webserver is using a dynamic address that has changed
+                 */
+                ++err_count;
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                continue;
             }
-            else if (rc < 0) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "%s: Exit: error in %s",
-                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ++err_count;
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) { 
+                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: Unknown. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                continue;
             }
-        }
-    }
 
-    /*
-     * Because SSL renegotations can happen at any time (not only after
-     * SSL_accept()), the best way to log the current connection details is
-     * right after a finished handshake.
-     */
-    if (where & SSL_CB_HANDSHAKE_DONE) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Connection: Client IP: %s, Protocol: %s, "
-                     "Cipher: %s (%s/%s bits)",
-                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
-    }
-}
-
+            /* Wait for pending i/o. 
+             * Wake up once per second to check for shutdown .
+             * XXX: We should be waiting on exit_event instead of polling

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: failed to load %s", isa->filename);
+apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
+                    "password\n\n");

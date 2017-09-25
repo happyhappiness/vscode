@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                          "proxy: FTP: PASV contacting host %d.%d.%d.%d:%d",
-                             h3, h2, h1, h0, pasvport);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                     0, ap_server_conf,
+                     "seg fault or similar nasty error detected "
+                     "in the parent process");

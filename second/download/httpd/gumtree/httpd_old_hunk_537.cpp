@@ -1,13 +1,17 @@
-    apr_status_t rv;
-
-    apr_snprintf(conf_key, sizeof(conf_key), SERVICEPARAMS, mpm_service_name);
-    rv = ap_registry_get_array(p, conf_key, "ConfigArgs", &svc_args);
-    if (rv != APR_SUCCESS) {
-        if (rv == ERROR_FILE_NOT_FOUND) {
-            ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, NULL,
-                         "No ConfigArgs registered for %s, perhaps "
-                         "this service is not installed?", 
-                         mpm_service_name);
-            return APR_SUCCESS;
+             */
+            rv = apr_thread_create(&threads[i], thread_attr, 
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                    "apr_thread_create: unable to create worker thread");
+                /* In case system resources are maxxed out, we don't want
+                   Apache running away with the CPU trying to fork over and
+                   over and over again if we exit. */
+                apr_sleep(apr_time_from_sec(10));
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }
+            threads_created++;
         }
-        else
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);

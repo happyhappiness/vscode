@@ -1,29 +1,32 @@
-	if (!ap_can_exec(&r->finfo))
-	    return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-				   "file permissions deny server execution");
+                      "[%d] ldap cache: Setting operation cache size to %ld entries.", 
+                      getpid(), st->compare_cache_size);
+
+    return NULL;
+}
+
+#ifdef APU_HAS_LDAP_NETSCAPE_SSL
+static const char *util_ldap_set_certdbpath(cmd_parms *cmd, void *dummy, const char *path)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap cache: Setting LDAP SSL client certificate dbpath to %s.", 
+                      getpid(), path);
+
+    st->have_certdb = 1;
+    if (ldapssl_client_init(path, NULL) != 0) {
+        return "Could not initialize SSL client";
     }
-
-*/
-    if ((retval = ap_setup_client_block(r, REQUEST_CHUNKED_ERROR)))
-	return retval;
-
-    ap_add_common_vars(r);
-
-    e_info.cmd_type  = APR_PROGRAM;
-    e_info.in_pipe   = APR_CHILD_BLOCK;
-    e_info.out_pipe  = APR_CHILD_BLOCK;
-    e_info.err_pipe  = APR_CHILD_BLOCK;
-    e_info.prog_type = RUN_AS_CGI;
-    e_info.bb        = NULL;
-    e_info.ctx       = NULL;
-    e_info.next      = NULL;
-
-    /* build the command line */
-    if ((rv = cgi_build_command(&command, &argv, r, p, 1, &e_info.cmd_type)) 
-            != APR_SUCCESS) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-		      "don't know how to spawn child process: %s", 
-                      r->filename);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    else {
+        return NULL;
     }
+}
+#endif
+
+void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
 

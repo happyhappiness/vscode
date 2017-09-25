@@ -1,32 +1,36 @@
-static int log_scripterror(request_rec *r, cgi_server_conf * conf, int ret,
-			   apr_status_t rv, char *error)
-{
-    apr_file_t *f = NULL;
-    apr_finfo_t finfo;
-    char time_str[APR_CTIME_LEN];
-    int log_flags = rv ? APLOG_ERR : APLOG_NOERRNO | APLOG_ERR;
+    /* WooHoo, we have a file to put in the cache */
+    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
+    new_file->finfo = tmp.finfo;
 
-    ap_log_rerror(APLOG_MARK, log_flags, rv, r, 
-                  "%s: %s", error, r->filename);
+#if APR_HAS_MMAP
+    if (mmap) {
+        apr_mmap_t *mm;
 
-    /* XXX Very expensive mainline case! Open, then getfileinfo! */
-    if (!conf->logname ||
-        ((apr_stat(&finfo, conf->logname,
-                   APR_FINFO_SIZE, r->pool) == APR_SUCCESS)
-         &&  (finfo.size > conf->logbytes)) ||
-          (apr_file_open(&f, conf->logname,
-                   APR_APPEND|APR_WRITE|APR_CREATE, APR_OS_DEFAULT, r->pool)
-              != APR_SUCCESS)) {
-	return ret;
+        /* MMAPFile directive. MMAP'ing the file
+         * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
+         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
+         */
+        if ((rc = apr_mmap_create(&mm, fd, 0, 
+                                  (apr_size_t)new_file->finfo.size,
+                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) { 
+            apr_file_close(fd);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                         "mod_file_cache: unable to mmap %s, skipping", filename);
+            return;
+        }
+        apr_file_close(fd);
+        /* We want to cache an apr_mmap_t that's marked as "non-owner"
+         * to pass to each request so that mmap_setaside()'s call to
+         * apr_mmap_dup() will never try to move the apr_mmap_t to a
+         * different pool.  This apr_mmap_t is already going to live
+         * longer than any request, but mmap_setaside() has no way to
+         * know that because it's allocated out of cmd->pool,
+         * which is disjoint from r->pool.
+         */
+        apr_mmap_dup(&new_file->mm, mm, cmd->pool, 0);
+        new_file->is_mmapped = TRUE;
     }
-
-    /* "%% [Wed Jun 19 10:53:21 1996] GET /cgi-bin/printenv HTTP/1.0" */
-    apr_ctime(time_str, apr_time_now());
-    apr_file_printf(f, "%%%% [%s] %s %s%s%s %s\n", time_str, r->method, r->uri,
-	    r->args ? "?" : "", r->args ? r->args : "", r->protocol);
-    /* "%% 500 /usr/local/apache/cgi-bin */
-    apr_file_printf(f, "%%%% %d %s\n", ret, r->filename);
-
-    apr_file_printf(f, "%%error\n%s\n", error);
-
-    apr_file_close(f);
+#endif
+#if APR_HAS_SENDFILE
+    if (!mmap) {
+        /* CacheFile directive. Caching the file handle */

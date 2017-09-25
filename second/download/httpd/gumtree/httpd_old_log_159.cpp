@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
-                 "disk_cache: Caching URL %s",  key);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+		     cmd->server, "[%d] auth_ldap parse url: not requesting secure LDAP", getpid());

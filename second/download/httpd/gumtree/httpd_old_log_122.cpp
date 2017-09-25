@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The request body must be present and must be a "
-                      "DAV:merge element.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                         f->c->base_server,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");

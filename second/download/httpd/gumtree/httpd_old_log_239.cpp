@@ -1,5 +1,4 @@
-r(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-            "dont_fiddle_headers=%d use_rvsa=%d ua_supports_trans=%d "
-            "send_alternates=%d, may_choose=%d",
-            neg->dont_fiddle_headers, neg->use_rvsa,  
-            neg->ua_supports_trans, neg->send_alternates, neg->may_choose);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
+                             threads_created, ap_threads_per_child);

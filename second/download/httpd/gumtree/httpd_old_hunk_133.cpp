@@ -1,13 +1,20 @@
-                rv = (*handle_func)(ctx, bb, r, f, dptr, &content_head);
-                if ((rv != 0) && (rv != 1)) {
-                    return (rv);
-                }
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                              "unknown directive \"%s\" in parsed doc %s",
-                              ctx->combined_tag, r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_bkt, dptr, content_head);
-            }
+/* ------------------------------------------------------- */
 
-            /* This chunk of code starts at the first bucket in the chain
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.120 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
+    }
+    else {
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.120 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
+

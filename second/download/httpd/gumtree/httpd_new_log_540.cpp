@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                         "Init: Requesting pass phrase via builtin terminal "
-                         "dialog");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv,
+                                          c, "core_output_filter:"
+                                          " Error reading from bucket.");

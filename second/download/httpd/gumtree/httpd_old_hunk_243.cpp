@@ -1,23 +1,13 @@
-        ap_cpystrn(message, cmd, sizeof message);
-        if ((crlf = strchr(message, '\r')) != NULL ||
-            (crlf = strchr(message, '\n')) != NULL)
-            *crlf = '\0';
-        if (strncmp(message,"PASS ", 5) == 0)
-            strcpy(&message[5], "****");
-        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                     "proxy:>FTP: %s", message);
-    }
-
-    rc = ftp_getrc_msg(ftp_ctrl, bb, message, sizeof message);
-    if (rc == -1 || rc == 421)
-        strcpy(message,"<unable to read result>");
-    if ((crlf = strchr(message, '\r')) != NULL ||
-        (crlf = strchr(message, '\n')) != NULL)
-        *crlf = '\0';
-    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                 "proxy:<FTP: %3.3u %s", rc, message);
-
-    if (pmessage != NULL)
-        *pmessage = ap_pstrdup(r->pool, message);
-
-    return rc;
+            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE) worker_main,
+                                                       (void *) i, 0, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
+                             threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;
+            /* Save the score board index in ht keyed to the thread handle. We need this 
+             * when cleaning up threads down below...

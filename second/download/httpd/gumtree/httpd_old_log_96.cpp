@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          "Invalid Content-Length %s", lenp);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                     "write to cgi daemon process");

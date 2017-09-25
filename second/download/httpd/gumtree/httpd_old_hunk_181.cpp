@@ -1,30 +1,22 @@
-        apr_file_read(fpout, &c, &nbytes);
-    }
-    buf[i] = '\0';
+            (r->status != HTTP_NO_CONTENT) &&      /* not 204 */
+            (r->status != HTTP_RESET_CONTENT) &&   /* not 205 */
+            (r->status != HTTP_NOT_MODIFIED)) {    /* not 304 */
 
-    /* give the lock back */
-    if (rewrite_mapr_lock_acquire) {
-        apr_global_mutex_unlock(rewrite_mapr_lock_acquire);
-    }
+            /* We need to copy the output headers and treat them as input
+             * headers as well.  BUT, we need to do this before we remove
+             * TE and C-L, so that they are preserved accordingly for
+             * ap_http_filter to know where to end.
+             */
+            rp->headers_in = apr_table_copy(r->pool, r->headers_out);
 
-    if (strcasecmp(buf, "NULL") == 0) {
-        return NULL;
-    }
-    else {
-        return apr_pstrdup(r->pool, buf);
-    }
-}
+            /* In order for ap_set_keepalive to work properly, we can NOT
+             * have any length information stored in the output headers.
+             */
+            apr_table_unset(r->headers_out,"Transfer-Encoding");
+            apr_table_unset(r->headers_out,"Content-Length");
 
-static char *lookup_map_internal(request_rec *r,
-                                 char *(*func)(request_rec *, char *),
-                                 char *key)
-{
-    /* currently we just let the function convert
-       the key to a corresponding value */
-    return func(r, key);
-}
-
-static char *rewrite_mapfunc_toupper(request_rec *r, char *key)
-{
-    char *value, *cp;
-
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: start body send");
+             
+            /*
+             * if we are overriding the errors, we can't put the content

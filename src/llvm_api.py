@@ -68,12 +68,14 @@ class LLVM:
     @ involve call llvm lib and process result
     """
     def get_cdg_ddg_list(self):
+        if self.log_loc == '0':
+            return [], []
         # call lib with opt command, param: bc file and location
         load_command = LLVM.load_llvm_lib + self.in_file + ' -loc ' + self.log_loc + ' > /dev/null'
         output = commands.getoutput(load_command)
         # analyze shell output
         self.__analyze_cdg_ddg_list(output)
-        if self.cdg_list == [] or self.ddg_list == []:
+        if self.cdg_list == [] and self.ddg_list == []:
             print output
         return self.cdg_list, self.ddg_list
 

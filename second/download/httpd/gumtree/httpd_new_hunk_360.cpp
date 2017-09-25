@@ -1,26 +1,24 @@
-        return FALSE;
-    memcpy((char *)dbmval.dptr, &expiry, sizeof(time_t));
-    memcpy((char *)dbmval.dptr+sizeof(time_t), ucaData, nData);
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            return r;
+        }
+    }
 
-    /* and store it to the DBM file */
-    ssl_mutex_on(s);
-    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot open SSLSessionCache DBM file `%s' for writing "
-                     "(store)",
-                     mc->szSessionCacheDataFile);
-        ssl_mutex_off(s);
-        free(dbmval.dptr);
-        return FALSE;
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if ((access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        return NULL;
     }
-    if ((rv = apr_dbm_store(dbm, dbmkey, dbmval)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot store SSL session to DBM file `%s'",
-                     mc->szSessionCacheDataFile);
-        apr_dbm_close(dbm);
-        ssl_mutex_off(s);
-        free(dbmval.dptr);
-        return FALSE;
-    }
-    apr_dbm_close(dbm);
+
+    return r;
+}

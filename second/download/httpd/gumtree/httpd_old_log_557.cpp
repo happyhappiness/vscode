@@ -1,0 +1,1 @@
+printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");

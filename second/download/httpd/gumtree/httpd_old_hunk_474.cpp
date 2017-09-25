@@ -1,13 +1,14 @@
-     * use by any of the children.
-     */
-    ++ap_my_generation;
-    ap_scoreboard_image->global->running_generation = ap_my_generation;
-    
-    if (is_graceful) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, ap_server_conf,
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
-        /* wake up the children...time to die.  But we'll have more soon */
-        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
-    
+    }
+    ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
+    return;
+}
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+    ap_hook_insert_error_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_insert_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+}
 
-        /* This is mostly for debugging... so that we know what is still
+module AP_MODULE_DECLARE_DATA expires_module =
+{

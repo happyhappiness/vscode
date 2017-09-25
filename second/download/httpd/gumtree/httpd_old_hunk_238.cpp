@@ -1,26 +1,24 @@
-    apr_poll_socket_add(pollfd, client_socket, APR_POLLIN);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-    /* Add the server side to the poll */
-    apr_poll_socket_add(pollfd, sock, APR_POLLIN);
+    expires = base + additional;
+    apr_table_mergen(r->headers_out, "Cache-Control",
+		    apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
+                                 apr_time_sec(expires - r->request_time)));
+    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+    apr_rfc822_date(timestr, expires);
+    apr_table_setn(r->headers_out, "Expires", timestr);
+    return OK;
+}
 
-    while (1) { /* Infinite loop until error (one side closes the connection) */
-/*	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server, "proxy: CONNECT: going to sleep (poll)");*/
-        if ((rv = apr_poll(pollfd, &pollcnt, -1)) != APR_SUCCESS)
-        {
-	    apr_socket_close(sock);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "proxy: CONNECT: error apr_poll()");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-/*	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-                     "proxy: CONNECT: woke from select(), i=%d", pollcnt);*/
+static void register_hooks(apr_pool_t *p)
+{
+    ap_hook_fixups(add_expires,NULL,NULL,APR_HOOK_MIDDLE);
+}
 
-        if (pollcnt) {
-	    apr_poll_revents_get(&pollevent, sock, pollfd);
-            if (pollevent & APR_POLLIN) {
-/*		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-                             "proxy: CONNECT: sock was set");*/
-                nbytes = sizeof(buffer);
-                if (apr_recv(sock, buffer, &nbytes) == APR_SUCCESS) {
-                    o = 0;
-                    i = nbytes;
-                    while(i > 0)
+module AP_MODULE_DECLARE_DATA expires_module =
+{
+    STANDARD20_MODULE_STUFF,
+    create_dir_expires_config,  /* dir config creater */

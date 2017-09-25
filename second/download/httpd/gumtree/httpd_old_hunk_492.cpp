@@ -1,20 +1,16 @@
-    apr_status_t status=0;
 
-    pconf = _pconf;
-    ap_server_conf = s;
+/*
+ * worker_main()
+ * Main entry point for the worker threads. Worker threads block in 
+ * win*_get_connection() awaiting a connection to service.
+ */
+static void worker_main(long thread_num)
+{
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    ap_sb_handle_t *sbh;
 
-    if (setup_listeners(s)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, status, s,
-            "no listening sockets available, shutting down");
-        return -1;
-    }
-
-    restart_pending = shutdown_pending = 0;
-    worker_thread_count = 0;
-    apr_thread_mutex_create(&worker_thread_count_mutex, APR_THREAD_MUTEX_DEFAULT, pconf);
-    apr_thread_mutex_create(&accept_mutex, APR_THREAD_MUTEX_DEFAULT, pconf);
-
-    if (!is_graceful) {
-        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
-            return 1;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;

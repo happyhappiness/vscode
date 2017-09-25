@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed domain %s", New->name);
+ap_fatal_signal_setup(ap_server_conf, pconf);

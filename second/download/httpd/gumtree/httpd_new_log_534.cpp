@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 pServ, 
-                                 "encrypted %s private key - pass phrase "
-                                 "requested", an);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                                 "proxy: write to temporary file %s failed",
+                                 tmpfile_name);

@@ -1,13 +1,32 @@
-            /* FIXME: @@@: We created an APR_INET socket. Now there may be
-             * IPv6 (AF_INET6) DNS addresses in the list... IMO the socket
-             * should be created with the correct family in the first place.
-             * (either do it in this loop, or make at least two attempts
-             * with the AF_INET and AF_INET6 elements in the list)
-             */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: FTP: trying to connect to %pI (%s)...", connect_addr, connectname);
+                 */
+                ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                             "couldn't create child process: %d: %s", rc, 
+                             apr_filename_of_pathname(r->filename));
+            }
+            else {
+                /* We don't want to leak storage for the key, so only allocate
+                 * a key if the key doesn't exist yet in the hash; there are
+                 * only a limited number of possible keys (one for each
+                 * possible thread in the server), so we can allocate a copy
+                 * of the key the first time a thread has a cgid request.
+                 * Note that apr_hash_set() only uses the storage passed in
+                 * for the key if it is adding the key to the hash for the
+                 * first time; new key storage isn't needed for replacing the
+                 * existing value of a key.
+                 */
+                void *key;
 
-            /* make the connection out of the socket */
-            rv = apr_connect(sock, connect_addr);
-
-            /* if an error occurred, loop round and try again */
+                if (apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id))) {
+                    key = &cgid_req.conn_id;
+                }
+                else {
+                    key = apr_pcalloc(pcgi, sizeof(cgid_req.conn_id));
+                    memcpy(key, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
+                }
+                apr_hash_set(script_hash, key, sizeof(cgid_req.conn_id),
+                             (void *)procnew->pid);
+            }
+        }
+    } 
+    return -1; 
+} 

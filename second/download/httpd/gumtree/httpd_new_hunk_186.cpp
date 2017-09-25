@@ -1,69 +1,25 @@
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+#ifdef AP_HAVE_RELIABLE_PIPED_LOGS
+/* forward declaration */
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status);
 
-    /*  If the engine isn't turned on,
-     *  don't even try to do anything.
-     */
-    if (conf->state == ENGINE_DISABLED) {
-        return APR_SUCCESS;
-    }
-
-    rewritemaps = conf->rewritemaps;
-    entries = (rewritemap_entry *)rewritemaps->elts;
-    for (i = 0; i < rewritemaps->nelts; i++) {
-        map = &entries[i];
-        if (map->type != MAPTYPE_PRG) {
-            continue;
-        }
-        if (map->argv[0] == NULL
-            || *(map->argv[0]) == '\0'
-            || map->fpin  != NULL
-            || map->fpout != NULL        ) {
-            continue;
-        }
-        fpin  = NULL;
-        fpout = NULL;
-        rc = rewritemap_program_child(p, map->argv[0], map->argv,
-                                     &fpout, &fpin, &fperr);
-        if (rc != APR_SUCCESS || fpin == NULL || fpout == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                         "mod_rewrite: could not startup RewriteMap "
-                         "program %s", map->datafile);
-            return rc;
-        }
-        map->fpin  = fpin;
-        map->fpout = fpout;
-        map->fperr = fperr;
-    }
-    return APR_SUCCESS;
-}
-
-/* child process code */
-static apr_status_t rewritemap_program_child(apr_pool_t *p, 
-                                             const char *progname, char **argv,
-                                             apr_file_t **fpout, apr_file_t **fpin,
-                                             apr_file_t **fperr)
+static int piped_log_spawn(piped_log *pl)
 {
-    apr_status_t rc;
+    int rc = 0;
     apr_procattr_t *procattr;
-    apr_proc_t *procnew;
+    apr_proc_t *procnew = NULL;
+    apr_status_t status;
 
-    if (((rc = apr_procattr_create(&procattr, p)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_io_set(procattr, APR_FULL_BLOCK,
-                                  APR_FULL_NONBLOCK,
-                                  APR_FULL_NONBLOCK)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_dir_set(procattr, 
-                                   ap_make_dirstr_parent(p, argv[0])))
+    if (((status = apr_procattr_create(&procattr, pl->p)) != APR_SUCCESS) ||
+        ((status = apr_procattr_child_in_set(procattr,
+                                             ap_piped_log_read_fd(pl),
+                                             ap_piped_log_write_fd(pl)))
+        != APR_SUCCESS) ||
+        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
          != APR_SUCCESS) ||
-        ((rc = apr_procattr_cmdtype_set(procattr, APR_PROGRAM)) != APR_SUCCESS)) {
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
         /* Something bad happened, give up and go away. */
-    }
-    else {
-        procnew = apr_pcalloc(p, sizeof(*procnew));
-        rc = apr_proc_create(procnew, argv[0], (const char **)argv, NULL,
-                             procattr, p);
-    
-        if (rc == APR_SUCCESS) {
-            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
-
-            if (fpin) {
-                (*fpin) = procnew->in;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));
+        rc = -1;

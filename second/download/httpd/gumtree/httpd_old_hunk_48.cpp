@@ -1,13 +1,15 @@
-        return result;
-    }
-    /* note: doc == NULL if no request body */
+	    fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
+	    for (i = 0; i < requests; i++) {
+                apr_time_t diff = stats[i].time - stats[i].ctime;
 
-    if (doc == NULL || !dav_validate_root(doc, "propertyupdate")) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The request body does not contain "
-                      "a \"propertyupdate\" element.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* Check If-Headers and existing locks */
+		sttime = stats[i].starttime;
+		(void) apr_ctime(tmstring, sttime);
+		tmstring[strlen(tmstring) - 1] = '\0';	/* ctime returns a
+							 * string with a
+							 * trailing newline */
+		fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
+			tmstring,
+			sttime,
+			stats[i].ctime,
+			diff,
+			stats[i].time,

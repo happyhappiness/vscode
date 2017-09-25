@@ -1,71 +1,75 @@
-    cache->handle = apr_palloc(r->pool, sizeof(cache_handle_t));
-
-    while (next) {
-        type = ap_cache_tokstr(r->pool, next, &next);
-        switch ((rv = cache_run_open_entity(cache->handle, r, type, key))) {
-        case OK: {
-            char *vary = NULL;
-            info = &(cache->handle->cache_obj->info);
-            if (cache_read_entity_headers(cache->handle, r) != APR_SUCCESS) {
-                /* TODO: Handle this error */
-                return DECLINED;
-            }
-
-            /*
-             * Check Content-Negotiation - Vary
-             * 
-             * At this point we need to make sure that the object we found in the cache
-             * is the same object that would be delivered to the client, when the
-             * effects of content negotiation are taken into effect.
-             * 
-             * In plain english, we want to make sure that a language-negotiated
-             * document in one language is not given to a client asking for a
-             * language negotiated document in a different language by mistake.
-             * 
-             * This code makes the assumption that the storage manager will
-             * cache the info->req_hdrs if the response contains a Vary
-             * header.
-             * 
-             * RFC2616 13.6 and 14.44 describe the Vary mechanism.
+             * ... so we were pat all this time
              */
-            vary = ap_pstrdup(r->pool, ap_table_get(r->headers_out, "Vary"));
-            while (vary && *vary) {
-                char *name = vary;
-                const char *h1, *h2;
+            break;
 
-                /* isolate header name */
-                while (*vary && !ap_isspace(*vary) && (*vary != ','))
-                    ++vary;
-                while (*vary && (ap_isspace(*vary) || (*vary == ','))) {
-                    *vary = '\0';
-                    ++vary;
-                }
-
-                /*
-                 * is this header in the request and the header in the cached
-                 * request identical? If not, we give up and do a straight get
+        case HSE_STATUS_PENDING:
+            /* emulating async behavior...
+             */
+            if (cid->completed) {
+                /* The completion port was locked prior to invoking
+                 * HttpExtensionProc().  Once we can regain the lock,
+                 * when ServerSupportFunction(HSE_REQ_DONE_WITH_SESSION)
+                 * is called by the extension to release the lock,
+                 * we may finally destroy the request.
                  */
-                h1 = ap_table_get(r->headers_in, name);
-                h2 = ap_table_get(info->req_hdrs, name);
-                if (h1 == h2) {
-                    /* both headers NULL, so a match - do nothing */
-                }
-                else if (h1 && h2 && !strcmp(h1, h2)) {
-                    /* both headers exist and are equal - do nothing */
-                }
-                else {
-                    /* headers do not match, so Vary failed */
-                    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
-                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");
-                    apr_table_clear(r->headers_out);
-                    r->status_line = NULL;
-                    cache->handle = NULL;
-                    return DECLINED;
-                }
+                (void)apr_thread_mutex_lock(cid->completed);
+                break;
             }
-            return OK;
-        }
-        case DECLINED: {
-            /* try again with next cache type */
-            continue;
-        }
+            else if (cid->dconf.log_unsupported) {
+                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
+                               "from HttpExtensionProc() is not supported: %s",
+                               r->filename);
+                 r->status = HTTP_INTERNAL_SERVER_ERROR;
+            }
+            break;
+
+        case HSE_STATUS_ERROR:    
+            /* end response if we have yet to do so.
+             */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+
+        default:
+            /* TODO: log unrecognized retval for debugging 
+             */
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            break;
+    }
+
+    /* Flush the response now, including headers-only responses */
+    if (cid->headers_set) {
+        conn_rec *c = r->connection;
+        apr_bucket_brigade *bb;
+        apr_bucket *b;
+        apr_status_t rv;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+
+        return OK;  /* NOT r->status or cid->r->status, even if it has changed. */
+    }
+    
+    /* As the client returned no error, and if we did not error out
+     * ourselves, trust dwHttpStatusCode to say something relevant.
+     */
+    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
+        r->status = cid->ecb->dwHttpStatusCode;
+    }
+
+    /* For all missing-response situations simply return the status.
+     * and let the core deal respond to the client.
+     */
+    return r->status;
+}
+
+/**********************************************************
+ *
+ *  ISAPI Module Setup Hooks
+ *

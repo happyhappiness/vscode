@@ -1,13 +1,12 @@
- * @param ftype The type of filter function, either ::AP_FTYPE_CONTENT or
- *              ::AP_FTYPE_CONNECTION
- * @see ap_add_output_filter()
- */
-AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
-                                            ap_out_filter_func filter_func,
-                                            ap_init_filter_func filter_init,
-                                            ap_filter_type ftype);
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
 
-/**
- * Adds a named filter into the filter chain on the specified request record.
- * The filter will be installed with the specified context pointer.
- *
+    /* Win9x: disable AcceptEx */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        use_acceptex = 0;
+    }
+

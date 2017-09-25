@@ -1,22 +1,52 @@
-    }
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
 
-    /* get the destination URI */
-    dest = apr_table_get(r->headers_in, "Destination");
-    if (dest == NULL) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The request is missing a Destination header.");
-        return HTTP_BAD_REQUEST;
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
+            
+    if (s == INVALID_SOCKET) {
+        errno = WSAGetLastError();
+        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
+            "make_secure_socket: failed to get a socket for %s", addr);
+        return -1;
     }
-
-    lookup = dav_lookup_uri(dest, r, 0 /* must_be_absolute */);
-    if (lookup.rnew == NULL) {
-        if (lookup.err.status == HTTP_BAD_REQUEST) {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          lookup.err.desc);
-            return HTTP_BAD_REQUEST;
+        
+    if (!mutual) {
+        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
+		    
+        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            errno = WSAGetLastError();
+            ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
+                "make_secure_socket: for %s, WSAIoctl: (SO_SSL_SET_FLAGS)", addr);
+            return -1;
         }
-        else if (lookup.err.status == HTTP_BAD_GATEWAY) {
-            /* ### Bindings protocol draft 02 says to return 507
-             * ### (Cross Server Binding Forbidden); Apache already defines 507
+    }
+
+    opts.cert = key;
+    opts.certlen = strlen(key);
+    opts.sidtimeout = 0;
+    opts.sidentries = 0;
+    opts.siddir = NULL;
+
+    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
+        NULL, 0, NULL, NULL, NULL) != 0) {
+        errno = WSAGetLastError();
+        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
+            "make_secure_socket: for %s, WSAIoctl: (SO_SSL_SET_SERVER)", addr);
+        return -1;
+    }
+
+    if (mutual) {
+        optParam = 0x07;               // SO_SSL_AUTH_CLIENT
+
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            errno = WSAGetLastError();
+            ap_log_error( APLOG_MARK, APLOG_CRIT, errno, server_conf,
+                "make_secure_socket: for %s, WSAIoctl: (SO_SSL_SET_FLAGS)", addr );
+            return -1;
+        }
+    }
+
+    return s;
+}

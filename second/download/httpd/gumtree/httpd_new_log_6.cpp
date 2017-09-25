@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "DBM user %s not found: %s", r->user, r->filename);
+ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);

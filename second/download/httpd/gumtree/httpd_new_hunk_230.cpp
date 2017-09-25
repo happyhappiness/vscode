@@ -1,13 +1,33 @@
-                (ents[i].use_regex && ap_regexec(ents[i].regexp, url, 0,NULL, 0)) ||
-                (p2 == NULL && strcasecmp(scheme, ents[i].scheme) == 0) ||
-                (p2 != NULL &&
-                 strncasecmp(url, ents[i].scheme, strlen(ents[i].scheme)) == 0)) {
+                *alg = ALG_CRYPT;
+            }
+            else if (*arg == 'b') {
+                *mask |= APHTP_NONINTERACTIVE;
+                args_left++;
+            }
+            else if (*arg == 'D') {
+                *mask |= APHTP_DELUSER;
+            }
+            else {
+                usage();
+            }
+        }
+    }
 
-                /* handle the scheme */
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "Trying to run scheme_handler against proxy");
-                access_status = proxy_run_scheme_handler(r, conf, url, ents[i].hostname, ents[i].port);
-
-                /* an error or success */
-                if (access_status != DECLINED && access_status != HTTP_BAD_GATEWAY) {
-                    return access_status;
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
+        apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).
+     */
+    if ((argc - i) != args_left) {

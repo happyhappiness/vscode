@@ -1,32 +1,88 @@
-     * use by any of the children.
-     */
-    ++ap_my_generation;
-    ap_scoreboard_image->global->running_generation = ap_my_generation;
-    
-    if (is_graceful) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
-        /* wake up the children...time to die.  But we'll have more soon */
-        ap_mpm_pod_killpg(pod, ap_daemons_limit);
-    
-
-        /* This is mostly for debugging... so that we know what is still
-         * gracefully dealing with existing request.
-         */
-        
+        }
     }
-    else {
-        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM 
-         * and a SIGHUP, we may as well use the same signal, because some user
-         * pthreads are stealing signals from us left and right.
-         */
-        ap_mpm_pod_killpg(pod, ap_daemons_limit);
-
-        ap_reclaim_child_processes(1);                /* Start with SIGTERM */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                    "SIGHUP received.  Attempting to restart");
-    }
-
-    return 0;
 }
 
+static void ap_headers_insert_output_filter(request_rec *r)
+{
+    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
+                                                 &headers_module);
+
+    if (dirconf->fixup_out->nelts || dirconf->fixup_err->nelts) {
+        ap_add_output_filter("FIXUP_HEADERS_OUT", NULL, r, r->connection);
+    }
+}
+
+static void ap_headers_insert_error_filter(request_rec *r)
+{
+    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
+                                                 &headers_module);
+
+    if (dirconf->fixup_err->nelts) {
+        ap_add_output_filter("FIXUP_HEADERS_ERR", NULL, r, r->connection);
+    }
+}
+
+static apr_status_t ap_headers_output_filter(ap_filter_t *f,
+                                             apr_bucket_brigade *in)
+{
+    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
+                                                 &headers_module);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "headers: ap_headers_output_filter()");
+
+    /* do the fixup */
+    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err);
+    do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out);
+
+    /* remove ourselves from the filter chain */
+    ap_remove_output_filter(f);
+
+    /* send the data up the stack */
+    return ap_pass_brigade(f->next,in);
+}
+
+static apr_status_t ap_headers_error_filter(ap_filter_t *f,
+                                            apr_bucket_brigade *in)
+{
+    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
+                                                 &headers_module);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "headers: ap_headers_error_filter()");
+
+    /* do the fixup */
+    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err);
+
+    /* remove ourselves from the filter chain */
+    ap_remove_output_filter(f);
+
+    /* send the data up the stack */
+    return ap_pass_brigade(f->next,in);
+}
+
+static apr_status_t ap_headers_fixup(request_rec *r)
+{
+    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
+                                                 &headers_module);
+
+    /* do the fixup */
+    if (dirconf->fixup_in->nelts) {
+        do_headers_fixup(r, r->headers_in, dirconf->fixup_in);
+    }
+
+    return DECLINED;
+}
+                                        
+static const command_rec headers_cmds[] =
+{
+    AP_INIT_RAW_ARGS("Header", header_cmd, &hdr_out, OR_FILEINFO,
+                   "an optional condition, an action, header and value "
+                   "followed by optional env clause"),
+    AP_INIT_RAW_ARGS("RequestHeader", header_cmd, &hdr_in, OR_FILEINFO,
+                   "an action, header and value"),
+    {NULL}
+};
+
+static void register_format_tag_handler(apr_pool_t *p, char *tag, void *tag_handler, int def)
+{

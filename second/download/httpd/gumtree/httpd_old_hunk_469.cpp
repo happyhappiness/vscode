@@ -1,26 +1,40 @@
-        /* terminate the free list */
-        if (free_length == 0) {
-            /* only report this condition once */
-            static int reported = 0;
-            
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, 
-                             ap_server_conf,
-                             "server reached MaxClients setting, consider"
-                             " raising the MaxClients setting");
-                reported = 1;
-            }
-            idle_spawn_rate = 1;
-        }
-        else {
-            if (free_length > idle_spawn_rate) {
-                free_length = idle_spawn_rate;
-            }
-            if (idle_spawn_rate >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, 
-                             ap_server_conf,
-                             "server seems busy, (you may need "
-                             "to increase StartServers, ThreadsPerChild "
-                             "or Min/MaxSpareThreads), "
-                             "spawning %d children, there are around %d idle "
-                             "threads, and %d total children", free_length,
+    /* This case should not happen... */
+    if (!dobj->hfd) {
+        /* XXX log message */
+        return APR_NOTFOUND;
+    }
+
+    if(!r->headers_out) {
+        r->headers_out = apr_table_make(r->pool, 20);
+    }
+
+    /*
+     * Call routine to read the header lines/status line
+     */
+    r->status = dobj->disk_info.status;
+    ap_scan_script_header_err(r, dobj->hfd, NULL);
+
+    apr_table_setn(r->headers_out, "Content-Type",
+                   ap_make_content_type(r, r->content_type));
+
+    h->req_hdrs = apr_table_make(r->pool, 20);
+
+    /*
+     * Call routine to read the header lines/status line
+     *
+     * Note that ap_scan_script_header_err sets to r->err_headers_out,
+     * so we must set the real one aside.
+     */
+    tmp = r->err_headers_out;
+    r->err_headers_out = h->req_hdrs;
+    ap_scan_script_header_err(r, dobj->hfd, NULL);
+    r->err_headers_out = tmp;
+
+    apr_file_close(dobj->hfd);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "disk_cache: Recalled headers for URL %s",  dobj->name);
+    return APR_SUCCESS;
+}
+
+static apr_status_t recall_body(cache_handle_t *h, apr_pool_t *p, apr_bucket_brigade *bb)

@@ -1,13 +1,28 @@
-    ap_sb_handle_t *sbh;
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
+}
 
-    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
-    apr_os_sock_get(&csd, sock);
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t sts;
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 
-    if (csd >= FD_SETSIZE) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "new file descriptor %d is too large; you probably need "
-                     "to rebuild Apache with a larger FD_SETSIZE "
-                     "(currently %d)", 
-                     csd, FD_SETSIZE);
-        apr_socket_close(sock);
+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
+    if (sts != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");
         return;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
+    }
+}
+
+command_rec util_ldap_cmds[] = {
+    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
+                  "Sets the size of the shared memory cache in bytes. "
+                  "Zero means disable the shared memory cache. Defaults to 100KB."),
+

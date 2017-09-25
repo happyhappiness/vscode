@@ -1,30 +1,41 @@
-        ctx.label_op = DAV_LABEL_SET;
+    dbmkey.dsize = idlen;
+
+    /* and fetch it from the DBM file 
+     * XXX: Should we open the dbm against r->pool so the cleanup will
+     * do the apr_dbm_close? This would make the code a bit cleaner.
+     */
+    if ((rc = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                     "Cannot open SSLSessionCache DBM file `%s' for reading "
+                     "(fetch)",
+                     mc->szSessionCacheDataFile);
+        return NULL;
     }
-    else if ((child = dav_find_child(doc->root, "remove")) != NULL) {
-        ctx.label_op = DAV_LABEL_REMOVE;
+    rc = apr_dbm_fetch(dbm, dbmkey, &dbmval);
+    if (rc != APR_SUCCESS) {
+        apr_dbm_close(dbm);
+        return NULL;
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The \"label\" element does not contain "
-                      "an \"add\", \"set\", or \"remove\" element.");
-        return HTTP_BAD_REQUEST;
+    if (dbmval.dptr == NULL || dbmval.dsize <= sizeof(time_t)) {
+        apr_dbm_close(dbm);
+        return NULL;
     }
 
-    /* get the label string */
-    if ((child = dav_find_child(child, "label-name")) == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The label command element does not contain "
-                      "a \"label-name\" element.");
-        return HTTP_BAD_REQUEST;
+    /* parse resulting data */
+    nData = dbmval.dsize-sizeof(time_t);
+    ucpData = (UCHAR *)malloc(nData);
+    if (ucpData == NULL) {
+        apr_dbm_close(dbm);
+        return NULL;
     }
+    memcpy(ucpData, (char *)dbmval.dptr+sizeof(time_t), nData);
+    memcpy(&expiry, dbmval.dptr, sizeof(time_t));
 
-    ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
-                   &ctx.label, &tsize);
-    if (tsize == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "A \"label-name\" element does not contain "
-                      "a label name.");
-        return HTTP_BAD_REQUEST;
-    }
+    apr_dbm_close(dbm);
 
-    /* do the label operation walk */
+    /* make sure the stuff is still not expired */
+    now = time(NULL);
+    if (expiry <= now) {
+        ssl_scache_dbm_remove(s, id, idlen);
+        return NULL;

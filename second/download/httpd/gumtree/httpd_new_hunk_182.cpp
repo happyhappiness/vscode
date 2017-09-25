@@ -1,13 +1,12 @@
-    if (conf->rewritelogfp != NULL) {
-        return; /* virtual log shared w/ main server */
-    }
+    name = X509_get_subject_name(info->x509);
+    dn = X509_NAME_oneline(name, name_buf, sizeof(name_buf));
 
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, 
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", conf->rewritelogfile+1);
-            exit(1);
-        }
-        conf->rewritelogfp = ap_piped_log_write_fd(pl);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT "%s, sending %s", 
+                 sc->vhost_id, msg, dn ? dn : "-uknown-");
+}
+
+/*
+ * caller will decrement the cert and key reference
+ * so we need to increment here to prevent them from
+ * being freed.

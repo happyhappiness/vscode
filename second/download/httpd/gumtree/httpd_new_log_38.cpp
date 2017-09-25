@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: user %s: password mismatch: %s", r->user,
-                          r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
+                 "Writing message failed %d %d", rv, errno);

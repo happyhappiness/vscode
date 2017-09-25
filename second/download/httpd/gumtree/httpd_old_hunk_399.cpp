@@ -1,16 +1,13 @@
 
-    if (m->module_index == -1) {
-        m->module_index = total_modules++;
-        dynamic_modules++;
+    now = apr_time_now();
 
-        if (dynamic_modules > DYNAMIC_MODULE_LIMIT) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "%s: module \"%s\" could not be loaded, because"
-                         " the dynamic", ap_server_argv0, m->name);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "module limit was reached. Please increase "
-                         "DYNAMIC_MODULE_LIMIT and recompile.");
-            exit(1);
-        }
-    }
+    con = calloc(concurrency * sizeof(struct connection), 1);
+    
+    stats = calloc(requests * sizeof(struct data), 1);
+    apr_pollset_create(&readbits, concurrency, cntxt, 0);
 
+    /* setup request */
+    if (posting <= 0) {
+	sprintf(request, "%s %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"

@@ -1,13 +1,19 @@
-            if (errmsg == NULL)
-                errmsg = ap_walk_config(temptree, &parms, dc);
+    char pwin[MAX_STRING_LEN];
+    char pwv[MAX_STRING_LEN];
+    unsigned int i;
+    apr_size_t len = sizeof(pwin);
 
-            ap_cfg_closefile(f);
+    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
+        apr_file_printf(errfile, "password too long");
+	cleanup_tempfile_and_exit(5);
+    }
+    len = sizeof(pwin);
+    apr_password_get("Re-type new password: ", pwv, &len);
+    if (strcmp(pwin, pwv) != 0) {
+        apr_file_printf(errfile, "They don't match, sorry.\n");
+        cleanup_tempfile_and_exit(1);
+    }
+    pw = pwin;
+    apr_file_printf(f, "%s:%s:", user, realm);
 
-            if (errmsg) {
-                ap_log_rerror(APLOG_MARK, APLOG_ALERT, 0, r,
-                              "%s: %s", filename, errmsg);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            *result = dc;
-            break;
+    /* Do MD5 stuff */

@@ -1,13 +1,52 @@
-    else
-	m->nospflag = 0;
-    strncpy(m->desc, l, sizeof(m->desc) - 1);
-    m->desc[sizeof(m->desc) - 1] = '\0';
+    if ((result = apr_file_read(fd, (char *) buf, &nbytes)) != APR_SUCCESS) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, result, r,
+		    MODNAME ": read failed: %s", r->filename);
+	return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-#if MIME_MAGIC_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, 0, serv,
-		MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
-		lineno, m, m->next, m->cont_level, m->desc);
-#endif /* MIME_MAGIC_DEBUG */
+    if (nbytes == 0)
+	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
+    else {
+	buf[nbytes++] = '\0';	/* null-terminate it */
+	tryit(r, buf, nbytes, 1); 
+    }
 
-    return 0;
+    (void) apr_file_close(fd);
+    (void) magic_rsl_putchar(r, '\n');
+
+    return OK;
 }
+
+
+static void tryit(request_rec *r, unsigned char *buf, apr_size_t nb, int checkzmagic)
+{
+    /*
+     * Try compression stuff
+     */
+	if (checkzmagic == 1) {  
+			if (zmagic(r, buf, nb) == 1)
+			return;
+	}
+
+    /*
+     * try tests in /etc/magic (or surrogate magic file)
+     */
+    if (softmagic(r, buf, nb) == 1)
+	return;
+
+    /*
+     * try known keywords, check for ascii-ness too.
+     */
+    if (ascmagic(r, buf, nb) == 1)
+	return;
+
+    /*
+     * abandon hope, all ye who remain here
+     */
+    magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
+}
+
+#define    EATAB {while (apr_isspace(*l))  ++l;}
+
+/*
+ * apprentice - load configuration from the magic file r

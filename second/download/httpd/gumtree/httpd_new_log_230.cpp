@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media type from '%s'",
-                     (const char *) mp);
+ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);

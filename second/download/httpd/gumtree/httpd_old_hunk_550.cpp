@@ -1,13 +1,13 @@
-     * use by any of the children.
-     */
-    ++ap_my_generation;
-    ap_scoreboard_image->global->running_generation = ap_my_generation;
-    
-    if (is_graceful) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, ap_server_conf,
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
-        /* wake up the children...time to die.  But we'll have more soon */
-        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
-    
+    case HSE_REQ_GET_IMPERSONATION_TOKEN:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_IMPERSONATION_TOKEN "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-        /* This is mostly for debugging... so that we know what is still
+    case HSE_REQ_MAP_URL_TO_PATH_EX:
+    {
+        /* Map a URL to a filename */
+        HSE_URL_MAPEX_INFO *info = (HSE_URL_MAPEX_INFO*)data_type;

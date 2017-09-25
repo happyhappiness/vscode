@@ -1,26 +1,25 @@
-        /* terminate the free list */
-        if (free_length == 0) {
-            /* only report this condition once */
-            static int reported = 0;
-            
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, 
-                             ap_server_conf,
-                             "server reached MaxClients setting, consider"
-                             " raising the MaxClients setting");
-                reported = 1;
-            }
-            idle_spawn_rate = 1;
-        }
-        else {
-            if (free_length > idle_spawn_rate) {
-                free_length = idle_spawn_rate;
-            }
-            if (idle_spawn_rate >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, 
-                             ap_server_conf,
-                             "server seems busy, (you may need "
-                             "to increase StartServers, ThreadsPerChild "
-                             "or Min/MaxSpareThreads), "
-                             "spawning %d children, there are around %d idle "
-                             "threads, and %d total children", free_length,
+    /* This case should not happen... */
+    if (!dobj->hfd) {
+        /* XXX log message */
+        return APR_NOTFOUND;
+    }
+
+    h->req_hdrs = apr_table_make(r->pool, 20);
+    h->resp_hdrs = apr_table_make(r->pool, 20);
+    h->resp_err_hdrs = apr_table_make(r->pool, 20);
+
+    /* Call routine to read the header lines/status line */
+    read_table(h, r, h->resp_hdrs, dobj->hfd);
+    read_table(h, r, h->req_hdrs, dobj->hfd);
+
+    apr_file_close(dobj->hfd);
+
+    h->status = dobj->disk_info.status;
+    h->content_type = apr_table_get(h->resp_hdrs, "Content-Type");
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "disk_cache: Recalled headers for URL %s",  dobj->name);
+    return APR_SUCCESS;
+}
+
+static apr_status_t recall_body(cache_handle_t *h, apr_pool_t *p, apr_bucket_brigade *bb)

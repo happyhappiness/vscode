@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: uri mismatch - <%s> does not match "
-                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
+ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0,
+                             ap_server_conf, "worker_wakeup_create failed");

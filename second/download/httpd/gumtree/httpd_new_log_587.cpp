@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "session is too big (%u bytes)", len_encoded);
+fprintf(stderr, "table_set: val not in ancestor pool of t\n");

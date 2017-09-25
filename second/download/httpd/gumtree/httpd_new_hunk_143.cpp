@@ -1,27 +1,53 @@
-	if (!ap_can_exec(&r->finfo))
-	    return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-				   "file permissions deny server execution");
-    }
+                      "[%d] ldap cache: Setting operation cache size to %ld entries.", 
+                      getpid(), st->compare_cache_size);
 
-*/
-    ap_add_common_vars(r);
+    return NULL;
+}
 
-    e_info.process_cgi = 1;
-    e_info.cmd_type    = APR_PROGRAM;
-    e_info.detached    = 0;
-    e_info.in_pipe     = APR_CHILD_BLOCK;
-    e_info.out_pipe    = APR_CHILD_BLOCK;
-    e_info.err_pipe    = APR_CHILD_BLOCK;
-    e_info.prog_type   = RUN_AS_CGI;
-    e_info.bb          = NULL;
-    e_info.ctx         = NULL;
-    e_info.next        = NULL;
+static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
 
-    /* build the command line */
-    if ((rv = cgi_build_command(&command, &argv, r, p, &e_info)) != APR_SUCCESS) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-		      "don't know how to spawn child process: %s", 
-                      r->filename);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file - %s", 
+                       file);
+
+    st->cert_auth_file = apr_pstrdup(cmd->pool, file);
+
+    return(NULL);
+}
+
+
+const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
+{
+    util_ldap_state_t *st = 
+    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+                                              &ldap_module);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file type - %s", 
+                       Type);
+
+    if (0 == strcmp("DER_FILE", Type))
+        st->cert_file_type = LDAP_CA_TYPE_DER;
+
+    else if (0 == strcmp("BASE64_FILE", Type))
+        st->cert_file_type = LDAP_CA_TYPE_BASE64;
+
+    else if (0 == strcmp("CERT7_DB_PATH", Type))
+        st->cert_file_type = LDAP_CA_TYPE_CERT7_DB;
+
+    else
+        st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
+
+    return(NULL);
+}
+
+
+void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
 

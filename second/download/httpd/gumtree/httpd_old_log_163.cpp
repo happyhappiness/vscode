@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
-                     "disk_cache: Cached body for URL %s",  dobj->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap cache: Setting LDAP SSL client certificate dbpath to %s.", 
+                      getpid(), path);

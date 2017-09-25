@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                          "access to %s failed, reason: %s",
-                          r->filename, cp);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server,
+                                "cache_select_url(): Vary header mismatch.");

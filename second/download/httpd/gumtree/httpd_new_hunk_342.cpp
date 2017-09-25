@@ -1,21 +1,36 @@
-    X509_NAME *ca_name, *issuer;
-    X509_INFO *info;
-    STACK_OF(X509_NAME) *ca_list;
-    STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
-    int i, j;
-    
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, 
-                 SSLPROXY_CERT_CB_LOG_FMT "entered",
-                 sc->vhost_id);
+            } else {
+                /* Allocate another context.
+                 * Note:
+                 * Multiple failures in the next two steps will cause the pchild pool
+                 * to 'leak' storage. I don't think this is worth fixing...
+                 */
+                apr_allocator_t *allocator;
 
-    if (!certs || (sk_X509_INFO_num(certs) <= 0)) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     SSLPROXY_CERT_CB_LOG_FMT
-                     "downstream server wanted client certificate "
-                     "but none are configured", sc->vhost_id);
-        return FALSE;
-    }                                                                     
-
-    ca_list = SSL_get_client_CA_list(ssl);
-
-    if (!ca_list || (sk_X509_NAME_num(ca_list) <= 0)) {
+                context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
+  
+                context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+                if (context->Overlapped.hEvent == NULL) {
+                    /* Hopefully this is a temporary condition ... */
+                    ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
+                                 "mpm_get_completion_context: CreateEvent failed.");
+                    return NULL;
+                }
+ 
+                /* Create the tranaction pool */
+                apr_allocator_create(&allocator);
+                apr_allocator_max_free_set(allocator, ap_max_mem_free);
+                rv = apr_pool_create_ex(&context->ptrans, pchild, NULL, allocator);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
+                                 "mpm_get_completion_context: Failed to create the transaction pool.");
+                    CloseHandle(context->Overlapped.hEvent);
+                    return NULL;
+                }
+                apr_allocator_owner_set(allocator, context->ptrans);
+                apr_pool_tag(context->ptrans, "transaction");
+                context->accept_socket = INVALID_SOCKET;
+                context->ba = apr_bucket_alloc_create(pchild);
+                apr_atomic_inc(&num_completion_contexts); 
+                break;
+            }
+        } else {

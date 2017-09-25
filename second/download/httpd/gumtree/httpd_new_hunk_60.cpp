@@ -1,49 +1,32 @@
-    if ((result = ap_xml_parse_input(r, &doc)) != OK) {
-        return result;
-    }
 
-    if (doc == NULL || !dav_validate_root(doc, "update")) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body does not contain "
-                      "an \"update\" element.");
-        return HTTP_BAD_REQUEST;
-    }
+    /* do the user search */
+    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
+                                         sec->attributes, filtbuf, sent_pw, &dn, &vals);
+    util_ldap_connection_close(ldc);
 
-    /* check for label-name or version element, but not both */
-    if ((child = dav_find_child(doc->root, "label-name")) != NULL)
-        is_label = 1;
-    else if ((child = dav_find_child(doc->root, "version")) != NULL) {
-        /* get the href element */
-        if ((child = dav_find_child(child, "href")) == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The version element does not contain "
-                          "an \"href\" element.");
-            return HTTP_BAD_REQUEST;
+    /* sanity check - if server is down, retry it up to 5 times */
+    if (result == LDAP_SERVER_DOWN) {
+        util_ldap_connection_destroy(ldc);
+        if (failures++ <= 5) {
+            goto start_over;
         }
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"update\" element does not contain "
-                      "a \"label-name\" or \"version\" element.");
-        return HTTP_BAD_REQUEST;
+
+    /* handle bind failure */
+    if (result != LDAP_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authenticate: "
+                      "user %s authentication failed; URI %s [%s][%s]",
+		      getpid(), r->user, r->uri, ldc->reason, ldap_err2string(result));
+        if ((LDAP_INVALID_CREDENTIALS == result) || sec->auth_authoritative) {
+            ap_note_basic_auth_failure(r);
+            return HTTP_UNAUTHORIZED;
+        }
+        else {
+            return DECLINED;
+        }
     }
 
-    /* a depth greater than zero is only allowed for a label */
-    if (!is_label && depth != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be zero for UPDATE with a version");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* get the target value (a label or a version URI) */
-    ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
-                   &target, &tsize);
-    if (tsize == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" or \"href\" element does not contain "
-                      "any content.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /* Ask repository module to resolve the resource */
+    /* mark the user and DN */
+    req->dn = apr_pstrdup(r->pool, dn);
+    req->user = r->user;

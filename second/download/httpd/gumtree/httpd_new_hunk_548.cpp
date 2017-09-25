@@ -1,22 +1,13 @@
-    else {
-        /* give the system some time to recover before kicking into
-            * exponential mode */
-        hold_off_on_exponential_spawning = 10;
-    }
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "%s configured -- resuming normal operations",
-                ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s (default: %s)",
-		apr_proc_mutex_name(accept_mutex),
-		apr_proc_mutex_defname());
-#endif
-    restart_pending = shutdown_pending = 0;
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
 
-    server_main_loop(remaining_children_to_start);
-
-    if (shutdown_pending) {

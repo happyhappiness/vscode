@@ -1,23 +1,46 @@
-    if (!conf->check_nc || !client_shm) {
-        return OK;
+        strs[i] = process_item(r, orig, &items[i]);
     }
 
-    nc = strtol(snc, &endptr, 16);
-    if (endptr < (snc+strlen(snc)) && !apr_isspace(*endptr)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                      "Digest: invalid nc %s received - not a number", snc);
-        return !OK;
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
     }
 
-    if (!resp->client) {
-        return !OK;
+#ifdef BUFFERED_LOGS
+    if (len + cls->outcnt > LOG_BUFSIZE) {
+        flush_log(cls);
+    }
+    if (len >= LOG_BUFSIZE) {
+        apr_size_t w;
+
+        str = apr_palloc(r->pool, len + 1);
+        for (i = 0, s = str; i < format->nelts; ++i) {
+            memcpy(s, strs[i], strl[i]);
+            s += strl[i];
+        }
+        w = len;
+        apr_file_write(cls->log_fd, str, &w);
+    }
+    else {
+        for (i = 0, s = &cls->outbuf[cls->outcnt]; i < format->nelts; ++i) {
+            memcpy(s, strs[i], strl[i]);
+            s += strl[i];
+        }
+        cls->outcnt += len;
+    }
+#else
+    str = apr_palloc(r->pool, len + 1);
+
+    for (i = 0, s = str; i < format->nelts; ++i) {
+        memcpy(s, strs[i], strl[i]);
+        s += strl[i];
     }
 
-    if (nc != resp->client->nonce_count) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                      "Digest: Warning, possible replay attack: nonce-count "
-                      "check failed: %lu != %lu", nc,
-                      resp->client->nonce_count);
-        return !OK;
-    }
+    apr_file_write(cls->log_fd, str, &len);
+#endif
 
+    return OK;
+}
+
+static int multi_log_transaction(request_rec *r)
+{
+    multi_log_state *mls = ap_get_module_config(r->server->module_config,

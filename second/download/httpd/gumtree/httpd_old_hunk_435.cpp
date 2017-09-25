@@ -1,13 +1,12 @@
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, errno, 
-                         ap_server_conf,
-                         "processor unbind failed %d", status);
-#endif
-        RAISE_SIGSTOP(MAKE_CHILD);
+    util_ald_free(cache, node->dn);
+    util_ald_free(cache, node->attrib);
+    util_ald_free(cache, node->value);
+    util_ald_free(cache, node);
+}
 
-        apr_signal(SIGTERM, just_die);
+/* ------------------------------------------------------------------ */
+
+unsigned long util_ldap_dn_compare_node_hash(void *n)
+{
+    return util_ald_hash_string(1, ((util_dn_compare_node_t *)n)->reqdn);
+}

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "%s", inet_ntoa(This->mask));
+apr_file_printf(errfile, "Adding password for %s in realm %s.\n", 
+                    argv[4], argv[3]);

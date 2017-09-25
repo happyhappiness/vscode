@@ -1,38 +1,26 @@
+    
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
 
-        if (keyidx < KEYMAX)
-            break;
+    /* check if we have a registered command for the extension*/
+    *cmd = apr_table_get(d->file_type_handlers, ext);
+    if (*cmd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Could not find a command associated with the %s extension", ext);
+        return APR_EBADF;
     }
-    ssl_mutex_off(s);
-
-    ssl_log(s, SSL_LOG_TRACE, "Inter-Process Session Cache (DBM) Expiry: "
-            "old: %d, new: %d, removed: %d", nElements, nElements-nDeleted, nDeleted);
-    return;
-}
-
-void ssl_scache_dbm_status(server_rec *s, apr_pool_t *p, void (*func)(char *, void *), void *arg)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    apr_dbm_t *dbm;
-    apr_datum_t dbmkey;
-    apr_datum_t dbmval;
-    int nElem;
-    int nSize;
-    int nAverage;
-
-    nElem = 0;
-    nSize = 0;
-    ssl_mutex_on(s);
-    /*
-     * XXX - Check what pool is to be used - TBD
-     */
-    if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-	                 APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool) != APR_SUCCESS) {
-        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
-                "Cannot open SSLSessionCache DBM file `%s' for status retrival",
-                mc->szSessionCacheDataFile);
-        ssl_mutex_off(s);
-        return;
+    if (!stricmp(*cmd, "OS")) {
+        /* If it is an NLM then restore *cmd and just execute it */
+        *cmd = cmd_only;
     }
-    /*
-     * XXX - Check the return value of apr_dbm_firstkey, apr_dbm_fetch - TBD
-     */
+    else {
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, *cmd, " ", cmd_only, NULL);
+
+        /* Run in its own address space if specified */
+        detached = apr_table_get(d->file_handler_mode, ext);
+        if (detached) {
+            e_info->cmd_type = APR_PROGRAM_ENV;
+        }

@@ -1,25 +1,13 @@
-    if (err != NULL) {
-        return err;
+        rv = apr_file_open_stderr(&child_err, ptemp);
+    }
+    if (rv == APR_SUCCESS) {
+        if ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                            "Parent: Unable to connect child stderr.\n");
+            apr_pool_destroy(ptemp);
+            return -1;
+        }
     }
 
-    ap_threads_limit = atoi(arg);
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: MaxThreads of %d exceeds compile time limit "
-                    "of %d threads,", ap_threads_limit, HARD_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering MaxThreads to %d.  To increase, please "
-                    "see the", HARD_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                    " HARD_THREAD_LIMIT define in %s.",
-                    AP_MPM_HARD_LIMITS_FILE);
-       ap_threads_limit = HARD_THREAD_LIMIT;
-    } 
-    else if (ap_threads_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-            "WARNING: Require MaxThreads > 0, setting to 1");
-        ap_threads_limit = 1;
-    }
-    return NULL;
-}
-
+    /* Create the child_ready_event */

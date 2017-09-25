@@ -1,40 +1,13 @@
-            break;
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, 
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
         }
     }
-    return errstr;
-}
-
-void ssl_die(void)
-{
-    /*
-     * This is used for fatal errors and here
-     * it is common module practice to really
-     * exit from the complete program.
-     */
-    exit(1);
-}
-
-/*
- * Prints the SSL library error information.
- */
-void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
-{
-    unsigned long e;
-
-    while ((e = ERR_get_error())) {
-        char *err, *annotation;
-        err = ERR_error_string(e, NULL);
-        annotation = ssl_log_annotation(err);
-
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s %s",
-                         e, err, annotation); 
-        }
-        else {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s",
-                         e, err); 
-        }
-    }
-}
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */

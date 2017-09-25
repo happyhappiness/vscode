@@ -1,26 +1,41 @@
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
 
-    /* Get the request... */
-    if (!read_request_line(r)) {
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                          "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            return r;
+            if (rc == 0)
+                thefile->bufpos = 0;
         }
 
-        return NULL;
+        return rc;
+    } else {
+        FlushFileBuffers(thefile->filehand);
+        return APR_SUCCESS;
     }
+}
 
-    if (!r->assbackwards) {
-        ap_get_mime_headers(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            return r;
-        }
+static int printf_flush(apr_vformatter_buff_t *vbuff)
+{
+    /* I would love to print this stuff out to the file, but I will
+     * get that working later.  :)  For now, just return.
+     */
+    return -1;
+}
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    int cc;
+    va_list ap;
+    char *buf;
+    int len;
+
+    buf = malloc(HUGE_STRING_LEN);
+    if (buf == NULL) {
+        return 0;
     }
+    va_start(ap, format);
+    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
+    cc = apr_file_puts(buf, fptr);
+    va_end(ap);
+    free(buf);
+    return (cc == APR_SUCCESS) ? len : -1;
+}
+
+

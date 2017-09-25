@@ -1,13 +1,32 @@
-    shmem_size  = size;
-    num_buckets = (size - sizeof(*client_list)) /
-                  (sizeof(client_entry*) + HASH_DEPTH * sizeof(client_entry));
-    if (num_buckets == 0) {
-        num_buckets = 1;
+        /* XXX log message */
+	return rv;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "Digest: Set shmem-size: %ld, num-buckets: %ld", shmem_size,
-                 num_buckets);
 
-    return NULL;
+    r->status = atoi(urlbuff);                           /* Save status line into request rec  */
+
+    /* Read and ignore the status line (This request might result in a
+     * 304, so we don't necessarily want to retransmit a 200 from the cache.)
+     */
+    rv = apr_file_gets(&urlbuff[0], urllen, dobj->hfd);
+    if (rv != APR_SUCCESS) {
+        /* XXX log message */
+	return rv;
+    }
+
+    h->req_hdrs = apr_table_make(r->pool, 20);
+    
+    /*
+     * Call routine to read the header lines/status line 
+     */
+    tmp = r->err_headers_out;
+    r->err_headers_out = h->req_hdrs;
+    rv = apr_file_gets(&urlbuff[0], urllen, dobj->hfd);           /* Read status  */
+    ap_scan_script_header_err(r, dobj->hfd, NULL);
+    r->err_headers_out = tmp;
+ 
+    apr_file_close(dobj->hfd);
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "disk_cache: Served headers for URL %s",  dobj->name);
+    return APR_SUCCESS;
 }
-

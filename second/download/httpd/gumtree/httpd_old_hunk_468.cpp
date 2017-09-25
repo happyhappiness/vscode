@@ -1,13 +1,12 @@
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, errno, 
-                         ap_server_conf,
-                         "processor unbind failed %d", status);
-#endif
-        RAISE_SIGSTOP(MAKE_CHILD);
+static int remove_url(const char *key)
+{
+    /* XXX: Delete file from cache! */
+    return OK;
+}
 
-        apr_signal(SIGTERM, just_die);
+/*
+ * Reads headers from a buffer and returns an array of headers.
+ * Returns NULL on file error
+ * This routine tries to deal with too long lines and continuation lines.
+ * @@@: XXX: FIXME: currently the headers are passed thru un-merged.
+ * Is that okay, or should they be collapsed where possible?

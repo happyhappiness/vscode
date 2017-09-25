@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: unknown require "
-                          "directive:\"%s\"", r->uri, reqs[x].requirement);
+ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);

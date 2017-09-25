@@ -1,29 +1,30 @@
-        New = apr_array_push(conf->dirconn);
-        New->name = apr_pstrdup(parms->pool, arg);
-        New->hostaddr = NULL;
+             * See if this is our user.
+             */
+            colon = strchr(scratch, ':');
+            if (colon != NULL) {
+                *colon = '\0';
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                /* We found the user we were looking for, add him to the file.
+                 */
+                apr_file_printf(errfile, "Updating ");
+                putline(ftemp, record);
+                found++;
+            }
+        }
+        apr_file_close(fpw);
+    }
+    if (!found) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-	if (ap_proxy_is_ipaddr(New, parms->pool)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "Parsed addr %s", inet_ntoa(New->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
-#endif
-	}
-	else if (ap_proxy_is_domainname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "Parsed domain %s", New->name);
-#endif
-        }
-        else if (ap_proxy_is_hostname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "Parsed host %s", New->name);
-#endif
-        }
-        else {
-            ap_proxy_is_word(New, parms->pool);
-#if DEBUGGING
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {

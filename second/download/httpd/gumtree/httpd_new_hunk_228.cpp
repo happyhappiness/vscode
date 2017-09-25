@@ -1,13 +1,14 @@
-                                         domain, NULL);
-    nuri = apr_uri_unparse(r->pool,
-                           &r->parsed_uri,
-                           APR_URI_UNP_REVEALPASSWORD);
+    return 0;
+}
 
-    apr_table_set(r->headers_out, "Location", nuri);
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                  "Domain missing: %s sent to %s%s%s", r->uri,
-                  apr_uri_unparse(r->pool, &r->parsed_uri,
-                                  APR_URI_UNP_OMITUSERINFO),
-                  ref ? " from " : "", ref ? ref : "");
-
-    return HTTP_MOVED_PERMANENTLY;
+static void usage(void)
+{
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");

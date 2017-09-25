@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "disk_cache: Serving Cached URL %s",  dobj->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     "Invalid charset conversion config path %s", 
+                     (const char *)ap_get_module_config(s->module_config,
+                                                        &auth_ldap_module));

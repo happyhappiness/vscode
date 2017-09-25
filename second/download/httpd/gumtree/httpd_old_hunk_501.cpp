@@ -1,13 +1,26 @@
-    apr_status_t rv;
-
-    ap_log_pid(pconf, ap_pid_fname);
-
-    first_server_limit = server_limit;
-    if (changed_limit_at_restart) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, 0, s,
-                     "WARNING: Attempt to change ServerLimit "
-                     "ignored during restart");
-        changed_limit_at_restart = 0;
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "set timeout on socket to connect to listener");
+        apr_socket_close(sock);
+        return rv;
     }
 
-    /* Initialize cross-process accept lock */
+    rv = apr_connect(sock, pod->sa);
+    if (rv != APR_SUCCESS) {
+        int log_level = APLOG_WARNING;
+
+        if (APR_STATUS_IS_TIMEUP(rv)) {
+            /* probably some server processes bailed out already and there
+             * is nobody around to call accept and clear out the kernel
+             * connection queue; usually this is not worth logging
+             */
+            log_level = APLOG_DEBUG;
+        }
+
+        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+                     "connect to listener");
+    }
+
+    apr_socket_close(sock);
+    apr_pool_destroy(p);
+
+    return rv;

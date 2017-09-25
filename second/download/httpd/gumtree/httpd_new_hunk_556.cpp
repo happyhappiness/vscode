@@ -1,21 +1,17 @@
-        changed_limit_at_restart = 1;
-        return NULL;
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't unlink unix domain socket %s",
+                     sconf->sockname);
+        /* just a warning; don't bail out */
     }
-    server_limit = tmp_server_limit;
-    
-    if (server_limit > MAX_SERVER_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
-       server_limit = MAX_SERVER_LIMIT;
+
+    /* cgid should use its own suexec doer */
+    ap_hook_get_suexec_identity(cgid_suexec_id_doer, NULL, NULL,
+                                APR_HOOK_REALLY_FIRST);
+    apr_hook_sort_all();
+
+    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
+                     "Couldn't create unix domain socket");
+        return errno;
     } 
-    else if (server_limit < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require ServerLimit > 0, setting to 1");
-	server_limit = 1;
-    }
-    return NULL;
-}
 

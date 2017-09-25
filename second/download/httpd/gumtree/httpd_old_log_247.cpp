@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-                     "which implies that RewriteRule directive is forbidden: "
-                     "%s", r->filename);
+fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                        "%s\n", ap_server_argv0, fname);

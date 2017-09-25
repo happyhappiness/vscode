@@ -1,24 +1,20 @@
-        /* TODO: requests_this_child should be synchronized - aaron */
-        if (requests_this_child <= 0) {
-            check_infinite_requests();
-        }
-        if (listener_may_exit) break;
+ * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
+ *                         ap_finalize_sub_req_protocol on Win32 and NetWare
+ * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+ *                         calling ap_setup_prelinked_modules
+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+ */
 
-        rv = ap_queue_info_wait_for_idler(worker_queue_info,
-                                          &recycled_pool);
-        if (APR_STATUS_IS_EOF(rv)) {
-            break; /* we've been signaled to die now */
-        }
-        else if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                         "apr_queue_info_wait failed. Attempting to shutdown "
-                         "process gracefully.");
-            signal_threads(ST_GRACEFUL);
-            break;
-        }
-        /* We've already decremented the idle worker count inside
-         * ap_queue_info_wait_for_idler. */
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
-        if ((rv = SAFE_ACCEPT(apr_proc_mutex_lock(accept_mutex)))
-            != APR_SUCCESS) {
-            int level = APLOG_EMERG;
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 11                    /* 0...n */
+
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

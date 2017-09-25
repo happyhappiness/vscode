@@ -1,18 +1,13 @@
-
-        if (!child_fatal) {
-            /* cleanup pid file on normal shutdown */
-            const char *pidfile = NULL;
-            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-            if ( pidfile != NULL && unlink(pidfile) == 0)
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0,
-                             ap_server_conf,
-                             "removed PID file %s (pid=%ld)",
-                             pidfile, (long)getpid());
-    
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0,
-                         ap_server_conf, "caught SIGTERM, shutting down");
+        int res;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported) 
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: asynchronous I/O not supported: %s", 
+                            r->filename);
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return 0;
         }
-        return 1;
-    }
 
-    /* we've been told to restart */
+        if (r->remaining < *buf_size) {
+            *buf_size = (apr_size_t)r->remaining;
+        }

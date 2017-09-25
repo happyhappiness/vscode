@@ -1,13 +1,17 @@
-     *  Initialise list of loaded modules
-     */
-    ap_loaded_modules = (module **)apr_palloc(process->pool,
-        sizeof(module *) * (total_modules + DYNAMIC_MODULE_LIMIT + 1));
 
-    if (ap_loaded_modules == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Ouch!  Out of memory in ap_setup_prelinked_modules()!");
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+	fprintf(stderr, "%s: invalid URL\n", argv[0]);
+	usage(argv[0]);
     }
 
-    for (m = ap_preloaded_modules, m2 = ap_loaded_modules; *m != NULL; )
-        *m2++ = *m++;
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+       fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
+    }
 
+    if ((heartbeatres) && (requests > 150)) {
+	heartbeatres = requests / 10;	/* Print line every 10% of requests */
+	if (heartbeatres < 100)
+	    heartbeatres = 100;	/* but never more often than once every 100
+				 * connections. */

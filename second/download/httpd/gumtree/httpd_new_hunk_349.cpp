@@ -1,17 +1,30 @@
-            for (;;) {
-                /*
-                 * Try to read the private key file with the help of
-                 * the callback function which serves the pass
-                 * phrases to OpenSSL
-                 */
-                if ((rv = exists_and_readable(szPath, p,
-                                              &pkey_mtime)) != APR_SUCCESS ) {
-                     ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                                  "Init: Can't open server private key file "
-                                  "%s",szPath);
-                     ssl_die();
-                }
+        case AP_MPMQ_MAX_REQUESTS_DAEMON:
+            *result = ap_max_requests_per_child;
+            return APR_SUCCESS;
+        case AP_MPMQ_MAX_DAEMONS:
+            *result = ap_daemons_limit;
+            return APR_SUCCESS;
+        case AP_MPMQ_MPM_STATE:
+            *result = mpm_state;
+            return APR_SUCCESS;
+    }
+    return APR_ENOTIMPL;
+}
 
-                /*
-                 * if the private key is encrypted and SSLPassPhraseDialog
-                 * is configured to "builtin" it isn't possible to prompt for
+/* a clean exit from a child with proper cleanup */ 
+static void clean_child_exit(int code) __attribute__ ((noreturn));
+static void clean_child_exit(int code)
+{
+    mpm_state = AP_MPMQ_STOPPING;
+    if (pchild) {
+        apr_pool_destroy(pchild);
+    }
+    exit(code);
+}
+
+static void just_die(int sig)
+{
+    clean_child_exit(0);
+}
+
+/*****************************************************************

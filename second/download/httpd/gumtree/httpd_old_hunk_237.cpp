@@ -1,42 +1,65 @@
-    /* If we are connecting through a remote proxy, we need to pass
-     * the CONNECT request on to it.
-     */
-    if (proxyport) {
-	/* FIXME: Error checking ignored.
-	 */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-		     "proxy: CONNECT: sending the CONNECT request to the remote proxy");
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-			      "CONNECT %s HTTP/1.0" CRLF, r->uri);
-        apr_send(sock, buffer, &nbytes);
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-			      "Proxy-agent: %s" CRLF CRLF, ap_get_server_version());
-        apr_send(sock, buffer, &nbytes);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-		     "proxy: CONNECT: Returning 200 OK Status");
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-			      "HTTP/1.0 200 Connection Established" CRLF);
-        apr_send(client_socket, buffer, &nbytes);
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-			      "Proxy-agent: %s" CRLF CRLF, ap_get_server_version());
-#if 0
-        /* This is safer code, but it doesn't work yet.  I'm leaving it 
-         * here so that I can fix it later.
-         */
-        apr_send(r->connection->client_socket, buffer, &nbytes);
-        r->status = HTTP_OK;
-        r->header_only = 1;
-        apr_table_set(r->headers_out, "Proxy-agent: %s", ap_get_server_version());
-        ap_rflush(r);
-#endif
+
+    new->expiresbytype = apr_table_overlay(p, add->expiresbytype,
+                                        base->expiresbytype);
+    return new;
+}
+
+static int add_expires(request_rec *r)
+{
+    expires_dir_config *conf;
+    char *code;
+    apr_time_t base;
+    apr_time_t additional;
+    apr_time_t expires;
+    int additional_sec;
+    char *timestr;
+
+    if (ap_is_HTTP_ERROR(r->status))       /* Don't add Expires headers to errors */
+        return DECLINED;
+
+    if (r->main != NULL)        /* Say no to subrequests */
+        return DECLINED;
+
+    conf = (expires_dir_config *) ap_get_module_config(r->per_dir_config, &expires_module);
+    if (conf == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-		 "proxy: CONNECT: setting up poll()");
+    if (conf->active != ACTIVE_ON)
+        return DECLINED;
 
-    /*
-     * Step Four: Handle Data Transfer
+    /* we perhaps could use the default_type(r) in its place but that
+     * may be 2nd guesing the desired configuration...  calling table_get
+     * with a NULL key will SEGV us
      *
-     * Handle two way transfer of data over the socket (this is a tunnel).
+     * I still don't know *why* r->content_type would ever be NULL, this
+     * is possibly a result of fixups being called in many different
+     * places.  Fixups is probably the wrong place to be doing all this
+     * work...  Bah.
+     *
+     * Changed as of 08.Jun.96 don't DECLINE, look for an ExpiresDefault.
+     */
+    if (r->content_type == NULL)
+        code = NULL;
+    else
+        code = (char *) apr_table_get(conf->expiresbytype, 
+		ap_field_noparam(r->pool, r->content_type));
+
+    if (code == NULL) {
+        /* no expires defined for that type, is there a default? */
+        code = conf->expiresdefault;
+
+        if (code[0] == '\0')
+            return OK;
+    }
+
+    /* we have our code */
+
+    switch (code[0]) {
+    case 'M':
+	if (r->finfo.filetype == 0) { 
+	    /* file doesn't exist on disk, so we can't do anything based on
+	     * modification time.  Note that this does _not_ log an error.
+	     */

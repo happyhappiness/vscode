@@ -1,21 +1,12 @@
-    char *expr    = NULL;
-    int   expr_ret, was_error, was_unmatched;
-    apr_bucket *tmp_buck;
-    char debug_buf[MAX_DEBUG_SIZE];
+    int access_status;
 
-    *inserted_head = NULL;
-    if (!ctx->flags & FLAG_PRINTING) {
-        ctx->if_nesting_level++;
+    /* Ignore embedded %2F's in path for proxy requests */
+    if (!r->proxyreq && r->parsed_uri.path) {
+        access_status = ap_unescape_url(r->parsed_uri.path);
+        if (access_status) {
+            return access_status;
+        }
     }
-    else {
-        while (1) {
-            ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, 0);
-            if (tag == NULL) {
-                if (expr == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                                  "missing expr in if statement: %s", 
-                                  r->filename);
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
-                                        *inserted_head);
-                    return 1;
-                }
+
+    ap_getparents(r->uri);     /* OK --- shrinking transformations... */
+

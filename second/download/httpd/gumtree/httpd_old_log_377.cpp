@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r->server,
-			 "proxy: Ignoring duplicate HTTP header "
-			 "returned by %s (%s)", r->uri, r->method);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "new file descriptor %d is too large; you probably need "
+                     "to rebuild Apache with a larger FD_SETSIZE "
+                     "(currently %d)", 
+                     csd, FD_SETSIZE);

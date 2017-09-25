@@ -1,13 +1,14 @@
-    (cache_server_conf *) ap_get_module_config(sconf, &cache_module);
-    void *scache = r->request_config;
-    cache_request_rec *cache =
-    (cache_request_rec *) ap_get_module_config(scache, &cache_module);
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(cc_in, "no-store", NULL) ||
+            ap_cache_liststr(pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
 
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, f->r->server,
-                 "cache: running CACHE_IN filter");
-
-    /* check first whether running this filter has any point or not */
-    if(r->no_cache) {
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, in);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;

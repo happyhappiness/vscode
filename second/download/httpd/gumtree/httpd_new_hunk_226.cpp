@@ -1,13 +1,19 @@
-        else
-#endif
-        return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ++str;
     }
+    /* We must store a terminating '\0' if we've stored any chars. We can
+     * get away with storing it if we hit an error first. 
+     */
+    *str = '\0';
+    if (str > str_start) {
+        /* we stored chars; don't report EOF or any other errors;
+         * the app will find out about that on the next call
+         */
+        return APR_SUCCESS;
+    }
+    return rv;
+}
 
-    apr_sockaddr_ip_get(&ipaddrstr, sockaddr);
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server,
-                "mod_unique_id: using ip addr %s",
-                 ipaddrstr);
-
-    /*
-     * If the server is pummelled with restart requests we could possibly end
-     * up in a situation where we're starting again during the same second
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{

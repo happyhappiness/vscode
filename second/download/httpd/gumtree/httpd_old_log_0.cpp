@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-            "client denied by server configuration: %s",
-            r->filename);
+fprintf(stdout,"posn\tleft\tright\tparent\tminchild\t...\n");

@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "exec used but not allowed in %s", r->filename);
+apr_file_printf(errfile, "User %s not found\n", user);

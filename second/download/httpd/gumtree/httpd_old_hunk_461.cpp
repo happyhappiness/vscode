@@ -1,15 +1,13 @@
-    if (err != NULL) {
-        return err;
+        return ap_pass_brigade(f->next, bb);
     }
 
-    max_spare_threads = atoi(arg);
-    if (max_spare_threads >= thread_limit) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set higher than");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "ThreadLimit. Resetting to %d", thread_limit);
-       max_spare_threads = thread_limit;
-    }
-    return NULL;
-}
+    apr_table_unset(r->headers_out, "Upgrade");
 
+    if (r) {
+        csd = (apr_socket_t*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
+    }

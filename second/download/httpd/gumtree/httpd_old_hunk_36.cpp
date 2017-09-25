@@ -1,30 +1,24 @@
-                                 cmd->temp_pool)) != APR_SUCCESS) {
-	ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-	    "mod_file_cache: unable to stat(%s), skipping", fspec);
-	return;
-    }
-    if (tmp.finfo.filetype != APR_REG) {
-	ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
-	    "mod_file_cache: %s isn't a regular file, skipping", fspec);
-	return;
-    }
-    if (tmp.finfo.size > AP_MAX_SENDFILE) {
-	ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
-	    "mod_file_cache: %s is too large to cache, skipping", fspec);
-	return;
-    }
+    bucket_alloc = apr_bucket_alloc_create(tpool);
 
-    rc = apr_file_open(&fd, fspec, APR_READ | APR_BINARY | APR_XTHREAD,
-                       APR_OS_DEFAULT, cmd->pool);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                     "mod_file_cache: unable to open(%s, O_RDONLY), skipping", fspec);
-	return;
-    }
-    apr_file_set_inherit(fd);
+    apr_poll_setup(&pollset, num_listensocks, tpool);
+    for(lr = ap_listeners ; lr != NULL ; lr = lr->next)
+        apr_poll_socket_add(pollset, lr->sd, APR_POLLIN);
 
-    /* WooHoo, we have a file to put in the cache */
-    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
-    new_file->finfo = tmp.finfo;
+    wakeup = worker_wakeup_create(tpool);
 
-#if APR_HAS_MMAP
+    /* TODO: Switch to a system where threads reuse the results from earlier
+       poll calls - manoj */
+    is_listener = 0;
+    while (!workers_may_exit) {
+
+        ap_update_child_status_from_indexes(process_slot, thread_slot,
+                                            SERVER_READY, NULL);
+        if (!is_listener) {
+            /* Wait until it's our turn to become the listener */
+            if ((rv = worker_stack_wait(idle_worker_stack, wakeup)) !=
+                APR_SUCCESS) {
+                if (rv != APR_EINVAL) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                                 "worker_stack_wait failed. Shutting down");
+                }
+                break;

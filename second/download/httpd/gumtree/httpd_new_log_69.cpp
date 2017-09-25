@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction (%d) not supported: "
-                          "%s", HSE_code, r->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);

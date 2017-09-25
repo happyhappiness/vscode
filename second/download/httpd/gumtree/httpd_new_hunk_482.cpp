@@ -1,13 +1,13 @@
-    else {
-        /* Parent process */
-        char restart;
-        is_parent_process = TRUE;
+{
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    ap_sb_handle_t *sbh;
 
-        if (ap_setup_listeners(ap_server_conf) < 1) {
-            ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
-                         "no listening sockets available, shutting down");
-            return 1;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
 
-        ap_log_pid(pconf, ap_pid_fname);
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
 

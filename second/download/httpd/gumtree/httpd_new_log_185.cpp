@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "mod_rewrite's internal redirect status: %d/%d.",
+                  reqc->redirects, reqc->redirect_limit);

@@ -1,25 +1,31 @@
-        return rc;
-    s = c->base_server;
-
-    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
-        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
-        if (rc >= 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: %s %ld/%d bytes %s BIO#%p [mem: %p] %s",
-                    SSL_LIBRARY_NAME,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
-                    bio, argp,
-                    (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
-            if (argp != NULL)
-                ssl_io_data_dump(s, argp, rc);
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: I/O error, %d bytes expected to %s on BIO#%p [mem: %p]",
-                    SSL_LIBRARY_NAME, argi,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    bio, argp);
-        }
+        case AP_MPMQ_MAX_REQUESTS_DAEMON:
+            *result = ap_max_requests_per_child;
+            return APR_SUCCESS;
+        case AP_MPMQ_MAX_DAEMONS:
+            *result = ap_daemons_limit;
+            return APR_SUCCESS;
+        case AP_MPMQ_MPM_STATE:
+            *result = mpm_state;
+            return APR_SUCCESS;
     }
-    return rc;
+    return APR_ENOTIMPL;
+}
+
+/* a clean exit from a child with proper cleanup */ 
+static void clean_child_exit(int code) __attribute__ ((noreturn));
+static void clean_child_exit(int code)
+{
+    mpm_state = AP_MPMQ_STOPPING;
+    if (pchild) {
+        apr_pool_destroy(pchild);
+    }
+    ap_mpm_pod_close(pod);
+    exit(code);
+}
+
+static void just_die(int sig)
+{
+    clean_child_exit(0);
+}
+
+/*****************************************************************

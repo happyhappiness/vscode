@@ -1,13 +1,13 @@
-            }
+     * Rather than fall out to autoindex or some other mapper, this
+     * request must die.
+     */
+    if (anymatch && !neg->avail_vars->nelts) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+		      "Negotiation: discovered file(s) matching request: %s"
+                      " (None could be negotiated).",
+                      r->filename);
+        return HTTP_NOT_FOUND;
+    }
 
-            value += 2;         /* jump over the '..' that we found in the
-                                   value */
-        }
-        else if (directory) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "invalid directory name in map file: %s", r->uri);
-            return NULL;
-        }
+    set_vlist_validator(r, r);
 
-        if (!strncmp(value, "/../", 4) || !strcmp(value, "/..")) {
-            value++;            /* step over the '/' if there are more '..'

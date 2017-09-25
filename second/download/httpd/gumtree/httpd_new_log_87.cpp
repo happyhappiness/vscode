@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "An invalid Overwrite header was specified.");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Caching URL %s",  key);

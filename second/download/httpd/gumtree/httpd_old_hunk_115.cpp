@@ -1,13 +1,12 @@
-#ifdef DEBUG_INCLUDE
-            memcpy(&debug[debug_pos], "     Token: eq/ne/ge/gt/le/lt\n",
-                    sizeof("     Token: eq/ne/ge/gt/le/lt\n"));
-            debug_pos += sizeof("     Token: eq/ne/ge/gt/le/lt\n");
-#endif
-            if (current == (struct parse_node *) NULL) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                              "Invalid expression \"%s\" in file %s",
-                              expr, r->filename);
-                *was_error = 1;
-                return retval;
-            }
-            /* Percolate upwards */
+                 "  -L                : list available configuration "
+                 "directives");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
+                 "vhost settings)");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                : run syntax check for config files");
+
+    destroy_and_exit_process(process, 1);
+}
+
+int main(int argc, const char * const argv[])

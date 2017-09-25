@@ -1,13 +1,12 @@
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
     }
-    r->hostname = host;
-    return;
 
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Client sent malformed Host header");
-    return;
-}
-
-
-/* return 1 if host matches ServerName or ServerAliases */
+    /* Create the child_ready_event */
+    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!waitlist[waitlist_ready]) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create ready event for child process");
+        apr_pool_destroy (ptemp);

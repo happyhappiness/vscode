@@ -1,14 +1,13 @@
-RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
-{
-    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-    SSLModConfigRec *mc = myModConfig(c->base_server);
-    int idx;
+            /* Check the listen queue on all sockets for requests */
+            memcpy(&main_fds, &listenfds, sizeof(fd_set));
+            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
-                 "handing out temporary %d bit RSA key", keylen);
+            if (srv <= 0) {
+                if (srv < 0) {
+                    ap_log_error(APLOG_MARK, APLOG_NOTICE, WSAGetLastError(), ap_server_conf,
+                        "select() failed on listen socket");
+                    apr_thread_yield();
+                }
+                continue;
+            }
 
-    /* doesn't matter if export flag is on,
-     * we won't be asked for keylen > 512 in that case.
-     * if we are asked for a keylen > 1024, it is too expensive
-     * to generate on the fly.
-     * XXX: any reason not to generate 2048 bit keys at startup?

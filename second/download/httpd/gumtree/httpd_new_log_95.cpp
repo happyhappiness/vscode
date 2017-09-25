@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Unknown Transfer-Encoding %s", tenc);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "MCacheMaxStreamingBuffer must be greater than or equal to MCacheMinObjectSize. "
+                     "Resetting MCacheMaxStreamingBuffer to MCacheMinObjectSize.");

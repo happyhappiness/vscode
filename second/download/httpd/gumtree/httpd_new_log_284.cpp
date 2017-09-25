@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		    MODNAME ": broken symlink (%s)", fn);
+ap_rputs("<hr", r);

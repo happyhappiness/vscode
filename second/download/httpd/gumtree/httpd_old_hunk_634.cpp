@@ -1,14 +1,15 @@
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The label command element does not contain "
-                      "a \"label-name\" element.");
-        return HTTP_BAD_REQUEST;
+    else {
+        apr_snprintf(redir, sizeof(redir), "/redir#%d", i);
     }
 
-    ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
-                   &ctx.label, &tsize);
-    if (tsize == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" element does not contain "
-                      "a label name.");
-        return HTTP_BAD_REQUEST;
-    }
+    apr_snprintf(str3, sizeof(str3),
+                "%s %s [%s/sid#%lx][rid#%lx/%s%s] (%d) %s" APR_EOL_STR, str1,
+                current_logtime(r), ap_get_server_name(r),
+                (unsigned long)(r->server), (unsigned long)r,
+                type, redir, level, str2);
+
+    rv = apr_global_mutex_lock(rewrite_log_lock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_lock(rewrite_log_lock) failed");
+        /* XXX: Maybe this should be fatal? */

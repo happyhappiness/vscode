@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                        "printenv directive does not take tags in %s", 
-                        r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: URL %s is being handled by %s", path, types);

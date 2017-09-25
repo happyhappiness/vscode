@@ -1,22 +1,24 @@
-            memcpy((char *) finfo, (const char *) &rr->finfo,
-                   sizeof(rr->finfo));
-            ap_destroy_sub_req(rr);
-            return 0;
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                        "unable to get information about \"%s\" "
-                        "in parsed file %s",
-                        tag_val, r->filename);
-            ap_destroy_sub_req(rr);
-            return -1;
-        }
+                                  X509_INFO *info,
+                                  const char *msg)
+{
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    char name_buf[256];
+    X509_NAME *name;
+    const char *dn;
+
+    if (s->loglevel < APLOG_DEBUG) {
+        return;
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                    "unknown parameter \"%s\" to tag %s in %s",
-                    tag, directive, r->filename);
-        return -1;
-    }
+
+    name = X509_get_subject_name(info->x509);
+    dn = X509_NAME_oneline(name, name_buf, sizeof(name_buf));
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT "%s, sending %s", 
+                 sc->vhost_id, msg, dn ? dn : "-uknown-");
 }
 
+/*
+ * caller will decrement the cert and key reference
+ * so we need to increment here to prevent them from
+ * being freed.

@@ -1,13 +1,13 @@
-            || (BytesWritten != sizeof(hDup))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to send the scoreboard handle to the child");
-        return -1;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent the scoreboard to the child");
-    return 0;
-}
-
-static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId, HANDLE hPipeWrite)
 {
+    unsigned char tempasn[SSL_SESSION_MAX_DER];
+    SSL_SESSION *pSession = NULL;
+    SHMCBIndex *idx;
+    SHMCBHeader *header;
+    unsigned int curr_pos, loop, count;
+    MODSSL_D2I_SSL_SESSION_CONST unsigned char *ptr;
+    BOOL to_return = FALSE;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "entering shmcb_remove_session_id");
+
+    /* If there's entries to expire, ditch them first thing. */

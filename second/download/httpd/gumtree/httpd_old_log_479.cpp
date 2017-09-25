@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r, 
-                          "access to %s failed, reason: %s",
-                          r->filename, cp);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
+                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");

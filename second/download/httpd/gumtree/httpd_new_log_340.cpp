@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: FTP: trying to connect to %pI (%s)...", connect_addr, connectname);
+ap_fatal_signal_setup(ap_server_conf, pconf);

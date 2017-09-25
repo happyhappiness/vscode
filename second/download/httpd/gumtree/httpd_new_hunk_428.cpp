@@ -1,17 +1,13 @@
-    if (err != NULL) {
-        return err;
-    }
+        return OK;
 
-    min_spare_threads = atoi(arg);
-    if (min_spare_threads <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Please read the documentation.");
-       min_spare_threads = 1;
-    }
-       
-    return NULL;
+    ap_rputs(DOCTYPE_HTML_3_2
+             "<html><head><title>LDAP Cache Information</title></head>\n", r);
+    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);
+
+    util_ald_cache_display(r, st);
+
+    return OK;
 }
+
+/* ------------------------------------------------------------------ */
+

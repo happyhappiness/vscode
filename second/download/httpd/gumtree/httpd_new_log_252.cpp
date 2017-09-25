@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_global_mutex_unlock(rewrite_log_lock) failed");
+fprintf(stderr, "%s: must include a wildcard pattern "
+                    "for Include %s\n", ap_server_argv0, fname);

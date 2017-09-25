@@ -1,13 +1,14 @@
-        return DECLINED;
+            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "core_output_filter: writing data to the network");
 
-    if ((result = ap_xml_parse_input(r, &doc)) != OK)
-        return result;
-    if (doc == NULL) {
-        /* This supplies additional information for the default msg. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body must specify a report.");
-        return HTTP_BAD_REQUEST;
-    }
+            if (more)
+                apr_brigade_destroy(more);
 
-    /* Ask repository module to resolve the resource.
-     * First determine whether a Target-Selector header is allowed
+            /* No need to check for SUCCESS, we did that above. */
+            if (!APR_STATUS_IS_EAGAIN(rv)) {
+                c->aborted = 1;
+            }
+
+            /* The client has aborted, but the request was successful. We
+             * will report success, and leave it to the access and error
+             * logs to note that the connection was aborted.

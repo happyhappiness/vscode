@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-		MODNAME ": subrequest lookup for %s", sub_filename);
+ap_fatal_signal_setup(ap_server_conf, pconf);

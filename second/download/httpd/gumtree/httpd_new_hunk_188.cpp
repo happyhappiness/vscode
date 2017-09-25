@@ -1,13 +1,18 @@
 
-        return apr_pstrcat(cmd->pool, "Cannot load ", szModuleFile,
-			  " into server: ",
-			  apr_dso_error(modhandle, my_error, sizeof(my_error)),
-			  NULL);
-    }
-    ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool,
-		 "loaded module %s", modname);
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
 
-    /*
-     * Retrieve the pointer to the module structure through the module name:
-     * First with the hidden variant (prefix `AP_') and then with the plain
-     * symbol name.
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
+#ifdef AP_ENABLE_V4_MAPPED
+    printf("enabled)\n");
+#else
+    printf("disabled)\n");
+#endif
+#endif
+
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
+

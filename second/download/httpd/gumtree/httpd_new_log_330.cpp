@@ -1,2 +1,1 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-		 "proxy: CONNECT: finished with poll() - cleaning up");
+ap_fatal_signal_setup(ap_server_conf, pconf);

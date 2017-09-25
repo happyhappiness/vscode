@@ -1,13 +1,19 @@
-             */
-            ap_run_insert_filter(r);
-            ap_add_output_filter("CACHE_OUT", NULL, r, r->connection);
+                if ((fold_len - 1) > r->server->limit_req_fieldsize) {
+                    r->status = HTTP_BAD_REQUEST;
+                    /* report what we have accumulated so far before the
+                     * overflow (last_field) as the field with the problem
+                     */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Size of a request header field " 
+                                               "after folding "
+                                               "exceeds server limit.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool, last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
 
-            /* kick off the filter stack */
-            out = apr_brigade_create(r->pool, c->bucket_alloc);
-            if (APR_SUCCESS != (rv = ap_pass_brigade(r->output_filters, out))) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                             "cache: error returned while trying to return %s "
-                             "cached data", 
-                             cache->type);
-                return rv;
-            }
+                if (fold_len > alloc_len) {
+                    char *fold_buf;
+                    alloc_len += alloc_len;

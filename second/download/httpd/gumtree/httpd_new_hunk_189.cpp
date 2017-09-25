@@ -1,31 +1,16 @@
-	return apr_pstrcat(cmd->pool, "Cannot load ", filename, 
-			  " into server: ", 
-			  apr_dso_error(handle, my_error, sizeof(my_error)),
-			  NULL);
-    }
-    
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-		 "loaded file %s", filename);
+                 "  -C \"directive\"    : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"    : process directive after reading "
+                 "config files");
 
-    return NULL;
-}
-
-#else /* not NO_DLOPEN */
-
-static const char *load_file(cmd_parms *cmd, void *dummy, const char *filename)
-{
-    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, 
-                 "WARNING: LoadFile not supported on this platform");
-    return NULL;
-}
-
-static const char *load_module(cmd_parms *cmd, void *dummy, 
-	                       const char *modname, const char *filename)
-{
-    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, 
-                 "WARNING: LoadModule not supported on this platform");
-    return NULL;
-}
-
-#endif /* NO_DLOPEN */
-
+#ifdef NETWARE
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set screen name");
+#endif
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set service name and use its "
+                 "ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start          : tell Apache to start");

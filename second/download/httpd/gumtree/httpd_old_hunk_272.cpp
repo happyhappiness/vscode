@@ -1,16 +1,24 @@
-                    /* if we are done, leave */
-                    if (TRUE == finish) {
-                        break;
-                    }
-                }
-            }
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-                         "proxy: end body send");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r->server,
-                         "proxy: header only");
-        }
-    }
+	    /*
+	     * assume username passwd already to be in colon separated form.
+	     * Ready to be uu-encoded.
+	     */
+	    while (apr_isspace(*optarg))
+		optarg++;
+	    l = apr_base64_encode(tmp, optarg, strlen(optarg));
+	    tmp[l] = '\0';
 
-    if ( conf->error_override ) {
-        /* the code above this checks for 'OK' which is what the hook expects */
+            auth = apr_pstrcat(cntxt, auth, "Authorization: Basic ", tmp,
+                               "\r\n", NULL);
+	    break;
+	case 'P':
+	    /*
+             * assume username passwd already to be in colon separated form.
+             */
+	    while (apr_isspace(*optarg))
+		optarg++;
+	    l = apr_base64_encode(tmp, optarg, strlen(optarg));
+	    tmp[l] = '\0';
+
+            auth = apr_pstrcat(cntxt, auth, "Proxy-Authorization: Basic ",
+                               tmp, "\r\n", NULL);
+	    break;

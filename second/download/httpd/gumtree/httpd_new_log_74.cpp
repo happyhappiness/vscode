@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EGENERAL, NULL,
-	             "ISAPI: could not create the isapi cache pool");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);

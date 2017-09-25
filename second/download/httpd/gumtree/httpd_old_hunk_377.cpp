@@ -1,13 +1,14 @@
-{
-    SHMCBIndex *idx;
-    time_t now;
-    unsigned int loop, index_num, pos_count, new_pos;
-    SHMCBHeader *header;
+            
 
-    ssl_log(s, SSL_LOG_TRACE, "entering shmcb_expire_division");
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
 
-    /* We must calculate num and space ourselves based on expiry times. */
-    now = time(NULL);
-    loop = 0;
-    new_pos = shmcb_get_safe_uint(queue->first_pos);
-
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+                p_conn->close += 1;

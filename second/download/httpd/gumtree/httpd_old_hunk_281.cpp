@@ -1,21 +1,19 @@
-                         "ProxyReceiveBufferSize, using default");
-        }
-#endif
+}
 
-        /* Set a timeout on the socket */
-        if (conf->timeout_set == 1) {
-            apr_setsocketopt(*newsock, APR_SO_TIMEOUT,
-                             (int)(conf->timeout * APR_USEC_PER_SEC));
-        }
-        else {
-            apr_setsocketopt(*newsock, APR_SO_TIMEOUT,
-                             (int)(s->timeout * APR_USEC_PER_SEC));
-        }
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
+{
+    int rc = LDAP_SUCCESS;
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s,
-                     "proxy: %s: fam %d socket created to connect to %s",
-                     proxy_function, backend_addr->family, backend_name);
+    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
+                                                s->module_config, 
+                                                &ldap_module);
 
-        /* make the connection out of the socket */
-        rv = apr_connect(*newsock, backend_addr);
+        /* log the LDAP SDK used 
+        */
+    #if APR_HAS_NETSCAPE_LDAPSDK 
+    
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );
 
+    #elif APR_HAS_NOVELL_LDAPSDK

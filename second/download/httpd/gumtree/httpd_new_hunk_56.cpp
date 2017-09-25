@@ -1,38 +1,14 @@
-
-    if (doc != NULL) {
-        const ap_xml_elem *child;
-        apr_size_t tsize;
-
-        if (!dav_validate_root(doc, "version-control")) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The request body does not contain "
-                          "a \"version-control\" element.");
-            return HTTP_BAD_REQUEST;
-        }
-
-        /* get the version URI */
-        if ((child = dav_find_child(doc->root, "version")) == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The \"version-control\" element does not contain "
-                          "a \"version\" element.");
-            return HTTP_BAD_REQUEST;
-        }
-
-        if ((child = dav_find_child(child, "href")) == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "The \"version\" element does not contain "
-                          "an \"href\" element.");
-            return HTTP_BAD_REQUEST;
-        }
-
-        /* get version URI */
-        ap_xml_to_text(r->pool, child, AP_XML_X2T_INNER, NULL, NULL,
-                       &target, &tsize);
-        if (tsize == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "An \"href\" element does not contain a URI.");
-            return HTTP_BAD_REQUEST;
+                argv[0], MAX_STRING_LEN - 1);
+            exit(ERR_OVERFLOW);
         }
     }
-
-    /* Check request preconditions */
+    *user = apr_pstrdup(pool, argv[i + 1]);
+    if ((arg = strchr(*user, ':')) != NULL) {
+        apr_file_printf(errfile, "%s: username contains illegal "
+                        "character '%c'\n", argv[0], *arg);
+        exit(ERR_BADUSER);
+    }
+    if (*mask & APHTP_NONINTERACTIVE) {
+        if (strlen(argv[i + 2]) > (MAX_STRING_LEN - 1)) {
+            apr_file_printf(errfile, "%s: password too long (> %d)\n",
+                argv[0], MAX_STRING_LEN);

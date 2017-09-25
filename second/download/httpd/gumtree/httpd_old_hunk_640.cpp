@@ -1,23 +1,49 @@
+#endif /* APR_CHARSET_EBCDIC */
 
-static int cache_in_filter(ap_filter_t *f, apr_bucket_brigade *in)
+#define MAX_STRING_LEN 256
+
+#define ERR_OVERFLOW 5
+
+#ifndef HAVE_GETPASS
+
+/* MPE, Win32, NetWare and BeOS all lack a native getpass() */
+
+#if !defined(HAVE_TERMIOS_H) && !defined(WIN32) && !defined(NETWARE)
+/*
+ * MPE lacks getpass() and a way to suppress stdin echo.  So for now, just
+ * issue the prompt and read the results with echo.  (Ugh).
+ */
+
+static char *getpass(const char *prompt)
 {
-    int rv;
-    request_rec *r = f->r;
-    char *url = r->unparsed_uri;
-    const char *cc_out = ap_table_get(r->headers_out, "Cache-Control");
-    const char *exps, *lastmods, *dates, *etag;
-    apr_time_t exp, date, lastmod, now;
-    apr_size_t size;
-    cache_info *info;
-    void *sconf = r->server->module_config;
-    cache_server_conf *conf =
-    (cache_server_conf *) ap_get_module_config(sconf, &cache_module);
-    void *scache = r->request_config;
-    cache_request_rec *cache =
-    (cache_request_rec *) ap_get_module_config(scache, &cache_module);
+    static char password[MAX_STRING_LEN];
 
+    fputs(prompt, stderr);
+    fgets((char *) &password, sizeof(password), stdin);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
-                 "cache: running CACHE_IN filter");
+    return (char *) &password;
+}
 
-    /* check first whether running this filter has any point or not */
+#elif defined (HAVE_TERMIOS_H)
+#include <stdio.h>
+
+static char *getpass(const char *prompt)
+{
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
+	
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+	    return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);

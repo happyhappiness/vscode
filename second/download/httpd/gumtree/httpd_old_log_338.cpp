@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-       "proxy: FTP: connecting %s to %s:%d", url, connectname, connectport);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                     0, ap_server_conf,
+                     "seg fault or similar nasty error detected "
+                     "in the parent process");

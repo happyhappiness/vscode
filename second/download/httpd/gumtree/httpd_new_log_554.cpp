@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Inter-Process Session Cache (DBM) Expiry: "
-                 "old: %d, new: %d, removed: %d",
-                 nElements, nElements-nDeleted, nDeleted);
+printf("Server loaded:  APR %s, APR-UTIL %s\n",
+           apr_version_string(), apu_version_string());

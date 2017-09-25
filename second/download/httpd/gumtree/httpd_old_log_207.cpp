@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-		    "File does not exist: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "unable to create scoreboard "
+                     "(name-based shared memory failure)");

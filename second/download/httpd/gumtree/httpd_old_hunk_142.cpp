@@ -1,84 +1,23 @@
+                 "Set to off to disable auth_ldap, even if it's been enabled in a higher tree"),
+ 
+    AP_INIT_FLAG("AuthLDAPFrontPageHack", ap_set_flag_slot,
+                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, frontpage_hack), OR_AUTHCFG,
+                 "Set to 'on' to support Microsoft FrontPage"),
 
-    /* Transmute ourselves into the script.
-     * NB only ISINDEX scripts get decoded arguments.
-     */
-    if (((rc = apr_procattr_create(&procattr, p)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_io_set(procattr,
-                                  e_info->in_pipe,
-                                  e_info->out_pipe,
-                                  e_info->err_pipe)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_dir_set(procattr, 
-                                  ap_make_dirstr_parent(r->pool, r->filename))) != APR_SUCCESS) ||
-#ifdef RLIMIT_CPU
-        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_CPU, conf->limit_cpu)) != APR_SUCCESS) ||
-#endif
-#if defined(RLIMIT_DATA) || defined(RLIMIT_VMEM) || defined(RLIMIT_AS)
-        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_MEM, conf->limit_mem)) != APR_SUCCESS) ||
-#endif
-#ifdef RLIMIT_NPROC
-        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_NPROC, conf->limit_nproc)) != APR_SUCCESS) ||
-#endif
-        ((rc = apr_procattr_cmdtype_set(procattr, e_info->cmd_type)) != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-		      "couldn't set child process attributes: %s", r->filename);
-    }
-    else {
-        procnew = apr_pcalloc(p, sizeof(*procnew));
-        if (e_info->prog_type == RUN_AS_SSI) {
-            SPLIT_AND_PASS_PRETAG_BUCKETS(*(e_info->bb), e_info->ctx, e_info->next, rc);
-            if (rc != APR_SUCCESS) {
-                return rc;
-            }
-        }
+#ifdef APU_HAS_LDAP_STARTTLS
+    AP_INIT_FLAG("AuthLDAPStartTLS", ap_set_flag_slot,
+                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, starttls), OR_AUTHCFG,
+                 "Set to 'on' to start TLS after connecting to the LDAP server."),
+#endif /* APU_HAS_LDAP_STARTTLS */
 
-        rc = ap_os_create_privileged_process(r, procnew, command, argv, env, procattr, p);
-    
-        if (rc != APR_SUCCESS) {
-            /* Bad things happened. Everyone should have cleaned up. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                        "couldn't create child process: %d: %s", rc, r->filename);
-        }
-        else {
-            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
+    {NULL}
+};
 
-            *script_in = procnew->out;
-            if (!*script_in)
-                return APR_EBADF;
-            apr_file_pipe_timeout_set(*script_in, (int)(r->server->timeout * APR_USEC_PER_SEC));
-
-            if (e_info->prog_type == RUN_AS_CGI) {
-                *script_out = procnew->in;
-                if (!*script_out)
-                    return APR_EBADF;
-                apr_file_pipe_timeout_set(*script_out, (int)(r->server->timeout * APR_USEC_PER_SEC));
-
-                *script_err = procnew->err;
-                if (!*script_err)
-                    return APR_EBADF;
-                apr_file_pipe_timeout_set(*script_err, (int)(r->server->timeout * APR_USEC_PER_SEC));
-            }
-        }
-    }
-#ifdef DEBUG_CGI
-    fclose(dbg);
-#endif
-    return (rc);
+static void mod_auth_ldap_register_hooks(apr_pool_t *p)
+{
+    ap_hook_check_user_id(mod_auth_ldap_check_user_id, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_auth_checker(mod_auth_ldap_auth_checker, NULL, NULL, APR_HOOK_MIDDLE);
 }
 
-
-static apr_status_t default_build_command(const char **cmd, const char ***argv,
-                                          request_rec *r, apr_pool_t *p,
-                                          int process_cgi, apr_cmdtype_e * type)
-{
-    int numwords, x, idx;
-    char *w;
-    const char *args = NULL;
-
-    if (process_cgi) {
-        /* Allow suexec's "/" check to succeed */
-        const char *argv0 = strrchr(r->filename, '/');
-        if (argv0 != NULL)
-            argv0++;
-        else
-            argv0 = r->filename;
+module auth_ldap_module = {
+   STANDARD20_MODULE_STUFF,

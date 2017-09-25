@@ -1,20 +1,23 @@
-     * For non-collections, depth is ignored, unless it is an illegal value (1).
+
+
+AP_DECLARE(int) ap_mpm_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
+{
+    static int restart = 0;            /* Default is "not a restart" */
+
+    if (!restart) {
+        first_thread_limit = thread_limit;
+    }
+
+    if (changed_limit_at_restart) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, APR_SUCCESS, ap_server_conf,
+                     "WARNING: Attempt to change ThreadLimit ignored "
+                     "during restart");
+        changed_limit_at_restart = 0;
+    }
+    
+    /* ### If non-graceful restarts are ever introduced - we need to rerun 
+     * the pre_mpm hook on subsequent non-graceful restarts.  But Win32 
+     * has only graceful style restarts - and we need this hook to act 
+     * the same on Win32 as on Unix.
      */
-    depth = dav_get_depth(r, DAV_INFINITY);
-
-    if (resource->collection && depth != DAV_INFINITY) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be \"infinity\" for DELETE of a collection.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    if (!resource->collection && depth == 1) {
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth of \"1\" is not allowed for DELETE.");
-        return HTTP_BAD_REQUEST;
-    }
-
-    /*
-    ** If any resources fail the lock/If: conditions, then we must fail
+    if (!restart && ((parent_pid == my_pid) || one_process)) {

@@ -1,40 +1,14 @@
-    EVP_PKEY *pkey;
-
-    if (!(asn1 = ssl_asn1_table_get(mc->tPrivateKey, id))) {
-        return FALSE;
+        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
+        /* Something bad happened, tell the world. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                      "couldn't set child process attributes: %s", r->filename);
     }
+    else {
+        apr_pool_userdata_set(r, ERRFN_USERDATA_KEY, apr_pool_cleanup_null, p);
 
-    ssl_log(s, SSL_LOG_TRACE|SSL_INIT,
-            "Configuring %s server private key", type);
-
-    ptr = asn1->cpData;
-    if (!(pkey = d2i_PrivateKey(pkey_type, NULL, &ptr, asn1->nData)))
-    {
-        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
-                "Unable to import %s server private key", type);
-        ssl_die();
-    }
-
-    if (SSL_CTX_use_PrivateKey(mctx->ssl_ctx, pkey) <= 0) {
-        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
-                "Unable to configure %s server private key", type);
-        ssl_die();
-    }
-
-    /*
-     * XXX: wonder if this is still needed, this is old todo doc.
-     * (see http://www.psy.uq.edu.au/~ftp/Crypto/ssleay/TODO.html)
-     */
-    if ((pkey_type == EVP_PKEY_DSA) && mctx->pks->certs[idx]) {
-        EVP_PKEY *pubkey = X509_get_pubkey(mctx->pks->certs[idx]);
-
-        if (pubkey && EVP_PKEY_missing_parameters(pubkey)) {
-            EVP_PKEY_copy_parameters(pubkey, pkey);
-            ssl_log(s, SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_INIT,
-                    "Copying DSA parameters from private key to certificate");
-        }
-    }
-
-    mctx->pks->keys[idx] = pkey;
-
-    return TRUE;
+        procnew = apr_pcalloc(p, sizeof(*procnew));
+        if (e_info->prog_type == RUN_AS_SSI) {
+            SPLIT_AND_PASS_PRETAG_BUCKETS(*(e_info->bb), e_info->ctx,
+                                          e_info->next, rc);
+            if (rc != APR_SUCCESS) {
+                return rc;

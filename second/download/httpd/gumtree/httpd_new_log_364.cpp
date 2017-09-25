@@ -1,3 +1,8 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             r->server, "proxy: failed to enable ssl support "
-                             "for %pI (%s)", p_conn->addr, p_conn->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             "The %s directive in %s at line %d will probably "
+                             "never match because it overlaps an earlier "
+                             "%sAlias%s.",
+                             cmd->cmd->name, cmd->directive->filename,
+                             cmd->directive->line_num,
+                             p->handler ? "Script" : "",
+                             p->regexp ? "Match" : "");

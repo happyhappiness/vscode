@@ -1,13 +1,12 @@
-    int threads_created = 0;
-    int loops;
-    int prev_threads_created;
+    util_ald_free(cache, node->username);
+    util_ald_free(cache, node->dn);
+    util_ald_free(cache, node->bindpw);
+    util_ald_free(cache, node);
+}
 
-    idle_worker_stack = worker_stack_create(pchild, ap_threads_per_child);
-    if (idle_worker_stack == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0, ap_server_conf,
-                     "worker_stack_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+/* ------------------------------------------------------------------ */
 
-    loops = prev_threads_created = 0;
-    while (1) {
+unsigned long util_ldap_compare_node_hash(void *n)
+{
+    util_compare_node_t *node = (util_compare_node_t *)n;
+    return util_ald_hash_string(3, node->dn, node->attrib, node->value);

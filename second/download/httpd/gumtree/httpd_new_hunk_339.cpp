@@ -1,26 +1,20 @@
-        /*
-         * Check date of CRL to make sure it's not expired
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");
+            mpm_state = AP_MPMQ_STOPPING;
+            return 1;
+        }
+    }
+
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            mpm_state = AP_MPMQ_STOPPING;
+            return 1;
+        }
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
          */
-        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
-
-        if (i == 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL has invalid nextUpdate field");
-
-            X509_STORE_CTX_set_error(ctx,
-                                     X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
-            X509_OBJECT_free_contents(&obj);
-
-            return FALSE;
-        }
-
-        if (i < 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL is expired - "
-                         "revoking all certificates until you get updated CRL");
-
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_HAS_EXPIRED);
-            X509_OBJECT_free_contents(&obj);
-
-            return FALSE;
-        }
+        ap_scoreboard_image->global->running_generation = ap_my_generation;

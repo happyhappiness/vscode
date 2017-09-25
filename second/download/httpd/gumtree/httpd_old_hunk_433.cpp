@@ -1,12 +1,12 @@
-                worker_stack_awaken_next(idle_worker_stack);
-                process_socket(ptrans, csd, process_slot,
-                               thread_slot, bucket_alloc);
-                apr_pool_clear(ptrans);
-                requests_this_child--;
-            }
-        }
-        else {
-            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
-                != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                             "apr_proc_mutex_unlock failed. Attempting to "
+    util_ald_destroy_cache(node->search_cache);
+    util_ald_destroy_cache(node->compare_cache);
+    util_ald_destroy_cache(node->dn_compare_cache);
+    util_ald_free(cache, node);
+}
+
+/* ------------------------------------------------------------------ */
+
+/* Cache functions for search nodes */
+unsigned long util_ldap_search_node_hash(void *n)
+{
+    util_search_node_t *node = (util_search_node_t *)n;

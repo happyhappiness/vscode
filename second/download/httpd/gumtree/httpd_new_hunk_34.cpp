@@ -1,17 +1,13 @@
-                     == INTERPRETER_SOURCE_REGISTRY_STRICT)) {
-         /* Check the registry */
-        int strict = (d->script_interpreter_source 
-                      == INTERPRETER_SOURCE_REGISTRY_STRICT);
-        interpreter = get_interpreter_from_win32_registry(r->pool, ext,
-                                                          strict);
-        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
-            e_info->cmd_type = APR_PROGRAM_PATH;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 strict ? "No ExecCGI verb found for files of type '%s'."
-                        : "No ExecCGI or Open verb found for files of type '%s'.", 
-                 ext);
-        }
+    int rc;
+
+    rc = log_child(p, program, &dummy);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
     }
-    if (!interpreter) {
+
+    pl = apr_palloc(p, sizeof (*pl));
+    pl->p = p;
+    ap_piped_log_read_fd(pl) = NULL;
+    ap_piped_log_write_fd(pl) = dummy;

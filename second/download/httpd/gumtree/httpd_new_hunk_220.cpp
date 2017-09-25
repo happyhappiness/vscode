@@ -1,13 +1,13 @@
-    case LELONG:
-    case LEDATE:
-	p->l = (long)
-	    ((p->hl[3] << 24) | (p->hl[2] << 16) | (p->hl[1] << 8) | (p->hl[0]));
-	return 1;
-    default:
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		    MODNAME ": invalid type %d in mconvert().", m->type);
-	return 0;
+                         mc->szMutexFile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex");
+        return FALSE;
     }
-}
+#if !defined(OS2) && !defined(WIN32) && !defined(BEOS) && !defined(NETWARE)
+    if (mc->szMutexFile && mc->ChownMutexFile == TRUE)
+        chown(mc->szMutexFile, unixd_config.user_id, -1);
+#endif
 
-
+#if APR_HAS_SYSVSEM_SERIALIZE
+#if APR_USE_SYSVSEM_SERIALIZE

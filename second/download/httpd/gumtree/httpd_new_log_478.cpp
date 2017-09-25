@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                             "Client certificate missing");
+fprintf(stderr,
+                "Usage: %s [-l] <logfile> <rotation time in seconds> "
+                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
+                argv[0]);

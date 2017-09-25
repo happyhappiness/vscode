@@ -1,17 +1,15 @@
-    void *reported;
-
-    apr_pool_userdata_get(&reported, SUEXEC_POST_CONFIG_USERDATA,
-                          s->process->pool);
-
-    if ((reported == NULL) && unixd_config.suexec_enabled) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, s,
-                     "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-
-        apr_pool_userdata_setn((void *)1, SUEXEC_POST_CONFIG_USERDATA,
-                               apr_pool_cleanup_null, s->process->pool);
-    }
-
-    return OK;
-}
-#undef SUEXEC_POST_CONFIG_USERDATA
-
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    if (d->desc_adjust == K_ADJUST) {
+                        ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);
+                    }
+                    else {
+                        ap_rvputs(r, "</td><td>", 
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts, 
+                                                        desc_width), NULL);
+                    }
+                }
+            }
+            else {
+                ap_rputs("</td><td>&nbsp;", r);

@@ -1,24 +1,19 @@
-    if (err != NULL) {
-        return err;
-    }
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-attribute") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: "
+                              "require ldap-attribute: user's DN has not been defined; failing authorisation", 
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+            }
+            while (t[0]) {
+                w = ap_getword(r->pool, &t, '=');
+                value = ap_getword_conf(r->pool, &t);
 
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_THREAD_LIMIT) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: ThreadsPerChild of %d exceeds compile time"
-                     " limit of %d threads,", ap_threads_per_child, 
-                     HARD_THREAD_LIMIT);
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " lowering ThreadsPerChild to %d. To increase, please"
-                     " see the  HARD_THREAD_LIMIT define in %s.", 
-                     HARD_THREAD_LIMIT, AP_MPM_HARD_LIMITS_FILE);
-        ap_threads_per_child = HARD_THREAD_LIMIT;
-    }
-    else if (ap_threads_per_child < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
-	ap_threads_per_child = 1;
-    }
-    return NULL;
-}
-
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+                              "[%d] auth_ldap authorise: checking attribute"

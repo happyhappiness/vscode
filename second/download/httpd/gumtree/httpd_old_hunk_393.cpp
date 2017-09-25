@@ -1,26 +1,13 @@
+                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
+            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
+            printf("Commands:\n");
+            printf("\tDIRECTIVES - Show directives\n");
+            printf("\tHELP       - Display this help information\n");
+            printf("\tMODULES    - Show a list of the loaded modules\n");
+            printf("\tRESTART    - Reread the configurtion file and restart Apache\n");
+            printf("\tSETTINGS   - Show current thread status\n");
+            printf("\tSHUTDOWN   - Shutdown Apache\n");
+            printf("\tVERSION    - Display the server version information\n");
         }
-        else {
-            cur = atol(str);
-        }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, cmd->server,
-                     "Invalid parameters for %s", cmd->cmd->name);
-        return;
-    }
 
-    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
-        max = atol(str);
-    }
-
-    /* if we aren't running as root, cannot increase max */
-    if (geteuid()) {
-        limit->rlim_cur = cur;
-        if (max) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, cmd->server,
-                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);
-        }
-    }
-    else {
-        if (cur) {
-            limit->rlim_cur = cur;
+        /*  Tell NetWare we handled the command */

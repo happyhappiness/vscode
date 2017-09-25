@@ -1,3 +1,6 @@
-r(APLOG_MARK, APLOG_ERR, 0, r,
-                          "user %s not in right group: %s",
-                          user, r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "cache: not caching streamed response for "
+                                 "%s because length %s", url,
+                                 (unresolved_length ?
+                                  "cannot be determined" :
+                                  "> CacheMaxStreamingBuffer"));

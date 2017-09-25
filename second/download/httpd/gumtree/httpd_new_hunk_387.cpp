@@ -1,35 +1,13 @@
-    apr_status_t rv;
+        apr_pool_create(&ptemp, pconf);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed");
+            destroy_and_exit_process(process, 1);
+        }
 
-    /*
-     * Create shared memory segment
-     */
-    if (mc->szSessionCacheDataFile == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "SSLSessionCache required");
-        ssl_die();
-    }
-
-    if ((rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
-                   mc->nSessionCacheDataSize, 
-                   mc->szSessionCacheDataFile, mc->pPool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot allocate shared memory");
-        ssl_die();
-    }
-
-    if ((rv = apr_rmm_init(&(mc->pSessionCacheDataRMM), NULL,
-                   apr_shm_baseaddr_get(mc->pSessionCacheDataMM),
-                   mc->nSessionCacheDataSize, mc->pPool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot initialize rmm");
-        ssl_die();
-    }
-    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                 "initialize MM %p RMM %p",
-                 mc->pSessionCacheDataMM, mc->pSessionCacheDataRMM);
-
-    /*
-     * Create hash table in shared memory segment
-     */
-    avail = mc->nSessionCacheDataSize;
-    n = (avail/2) / 1024;
+        ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);

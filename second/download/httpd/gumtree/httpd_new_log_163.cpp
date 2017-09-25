@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "disk_cache: Cached body for URL %s",  dobj->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file - %s", 
+                       file);

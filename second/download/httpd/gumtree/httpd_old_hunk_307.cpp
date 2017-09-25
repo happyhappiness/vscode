@@ -1,25 +1,12 @@
-     * for the HTTP port or vice versa
-     */
-    for (s = base_server; s; s = s->next) {
-        sc = mySrvConfig(s);
-
-        if (sc->enabled && (s->port == DEFAULT_HTTP_PORT)) {
-            ssl_log(base_server, SSL_LOG_WARN,
-                    "Init: (%s) You configured HTTPS(%d) "
-                    "on the standard HTTP(%d) port!",
-                    ssl_util_vhostid(p, s),
-                    DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
-        }
-
-        if (!sc->enabled && (s->port == DEFAULT_HTTPS_PORT)) {
-            ssl_log(base_server, SSL_LOG_WARN,
-                    "Init: (%s) You configured HTTP(%d) "
-                    "on the standard HTTPS(%d) port!",
-                    ssl_util_vhostid(p, s),
-                    DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);
+            ap_rputs("<hr />To obtain a full report with current status "
+                     "information you need to use the "
+                     "<code>ExtendedStatus On</code> directive.\n", r);
         }
     }
 
-    /*
-     * Give out warnings when more than one SSL-aware virtual server uses the
-     * same IP:port. This doesn't work because mod_ssl then will always use
+    if (!short_report) {
+        ap_rputs(ap_psignature("<hr />\n",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+
+    return 0;

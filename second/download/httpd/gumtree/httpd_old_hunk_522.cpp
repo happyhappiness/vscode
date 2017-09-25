@@ -1,29 +1,49 @@
- * child_main() 
- * Entry point for the main control thread for the child process. 
- * This thread creates the accept thread, worker threads and
- * monitors the child process for maintenance and shutdown
- * events.
- */
-static void child_main()
-{
-    apr_status_t status;
-    ap_listen_rec *lr;
-    HANDLE child_events[2];
-    int nthreads = ap_threads_per_child;
-    int tid;
-    thread *child_handles;
-    int rv;
-    time_t end_time;
-    int i;
-    int cld;
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received 100 CONTINUE");
+        }
 
-    apr_pool_create(&pchild, pconf);
-    apr_pool_tag(pchild, "pchild");
+        /* we must accept 3 kinds of date, but generate only 1 kind of date */
+        {
+            const char *buf;
+            if ((buf = apr_table_get(r->headers_out, "Date")) != NULL) {
+                apr_table_set(r->headers_out, "Date",
+                              ap_proxy_date_canon(p, buf));
+            }
+            if ((buf = apr_table_get(r->headers_out, "Expires")) != NULL) {
+                apr_table_set(r->headers_out, "Expires",
+                              ap_proxy_date_canon(p, buf));
+            }
+            if ((buf = apr_table_get(r->headers_out, "Last-Modified")) != NULL) {
+                apr_table_set(r->headers_out, "Last-Modified",
+                              ap_proxy_date_canon(p, buf));
+            }
+        }
 
-    ap_run_child_init(pchild, ap_server_conf);
+        /* munge the Location and URI response headers according to
+         * ProxyPassReverse
+         */
+        {
+            const char *buf;
+            if ((buf = apr_table_get(r->headers_out, "Location")) != NULL) {
+                apr_table_set(r->headers_out, "Location",
+                              ap_proxy_location_reverse_map(r, conf, buf));
+            }
+            if ((buf = apr_table_get(r->headers_out, "Content-Location")) != NULL) {
+                apr_table_set(r->headers_out, "Content-Location",
+                              ap_proxy_location_reverse_map(r, conf, buf));
+            }
+            if ((buf = apr_table_get(r->headers_out, "URI")) != NULL) {
+                apr_table_set(r->headers_out, "URI",
+                              ap_proxy_location_reverse_map(r, conf, buf));
+            }
+        }
 
-    /* Initialize the child_events */
-    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!max_requests_per_child_event) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Failed to create a max_requests event.", my_pid);
+        if ((r->status == 401) && (conf->error_override != 0)) {
+            const char *buf;
+            const char *wa = "WWW-Authenticate";
+            if ((buf = apr_table_get(r->headers_out, wa))) {
+                apr_table_set(r->err_headers_out, wa, buf);
+            } else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: origin server sent 401 without WWW-Authenticate header");

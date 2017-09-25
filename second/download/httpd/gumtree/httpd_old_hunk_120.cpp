@@ -1,13 +1,14 @@
-            memcpy(&debug[debug_pos], "     Evaluate and/or\n",
-                    sizeof("     Evaluate and/or\n"));
-            debug_pos += sizeof("     Evaluate and/or\n");
-#endif
-            if (current->left  == (struct parse_node *) NULL ||
-                current->right == (struct parse_node *) NULL) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                              "Invalid expression \"%s\" in file %s",
-                              expr, r->filename);
-                *was_error = 1;
-                return retval;
+                        * Ben Hyde noted that temporary ENETDOWN situations
+                        * occur in mobile IP.
+                        */
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                            "apr_accept: giving up.");
+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, bucket_alloc);
+    
+                    default:
+                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_accept: (client socket)");
+                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
+                }
             }
-            if (!current->left->done) {
+        }

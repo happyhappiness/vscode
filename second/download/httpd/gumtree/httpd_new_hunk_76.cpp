@@ -1,13 +1,21 @@
- * Otherwise
- *   replace ourselves with cache_in filter
  */
-
-static int cache_conditional_filter(ap_filter_t *f, apr_bucket_brigade *in)
+static const char *mod_auth_ldap_parse_url(cmd_parms *cmd, 
+                                    void *config,
+                                    const char *url)
 {
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
-                 "cache: running CACHE_CONDITIONAL filter");
+    int result;
+    apr_ldap_url_desc_t *urld;
 
-    if (f->r->status == HTTP_NOT_MODIFIED) {
-        /* replace ourselves with CACHE_OUT filter */
-        ap_add_output_filter("CACHE_OUT", NULL, f->r, f->r->connection);
-    }
+    mod_auth_ldap_config_t *sec = config;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+	         cmd->server, "[%d] auth_ldap url parse: `%s'", 
+	         getpid(), url);
+
+    result = apr_ldap_url_parse(url, &(urld));
+    if (result != LDAP_SUCCESS) {
+        switch (result) {
+        case LDAP_URL_ERR_NOTLDAP:
+            return "LDAP URL does not begin with ldap://";
+        case LDAP_URL_ERR_NODN:
+            return "LDAP URL does not have a DN";

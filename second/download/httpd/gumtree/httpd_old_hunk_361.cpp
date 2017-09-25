@@ -1,17 +1,24 @@
-    dbmkey.dsize = idlen;
+	 */
+	if (l == c->rwrite)
+	    break;
 
-    /* and fetch it from the DBM file 
-     * XXX: Should we open the dbm against r->pool so the cleanup will
-     * do the apr_dbm_close? This would make the code a bit cleaner.
-     */
-    if (apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool) != APR_SUCCESS) {
-        ssl_log(s, SSL_LOG_ERROR|SSL_ADD_ERRNO,
-                "Cannot open SSLSessionCache DBM file `%s' for reading (fetch)",
-                mc->szSessionCacheDataFile);
-        return NULL;
-    }
-    rc = apr_dbm_fetch(dbm, dbmkey, &dbmval);
-    if (rc != APR_SUCCESS) {
-        apr_dbm_close(dbm);
-        return NULL;
+#ifdef USE_SSL
+        if (ssl != 1)
+	if (e != APR_SUCCESS) {
+	    /*
+	     * Let's hope this traps EWOULDBLOCK too !
+	     */
+	    if (!APR_STATUS_IS_EAGAIN(e)) {
+		epipe++;
+		printf("Send request failed!\n");
+		close_connection(c);
+	    }
+	    return;
+	}
+#endif
+	c->rwrote += l;
+	c->rwrite -= l;
+    } while (1);
+
+    totalposted += c->rwrite;
+    c->state = STATE_READ;

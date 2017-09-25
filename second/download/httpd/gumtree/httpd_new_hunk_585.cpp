@@ -1,13 +1,14 @@
-        }
-    }
+                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
+                                   ap_escape_html(r->pool,
+                                                  ws_record->client),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->vhost),
+                                   ap_escape_html(r->pool,
+                                                  ap_escape_logitem(r->pool, 
+                                                                    ws_record->request)));
+                } /* no_table_report */
+            } /* for (j...) */
+        } /* for (i...) */
 
-    if (!server_hostname) 
-        server_hostname = apr_pstrdup(a, "127.0.0.1");
-
-    ap_log_perror(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, a,
-                 "%s: Could not determine the server's fully qualified "
-                 "domain name, using %s for ServerName",
-                 ap_server_argv0, server_hostname);
-             
-    return server_hostname;
-}
+        if (!no_table_report) {
+            ap_rputs("</table>\n \

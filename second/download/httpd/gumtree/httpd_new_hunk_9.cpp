@@ -1,13 +1,19 @@
-                while (groups[0]) {
-                    v = ap_getword(r->pool, &groups, ',');
-                    if (!strcmp(v, w))
-                        return OK;
-                }
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "user %s not in right group: %s",
-                          user, r->filename);
-            ap_note_basic_auth_failure(r);
-            return HTTP_UNAUTHORIZED;
-        }
+{
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "cache: running CACHE_CONDITIONAL filter");
+
+    if (f->r->status == HTTP_NOT_MODIFIED) {
+        /* replace ourselves with CACHE_OUT filter */
+        ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                    f->r, f->r->connection);
     }
+    else {
+        /* replace ourselves with CACHE_IN filter */
+        ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                    f->r, f->r->connection);
+    }
+    ap_remove_output_filter(f);
+
+    return ap_pass_brigade(f->next, in);
+}
+

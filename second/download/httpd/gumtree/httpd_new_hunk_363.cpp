@@ -1,19 +1,20 @@
-            apr_pool_destroy(p);
-            break;
-        }
+/* ------------------------------------------------------- */
 
-        /* pass 1: scan DBM database */
-        keyidx = 0;
-        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile, 
-                               APR_DBM_RWCREATE,SSL_DBM_FILE_MODE,
-                               p)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot open SSLSessionCache DBM file `%s' for "
-                         "scanning",
-                         mc->szSessionCacheDataFile);
-            apr_pool_destroy(p);
-            break;
-        }
-        apr_dbm_firstkey(dbm, &dbmkey);
-        while (dbmkey.dptr != NULL) {
-            nElements++;
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.8 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
+    }
+    else {
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.8 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
+

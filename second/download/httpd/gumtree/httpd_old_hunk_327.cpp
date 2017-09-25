@@ -1,16 +1,48 @@
-     * BUFF code again. This way the data flows twice through the Apache BUFF, of
-     * course. But this way the solution doesn't depend on any Apache specifics
-     * and is fully transparent to Apache modules.
-     *
-     * !! BUT ALL THIS IS STILL NOT RE-IMPLEMENTED FOR APACHE 2.0 !!
-     */
-    if (renegotiate && (r->method_number == M_POST)) {
-        ssl_log(r->server, SSL_LOG_ERROR,
-                "SSL Re-negotiation in conjunction "
-                "with POST method not supported!");
+}
 
-        return HTTP_METHOD_NOT_ALLOWED;
+static void set_signals(void)
+{
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    if (!one_process) {
+        sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+        sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+        sa.sa_flags = SA_RESETHAND;
+#endif
+        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+        if (sigaction(SIGBUS, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+        if (sigaction(SIGABORT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+        if (sigaction(SIGABRT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+        if (sigaction(SIGILL, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGILL)");
+#endif
+        sa.sa_flags = 0;
     }
-
-    /*
-     * now do the renegotiation if anything was actually reconfigured
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)

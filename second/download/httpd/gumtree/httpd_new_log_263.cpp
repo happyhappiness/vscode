@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-			"malformed header in meta file: %s", r->filename);
+ap_rputs(util_ald_cache_display(r->pool, st), r);

@@ -1,13 +1,16 @@
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
 
-    if (r->main != NULL)        /* Say no to subrequests */
-        return DECLINED;
-
-    conf = (expires_dir_config *) ap_get_module_config(r->per_dir_config, &expires_module);
-    if (conf == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    if (osver.dwPlatformId != VER_PLATFORM_WIN32_WINDOWS) {
+    	apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
     }
 
-    if (conf->active != ACTIVE_ON)
-        return DECLINED;
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
+}
+
+#endif /* def WIN32 */

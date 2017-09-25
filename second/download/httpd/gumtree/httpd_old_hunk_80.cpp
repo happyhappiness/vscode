@@ -1,13 +1,17 @@
-         * the cache 
-         */
-        date = now;
-        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
-        apr_rfc822_date(dates, now);
-        ap_table_set(r->headers_out, "Date", dates);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                     "cache: Added date header");
-        info->date = date;
+        rv = cache_create_entity(r, cache->types, url, size);
     }
-    else {
-        date = info->date;
+    
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        if (split_point) {
+            apr_bucket_brigade *already_sent = in;
+            in = apr_brigade_split(in, split_point);
+            apr_brigade_destroy(already_sent);
+        }
+        return ap_pass_brigade(f->next, in);
     }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", url);
+

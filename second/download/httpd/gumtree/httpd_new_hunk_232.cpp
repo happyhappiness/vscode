@@ -1,29 +1,56 @@
-        New = apr_array_push(conf->dirconn);
-        New->name = apr_pstrdup(parms->pool, arg);
-        New->hostaddr = NULL;
+             * See if this is our user.
+             */
+            colon = strchr(scratch, ':');
+            if (colon != NULL) {
+                *colon = '\0';
+            }
+            else {
+                /*
+                 * If we've not got a colon on the line, this could well 
+                 * not be a valid htpasswd file.
+                 * We should bail at this point.
+                 */
+                apr_file_printf(errfile, "\n%s: The file %s does not appear "
+                                         "to be a valid htpasswd file.\n",
+                                argv[0], pwfilename);
+                apr_file_close(fpw);
+                exit(ERR_INVALID);
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                if (!(mask & APHTP_DELUSER)) {
+                    /* We found the user we were looking for.
+                     * Add him to the file.
+                    */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, record);
+                    found++;
+                }
+                else {
+                    /* We found the user we were looking for.
+                     * Delete them from the file.
+                     */
+                    apr_file_printf(errfile, "Deleting ");
+                    found++;
+                }
+            }
+        }
+        apr_file_close(fpw);
+    }
+    if (!found && !(mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
+    }
+    else if (!found && (mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "User %s not found\n", user);
+        exit(0);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-	if (ap_proxy_is_ipaddr(New, parms->pool)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed addr %s", inet_ntoa(New->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
-#endif
-	}
-	else if (ap_proxy_is_domainname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed domain %s", New->name);
-#endif
-        }
-        else if (ap_proxy_is_hostname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed host %s", New->name);
-#endif
-        }
-        else {
-            ap_proxy_is_word(New, parms->pool);
-#if DEBUGGING
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {

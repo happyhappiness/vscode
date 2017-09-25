@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot open SSLSessionCache DBM file `%s' for "
-                         "scanning",
-                         mc->szSessionCacheDataFile);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                     "apr_socket_timeout_set");

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-          "proxy: FTP: an error occurred creating the transfer connection");
+apr_err("apr_connect()", rv);

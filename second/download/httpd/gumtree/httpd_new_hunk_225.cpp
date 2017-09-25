@@ -1,20 +1,18 @@
-	else if (conf->magicfile) {
-	    result = apprentice(s, p);
-	    if (result == -1)
-		return OK;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (apr_isprint((((unsigned long) m) >> 24) & 255) &&
-		    apr_isprint((((unsigned long) m) >> 16) & 255) &&
-		    apr_isprint((((unsigned long) m) >> 8) & 255) &&
-		    apr_isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
-				((unsigned long) m) & 255,
+        if (str[i] == '\n') {
+            i++;
+            break;
+        }
+    }
+    str[i] = 0;
+    if (i > 0) {
+        /* we stored chars; don't report EOF or any other errors;
+         * the app will find out about that on the next call
+         */
+        return APR_SUCCESS;
+    }
+    return rv;
+}
+
+
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 

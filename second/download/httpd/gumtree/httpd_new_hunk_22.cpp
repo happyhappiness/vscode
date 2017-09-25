@@ -1,13 +1,12 @@
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
-        return DECLINED;
-    }
-
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: need AuthName: %s", r->uri);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-
-    /* get the client response and mark */
+                    rewritelog(r, 5, "cache lookup OK: map=%s[txt] key=%s "
+                               "-> val=%s", s->name, key, value);
+                    return value[0] != '\0' ? value : NULL;
+                }
+            }
+            else if (s->type == MAPTYPE_DBM) {
+                if ((rv = apr_stat(&st, s->checkfile,
+                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "mod_rewrite: can't access DBM RewriteMap "
+                                 "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open DBM RewriteMap file, "

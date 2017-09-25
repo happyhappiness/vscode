@@ -1,13 +1,13 @@
-	return DECLINED;
 
-    r->allowed |= (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.filetype == 0) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-		    "File does not exist: %s", r->filename);
-	return HTTP_NOT_FOUND;
-    }
+            if ((nLogFD != NULL) && 
+                (apr_file_info_get(&finfo, APR_FINFO_SIZE, nLogFD) == APR_SUCCESS)) {
+                current_size = finfo.size;
+            }
 
-    if ((rv = apr_file_open(&f, r->filename, APR_READ, 
-                APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
+            if (current_size > sRotation || nRead < 0) {
+                nLogFDprev = nLogFD;
+                nLogFD = NULL;
+            }
+        }
+        else {
+            fprintf(stderr, "No rotation time or size specified\n");

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "No operator before regex of expr \"%s\" in file %s",
-                          expr, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit SSLMutex with file `%s'",
+                         mc->szMutexFile);

@@ -1,15 +1,12 @@
-    if (err != NULL) {
-        return err;
-    }
+    if (csd && key) {
+        int sockdes;
+        apr_os_sock_get(&sockdes, csd);
 
-    max_threads = atoi(arg);
-    if (max_threads > thread_limit) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: detected MaxThreadsPerChild set higher than");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "ThreadLimit. Resetting to %d", thread_limit);
-       max_threads = thread_limit;
-    }
-    return NULL;
-}
 
+        ret = SSLize_Socket(sockdes, key, r);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Upgradeable socket handle not found");
+        return ap_pass_brigade(f->next, bb);
+    }

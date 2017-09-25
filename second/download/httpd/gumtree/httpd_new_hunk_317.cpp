@@ -1,19 +1,19 @@
-                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
-                apr_snprintf(tmp, sizeof(tmp), "%c", ((ch >= ' ') && (ch <= '~')) ? ch : '.');
-                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
-            }
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        apr_hook_sort_all();
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
         }
-        apr_cpystrn(buf+strlen(buf), " |", sizeof(buf)-strlen(buf));
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
-                     "%s", buf);
-    }
-    if (trunc > 0)
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
-                "| %04ld - <SPACES/NULS>", len + trunc);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
-            "+-------------------------------------------------------------------------+");
-    return;
-}
 
-long ssl_io_data_cb(BIO *bio, int cmd,
-                    MODSSL_BIO_CB_ARG_TYPE *argp,
+        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+

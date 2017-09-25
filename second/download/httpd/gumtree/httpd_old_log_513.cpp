@@ -1,1 +1,0 @@
-apr_file_printf(sc->log_file, "%s", str);

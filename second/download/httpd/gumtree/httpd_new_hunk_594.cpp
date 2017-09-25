@@ -1,13 +1,13 @@
-        name_chain *nc = new_name_chain(p, s, sar);
-        nc->next = ic->names;
-        ic->names = nc;
-        ic->server = s;
-        if (sar->host_port != ic->sar->host_port) {
-            /* one of the two is a * port, the other isn't */
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_s,
-                         "VirtualHost %s:%u -- mixing * "
-                         "ports and non-* ports with "
-                         "a NameVirtualHost address is not supported,"
-                         " proceeding with undefined results",
-                         sar->virthost, sar->host_port);
-        }
+AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
+{
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
+
+    rc = log_child(p, program, &dummy, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
+    }
+

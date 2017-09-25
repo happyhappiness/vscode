@@ -1,13 +1,20 @@
-        || r->finfo.filetype == APR_DIR
-        || r->finfo.filetype == APR_REG
-        || r->finfo.filetype == APR_LNK) {
-        return OK;
+            return 0;
+        }
+        else if ((apr_size_t)ate < headlen) {
+            apr_bucket_brigade *bb;
+            apr_bucket *b;
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+	    b = apr_bucket_transient_create((char*) data_type + ate, 
+                                           headlen - ate, c->bucket_alloc);
+	    APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+	    APR_BRIGADE_INSERT_TAIL(bb, b);
+	    ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+        }
+        return 1;
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                  "object is not a file, directory or symlink: %s",
-                  r->filename);
-    return HTTP_FORBIDDEN;
-}
-
-/*
+    case HSE_REQ_DONE_WITH_SESSION:
+        /* Signal to resume the thread completing this request,
+         * leave it to the pool cleanup to dispose of our mutex.

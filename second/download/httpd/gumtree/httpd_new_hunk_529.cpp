@@ -1,25 +1,34 @@
-                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
-        shutdown_pending = 1;
-    }
-    else if (cld == SHUTDOWN_HANDLE) {
-        /* shutdown_event signalled */
-        shutdown_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, 
-                     "Parent: Received shutdown signal -- Shutting down the server.");
-        if (ResetEvent(shutdown_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "ResetEvent(shutdown_event)");
-        }
-    }
-    else if (cld == RESTART_HANDLE) {
-        /* Received a restart event. Prepare the restart_event to be reused 
-         * then signal the child process to exit. 
+
+static int core_pre_connection(conn_rec *c, void *csd)
+{
+    core_net_rec *net = apr_palloc(c->pool, sizeof(*net));
+
+#ifdef AP_MPM_DISABLE_NAGLE_ACCEPTED_SOCK
+    apr_status_t rv;
+
+    /* BillS says perhaps this should be moved to the MPMs. Some OSes
+     * allow listening socket attributes to be inherited by the
+     * accept sockets which means this call only needs to be made
+     * once on the listener
+     */
+    /* The Nagle algorithm says that we should delay sending partial
+     * packets in hopes of getting more data.  We don't want to do
+     * this; we are not telnet.  There are bad interactions between
+     * persistent connections and Nagle's algorithm that have very severe
+     * performance penalties.  (Failing to disable Nagle is not much of a
+     * problem with simple HTTP.)
+     */
+    rv = apr_socket_opt_set(csd, APR_TCP_NODELAY, 1);
+    if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+        /* expected cause is that the client disconnected already,
+         * hence the debug level
          */
-        restart_pending = 1;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "Parent: Received restart signal -- Restarting the server.");
-        if (ResetEvent(restart_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: ResetEvent(restart_event) failed.");
-        }
-        if (SetEvent(child_exit_event) == 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+    }
+#endif
+    net->c = c;
+    net->in_ctx = NULL;
+    net->out_ctx = NULL;
+    net->client_socket = csd;
+

@@ -1,26 +1,19 @@
-    apr_snprintf(str3, sizeof(str3),
-                "%s %s [%s/sid#%lx][rid#%lx/%s%s] (%d) %s" APR_EOL_STR, str1,
-                current_logtime(r), ap_get_server_name(r),
-                (unsigned long)(r->server), (unsigned long)r,
-                type, redir, level, str2);
-
-    rv = apr_global_mutex_lock(rewrite_log_lock);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_global_mutex_lock(rewrite_log_lock) failed");
-        /* XXX: Maybe this should be fatal? */
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error_log");
     }
-    nbytes = strlen(str3);
-    apr_file_write(conf->rewritelogfp, str3, &nbytes);
-    rv = apr_global_mutex_unlock(rewrite_log_lock);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_global_mutex_unlock(rewrite_log_lock) failed");
-        /* XXX: Maybe this should be fatal? */
-    }
-
-    va_end(ap);
-    return;
+    return rc;
 }
 
-static char *current_logtime(request_rec *r)
+static void log_child_errfn(apr_pool_t *pool, apr_status_t err,
+                            const char *description)
+{
+    ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL,
+                 "%s", description);
+}
+
+static int log_child(apr_pool_t *p, const char *progname,
+                     apr_file_t **fpin)
+{
+    /* Child process code for 'ErrorLog "|..."';
+     * may want a common framework for this, since I expect it will
+     * be common for other foo-loggers to want this sort of thing...

@@ -1,13 +1,12 @@
-    }
-    else {
-        return DECLINED;
-    }
-    def_port = apr_uri_default_port_for_scheme("ftp");
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                 "proxy: FTP: canonicalising URL %s", url);
+    unixd_set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
+    return NULL;
+}
+#endif
 
-    port = def_port;
-    err = ap_proxy_canon_netloc(p, &url, &user, &password, &host, &port);
-    if (err)
-        return HTTP_BAD_REQUEST;
+static const char *add_ct_output_filters(cmd_parms *cmd, void *conf_,
+                                         const char *arg, const char *arg2)
+{
+    core_dir_config *conf = conf_;
+    ap_filter_rec_t *old, *new = NULL;
+    const char *filter_name;

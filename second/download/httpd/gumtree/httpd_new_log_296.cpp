@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		    MODNAME ": BOINK");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                             "cgid daemon process died, restarting");

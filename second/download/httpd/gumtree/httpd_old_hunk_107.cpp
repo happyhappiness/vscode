@@ -1,13 +1,13 @@
-                            "in parsed file %s";
-            }
-        }
+                    long serial = ASN1_INTEGER_get(sn);
 
-        if (error_fmt) {
-            ret = -1;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR | (rv ? 0 : APLOG_NOERRNO),
-                          rv, r, error_fmt, to_send, r->filename);
-        }
+                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                                 "Certificate with serial %ld (0x%lX) "
+                                 "revoked per CRL from issuer %s",
+                                 serial, serial, cp);
+                    free(cp);
+                }
 
-        if (rr) ap_destroy_sub_req(rr);
-        
-        return ret;
+                X509_STORE_CTX_set_error(ctx, X509_V_ERR_CERT_REVOKED);
+                X509_OBJECT_free_contents(&obj);
+
+                return FALSE;

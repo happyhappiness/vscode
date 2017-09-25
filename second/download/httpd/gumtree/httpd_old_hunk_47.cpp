@@ -1,13 +1,41 @@
-        ctx.propfind_type = DAV_PROPFIND_IS_PROP;
-    }
-    else {
-        /* "propfind" element must have one of the above three children */
 
-        /* This supplies additional information for the default message. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                      "The \"propfind\" element does not contain one of "
-                      "the required child elements (the specific command).");
-        return HTTP_BAD_REQUEST;
+static char *getpass(const char *prompt)
+{
+/* WCE lacks console. So the getpass is unsuported
+ * The only way is to use the GUI so the getpass should be implemented
+ * on per-application basis.
+*/ 
+#ifdef _WIN32_WCE
+    return NULL;
+#else
+    static char password[MAX_STRING_LEN];
+    int n = 0;
+
+    fputs(prompt, stderr);
+    
+    while ((password[n] = _getch()) != '\r') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+            printf("*");
+        }
+	else {
+            printf("\n");
+            fputs(prompt, stderr);
+            n = 0;
+        }
+    }
+ 
+    password[n] = '\0';
+    printf("\n");
+
+    if (n > (MAX_STRING_LEN - 1)) {
+        password[MAX_STRING_LEN - 1] = '\0';
     }
 
-    ctx.w.walk_type = DAV_WALKTYPE_NORMAL | DAV_WALKTYPE_AUTH;
+    return (char *) &password;
+#endif
+}
+
+#endif /* no getchar or _getch */
+
+#endif /* no getpass */

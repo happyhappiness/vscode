@@ -1,33 +1,13 @@
-                return HTTP_BAD_REQUEST;
-            }
-            else if ((SSL_get_error(filter->pssl, n) == SSL_ERROR_SYSCALL) &&
-                     (errno != EINTR))
-            {
-                if (errno > 0) {
-                    ssl_log(c->base_server,
-                            SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_ADD_ERRNO,
-                            "SSL handshake interrupted by system "
-                            "[Hint: Stop button pressed in browser?!]");
+                if (expr == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "missing expr in elif statement: %s", 
+                                  r->filename);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);
+                    return (1);
                 }
-                else {
-                    ssl_log(c->base_server,
-                            SSL_LOG_INFO|SSL_ADD_SSLERR|SSL_ADD_ERRNO,
-                            "Spurious SSL handshake interrupt [Hint: "
-                            "Usually just one of those OpenSSL confusions!?]");
-                }
-            }
-            else {
-                /*
-                 * Ok, anything else is a fatal error
-                 */
-                ssl_log(c->base_server,
-                        SSL_LOG_ERROR|SSL_ADD_SSLERR|SSL_ADD_ERRNO,
-                        "SSL handshake failed (server %s, client %s)",
-                        ssl_util_vhostid(c->pool, c->base_server),
-                        c->remote_ip ? c->remote_ip : "unknown");
-            }
-
-            return ssl_abort(filter, c);
-        }
-
-        /*
+                expr_ret = parse_expr(r, ctx, expr, &was_error, 
+                                      &was_unmatched, debug_buf);
+                if (was_error) {
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);

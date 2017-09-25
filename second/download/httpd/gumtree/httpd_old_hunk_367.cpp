@@ -1,16 +1,24 @@
+    opts.sidtimeout = 0;
+    opts.sidentries = 0;
+    opts.siddir = NULL;
 
-    /* We've kludged our pointer into the other cache's member variable. */
-    shm_segment = (void *) mc->tSessionCacheDataTable;
-    ssl_mutex_on(s);
-    if (!shmcb_store_session(s, shm_segment, id, idlen, pSession, timeout))
-        /* in this cache engine, "stores" should never fail. */
-        ssl_log(s, SSL_LOG_ERROR, "'shmcb' code was unable to store a "
-                "session in the cache.");
-    else {
-        ssl_log(s, SSL_LOG_TRACE, "shmcb_store successful");
-        to_return = TRUE;
+    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
+        NULL, 0, NULL, NULL, NULL) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
     }
-    ssl_mutex_off(s);
-    return to_return;
-}
+
+    if (mutual) {
+        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
+
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
+        }
+    }
 

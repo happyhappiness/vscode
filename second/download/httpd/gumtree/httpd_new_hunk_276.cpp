@@ -1,13 +1,22 @@
+                                            r, r->connection);
 
-    url = apr_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
-
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
-
-    if (err != NULL)
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		     "%s", err);
-
-    r->hostname = host;
-
-    return host;		/* ought to return the port, too */
-}
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* Temporarily hack this to work the way it had been. Its broken,
+                 * but its broken the way it was before. I'm working on figuring
+                 * out why the filter add in the conditional filter doesn't work. pjr
+                 *
+                 * info = &(cache->handle->cache_obj->info);
+                 *
+                 * Uncomment the above when the code in cache_conditional_filter_handle
+                 * is properly fixed...  pjr
+                 */
+                
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");

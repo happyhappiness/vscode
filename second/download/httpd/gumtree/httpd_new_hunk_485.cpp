@@ -1,22 +1,36 @@
-        }
+    else
+        st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
 
-        ap_init_scoreboard(sb_mem);
+    return(NULL);
+}
+
+static const char *util_ldap_set_connection_timeout(cmd_parms *cmd, void *dummy, const char *ttl)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+
+    if (err != NULL) {
+        return err;
     }
 
-    ap_scoreboard_image->global->restart_time = apr_time_now();
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		"%s configured -- resuming normal operations",
-		ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-		"Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s (default: %s)",
-		apr_proc_mutex_name(accept_mutex),
-		apr_proc_mutex_defname());
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    st->connectionTimeout = atol(ttl);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap connection: Setting connection timeout to %ld seconds.", 
+                      getpid(), st->connectionTimeout);
+#else
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                     "LDAP: Connection timout option not supported by the LDAP SDK in use." );
 #endif
-    if (one_process) {
-        ap_scoreboard_image->parent[0].pid = getpid();
-        ap_mpm_child_main(pconf);
-        return FALSE;
-    }
+
+    return NULL;
+}
+
+void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
+

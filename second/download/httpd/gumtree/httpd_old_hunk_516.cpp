@@ -1,13 +1,13 @@
-static void add_job(int sock)
-{
-    joblist *new_job;
+                                      conf->limit_nproc)) != APR_SUCCESS) ||
+#endif
+        ((rc = apr_procattr_cmdtype_set(procattr,
+                                        e_info->cmd_type)) != APR_SUCCESS) ||
 
-    new_job = (joblist *) malloc(sizeof(joblist));
-    if (new_job == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "Ouch!  Out of memory in add_job()!");
-        return;
+        ((rc = apr_procattr_detach_set(procattr,
+                                        e_info->detached)) != APR_SUCCESS) ||
+        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
+        /* Something bad happened, tell the world. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                      "couldn't set child process attributes: %s", r->filename);
     }
-    new_job->next = NULL;
-    new_job->sock = sock;
-
+    else {

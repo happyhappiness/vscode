@@ -1,13 +1,13 @@
-    apr_status_t rv;
+    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    pconf = p;
-    ap_server_conf = s;
-
-    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
-                     NULL, "no listening sockets available, shutting down");
-        return DONE;
-    }
-
-    if (!one_process) {
-        if ((rv = ap_mpm_pod_open(pconf, &pod))) {
+    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
+        /* Returns True if client is connected c.f. MSKB Q188346
+         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
+         */

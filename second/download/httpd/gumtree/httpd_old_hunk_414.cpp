@@ -1,13 +1,31 @@
-            break;
-        }
-        if ((stats = piped_log_spawn(pl)) != APR_SUCCESS) {
-            /* what can we do?  This could be the error log we're having
-             * problems opening up... */
-            char buf[120];
-            ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "piped_log_maintenance: unable to respawn '%s': %s",
-                         pl->program, apr_strerror(stats, buf, sizeof(buf)));
-        }
-        break;
+        result = apr_pstrdup(p, result);
+    if (result == NULL)
+        result = "";
+    return (char *)result;
+}
 
-    case APR_OC_REASON_UNWRITABLE:
+
+static const command_rec nwssl_module_cmds[] =
+{
+    AP_INIT_TAKE23("SecureListen", set_secure_listener, NULL, RSRC_CONF,
+      "specify an address and/or port with a key pair name.\n"
+      "Optional third parameter of MUTUAL configures the port for mutual authentication."),
+    AP_INIT_ITERATE("NWSSLTrustedCerts", set_trusted_certs, NULL, RSRC_CONF,
+        "Adds trusted certificates that are used to create secure connections to proxied servers"),
+    {NULL}
+};
+
+static void register_hooks(apr_pool_t *p)
+{
+    ap_hook_pre_config(nwssl_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_pre_connection(nwssl_pre_connection, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_config(nwssl_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_fixups(nwssl_hook_Fixup, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_http_method(nwssl_hook_http_method,   NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_default_port  (nwssl_hook_default_port,  NULL,NULL, APR_HOOK_MIDDLE);
+
+    APR_REGISTER_OPTIONAL_FN(ssl_var_lookup);
+    
+    APR_REGISTER_OPTIONAL_FN(ssl_proxy_enable);
+    APR_REGISTER_OPTIONAL_FN(ssl_engine_disable);
+}

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-			MODNAME ": can't happen: m->type=%d", m->type);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "missing closing endif directive in parsed document"
+                          " %s", r->filename);

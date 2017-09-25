@@ -1,17 +1,24 @@
-    if (err != NULL) {
-        return err;
     }
 
-    ap_threads_min_free = atoi(arg);
-    if (ap_threads_min_free <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: detected MinSpareServers set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Please read the documentation.");
-       ap_threads_min_free = 1;
+    /* Create a pipe to send handles to the child */
+    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
+                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.\n");
+        apr_pool_destroy(ptemp);
+        return -1;
     }
-       
-    return NULL;
-}
+
+    /* Open a null handle to soak info from the child */
+    if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE, 
+                             APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
+        || ((rv = apr_procattr_child_out_set(attr, child_out, NULL)) 
+                != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to connect child stdout to NUL.\n");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
+
+    /* Connect the child's initial stderr to our main server error log 
+     * or share our own stderr handle.

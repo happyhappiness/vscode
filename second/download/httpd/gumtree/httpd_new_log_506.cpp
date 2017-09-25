@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "%s: Exit: failed in %s",
-                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "LDAP: Could not set the connection timeout" );

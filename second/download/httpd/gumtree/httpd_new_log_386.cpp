@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "1)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(addr));
+apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);

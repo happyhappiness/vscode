@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: unknown algorithm `%s' received: %s",
-                      resp->algorithm, r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
+                     "Unable to flatten brigade, declining request");

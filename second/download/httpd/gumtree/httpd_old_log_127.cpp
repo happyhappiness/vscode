@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                          lookup.err.desc);
+filter->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter, NULL, c);

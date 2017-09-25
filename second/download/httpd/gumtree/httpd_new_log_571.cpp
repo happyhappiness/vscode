@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "could not read request body for SSL buffer");

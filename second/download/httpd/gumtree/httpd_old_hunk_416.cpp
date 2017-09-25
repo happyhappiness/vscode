@@ -1,103 +1,184 @@
-        pad[i] = ' ';
+    if (conf->ignorecachecontrol == 1 && auth == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it", url);
+    }
+    else {
+        if (ap_cache_liststr(NULL, cc_in, "no-store", NULL) ||
+            ap_cache_liststr(NULL, pragma, "no-cache", NULL) || (auth != NULL)) {
+            /* delete the previously cached file */
+            cache_remove_url(r, cache->types, url);
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no-store forbids caching of %s", url);
+            return DECLINED;
+        }
     }
 
-    pad[i] = '\0';
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file
+     *   add cache_in filter
+     * If stale cache file
+     *   If conditional request
+     *     add cache_in filter
+     *   If non-conditional request
+     *     fudge response into a conditional
+     *     add cache_conditional filter
+     * If fresh cache file
+     *   clear filter stack
+     *   add cache_out filter
+     */
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
-#endif
+    rv = cache_select_url(r, cache->types, url);
+    if (DECLINED == rv) {
+        if (!lookup) {
+            /* no existing cache file */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: no cache - add cache_in filter and DECLINE");
+            /* add cache_in filter to cache this request */
+            ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
+        }
+        return DECLINED;
+    }
+    else if (OK == rv) {
+        /* RFC2616 13.2 - Check cache object expiration */
+        cache->fresh = ap_cache_check_freshness(cache, r);
+        if (cache->fresh) {
+            /* fresh data available */
+            apr_bucket_brigade *out;
+            conn_rec *c = r->connection;
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+            if (lookup) {
+                return OK;
+            }
+            rv = ap_meets_conditions(r);
+            if (rv != OK) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "cache: fresh cache - returning status %d", rv);
+                return rv;
+            }
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "       %s [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
+            /*
+             * Not a conditionl request. Serve up the content 
+             */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: fresh cache - add cache_out filter and "
+                         "handle request");
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-T]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "Options:");
+            /* We are in the quick handler hook, which means that no output
+             * filters have been set. So lets run the insert_filter hook.
+             */
+            ap_run_insert_filter(r);
+            ap_add_output_filter_handle(cache_out_filter_handle, NULL,
+                                        r, r->connection);
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -R directory      : specify an alternate location for "
-                 "shared object files");
-#endif
+            /* kick off the filter stack */
+            out = apr_brigade_create(r->pool, c->bucket_alloc);
+            if (APR_SUCCESS
+                != (rv = ap_pass_brigade(r->output_filters, out))) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "cache: error returned while trying to return %s "
+                             "cached data", 
+                             cache->type);
+                return rv;
+            }
+            return OK;
+        }
+        else {
+            if (!r->err_headers_out) {
+                r->err_headers_out = apr_table_make(r->pool, 3);
+            }
+            /* stale data available */
+            if (lookup) {
+                return DECLINED;
+            }
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -D name           : define a name for use in "
-                 "<IfDefine name> directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -d directory      : specify an alternate initial "
-                 "ServerRoot");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -f file           : specify an alternate ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache: stale cache - test conditional");
+            /* if conditional request */
+            if (ap_cache_request_is_conditional(r)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: conditional - add cache_in filter and "
+                             "DECLINE");
+                /* Why not add CACHE_CONDITIONAL? */
+                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                            r, r->connection);
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k start          : tell Apache to start");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k restart        : tell running Apache to do a graceful "
-                 "restart");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-#endif
+                return DECLINED;
+            }
+            /* else if non-conditional request */
+            else {
+                /* Temporarily hack this to work the way it had been. Its broken,
+                 * but its broken the way it was before. I'm working on figuring
+                 * out why the filter add in the conditional filter doesn't work. pjr
+                 *
+                 * info = &(cache->handle->cache_obj->info);
+                 *
+                 * Uncomment the above when the code in cache_conditional_filter_handle
+                 * is properly fixed...  pjr
+                 */
+                
+                /* fudge response into a conditional */
+                if (info && info->etag) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by etag");
+                    /* if we have a cached etag */
+                    apr_table_set(r->headers_in, "If-None-Match", info->etag);
+                }
+                else if (info && info->lastmods) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - fudge conditional "
+                                 "by lastmod");
+                    /* if we have a cached IMS */
+                    apr_table_set(r->headers_in, 
+                                  "If-Modified-Since", 
+                                  info->lastmods);
+                }
+                else {
+                    /* something else - pretend there was no cache */
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                                 r->server,
+                                 "cache: nonconditional - no cached "
+                                 "etag/lastmods - add cache_in and DECLINE");
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -E file           : log startup errors to file");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -v                : show version number");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -V                : show compile settings");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -l                : list compiled in modules");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -t                : run syntax check for config files "
-                 "(with docroot check)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -T                : run syntax check for config files "
-                 "(without docroot check)");
+                    ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                                r, r->connection);
 
-    destroy_and_exit_process(process, 1);
+                    return DECLINED;
+                }
+                /* add cache_conditional filter */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                             r->server,
+                             "cache: nonconditional - add cache_conditional "
+                             "and DECLINE");
+                ap_add_output_filter_handle(cache_conditional_filter_handle,
+                                            NULL, 
+                                            r, 
+                                            r->connection);
+
+                return DECLINED;
+            }
+        }
+    }
+    else {
+        /* error */
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, 
+                     r->server,
+                     "cache: error returned while checking for cached file by "
+                     "%s cache", 
+                     cache->type);
+        return DECLINED;
+    }
 }
 
-int main(int argc, const char * const argv[])
-{
+/*
+ * CACHE_OUT filter
+ * ----------------
+ *

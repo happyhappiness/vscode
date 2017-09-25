@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: checking remote machine [%s] against [%s]", uri_addr->hostname, npent[j].name);
+apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], dirname);

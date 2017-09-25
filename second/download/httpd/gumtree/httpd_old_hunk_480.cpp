@@ -1,21 +1,24 @@
-        changed_limit_at_restart = 1;
-        return NULL;
     }
-    server_limit = tmp_server_limit;
-    
-    if (server_limit > MAX_SERVER_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
-       server_limit = MAX_SERVER_LIMIT;
-    } 
-    else if (server_limit < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require ServerLimit > 0, setting to 1");
-	server_limit = 1;
+
+    if (pkp->cert_path) {
+        SSL_X509_INFO_load_path(ptemp, sk, pkp->cert_path);
     }
-    return NULL;
+
+    if ((ncerts = sk_X509_INFO_num(sk)) > 0) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "loaded %d client certs for SSL proxy",
+                     ncerts);
+
+        pkp->certs = sk;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "no client certs found for SSL proxy");
+        sk_X509_INFO_free(sk);
+    }
 }
 
+static void ssl_init_proxy_ctx(server_rec *s,
+                               apr_pool_t *p,
+                               apr_pool_t *ptemp,
+                               SSLSrvConfigRec *sc)

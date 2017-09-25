@@ -1,20 +1,12 @@
-    char *scope_id;
-    apr_status_t rv;
-
-    /* Save a copy for the proxy */
-    fullurl = apr_pstrdup(cntxt, url);
-
-    if (strlen(url) > 7 && strncmp(url, "http://", 7) == 0)
-	url += 7;
-    else
-#if USE_SSL
-    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
-	url += 8;
-	ssl = 1;
-	port = 443;
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
     }
-#else
-    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
-	fprintf(stderr, "SSL not compiled in; no https support\n");
-	exit(1);
+
+    /* Win9x: disable AcceptEx */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        use_acceptex = 0;
     }
+

@@ -1,13 +1,13 @@
-        struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-        for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-            direct_connect = list[ii].matcher(&list[ii], r);
-        }
-#if DEBUGGING
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-                      r->uri);
 #endif
-    }
-
-    /* firstly, try a proxy, unless a NoProxy directive is active */
+            ".\n");
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");
+    apr_file_printf(errfile, " -D  Delete the specified user.\n");
+    apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default.\n");
+    apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");
+    exit(ERR_SYNTAX);

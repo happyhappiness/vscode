@@ -1,13 +1,35 @@
-    if ((*overwrite == 'T' || *overwrite == 't') && overwrite[1] == '\0') {
-        return 1;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
 
-    /* The caller will return an HTTP_BAD_REQUEST. This will augment the
-     * default message that Apache provides. */
-    ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-                  "An invalid Overwrite header was specified.");
-    return -1;
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > HARD_THREAD_LIMIT) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: ThreadsPerChild of %d exceeds compile time"
+                     " limit of %d threads,", ap_threads_per_child, 
+                     HARD_THREAD_LIMIT);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the  HARD_THREAD_LIMIT define in %s.", 
+                     HARD_THREAD_LIMIT, AP_MPM_HARD_LIMITS_FILE);
+        ap_threads_per_child = HARD_THREAD_LIMIT;
+    }
+    else if (ap_threads_per_child < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+	ap_threads_per_child = 1;
+    }
+    return NULL;
 }
 
-/* resolve a request URI to a resource descriptor.
- *
+static const command_rec winnt_cmds[] = {
+LISTEN_COMMANDS,
+{ "ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF, TAKE1,
+  "Number of threads each child creates" },
+{ NULL }
+};
+
+
+/*
+ * Signalling Apache on NT.

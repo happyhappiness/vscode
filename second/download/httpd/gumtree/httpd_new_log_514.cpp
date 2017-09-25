@@ -1,3 +1,2 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s",
-                         e, err);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");

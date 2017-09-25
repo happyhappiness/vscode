@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGSEGV)");

@@ -1,29 +1,32 @@
-}
-
-static apr_status_t ssl_io_filter_error(ap_filter_t *f,
-                                        apr_bucket_brigade *bb,
-                                        apr_status_t status)
-{
-    SSLConnRec *sslconn = myConnConfig(f->c);
-    apr_bucket *bucket;
-
-    switch (status) {
-      case HTTP_BAD_REQUEST:
-            /* log the situation */
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                         f->c->base_server,
-                         "SSL handshake failed: HTTP spoken on HTTPS port; "
-                         "trying to send HTML error page");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, f->c->base_server);
-
-            sslconn->non_ssl_request = 1;
-            ssl_io_filter_disable(f);
-
-            /* fake the request line */
-            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
-            break;
-
-      default:
-        return status;
+        apr_socket_close(lr->sd);
+        lr->active = 0;
+        next = lr->next;
     }
+    old_listeners = NULL;
 
+#if AP_NONBLOCK_WHEN_MULTI_LISTEN
+    /* if multiple listening sockets, make them non-blocking so that
+     * if select()/poll() reports readability for a reset connection that
+     * is already forgotten about by the time we call accept, we won't
+     * be hung until another connection arrives on that port
+     */
+    if (ap_listeners->next) {
+        for (lr = ap_listeners; lr; lr = lr->next) {
+            apr_status_t status;
+
+            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
+            if (status != APR_SUCCESS) {
+                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                              "ap_listen_open: unable to make socket non-blocking");
+                return -1;
+            }
+        }
+    }
+#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
+
+    /* we come through here on both passes of the open logs phase
+     * only register the cleanup once... otherwise we try to close
+     * listening sockets twice when cleaning up prior to exec
+     */
+    apr_pool_userdata_get(&data, userdata_key, pool);
+    if (!data) {

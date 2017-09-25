@@ -1,13 +1,15 @@
-    func(apr_psprintf(p, "total retrieves since starting: <b>%lu</b> hit, "
-                     "<b>%lu</b> miss<br>", header->num_retrieves_hit,
-                     header->num_retrieves_miss), arg);
-    func(apr_psprintf(p, "total removes since starting: <b>%lu</b> hit, "
-                     "<b>%lu</b> miss<br>", header->num_removes_hit,
-                     header->num_removes_miss), arg);
-    ssl_log(s, SSL_LOG_TRACE, "leaving shmcb_status");
-    return;
-}
+                                      "authorisation successful (attribute %s) [%s][%s]",
+                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+    }
 
-/*
-**
-** Memory manipulation and low-level cache operations 

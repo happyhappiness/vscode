@@ -1,13 +1,14 @@
-/* handle all varieties of core dumping signals */
-static void sig_coredump(int sig)
-{
-    apr_filepath_set(ap_coredump_dir, pconf);
-    apr_signal(sig, SIG_DFL);
-    if (ap_my_pid == parent_pid) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE,
-                     0, ap_server_conf,
-                     "seg fault or similar nasty error detected "
-                     "in the parent process");
-        
-        /* XXX we can probably add some rudimentary cleanup code here,
-         * like getting rid of the pid file.  If any additional bad stuff
+
+    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
+                           ts, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create worker thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
+    }
+
+    mpm_state = AP_MPMQ_RUNNING;
+
+    /* If we are only running in one_process mode, we will want to
+     * still handle signals. */

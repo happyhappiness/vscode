@@ -1,24 +1,21 @@
-static const char *cachefilehandle(cmd_parms *cmd, void *dummy, const char *filename)
-{
-#if APR_HAS_SENDFILE
-    cache_the_file(cmd, filename, 0);
-#else
-    /* Sendfile not supported by this OS */
-    ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
-                 "mod_file_cache: unable to cache file: %s. Sendfile is not supported on this OS", filename);
-#endif
-    return NULL;
-}
-static const char *cachefilemmap(cmd_parms *cmd, void *dummy, const char *filename) 
-{
-#if APR_HAS_MMAP
-    cache_the_file(cmd, filename, 1);
-#else
-    /* MMAP not supported by this OS */
-    ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, cmd->server,
-                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);
-#endif
-    return NULL;
-}
+    if (idle_worker_stack == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
+                     "worker_stack_create() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-static int file_cache_post_config(apr_pool_t *p, apr_pool_t *plog,
+    loops = prev_threads_created = 0;
+    while (1) {
+        for (i = 0; i < ap_threads_per_child; i++) {
+            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
+
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
+
+            my_info = (proc_info *)malloc(sizeof(proc_info));
+            if (my_info == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                             "malloc: out of memory");
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }

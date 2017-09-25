@@ -1,21 +1,27 @@
-        changed_limit_at_restart = 1;
-        return NULL;
-    }
-    thread_limit = tmp_thread_limit;
-    
-    if (thread_limit > MAX_THREAD_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: ThreadLimit of %d exceeds compile time limit "
-                    "of %d servers,", thread_limit, MAX_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
-       thread_limit = MAX_THREAD_LIMIT;
-    } 
-    else if (thread_limit < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require ThreadLimit > 0, setting to 1");
-	thread_limit = 1;
-    }
-    return NULL;
-}
+                    return HTTP_FORBIDDEN;
+                }
 
+                X509_free(peercert);
+            }
+        }
+        
+        /*
+         * Also check that SSLCipherSuite has been enforced as expected.
+         */
+        if (cipher_list) {
+            cipher = SSL_get_current_cipher(ssl);
+            if (sk_SSL_CIPHER_find(cipher_list, cipher) < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                             "SSL cipher suite not renegotiated: "
+                             "access to %s denied using cipher %s",
+                              r->filename,
+                              SSL_CIPHER_get_name(cipher));
+                return HTTP_FORBIDDEN;
+            }
+        }
+    }
+
+    /*
+     * Check SSLRequire boolean expressions
+     */
+    requires = dc->aRequirement;

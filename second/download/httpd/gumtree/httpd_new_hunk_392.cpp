@@ -1,26 +1,13 @@
-     * In the case of one_process, it would fail.
-     */
-    if (one_process) {
+         * use by any of the children.
+         */
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-	type = forktype = bs2_noFORK;
+    	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "Graceful restart requested, doing restart");
 
-	ap_log_error(APLOG_MARK, APLOG_ERR, 0, server,
-		     "The debug mode of Apache should only "
-		     "be started by an unprivileged user!");
-	return 0;
-    }
-
-    /* If no _rini() is required, then return quickly. */
-    if (type != bs2_RFORK_RINI && type != bs2_FORK_RINI)
-	return 0;
-
-    /* An Account is required for _rini() */
-    if (bs2000_account == NULL)
-    {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, 0, server,
-		     "No BS2000Account configured - cannot switch to User %s",
-		     user_name);
-	exit(APEXIT_CHILDFATAL);
-    }
-
-    apr_cpystrn(username, user_name, sizeof username);
+        /* Wait for all of the threads to terminate before initiating the restart */
+        while (worker_thread_count > 0) {
+            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();

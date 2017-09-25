@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Microsoft LDAP SDK" );

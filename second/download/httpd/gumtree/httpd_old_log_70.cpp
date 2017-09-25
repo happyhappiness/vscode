@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
-	             "ISAPI: Invalid module path %s, skipping", filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
+            "make_secure_socket: for %s, WSAIoctl: (SO_SSL_SET_SERVER)", addr);

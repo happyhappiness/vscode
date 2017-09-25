@@ -1,13 +1,19 @@
-    trunc = 0;
-    for(; (len > 0) && ((s[len-1] == ' ') || (s[len-1] == '\0')); len--)
-        trunc++;
-    rows = (len / DUMP_WIDTH);
-    if ((rows * DUMP_WIDTH) < len)
-        rows++;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
-            "+-------------------------------------------------------------------------+");
-    for(i = 0 ; i< rows; i++) {
-        apr_snprintf(tmp, sizeof(tmp), "| %04x: ", i * DUMP_WIDTH);
-        apr_cpystrn(buf, tmp, sizeof(buf));
-        for (j = 0; j < DUMP_WIDTH; j++) {
-            if (((i * DUMP_WIDTH) + j) >= len)
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_destroy(ptemp);
+
+    for (;;) {

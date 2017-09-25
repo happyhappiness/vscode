@@ -1,21 +1,27 @@
-        changed_limit_at_restart = 1;
-        return NULL;
-    }
-    server_limit = tmp_server_limit;
-    
-    if (server_limit > MAX_SERVER_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
-       server_limit = MAX_SERVER_LIMIT;
-    } 
-    else if (server_limit < 1) {
-	ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require ServerLimit > 0, setting to 1");
-	server_limit = 1;
-    }
-    return NULL;
+    return strcmp(f1->fname,f2->fname);
 }
 
+static void process_resource_config_nofnmatch(server_rec *s, const char *fname,
+                                              ap_directive_t **conftree,
+                                              apr_pool_t *p,
+                                              apr_pool_t *ptemp)
+{
+    cmd_parms parms;
+    ap_configfile_t *cfp;
+    const char *errmsg;
+
+    if (ap_is_rdirectory(p, fname)) {
+        apr_dir_t *dirp;
+        apr_finfo_t dirent;
+        int current;
+        apr_array_header_t *candidates = NULL;
+        fnames *fnew;
+        apr_status_t rv;
+        char errmsg[120], *path = apr_pstrdup(p, fname);
+
+        /*
+         * first course of business is to grok all the directory
+         * entries here and store 'em away. Recall we need full pathnames
+         * for this.
+         */
+        rv = apr_dir_open(&dirp, path, p);

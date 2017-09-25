@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_EXTENSION_TRIGGER "
-                          "is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                     "make_secure_socket: failed to get a socket for %s", 
+                     addr);

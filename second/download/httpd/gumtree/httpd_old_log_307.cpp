@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
-		    MODNAME ": mcheck: can't happen: invalid relation %d.",
-		    m->reln);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                     0, ap_server_conf,
+                     "seg fault or similar nasty error detected "
+                     "in the parent process");

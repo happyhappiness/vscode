@@ -1,23 +1,14 @@
-                                      APR_LOCK_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not create rewrite_log_lock");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    rewritelock_create(s, p);
-    apr_pool_cleanup_register(p, (void *)s, rewritelock_remove, apr_pool_cleanup_null);
-
-    /* step through the servers and
-     * - open each rewriting logfile
-     * - open the RewriteMap prg:xxx programs
-     */
-    for (; s; s = s->next) {
-        open_rewritelog(s, p);
-        if (!first_time)
-           run_rewritemap_programs(s, p);
-    }
-    return OK;
-}
-
-
-/*
+                }
+            }
+            else if (s->type == MAPTYPE_DBM) {
+                if ((rv = apr_stat(&st, s->checkfile,
+                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "mod_rewrite: can't access DBM RewriteMap "
+                                 "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open DBM RewriteMap file, "
+                               "see error log");
+                    return NULL;
+                }
+                value = get_cache_string(cachep, s->name, CACHEMODE_TS,
+                                         st.mtime, key);

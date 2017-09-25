@@ -1,13 +1,12 @@
-            }
-            else if (is_graceful) {
-                /* Great, we've probably just lost a slot in the
-                * child table.  Somehow we don't know about this
-                * child.
-                */
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, 
-                             ap_server_conf,
-                             "long lost child came home! (pid %ld)", 
-                             (long)pid.pid);
-            }
-            /* Don't perform idle maintenance when a child dies,
-             * only do it when there's a timeout.  Remember only a
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    if (use_acceptex) {
+        apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);

@@ -1,13 +1,20 @@
 
-    /* First though, eliminate this variant if it is not
-     * acceptable by type, charset, encoding or language.
-     */
+    /* just make sure that we are really meant! */
+    if (strncmp(r->filename, "redirect:", 9) != 0) {
+        return DECLINED;
+    }
 
-#ifdef NEG_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-           "Variant: file=%s type=%s lang=%s sourceq=%1.3f "
-           "mimeq=%1.3f langq=%1.3f langidx=%d charq=%1.3f encq=%1.3f ",
-            (variant->file_name ? variant->file_name : ""),
-            (variant->mime_type ? variant->mime_type : ""),
-            (variant->content_languages
-             ? apr_array_pstrcat(neg->pool, variant->content_languages, ',')
+    /* now do the internal redirect */
+    ap_internal_redirect(apr_pstrcat(r->pool, r->filename+9,
+                                    r->args ? "?" : NULL, r->args, NULL), r);
+
+    /* and return gracefully */
+    return OK;
+}
+
+
+/*
+** +-------------------------------------------------------+
+** |                                                       |
+** |                  the rewriting engine
+** |                                                       |

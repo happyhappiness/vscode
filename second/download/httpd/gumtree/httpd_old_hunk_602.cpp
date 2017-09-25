@@ -1,14 +1,13 @@
-	else
-	    meantot = stats[requests / 2].time;
+{
+    r->status = status;
 
-	printf("\nConnection Times (ms)\n");
+    /* ### I really don't think this is needed; gotta test */
+    r->status_line = ap_get_status_line(status);
 
-	if (confidence) {
-#define CONF_FMT_STRING "%" APR_TIME_T_FMT " %5d %6.1f %" APR_TIME_T_FMT " %" APR_TIME_T_FMT "\n"
-	    printf("            min  mean[+/-sd] median   max\n");
-	    printf("Connect:    " CONF_FMT_STRING, 
-                   mincon, (int) (totalcon + 0.5), sdcon, meancon, maxcon);
-	    printf("Processing: " CONF_FMT_STRING,
-		   mind, (int) (totald + 0.5), sdd, meand, maxd);
-	    printf("Waiting:    " CONF_FMT_STRING,
-	           minwait, (int) (totalwait + 0.5), sdwait, meanwait, maxwait);
+    ap_set_content_type(r, "text/html");
+
+    /* begin the response now... */
+    ap_rvputs(r,
+              DAV_RESPONSE_BODY_1,
+              r->status_line,
+              DAV_RESPONSE_BODY_2,

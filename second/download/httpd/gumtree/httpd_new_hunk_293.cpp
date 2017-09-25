@@ -1,26 +1,17 @@
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    ENGINE *e;
+                if (d->icon_width) {
+                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                }
+                if (d->icon_height) {
+                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                }
 
-    if (mc->szCryptoDevice) {
-        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to load Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_die();
-        }
+                if (autoindex_opts & EMIT_XHTML) {
+                    ap_rputs(" /", r);
+                }
+                ap_rputs("></th>", r);
+            }
+            else {
+                ap_rputs("&nbsp;</th>", r);
+            }
 
-        if (strEQ(mc->szCryptoDevice, "chil")) {
-            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
-        }
-
-        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to enable Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_die();
-        }
-
-        ENGINE_free(e);
-    }
-}
+            ++cols;

@@ -1,39 +1,12 @@
-    SHMCBHeader *header;
-    SHMCBQueue queue;
-    SHMCBCache cache;
-    unsigned char masked_index;
-    SSL_SESSION *pSession;
-
-    ssl_log(s, SSL_LOG_TRACE, "inside shmcb_retrieve_session");
-    if (idlen < 2) {
-        ssl_log(s, SSL_LOG_ERROR, "unusably short session_id provided "
-                "(%u bytes)", idlen);
-        return FALSE;
+         */
+        new->real = r;
     }
+    new->fake = f;
+    new->handler = cmd->info;
 
-    /* Get the header structure, which division this session lookup
-     * will come from etc. */
-    shmcb_get_header(shm_segment, &header);
-    masked_index = id[0] & header->division_mask;
-    ssl_log(s, SSL_LOG_TRACE, "id[0]=%u, masked index=%u", id[0],
-            masked_index);
-    if (!shmcb_get_division(header, &queue, &cache, (unsigned int) masked_index)) {
-        ssl_log(s, SSL_LOG_ERROR, "shmcb_retrieve_session, " "internal error");
-        header->num_retrieves_miss++;
-        return FALSE;
-    }
-
-    /* Get the session corresponding to the session_id or NULL if it
-     * doesn't exist (or is flagged as "removed"). */
-    pSession = shmcb_lookup_session_id(s, &queue, &cache, id, idlen);
-    if (pSession)
-        header->num_retrieves_hit++;
-    else
-        header->num_retrieves_miss++;
-    ssl_log(s, SSL_LOG_TRACE, "leaving shmcb_retrieve_session");
-    return pSession;
+    return NULL;
 }
 
-static BOOL shmcb_remove_session(
-    server_rec *s, void *shm_segment,
-    UCHAR *id, int idlen)
+static const char *add_alias(cmd_parms *cmd, void *dummy, const char *f,
+                             const char *r)
+{

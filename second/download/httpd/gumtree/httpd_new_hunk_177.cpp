@@ -1,40 +1,14 @@
-                                      APR_LOCK_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not create rewrite_log_lock");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-#if APR_USE_SYSVSEM_SERIALIZE
-    rv = unixd_set_global_mutex_perms(rewrite_log_lock);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: Could not set permissions on "
-                     "rewrite_log_lock; check User and Group directives");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-#endif
-
-    rv = rewritelock_create(s, p);
-    if (rv != APR_SUCCESS) {
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    apr_pool_cleanup_register(p, (void *)s, rewritelock_remove, apr_pool_cleanup_null);
-
-    /* step through the servers and
-     * - open each rewriting logfile
-     * - open the RewriteMap prg:xxx programs
-     */
-    for (; s; s = s->next) {
-        open_rewritelog(s, p);
-        if (!first_time) {
-            if (run_rewritemap_programs(s, p) != APR_SUCCESS) {
-                return HTTP_INTERNAL_SERVER_ERROR;
+                }
             }
-        }
-    }
-    return OK;
-}
-
-
-/*
+            else if (s->type == MAPTYPE_DBM) {
+                if ((rv = apr_stat(&st, s->checkfile,
+                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "mod_rewrite: can't access DBM RewriteMap "
+                                  "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open DBM RewriteMap file, "
+                               "see error log");
+                    return NULL;
+                }
+                value = get_cache_string(cachep, s->name, CACHEMODE_TS,
+                                         st.mtime, key);

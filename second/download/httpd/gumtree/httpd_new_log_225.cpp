@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Unknown Transfer-Encoding %s", tenc);
+apr_pool_create(&subpool, r->pool);

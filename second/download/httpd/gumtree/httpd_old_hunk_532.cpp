@@ -1,13 +1,13 @@
-                exit(0);
-            }
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
+        /* Something bad happened, give up and go away. */
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));
+        rc = -1;
+    }
+    else {
+        char **args;
+        const char *pname;
 
-            rv = mpm_merge_service_args(process->pool, mpm_new_argv, 
-                                        fixed_args);
-            if (rv == APR_SUCCESS) {
-                ap_log_error(APLOG_MARK,APLOG_NOERRNO|APLOG_INFO, 0, NULL,
-                             "Using ConfigArgs of the installed service "
-                             "\"%s\".", service_name);
-            }
-            else  {
-                ap_log_error(APLOG_MARK,APLOG_WARNING, rv, NULL,
-                             "No installed ConfigArgs for the service "
+        apr_tokenize_to_argv(pl->program, &args, pl->p);

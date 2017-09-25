@@ -1,13 +1,13 @@
-	*temp = '\0';              /* overlay it with the null terminator */
+                     "proxy: socket is connected");
 
-    r->status_line = apr_pstrdup(r->pool, urlbuff);            /* Save status line into request rec  */
-
-    apr_file_close(dobj->hfd);
-
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
-                 "disk_cache: Served headers for URL %s",  dobj->name);
-    return APR_SUCCESS;
-}
-
-static apr_status_t read_body(cache_handle_t *h, apr_pool_t *p, apr_bucket_brigade *bb) 
-{
+        /* the socket is now open, create a new backend server connection */
+        *origin = ap_run_create_connection(c->pool, r->server, p_conn->sock,
+                                           r->connection->id,
+                                           r->connection->sbh, c->bucket_alloc);
+        if (!origin) {
+        /* the peer reset the connection already; ap_run_create_connection() 
+         * closed the socket
+         */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                         r->server, "proxy: an error occurred creating a "
+                         "new connection to %pI (%s)", p_conn->addr,

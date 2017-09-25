@@ -1,13 +1,33 @@
-    int threads_created = 0;
-    int loops;
-    int prev_threads_created;
+    util_ald_free(cache, node->username);
+    util_ald_free(cache, node->dn);
+    util_ald_free(cache, node->bindpw);
+    util_ald_free(cache, node);
+}
 
-    idle_worker_stack = worker_stack_create(pchild, ap_threads_per_child);
-    if (idle_worker_stack == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
-                     "worker_stack_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+void util_ldap_search_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
+{
+    util_search_node_t *node = (util_search_node_t *)n;
+    char date_str[APR_CTIME_LEN+1];
+    char *buf;
 
-    loops = prev_threads_created = 0;
-    while (1) {
+    apr_ctime(date_str, node->lastbind);
+
+    buf = apr_psprintf(r->pool, 
+             "<tr valign='top'>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<td nowrap>%s</td>"
+             "<tr>",
+         node->username,
+         node->dn,
+         date_str);
+
+    ap_rputs(buf, r);
+}
+
+/* ------------------------------------------------------------------ */
+
+unsigned long util_ldap_compare_node_hash(void *n)
+{
+    util_compare_node_t *node = (util_compare_node_t *)n;
+    return util_ald_hash_string(3, node->dn, node->attrib, node->value);

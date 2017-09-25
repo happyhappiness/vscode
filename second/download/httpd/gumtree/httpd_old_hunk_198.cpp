@@ -1,13 +1,20 @@
-    magic_req_rec *req_dat = (magic_req_rec *)
-		    ap_get_module_config(r->request_config, &mime_magic_module);
-    magic_rsl *rsl;
+/* ------------------------------------------------------- */
 
-    /* make sure we have a list to put it in */
-    if (!req_dat) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, APR_EINVAL, r,
-		    MODNAME ": request config should not be NULL");
-	if (!(req_dat = magic_set_config(r))) {
-	    /* failure */
-	    return -1;
-	}
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
     }
+    else {
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
+

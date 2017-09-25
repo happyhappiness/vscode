@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, r,
-                          "ISAPI ServerSupportFunction (%d) not supported: "
-                          "%s", dwHSERequest, r->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
+                "make_secure_socket: for %s, WSAIoctl: (SO_SSL_SET_FLAGS)", addr);

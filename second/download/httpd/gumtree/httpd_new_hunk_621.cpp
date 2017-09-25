@@ -1,21 +1,51 @@
-#define APLOG_NOERRNO		(APLOG_LEVELMASK + 1)
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
+    }
+}
 
-/* Use APLOG_TOCLIENT on ap_log_rerror() to give content
- * handlers the option of including the error text in the 
- * ErrorDocument sent back to the client. Setting APLOG_TOCLIENT
- * will cause the error text to be saved in the request_rec->notes 
- * table, keyed to the string "error-notes", if and only if:
- * - the severity level of the message is APLOG_WARNING or greater
- * - there are no other "error-notes" set in request_rec->notes
- * Once error-notes is set, it is up to the content handler to
- * determine whether this text should be sent back to the client.
- * Note: Client generated text streams sent back to the client MUST 
- * be escaped to prevent CSS attacks.
+/*
+ * This callback function is executed while OpenSSL processes the SSL
+ * handshake and does SSL record layer stuff.  It's used to trap
+ * client-initiated renegotiations, and for dumping everything to the
+ * log.
  */
-#define APLOG_TOCLIENT          ((APLOG_LEVELMASK + 1) * 2)
+void ssl_callback_Info(MODSSL_INFO_CB_ARG_TYPE ssl, int where, int rc)
+{
+    conn_rec *c;
+    server_rec *s;
+    SSLConnRec *scr;
 
-/* normal but significant condition on startup, usually printed to stderr */
-#define APLOG_STARTUP           ((APLOG_LEVELMASK + 1) * 4) 
+    /* Retrieve the conn_rec and the associated SSLConnRec. */
+    if ((c = (conn_rec *)SSL_get_app_data((SSL *)ssl)) == NULL) {
+        return;
+    }
 
-#ifndef DEFAULT_LOGLEVEL
-#define DEFAULT_LOGLEVEL	APLOG_WARNING
+    if ((scr = myConnConfig(c)) == NULL) {
+        return;
+    }
+
+    /* If the reneg state is to reject renegotiations, check the SSL
+     * state machine and move to ABORT if a Client Hello is being
+     * read. */
+    if ((where & SSL_CB_ACCEPT_LOOP) && scr->reneg_state == RENEG_REJECT) {
+        int state = SSL_get_state((SSL *)ssl);
+        
+        if (state == SSL3_ST_SR_CLNT_HELLO_A 
+            || state == SSL23_ST_SR_CLNT_HELLO_A) {
+            scr->reneg_state = RENEG_ABORT;
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                          "rejecting client initiated renegotiation");
+        }
+    }
+    /* If the first handshake is complete, change state to reject any
+     * subsequent client-initated renegotiation. */
+    else if ((where & SSL_CB_HANDSHAKE_DONE) && scr->reneg_state == RENEG_INIT) {
+        scr->reneg_state = RENEG_REJECT;
+    }
+
+    s = c->base_server;
+    if (s && s->loglevel >= APLOG_DEBUG) {
+        log_tracing_state(ssl, c, s, where, rc);
+    }
+}

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_num = %u", header->index_num);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not partition buffered SSL brigade");

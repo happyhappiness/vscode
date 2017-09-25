@@ -1,22 +1,16 @@
-	(void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-	return DONE;
-    case APR_LNK:
-	/* We used stat(), the only possible reason for this is that the
-	 * symlink is broken.
-	 */
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
-		    MODNAME ": broken symlink (%s)", fn);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    case APR_SOCK:
-	magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
-	return DONE;
-    case APR_REG:
-	break;
-    default:
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, 0, r,
-		      MODNAME ": invalid file type %d.", r->finfo.filetype);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
 
-    /*
-     * regular file, check next possibility
+/* checks whether a host in uri_addr matches proxyblock */
+PROXY_DECLARE(int) ap_proxy_checkproxyblock(request_rec *r, proxy_server_conf *conf, 
+                             apr_sockaddr_t *uri_addr)
+{
+    int j;
+    /* XXX FIXME: conf->noproxies->elts is part of an opaque structure */
+    for (j = 0; j < conf->noproxies->nelts; j++) {
+        struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
+        struct apr_sockaddr_t *conf_addr = npent[j].addr;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: checking remote machine [%s] against [%s]", uri_addr->hostname, npent[j].name);
+        if ((npent[j].name && ap_strstr_c(uri_addr->hostname, npent[j].name))
+            || npent[j].name[0] == '*') {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: connect to remote machine %s blocked: name %s matched", uri_addr->hostname, npent[j].name);

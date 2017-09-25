@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "invalid CGI ref \"%s\" in %s",
-                                      tag_val, file);
+apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);

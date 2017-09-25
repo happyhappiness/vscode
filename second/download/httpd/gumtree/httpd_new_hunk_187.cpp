@@ -1,13 +1,46 @@
-    sconf = (so_server_conf *)ap_get_module_config(cmd->server->module_config, 
-	                                        &so_module);
-    modie = (moduleinfo *)sconf->loaded_modules->elts;
-    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
-        modi = &modie[i];
-        if (modi->name != NULL && strcmp(modi->name, modname) == 0) {
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
-                          cmd->pool, "module %s is already loaded, skipping",
-                          modname);
-            return NULL;
+        char **args;
+        const char *pname;
+
+        apr_tokenize_to_argv(pl->program, &args, pl->p);
+        pname = apr_pstrdup(pl->p, args[0]);
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                 NULL, procattr, pl->p);
+
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            ap_piped_log_write_fd(pl) = procnew->in;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          ap_piped_log_write_fd(pl), pl->p);
+        }
+        else {
+            char buf[120];
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));
+            rc = -1;
         }
     }
 
+    return rc;
+}
+
+
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+{
+    piped_log *pl = data;
+    apr_status_t stats;
+
+    switch (reason) {
+    case APR_OC_REASON_DEATH:
+    case APR_OC_REASON_LOST:
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "piped log program '%s' failed unexpectedly",
+                     pl->program);
+        pl->pid = NULL;
+        apr_proc_other_child_unregister(pl);
+        if (pl->program == NULL) {
+            /* during a restart */
+            break;
+        }

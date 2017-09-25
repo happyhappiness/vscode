@@ -1,26 +1,20 @@
-    h->read_body = &read_body;
-    h->read_headers = &read_headers;
-    h->write_body = &write_body;
-    h->write_headers = &write_headers;
-    h->remove_entity = &remove_entity;
+    env = ap_create_environment(r->pool, r->subprocess_env); 
 
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, 0, r->server,
-                 "disk_cache: Serving Cached URL %s",  dobj->name);
-    return OK;
-}
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;
+    }
 
-static int remove_url(const char *type, char *key) 
-{
-  return OK;
-}
+    send_req(sd, r, argv0, env, CGI_REQ); 
 
-static int remove_entity(cache_handle_t *h) 
-{
-    cache_object_t *obj = h->cache_obj;
+    /* We are putting the socket discriptor into an apr_file_t so that we can
+     * use a pipe bucket to send the data to the client.
+     * Note that this does not register a cleanup for the socket.  We did
+     * that explicitly right after we created the socket.
+     */
+    apr_os_file_put(&tempsock, &sd, 0, r->pool);
 
-    /* Null out the cache object pointer so next time we start from scratch  */
-    h->cache_obj = NULL;
-    return OK;
-}
+    if ((argv0 = strrchr(r->filename, '/')) != NULL) 
+        argv0++; 
+    else 
+        argv0 = r->filename; 
 
-/*

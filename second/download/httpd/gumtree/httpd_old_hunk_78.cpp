@@ -1,13 +1,13 @@
-           ap_cache_liststr(cc_out, "public", NULL))
-        ) ||
+    cache_read_entity_body(cache->handle, r->pool, bb);
 
-    /* or we've been asked not to cache it above */
-        r->no_cache) {
+    /* This filter is done once it has served up its content */
+    ap_remove_output_filter(f);
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                 "cache: response is not cachable");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: serving cached version of %s", r->uri);
+    return ap_pass_brigade(f->next, bb);
+}
 
-        /* remove this object from the cache 
-         * BillS Asks.. Why do we need to make this call to remove_url?
-         * leave it in for now..
-         */
+
+/*
+ * CACHE_CONDITIONAL filter

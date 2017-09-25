@@ -1,16 +1,48 @@
-                        const char *key_id =
-                            ssl_asn1_table_keyfmt(p, cpVHostID, i);
-                        ssl_asn1_t *asn1 = 
-                            ssl_asn1_table_get(mc->tPrivateKey, key_id);
-                    
-                        if (asn1 && (asn1->source_mtime == pkey_mtime)) {
-                            ssl_log(pServ, SSL_LOG_INFO,
-                                    "%s reusing existing "
-                                    "%s private key on restart",
-                                    cpVHostID, ssl_asn1_keystr(i));
-                            return;
-                        }
-                    }
-                }
+}
 
-                cpPassPhraseCur = NULL;
+static void set_signals(void)
+{
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
+
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    if (!one_process) {
+        sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+        sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+        sa.sa_flags = SA_RESETHAND;
+#endif
+        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+        if (sigaction(SIGBUS, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+        if (sigaction(SIGABORT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+        if (sigaction(SIGABRT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+        if (sigaction(SIGILL, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGILL)");
+#endif
+        sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)

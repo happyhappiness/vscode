@@ -1,13 +1,14 @@
-            /* it should be go on as an internal proxy request */
-
-            /* check if the proxy module is enabled, so
-             * we can actually use it!
-             */
-            if (!proxy_available) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                             "attempt to make remote request from mod_rewrite "
-                             "without proxy enabled: %s", r->filename);
-                return HTTP_FORBIDDEN;
+                }
             }
-
-            /* make sure the QUERY_STRING and
+            else if (s->type == MAPTYPE_RND) {
+                if ((rv = apr_stat(&st, s->checkfile,
+                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "mod_rewrite: can't access text RewriteMap "
+                                 "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open RewriteMap file, "
+                               "see error log");
+                    return NULL;
+                }
+                value = get_cache_string(cachep, s->name, CACHEMODE_TS,
+                                         st.mtime, key);

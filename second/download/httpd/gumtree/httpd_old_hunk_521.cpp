@@ -1,14 +1,25 @@
-        }
-    }
+                 * to have nothing to do with the incoming packet
+                 */
+                r->headers_out = apr_table_make(r->pool,1);
+                r->status = HTTP_BAD_GATEWAY;
+                r->status_line = "bad gateway";
+                return r->status;
 
-    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
-                                        (request_rec *) NULL);
+            } else {
+                /* strip connection listed hop-by-hop headers from response */
+                const char *buf;
+                p_conn->close += ap_proxy_liststr(apr_table_get(r->headers_out,
+                                                                "Connection"),
+                                                  "close");
+                ap_proxy_clear_connection(p, r->headers_out);
+                if ((buf = apr_table_get(r->headers_out, "Content-Type"))) {
+                    ap_set_content_type(r, apr_pstrdup(p, buf));
+                }            
+                ap_proxy_pre_http_request(origin,rp);
+            }
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Thread exiting.", my_pid);
-}
-
-static void cleanup_thread(thread *handles, int *thread_cnt, int thread_to_clean)
-{
-    int i;
-
+            /* handle Via header in response */
+            if (conf->viaopt != via_off && conf->viaopt != via_block) {
+                /* create a "Via:" response header entry and merge it */
+                apr_table_mergen(r->headers_out, "Via",
+                                 (conf->viaopt == via_full)

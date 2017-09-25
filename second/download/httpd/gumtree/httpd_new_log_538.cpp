@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                                 "Init: Failed to create pass phrase pipe '%s'",
-                                 sc->server->pphrase_dialog_path);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: pass request body failed to %pI (%s)"
+                     " from %s (%s)",
+                     p_conn->addr, p_conn->name ? p_conn->name: "",
+                     c->remote_ip, c->remote_host ? c->remote_host: "");

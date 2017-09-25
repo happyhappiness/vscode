@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                          "Digest: invalid uri <%s> in Authorization header",
-                          resp->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server,
+                                     "core_output_filter: Error reading from bucket.");

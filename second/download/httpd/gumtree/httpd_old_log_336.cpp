@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, r->server,
-                     "proxy: FTP: declining URL %s - not ftp:", url);
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                             "winnt_accept: AcceptEx failed. Attempting to recover.");

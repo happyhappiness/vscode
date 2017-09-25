@@ -1,13 +1,13 @@
-        return 1;
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one contineous buffer
+     */
+    if (posting == 1) {
+	char *buff = (char *) malloc(postlen + reqlen + 1);
+	strcpy(buff, request);
+	strcpy(buff + reqlen, postdata);
+	request = buff;
     }
 
-    if (is_graceful) {
-        char char_of_death = '!';
-
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0,
-                     ap_server_conf, AP_SIG_GRACEFUL_STRING " received.  "
-                     "Doing graceful restart");
-
-        /* This is mostly for debugging... so that we know what is still
-         * gracefully dealing with existing request.
-         */
+#ifdef NOT_ASCII

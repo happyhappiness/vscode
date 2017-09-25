@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-		 "proxy: CONNECT: connecting %s to %s:%d", url, uri.hostname, uri.port);
+printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...", 
+                    worker_thread_count);

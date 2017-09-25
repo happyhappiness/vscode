@@ -1,20 +1,12 @@
-    if (ap_threads_max_free < ap_threads_min_free + 1)	/* Don't thrash... */
-        ap_threads_max_free = ap_threads_min_free + 1;
-    request_count = 0;
 
-    startup_workers(ap_threads_to_start);
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, 0, ap_server_conf,
-		"%s configured -- resuming normal operations",
-		ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, ap_server_conf,
-		"Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s", ap_valid_accept_mutex_string);
-#endif
-    show_server_data();
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+}
 
-    while (!restart_pending && !shutdown_pending) {
-        perform_idle_server_maintenance(pconf);
-        if (show_settings)
+
+static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+{
+    int i;
