@@ -80,8 +80,8 @@ def cluster_edition():
     index = 0
     for record in islice(records, 1, None):  # remove the table title
         # old cdg feature
-        edit_feature = record[my_constant.ANALYZE_EDIT_FEATURE]
-        feature_lists.append([[edit_feature], []])
+        edit_feature = json.loads(record[my_constant.ANALYZE_EDIT_FEATURE])
+        feature_lists.append([edit_feature, []])
         # print 'now analyzing index: %d' %(index)
         # index += 1
     read_file.close()

@@ -43,7 +43,7 @@ def deal_log( log_record, gumtree, writer, total_log):
     log_file.close()
     # get edit word and feature
     edit_words, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
-    writer.writerow(log_record + [old_log_file_name, new_log_file_name, edit_words, edit_feature])
+    writer.writerow(log_record + [old_log_file_name, new_log_file_name, edit_words, json.dumps(edit_feature)])
     total_log += 1
 
     return total_log
