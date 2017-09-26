@@ -1,25 +1,27 @@
-                     "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-        apr_signal(SIGSEGV, sig_coredump);
-#ifdef SIGBUS
-        apr_signal(SIGBUS, sig_coredump);
-#endif /* SIGBUS */
-#ifdef SIGABORT
-        apr_signal(SIGABORT, sig_coredump);
-#endif /* SIGABORT */
-#ifdef SIGABRT
-        apr_signal(SIGABRT, sig_coredump);
-#endif /* SIGABRT */
-#ifdef SIGILL
-        apr_signal(SIGILL, sig_coredump);
-#endif /* SIGILL */
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+    char realm[MAX_STRING_LEN];
+    char line[MAX_STRING_LEN];
+    char l[MAX_STRING_LEN];
+    char w[MAX_STRING_LEN];
+    char x[MAX_STRING_LEN];
+    int found;
+   
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate); 
+    apr_pool_create(&cntxt, NULL);
+    apr_file_open_stderr(&errfile, cntxt);
+
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);
+        exit(1);
+    }
+#endif
+    
+    apr_signal(SIGINT, (void (*)(int)) interrupted);
+    if (argc == 5) {
+        if (strcmp(argv[1], "-c"))
+            usage();
+        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
+                           APR_OS_DEFAULT, cntxt);

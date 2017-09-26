@@ -1,26 +1,13 @@
+AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
 {
-    request_rec *r = ((include_cmd_arg *) arg)->r;
-    char *s = ((include_cmd_arg *) arg)->s;
-    table *env = r->subprocess_env;
-    int child_pid = 0;
-#ifdef DEBUG_INCLUDE_CMD
-#ifdef OS2
-    /* under OS/2 /dev/tty is referenced as con */
-    FILE *dbg = fopen("con", "w");
-#else
-    FILE *dbg = fopen("/dev/tty", "w");
-#endif
-#endif
-#ifndef WIN32
-    char err_string[MAX_STRING_LEN];
-#endif
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
 
-#ifdef DEBUG_INCLUDE_CMD
-    fprintf(dbg, "Attempting to include command '%s'\n", s);
-#endif
-
-    if (r->path_info && r->path_info[0] != '\0') {
-        request_rec *pa_req;
-
-        ap_table_setn(env, "PATH_INFO", ap_escape_shell_cmd(r->pool, r->path_info));
+    rc = log_child(p, program, &dummy, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
+    }
 

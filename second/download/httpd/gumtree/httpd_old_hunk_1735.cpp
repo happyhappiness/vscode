@@ -1,13 +1,15 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+            r->status_line = "200 OK";
+            backend->close += 1;
+        }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+        interim_response = ap_is_HTTP_INFO(r->status);
+        if (interim_response) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received interim %d response",
+                         r->status);
+        }
+        /* Moved the fixups of Date headers and those affected by
+         * ProxyPassReverse/etc from here to ap_proxy_read_headers
+         */
+
+        if ((r->status == 401) && (conf->error_override)) {

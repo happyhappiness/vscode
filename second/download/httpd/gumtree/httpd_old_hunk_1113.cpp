@@ -1,13 +1,12 @@
-                ret = apr_poll(pollset, num_listensocks, &n, -1);
-                if (ret != APR_SUCCESS) {
-                    if (APR_STATUS_IS_EINTR(ret)) {
-                        continue;
-                    }
-
-                    /* apr_poll() will only return errors in catastrophic
-                     * circumstances. Let's try exiting gracefully, for now. */
-                    ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
-                                 ap_server_conf, "apr_poll: (listen)");
-                    signal_threads(ST_GRACEFUL);
-                }
+    ap_http_header_filter_handle =
+        ap_register_output_filter("HTTP_HEADER", ap_http_header_filter,
+                                  NULL, AP_FTYPE_PROTOCOL);
+    ap_chunk_filter_handle =
+        ap_register_output_filter("CHUNK", ap_http_chunk_filter,
+                                  NULL, AP_FTYPE_TRANSCODE);
+    ap_byterange_filter_handle =
+        ap_register_output_filter("BYTERANGE", ap_byterange_filter,
+                                  NULL, AP_FTYPE_PROTOCOL);
+    ap_method_registry_init(p);
+}
 

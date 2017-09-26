@@ -1,13 +1,14 @@
-        return rv;
-    }
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                "  -T                 : start without DocumentRoot(s) check");
 
-    /* TerminateExtension() is an optional interface */
-    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
-                     "TerminateExtension");
-    apr_set_os_error(0);
+    destroy_and_exit_process(process, 1);
+}
 
-    /* Run GetExtensionVersion() */
-    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
-        apr_status_t rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: failed call to GetExtensionVersion() in %s", 
+int main(int argc, const char * const argv[])
+{

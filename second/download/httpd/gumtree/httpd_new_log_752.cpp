@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " please see the ServerLimit directive.");
+ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);

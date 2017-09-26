@@ -1,13 +1,13 @@
-        conn_rec *c = r->connection;
-        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_pool_create(cmd, strlen(cmd), r->pool, c->bucket_alloc));
-        APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_flush_create(c->bucket_alloc));
-        ap_pass_brigade(ftp_ctrl->output_filters, bb);
+    case HSE_REQ_GET_IMPERSONATION_TOKEN:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_IMPERSONATION_TOKEN "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-        /* strip off the CRLF for logging */
-        ap_cpystrn(message, cmd, sizeof message);
-        if ((crlf = strchr(message, '\r')) != NULL ||
-            (crlf = strchr(message, '\n')) != NULL)
-            *crlf = '\0';
-        if (strncmp(message,"PASS ", 5) == 0)
-            strcpy(&message[5], "****");
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+    case HSE_REQ_MAP_URL_TO_PATH_EX:
+    {
+        /* Map a URL to a filename */
+        HSE_URL_MAPEX_INFO *info = (HSE_URL_MAPEX_INFO*)data_type;

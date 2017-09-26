@@ -1,14 +1,16 @@
+        conn->worker->s->transferred += transferred;
+    status = ap_pass_brigade(origin->output_filters, bb);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: pass request body failed to %pI (%s)",
+                     conn->addr, conn->hostname);
+        if (origin->aborted) { 
+            return APR_STATUS_IS_TIMEUP(status) ? HTTP_GATEWAY_TIME_OUT : HTTP_BAD_GATEWAY;
+        }
+        else { 
+            return HTTP_BAD_REQUEST; 
+        }
     }
-
-    /*
-     * Get the SSL connection structure and perform the
-     * delayed interlinking from SSL back to request_rec
-     */
-    if ((ssl = sslconn->ssl)) {
-        SSL_set_app_data2(ssl, r);
-    }
-
-    return DECLINED;
+    apr_brigade_cleanup(bb);
+    return OK;
 }
-
-/*

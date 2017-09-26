@@ -1,26 +1,36 @@
-            backend_addr = backend_addr->next;
-            continue;
+                          "apr_file_read(child output), len %" APR_SIZE_T_FMT,
+                          !rv ? len : -1);
         }
-
-#if !defined(TPF) && !defined(BEOS)
-        if (conf->recv_buffer_size > 0 &&
-            (rv = apr_setsocketopt(*newsock, APR_SO_RCVBUF,
-                                   conf->recv_buffer_size))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "setsockopt(SO_RCVBUF): Failed to set "
-                         "ProxyReceiveBufferSize, using default");
+        if (rv != APR_SUCCESS) {
+            return rv;
         }
-#endif
-
-        /* Set a timeout on the socket */
-        if (conf->timeout_set == 1) {
-            apr_setsocketopt(*newsock, APR_SO_TIMEOUT, (int)conf->timeout);
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_transient_create(buf, len, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        if ((rv = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "ap_pass_brigade()");
+            return rv;
         }
-        else {
-            apr_setsocketopt(*newsock, APR_SO_TIMEOUT, (int)s->timeout);
-        }
+    }
+    /* we should never get here; if we do, a bogus error message would be
+     * the least of our problems 
+     */
+    return APR_ANONYMOUS;
+}
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "proxy: %s: fam %d socket created to connect to %s",
-                     proxy_function, backend_addr->family, backend_name);
-
+static apr_status_t pass_data_to_filter(ap_filter_t *f, const char *data, 
+                                        apr_size_t len)
+{
+    ef_ctx_t *ctx = f->ctx;
+    ef_dir_t *dc = ctx->dc;
+    apr_status_t rv;
+    apr_size_t bytes_written = 0;
+    apr_size_t tmplen;
+    
+    do {
+        tmplen = len - bytes_written;
+        rv = apr_file_write(ctx->proc->in,
+                       (const char *)data + bytes_written,
+                       &tmplen);
+        bytes_written += tmplen;

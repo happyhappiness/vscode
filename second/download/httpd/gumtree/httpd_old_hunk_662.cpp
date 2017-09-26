@@ -1,14 +1,30 @@
-#ifdef HAVE_TIMES
-                               ws_record->times.tms_utime / tick,
-                               ws_record->times.tms_stime / tick,
-                               ws_record->times.tms_cutime / tick,
-                               ws_record->times.tms_cstime / tick,
-#endif
-                               (long)((nowtime - ws_record->last_used) /
-                                      APR_USEC_PER_SEC),
-                               (long) req_time);
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
+    }
 
-                    format_byte_out(r, conn_bytes);
-                    ap_rputs("|", r);
-                    format_byte_out(r, my_bytes);
-                    ap_rputs("|", r);
+
+    if (r->method_number == M_OPTIONS) {
+        apr_bucket *b = NULL;
+        /* This is a mandatory SSL upgrade. */
+
+        upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+
+        ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                    UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+
+        b = apr_bucket_flush_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+        ap_pass_brigade(f->next, upgradebb);
+    }
+    else {
+        /* This is optional, and should be configurable, for now don't bother
+         * doing anything.
+         */
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    key = get_port_key(r->connection);
+
+    if (csd && key) {
+        int sockdes;

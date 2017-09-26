@@ -1,1 +1,0 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "couldn't release the accept mutex");

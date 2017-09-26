@@ -1,60 +1,69 @@
-    return OK;
-}
-
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
-                 apr_pool_t *ptemp, server_rec *s_main)
+                 SQLSMALLINT type, SQLHANDLE h, int line)
 {
-    apr_pool_t *stderr_p;
-    server_rec *virt, *q;
-    int replace_stderr;
+    SQLCHAR buffer[512];
+    SQLCHAR sqlstate[128];
+    SQLINTEGER native;
+    SQLSMALLINT reslength;
+    char *res, *p, *end, *logval = NULL;
+    int i;
 
+    /* set info about last error in dbc  - fast return for SQL_SUCCESS  */
+    if (rc == SQL_SUCCESS) {
+        char successMsg[] = "[dbd_odbc] SQL_SUCCESS ";
+        apr_size_t successMsgLen = sizeof successMsg - 1;
 
-    /* Register to throw away the read_handles list when we
-     * cleanup plog.  Upon fork() for the apache children,
-     * this read_handles list is closed so only the parent
-     * can relaunch a lost log child.  These read handles 
-     * are always closed on exec.
-     * We won't care what happens to our stderr log child 
-     * between log phases, so we don't mind losing stderr's 
-     * read_handle a little bit early.
-     */
-    apr_pool_cleanup_register(p, NULL, clear_handle_list,
-                              apr_pool_cleanup_null);
-
-    /* HERE we need a stdout log that outlives plog.
-     * We *presume* the parent of plog is a process 
-     * or global pool which spans server restarts.
-     * Create our stderr_pool as a child of the plog's
-     * parent pool.
-     */
-    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
-    apr_pool_tag(stderr_p, "stderr_pool");
-    
-    if (open_error_log(s_main, 1, stderr_p) != OK) {
-        return DONE;
+        dbc->lasterrorcode = SQL_SUCCESS;
+        apr_cpystrn(dbc->lastError, successMsg, sizeof dbc->lastError);
+        apr_cpystrn(dbc->lastError + successMsgLen, step,
+                    sizeof dbc->lastError - successMsgLen);
+        return;
     }
-
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        apr_status_t rv;
-        
-        /* Replace existing stderr with new log. */
-        apr_file_flush(s_main->error_log);
-        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
-                         "unable to replace stderr with error_log");
-        }
-        else {
-            /* We are done with stderr_pool, close it, killing
-             * the previous generation's stderr logger
-             */
-            if (stderr_pool)
-                apr_pool_destroy(stderr_pool);
-            stderr_pool = stderr_p;
-            replace_stderr = 0;
-        }
+    switch (rc) {
+    case SQL_INVALID_HANDLE:
+        res = "SQL_INVALID_HANDLE";
+        break;
+    case SQL_ERROR:
+        res = "SQL_ERROR";
+        break;
+    case SQL_SUCCESS_WITH_INFO:
+        res = "SQL_SUCCESS_WITH_INFO";
+        break;
+    case SQL_STILL_EXECUTING:
+        res = "SQL_STILL_EXECUTING";
+        break;
+    case SQL_NEED_DATA:
+        res = "SQL_NEED_DATA";
+        break;
+    case SQL_NO_DATA:
+        res = "SQL_NO_DATA";
+        break;
+    default:
+        res = "unrecognized SQL return code";
     }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
+    /* these two returns are expected during normal execution */
+    if (rc != SQL_SUCCESS_WITH_INFO && rc != SQL_NO_DATA 
+        && dbc->can_commit != APR_DBD_TRANSACTION_IGNORE_ERRORS) {
+        dbc->can_commit = APR_DBD_TRANSACTION_ROLLBACK;
+    }
+    p = dbc->lastError;
+    end = p + sizeof(dbc->lastError);
+    dbc->lasterrorcode = rc;
+    p += sprintf(p, "[dbd_odbc] %.64s returned %.30s (%d) at %.24s:%d ",
+                 step, res, rc, SOURCE_FILE, line - 1);
+    for (i = 1, rc = 0; rc == 0; i++) {
+        rc = SQLGetDiagRec(type, h, i, sqlstate, &native, buffer, 
+                            sizeof(buffer), &reslength);
+        if (SQL_SUCCEEDED(rc) && (p < (end - 280))) 
+            p += sprintf(p, "%.256s %.20s ", buffer, sqlstate);
+    }
+    apr_env_get(&logval, "apr_dbd_odbc_log", dbc->pool);
+    /* if env var was set or call was init/open (no dbname) - log to stderr */
+    if (logval || !dbc->dbname ) {
+        char timestamp[APR_CTIME_LEN];
+
+        apr_file_t *se;
+        apr_ctime(timestamp, apr_time_now());
+        apr_file_open_stderr(&se, dbc->pool);
+        apr_file_printf(se, "[%s] %s\n", timestamp, dbc->lastError);
+    }
+}

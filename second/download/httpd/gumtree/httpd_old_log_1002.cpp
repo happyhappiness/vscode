@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, NULL, "Read config: %s", buf);
+printf("Compiled using: APR %s, APR-UTIL %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->intern->r, "unable to "
+                      "compile pattern \"%s\"", rexp);

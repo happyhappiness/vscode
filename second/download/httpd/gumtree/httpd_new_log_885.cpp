@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: detected MinSpareServers set to non-positive.");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
+                          "SSL library error %d writing data", ssl_err);

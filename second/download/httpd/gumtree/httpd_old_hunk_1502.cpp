@@ -1,13 +1,12 @@
-#define STANDALONE_MAIN standalone_main
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
-
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
-
-    ap_standalone = 1;
-
-    is_graceful = 0;
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+    }
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        /* Store the launch command in the registry */
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -n %s -k runservice",
+                                 exe_path, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X,
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv == APR_SUCCESS) {

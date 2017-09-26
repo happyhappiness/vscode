@@ -1,13 +1,13 @@
-                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
-            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
-            printf("Commands:\n");
-            printf("\tDIRECTIVES - Show directives\n");
-            printf("\tHELP       - Display this help information\n");
-            printf("\tMODULES    - Show a list of the loaded modules\n");
-            printf("\tRESTART    - Reread the configurtion file and restart Apache\n");
-            printf("\tSETTINGS   - Show current thread status\n");
-            printf("\tSHUTDOWN   - Shutdown Apache\n");
-            printf("\tVERSION    - Display the server version information\n");
-        }
 
-        /*  Tell NetWare we handled the command */
+static APR_INLINE int re_check(include_ctx_t *ctx, const char *string,
+                               const char *rexp)
+{
+    ap_regex_t *compiled;
+    backref_t *re = ctx->intern->re;
+    int rc;
+
+    compiled = ap_pregcomp(ctx->dpool, rexp, AP_REG_EXTENDED);
+    if (!compiled) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->intern->r, "unable to "
+                      "compile pattern \"%s\"", rexp);
+        return -1;

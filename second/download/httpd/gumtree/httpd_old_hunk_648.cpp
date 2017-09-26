@@ -1,18 +1,12 @@
-    }
+ */
+AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
+                                            ap_out_filter_func filter_func,
+                                            ap_init_filter_func filter_init,
+                                            ap_filter_type ftype);
 
-    /* parsing is done...  register the filter 
-     */
-    if (filter->mode == OUTPUT_FILTER) {
-        /* XXX need a way to ensure uniqueness among all filters */
-        ap_register_output_filter(filter->name, ef_output_filter, AP_FTYPE_RESOURCE);
-    }
-#if 0              /* no input filters yet */
-    else if (filter->mode == INPUT_FILTER) {
-        /* XXX need a way to ensure uniqueness among all filters */
-        ap_register_input_filter(filter->name, ef_input_filter, AP_FTYPE_RESOURCE);
-    }
-#endif
-    else {
-        ap_assert(1 != 1); /* we set the field wrong somehow */
-    }
-
+/**
+ * Adds a named filter into the filter chain on the specified request record.
+ * The filter will be installed with the specified context pointer.
+ *
+ * Filters added in this way will always be placed at the end of the filters
+ * that have the same type (thus, the filters have the same order as the

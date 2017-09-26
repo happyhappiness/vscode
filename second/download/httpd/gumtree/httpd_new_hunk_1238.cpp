@@ -1,20 +1,20 @@
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-          "proxy: FTP: an error occurred creating the transfer connection");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, doneka);
+    printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalread);
+    if (posting == 1)
+        printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);
+    if (posting == 2)
+        printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);
+    printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);
 
-    /* set up the connection filters */
-    rc = ap_run_pre_connection(data, data_sock);
-    if (rc != OK && rc != DONE) {
-        data->aborted = 1;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: pre_connection setup failed (%d)",
-                     rc);
-        return rc;
-    }
-
-    /*
-     * VI: Receive the Response ------------------------
-     *
-     * Get response from the remote ftp socket, and pass it up the filter chain.
-     */
+    /* avoid divide by zero */
+    if (timetaken) {

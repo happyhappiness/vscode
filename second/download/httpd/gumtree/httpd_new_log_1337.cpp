@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                         c->base_server,
-                         "SSL client authentication failed: %s",
-                         error ? error : "unknown");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));

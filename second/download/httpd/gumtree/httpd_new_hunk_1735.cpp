@@ -1,13 +1,39 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+            r->status_line = "200 OK";
+            backend->close += 1;
+        }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+        interim_response = ap_is_HTTP_INFO(r->status);
+        if (interim_response) {
+            /* RFC2616 tells us to forward this.
+             *
+             * OTOH, an interim response here may mean the backend
+             * is playing sillybuggers.  The Client didn't ask for
+             * it within the defined HTTP/1.1 mechanisms, and if
+             * it's an extension, it may also be unsupported by us.
+             *
+             * There's also the possibility that changing existing
+             * behaviour here might break something.
+             *
+             * So let's make it configurable.
+             */
+            const char *policy = apr_table_get(r->subprocess_env,
+                                               "proxy-interim-response");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received interim %d response",
+                         r->status);
+            if (!policy || !strcasecmp(policy, "RFC")) {
+                ap_send_interim_response(r, 1);
+            }
+            /* FIXME: refine this to be able to specify per-response-status
+             * policies and maybe also add option to bail out with 502
+             */
+            else if (strcasecmp(policy, "Suppress")) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                             "undefined proxy interim response policy");
+            }
+        }
+        /* Moved the fixups of Date headers and those affected by
+         * ProxyPassReverse/etc from here to ap_proxy_read_headers
+         */
+
+        if ((r->status == 401) && (conf->error_override)) {

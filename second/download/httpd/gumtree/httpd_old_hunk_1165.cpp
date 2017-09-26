@@ -1,10 +1,12 @@
-        else {
-            fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
-                    h->comment);
+        conn->close++;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
         }
     }
-    htdbm_terminate(h);
-    apr_terminate();
-    
-    return 0; /* Suppress compiler warning. */
-}
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        rv = OK;

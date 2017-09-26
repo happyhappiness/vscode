@@ -1,23 +1,28 @@
-	/* fatal error, bail out */
-	return result;
+
+
+/**
+ * Create an AJP Message from pool
+ *
+ * @param pool      memory pool to allocate AJP message from
+ * @param rmsg      Pointer to newly created AJP message
+ * @return          APR_SUCCESS or error
+ */
+apr_status_t ajp_msg_create(apr_pool_t *pool, ajp_msg_t **rmsg)
+{
+    ajp_msg_t *msg = (ajp_msg_t *)apr_pcalloc(pool, sizeof(ajp_msg_t));
+
+    if (!msg) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_msg_create(): can't allocate AJP message memory");
+        return APR_ENOPOOL;
     }
 
-    if ((fd = ap_popenf(r->pool, r->filename, O_RDONLY, 0)) < 0) {
-	/* We can't open it, but we were able to stat it. */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    MODNAME ": can't read `%s'", r->filename);
-	/* let some other handler decide what the problem is */
-	return DECLINED;
-    }
+    msg->server_side = 0;
 
-    /*
-     * try looking at the first HOWMANY bytes
-     */
-    if ((nbytes = read(fd, (char *) buf, sizeof(buf) - 1)) == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    MODNAME ": read failed: %s", r->filename);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    msg->buf = (apr_byte_t *)apr_palloc(pool, AJP_MSG_BUFFER_SZ);
 
-    if (nbytes == 0)
-	magic_rsl_puts(r, MIME_TEXT_UNKNOWN);
+    /* XXX: This should never happen
+     * In case if the OS cannont allocate 8K of data
+     * we are in serious trouble
+     * No need to check the alloc return value, cause the
+     * core dump is probably the best solution anyhow.

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: TRACE forbidden by server configuration");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Unlock failed for find_best_worker()", balancer->name);

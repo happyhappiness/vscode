@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache_disk: URL %s failed the size check, "
-                     "or is incomplete", 
-                     key);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: worker %s already initialized",
+              worker->name);

@@ -1,29 +1,48 @@
-        qsort((void *) candidates->elts, candidates->nelts,
-              sizeof(misspelled_file), sort_by_quality);
+/*  _________________________________________________________________
+**
+**  Module Initialization
+**  _________________________________________________________________
+*/
 
-        /*
-         * Conditions for immediate redirection: 
-         *     a) the first candidate was not found by stripping the suffix 
-         * AND b) there exists only one candidate OR the best match is not ambigous
-         * then return a redirection right away.
-         */
-        if (variant[0].quality != SP_VERYDIFFERENT &&
-            (candidates->nelts == 1 || variant[0].quality != variant[1].quality)) {
+static char *ssl_add_version_component(apr_pool_t *p,
+                                       server_rec *s,
+                                       char *name)
+{
+    char *val = ssl_var_lookup(p, s, NULL, NULL, name);
 
-            nuri = ap_pstrcat(r->pool, url, variant[0].name, r->path_info,
-			      r->parsed_uri.query ? "?" : "",
-			      r->parsed_uri.query ? r->parsed_uri.query : "", NULL);
+    if (val && *val) {
+        ap_add_version_component(p, val);
+    }
 
-            ap_table_setn(r->headers_out, "Location",
-                      ap_construct_url(r->pool, nuri, r));
+    return val;
+}
 
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r->server,
-                        ref ? "Fixed spelling: %s to %s from %s"
-                        : "Fixed spelling: %s to %s",
-                        r->uri, nuri, ref);
+static char *version_components[] = {
+    "SSL_VERSION_PRODUCT",
+    "SSL_VERSION_INTERFACE",
+    "SSL_VERSION_LIBRARY",
+    NULL
+};
 
-            return HTTP_MOVED_PERMANENTLY;
-        }
-        /*
-         * Otherwise, a "[300] Multiple Choices" list with the variants is
-         * returned.
+static void ssl_add_version_components(apr_pool_t *p,
+                                       server_rec *s)
+{
+    char *vals[sizeof(version_components)/sizeof(char *)];
+    int i;
+
+    for (i=0; version_components[i]; i++) {
+        vals[i] = ssl_add_version_component(p, s,
+                                            version_components[i]);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Server: %s, Interface: %s, Library: %s",
+                 AP_SERVER_BASEVERSION,
+                 vals[1],  /* SSL_VERSION_INTERFACE */
+                 vals[2]); /* SSL_VERSION_LIBRARY */
+}
+
+
+/*
+ * Handle the Temporary RSA Keys and DH Params
+ */

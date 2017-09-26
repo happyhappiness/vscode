@@ -1,13 +1,24 @@
-                  ap_escape_shell_cmd(r->pool, arg_copy));
+    apr_int32_t autoindex_opts = autoindex_conf->opts;
+    char keyid;
+    char direction;
+    char *colargs;
+    char *fullpath;
+    apr_size_t dirpathlen;
+
+    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Can't open directory for index: %s", r->filename);
+        return HTTP_FORBIDDEN;
     }
 
-    while (1) {
-        if (!find_string(f, STARTING_SEQUENCE, r, printing)) {
-            if (get_directive(f, directive, sizeof(directive), r->pool)) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			    "mod_include: error reading directive in %s",
-			    r->filename);
-		ap_rputs(error, r);
-                return;
-            }
-            if (!strcmp(directive, "if")) {
+#if APR_HAS_UNICODE_FS
+    ap_set_content_type(r, "text/html;charset=utf-8");
+#else
+    ap_set_content_type(r, "text/html");
+#endif
+    if (autoindex_opts & TRACK_MODIFIED) {
+        ap_update_mtime(r, r->finfo.mtime);
+        ap_set_last_modified(r);
+        ap_set_etag(r);
+    }
+    if (r->header_only) {

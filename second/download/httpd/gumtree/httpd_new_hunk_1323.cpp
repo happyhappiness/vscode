@@ -1,26 +1,13 @@
-         * hence the debug level
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                      "apr_socket_opt_set(APR_TCP_NODELAY)");
-    }
-#endif
+        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            apr_table_set(c->notes, "SSL_connect_rv", "err");
+            return HTTP_BAD_GATEWAY;
+        }
 
-    /* The core filter requires the timeout mode to be set, which
-     * incidentally sets the socket to be nonblocking.  If this
-     * is not initialized correctly, Linux - for example - will
-     * be initially blocking, while Solaris will be non blocking
-     * and any initial read will fail.
-     */
-    rv = apr_socket_timeout_set(csd, c->base_server->timeout);
-    if (rv != APR_SUCCESS) {
-        /* expected cause is that the client disconnected already */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                     "apr_socket_timeout_set");
-    }
-
-    net->c = c;
-    net->in_ctx = NULL;
-    net->out_ctx = NULL;
-    net->client_socket = csd;
-
-    ap_set_module_config(net->c->conn_config, &core_module, csd);
+        if (sc->proxy_ssl_check_peer_expire == SSL_ENABLED_TRUE) {
+            cert = SSL_get_peer_certificate(filter_ctx->pssl);
+            if (!cert

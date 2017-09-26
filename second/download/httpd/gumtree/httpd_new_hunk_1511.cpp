@@ -1,26 +1,19 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
-
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+            }
+        }
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    for (i = 0; i < ap_threads_per_child; i++) {
+        if (threads[i]) { /* if we ever created this thread */
+#ifdef HAVE_PTHREAD_KILL
+            apr_os_thread_t *worker_os_thread;
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+            apr_os_thread_get(&worker_os_thread, threads[i]);
+            pthread_kill(*worker_os_thread, WORKER_SIGNAL);
+#endif
+
+            rv = apr_thread_join(&thread_rv, threads[i]);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "apr_thread_join: unable to join worker "
+                             "thread %d",
+                             i);

@@ -1,13 +1,21 @@
-	return ap_proxyerror(r, err);	/* give up */
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+    if (MODSSL_TMP_KEY_INIT_DH(s, 512) ||
+        MODSSL_TMP_KEY_INIT_DH(s, 1024)) {
+        return !OK;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+#ifndef OPENSSL_NO_EC
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary EC parameters (256 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_EC(s, 256)) {
+        return !OK;
+    }
+#endif
+
+    return OK;
+}
+
+/*
+ *  Per-module initialization
+ */

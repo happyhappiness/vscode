@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require StartThreads > 0, setting to 1");
+ap_add_output_filter("CHUNK", NULL, r, r->connection);

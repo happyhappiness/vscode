@@ -1,14 +1,24 @@
-     * get away with storing it if we hit an error first. 
-     */
-    *str = '\0'; 
-    return rv;
-}
 
-APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
-                                        const char *format, ...)
-{
-    apr_status_t cc;
-    va_list ap;
-    char *buf;
-    int len;
+                get_entry(neg->pool, &accept_info, body);
+                set_mime_fields(&mime_info, &accept_info);
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-length:", 15)) {
+                char *errp;
+                apr_off_t number;
 
+                if (apr_strtoff(&number, body, &errp, 10)
+                    || *errp || number < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Parse error in type map, Content-Length: "
+                                  "'%s' in %s is invalid.",
+                                  body, r->filename);
+                    break;
+                }
+                mime_info.bytes = number;
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-language:", 17)) {
+                mime_info.content_languages = do_languages_line(neg->pool,
+                                                                &body);
+                has_content = 1;

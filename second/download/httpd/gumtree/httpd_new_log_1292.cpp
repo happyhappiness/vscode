@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "disk_cache: Cannot cache files to disk without a CacheRoot specified.");
+printf("Server loaded:  APR %s, APR-Util %s\n",
+           apr_version_string(), apu_version_string());

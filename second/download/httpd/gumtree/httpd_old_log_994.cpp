@@ -1,2 +1,3 @@
-x       ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
- x                     "Symbolic link not allowed: %s", r->filename);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv,
+                                          c, "core_output_filter:"
+                                          " Error reading from bucket.");

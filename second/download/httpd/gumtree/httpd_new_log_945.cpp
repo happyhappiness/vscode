@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: detected MinSpareThreads set to non-positive.");
+printf("%sdebug: state %d, error recovery discards token %d (%s)\n",
+                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);

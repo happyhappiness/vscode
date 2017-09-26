@@ -1,13 +1,46 @@
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
+                /* Probably a mod_disk_cache cache area has been (re)mounted
+                 * read-only, or that there is a permissions problem.
+                 */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                     "cache: attempt to remove url from cache unsuccessful.");
             }
-            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, worker_main,
-                                                       (void *) i, 0, &tid);
-            if (child_handles[i] == 0) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
-                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
-                             my_pid, threads_created, ap_threads_per_child);
+
+        }
+
+        /* let someone else attempt to cache */
+        ap_cache_remove_lock(conf, r, cache->handle ?
+                (char *)cache->handle->cache_obj->key : NULL, NULL);
+
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                     "cache: store_headers failed");
+
+        ap_remove_output_filter(f);
+        ap_cache_remove_lock(conf, r, cache->handle ?
+                (char *)cache->handle->cache_obj->key : NULL, NULL);
+        return ap_pass_brigade(f->next, in);
+    }
+
+    rv = cache->provider->store_body(cache->handle, r, in);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                     "cache: store_body failed");
+        ap_remove_output_filter(f);
+        ap_cache_remove_lock(conf, r, cache->handle ?
+                (char *)cache->handle->cache_obj->key : NULL, NULL);
+        return ap_pass_brigade(f->next, in);
+    }
+
+    /* proactively remove the lock as soon as we see the eos bucket */
+    ap_cache_remove_lock(conf, r, cache->handle ?
+            (char *)cache->handle->cache_obj->key : NULL, in);
+
+    return ap_pass_brigade(f->next, in);
+}
+
+/*
+ * CACHE_REMOVE_URL filter
+ * ---------------

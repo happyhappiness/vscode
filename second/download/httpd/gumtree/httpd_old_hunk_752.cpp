@@ -1,26 +1,13 @@
+static const char *add_env_module_vars_passed(cmd_parms *cmd, void *sconf_,
+                                              const char *arg)
 {
-    apr_interval_time_t timetakenusec;
-    float timetaken;
-
-    endtime = apr_time_now();
-    timetakenusec = endtime - start;
-    timetaken = (float) timetakenusec / APR_USEC_PER_SEC;
+    env_dir_config_rec *sconf = sconf_;
+    apr_table_t *vars = sconf->vars;
+    const char *env_var;
     
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hd\n", port);
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %ld.%03ld seconds\n",
-           (long) (timetakenusec / APR_USEC_PER_SEC),
-           (long) (timetakenusec % APR_USEC_PER_SEC));
-    printf("Complete requests:      %ld\n", done);
-    printf("Failed requests:        %ld\n", bad);
-    if (bad)
-	printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-	       err_conn, err_length, err_except);
-    printf("Write errors:           %ld\n", epipe);
+    env_var = getenv(arg);
+    if (env_var != NULL) {
+        apr_table_setn(vars, arg, apr_pstrdup(cmd->pool, env_var));
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,

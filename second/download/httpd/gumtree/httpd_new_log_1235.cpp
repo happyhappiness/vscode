@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0,
-                             ap_server_conf, "worker_wakeup_create failed");
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            "." NL);

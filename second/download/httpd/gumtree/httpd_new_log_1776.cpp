@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
-                      total, eos);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);

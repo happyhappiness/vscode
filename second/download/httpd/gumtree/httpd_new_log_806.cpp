@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "%s configured -- resuming normal operations",
-                ap_get_server_version());
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "RewriteCond: NoCase option for non-regex pattern '%s' "
+                     "is not supported and will be ignored.", a2);

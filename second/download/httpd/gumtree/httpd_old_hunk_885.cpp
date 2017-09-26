@@ -1,12 +1,23 @@
-    int access_status;
-
-    /* Ignore embedded %2F's in path for proxy requests */
-    if (!r->proxyreq && r->parsed_uri.path) {
-        access_status = ap_unescape_url(r->parsed_uri.path);
-        if (access_status) {
-            return access_status;
-        }
+	if (sigaction(SIGABRT, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABRT)");
+	if (sigaction(SIGILL, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGILL)");
+	sa.sa_flags = 0;
     }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+    
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+    	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
 
-    ap_getparents(r->uri);     /* OK --- shrinking transformations... */
-
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+    	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "piped_log_maintenance: unable to respawn '%s': %s",
-                         pl->program, apr_strerror(stats, buf, sizeof(buf)));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                "regex capture $%" APR_SIZE_T_FMT " refers to no regex in %s",
+                idx, r->filename);

@@ -1,1 +1,3 @@
-ap_register_output_filter("PROXY_SEND_DIR", ap_proxy_send_dir_filter, AP_FTYPE_RESOURCE);
+r(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+			  "%s: %s", malformed, 
+                          apr_filename_of_pathname(r->filename));

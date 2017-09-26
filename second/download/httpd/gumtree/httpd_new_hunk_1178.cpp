@@ -1,14 +1,13 @@
-        return ap_pass_brigade(f->next, bb);
-    }
+            else /* if (ssl_err == SSL_ERROR_SSL) */ {
+                /*
+                 * Log SSL errors and any unexpected conditions.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, mySrvFromConn(c));
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                 "cache: running CACHE_OUT filter");
-
-    /* recall_body() was called in cache_select_url() */
-    cache->provider->recall_body(cache->handle, r->pool, bb);
-
-    /* This filter is done once it has served up its content */
-    ap_remove_output_filter(f);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                 "cache: serving %s", r->uri);
+            }
+            if (inctx->rc == APR_SUCCESS) {
+                inctx->rc = APR_EGENERAL;
+            }
+            break;

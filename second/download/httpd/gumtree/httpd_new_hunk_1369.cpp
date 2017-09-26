@@ -1,75 +1,34 @@
-            closesocket(qhead->accept_socket);
-            qhead = qhead->next;
-        }
-        apr_thread_mutex_unlock(qlock);
+        return AJP_EBAD_HEADER;
     }
+    *ptr = (char *)&(msg->buf[msg->pos]);
+    return APR_SUCCESS;
+}
 
-    /* Give busy threads a chance to service their connections,
-     * (no more than the global server timeout period which 
-     * we track in msec remaining).
-     */
-    watch_thread = 0;
-    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
+/* Check the reuse flag in CMD_AJP13_END_RESPONSE */
+apr_status_t ajp_parse_reuse(request_rec *r, ajp_msg_t *msg,
+                             apr_byte_t *reuse)
+{
+    apr_byte_t result;
+    apr_status_t rc;
 
-    while (threads_created)
-    {
-        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
-        DWORD dwRet;
-
-        /* Every time we roll over to wait on the first group
-         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
-         * and infrequently update the error log.
-         */
-        if (watch_thread >= threads_created) {
-            if ((time_remains -= 100) < 0)
-                break;
-
-            /* Every 30 seconds give an update */
-            if ((time_remains % 30000) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
-                             ap_server_conf,
-                             "Child %d: Waiting %d more seconds "
-                             "for %d worker threads to finish.", 
-                             my_pid, time_remains / 1000, threads_created);
-            }
-            /* We'll poll from the top, 10 times per second */
-            Sleep(100);
-            watch_thread = 0;
-        }
-
-        /* Fairness, on each iteration we will pick up with the thread
-         * after the one we just removed, even if it's a single thread.
-         * We don't block here.
-         */
-        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
-                                           MAXIMUM_WAIT_OBJECTS),
-                                       child_handles + watch_thread, 0, 0);
-
-        if (dwRet == WAIT_FAILED) {
-            break;
-        }
-        if (dwRet == WAIT_TIMEOUT) {
-            /* none ready */
-            watch_thread += MAXIMUM_WAIT_OBJECTS;
-            continue;
-        }
-        else if (dwRet >= WAIT_ABANDONED_0) {
-            /* We just got the ownership of the object, which
-             * should happen at most MAXIMUM_WAIT_OBJECTS times.
-             * It does NOT mean that the object is signaled.
-             */
-            if ((nFailsafe--) < 1)
-                break;
-        }
-        else {
-            watch_thread += (dwRet - WAIT_OBJECT_0);
-            if (watch_thread >= threads_created)
-                break;
-            cleanup_thread(child_handles, &threads_created, watch_thread);
-        }
+    rc = ajp_msg_get_uint8(msg, &result);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_reuse: ajp_msg_get_byte failed");
+        return rc;
     }
+    if (result != CMD_AJP13_END_RESPONSE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_reuse: wrong type 0x%02x expecting 0x%02x",
+               result, CMD_AJP13_END_RESPONSE);
+        return AJP_EBAD_HEADER;
+    }
+    return ajp_msg_get_uint8(msg, reuse);
+}
 
-    /* Kill remaining threads off the hard way */
-    if (threads_created) {
-        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                     "Child %d: Terminating %d threads that failed to exit.", 
+/*
+ * Allocate a msg to send data
+ */
+apr_status_t  ajp_alloc_data_msg(apr_pool_t *pool, char **ptr, apr_size_t *len,
+                                 ajp_msg_t **msg)
+{

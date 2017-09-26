@@ -1,28 +1,15 @@
-                apr_sockaddr_t *pasv_addr;
-                apr_port_t pasvport = (p1 << 8) + p0;
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                          "proxy: FTP: PASV contacting host %d.%d.%d.%d:%d",
-                             h3, h2, h1, h0, pasvport);
-
-                if ((rv = apr_socket_create(&data_sock, APR_INET, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: error creating PASV socket");
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-
-#if !defined (TPF) && !defined(BEOS)
-                if (conf->recv_buffer_size > 0 && (rv = apr_setsocketopt(data_sock, APR_SO_RCVBUF,
-                                                 conf->recv_buffer_size))) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: FTP: setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-                }
-#endif
-
-                /* make the connection */
-                apr_sockaddr_info_get(&pasv_addr, apr_psprintf(p, "%d.%d.%d.%d", h3, h2, h1, h0), APR_INET, pasvport, 0, p);
-                rv = apr_connect(data_sock, pasv_addr);
-                if (rv != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                                 "proxy: FTP: PASV attempt to connect to %pI failed - Firewall/NAT?", pasv_addr);
-                    return ap_proxyerror(r, HTTP_BAD_GATEWAY, apr_psprintf(r->pool,
-                                                                           "PASV attempt to connect to %pI failed - firewall/NAT?", pasv_addr));
+#if APR_HAS_MMAP
+    if (mmap) {
+        /* MMAPFile directive. MMAP'ing the file
+         * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
+         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
+         */
+        if ((rc = apr_mmap_create(&new_file->mm, fd, 0, 
+                                  (apr_size_t)new_file->finfo.size,
+                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) { 
+            apr_file_close(fd);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                         "mod_file_cache: unable to mmap %s, skipping", filename);
+            return;
+        }
+        apr_file_close(fd);

@@ -1,0 +1,1 @@
+(isprint(re->req_char);

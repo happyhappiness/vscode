@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
+ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                     "failed to write %d of %d bytes (%s)",
+                     len - (apr_size_t)res, len, reason);

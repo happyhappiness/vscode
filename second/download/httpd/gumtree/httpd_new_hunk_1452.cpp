@@ -1,15 +1,12 @@
-    ap_hard_timeout("send directory", r);
-
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
+            return rv;
+        }
     }
 
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    apr_file_close(dobj->hfd); /* flush and close */
+
+    rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile, r->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                     "disk_cache: rename tempfile to hdrsfile failed: %s -> %s",
+                     dobj->tempfile, dobj->hdrsfile);
+        apr_file_remove(dobj->tempfile, r->pool);

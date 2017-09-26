@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Directory index forbidden by "
+                      "Options directive: %s", r->filename);

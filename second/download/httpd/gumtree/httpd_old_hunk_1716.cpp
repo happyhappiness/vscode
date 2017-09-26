@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+        return DECLINED;
 
-        r->read_chunked = 1;
+    if (strcmp(r->handler, "ldap-status")) {
+        return DECLINED;
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    r->content_type = "text/html";
+    if (r->header_only)
+        return OK;
+
+    ap_rputs(DOCTYPE_HTML_3_2
+             "<html><head><title>LDAP Cache Information</title></head>\n", r);
+    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information"

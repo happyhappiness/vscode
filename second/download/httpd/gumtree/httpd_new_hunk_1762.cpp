@@ -1,13 +1,25 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
     }
+    /*
+     * now parse path/search args, according to rfc1738:
+     * process the path. With proxy-noncanon set (by
+     * mod_proxy) we use the raw, unparsed uri
+     */
+    if (apr_table_get(r->notes, "proxy-nocanon")) {
+        path = url;   /* this is the raw path */
+    }
+    else {
+        path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,
+                                 r->proxyreq);
+        search = r->args;
+    }
+    if (path == NULL)
+        return HTTP_BAD_REQUEST;
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    r->filename = apr_pstrcat(r->pool, "proxy:balancer://", host,
+            "/", path, (search) ? "?" : "", (search) ? search : "", NULL);
+    return OK;

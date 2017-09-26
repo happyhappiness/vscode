@@ -1,13 +1,16 @@
-    apr_status_t rc;
-    char *filename = ap_server_root_relative(p, fname);
-    if (!filename) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
-                     APR_EBADPATH, NULL, "Invalid -E error log file %s",
-                     fname);
-        return APR_EBADPATH;
+    ssl_filter_ctx_t *filter_ctx = data;
+
+    if (filter_ctx->pssl) {
+        conn_rec *c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+        SSLConnRec *sslconn = myConnConfig(c);
+
+        SSL_free(filter_ctx->pssl);
+        sslconn->ssl = filter_ctx->pssl = NULL;
     }
-    if ((rc = apr_file_open(&stderr_file, filename,
-                            APR_APPEND | APR_READ | APR_WRITE | APR_CREATE,
-                            APR_OS_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                     "%s: could not open error log file %s.",
+
+    return APR_SUCCESS;
+}
+
+/*
+ * The hook is NOT registered with ap_hook_process_connection. Instead, it is
+ * called manually from the churn () before it tries to read any data.

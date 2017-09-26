@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK,APLOG_NOERRNO|APLOG_INFO, 0, NULL,
-                             "Using ConfigArgs of the installed service "
-                             "\"%s\".", service_name);
+fprintf(stderr, "Entering state %d\n", ssl_expr_yystate);

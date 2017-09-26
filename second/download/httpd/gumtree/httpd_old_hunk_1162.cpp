@@ -1,12 +1,27 @@
-
-    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
-	fprintf(stderr, "%s: invalid URL\n", argv[0]);
-	usage(argv[0]);
+        }
+        else if (content_length > 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: read zero bytes, expecting"
+                         " %" APR_OFF_T_FMT " bytes",
+                         content_length);
+            status = ajp_send_data_msg(conn->sock, msg, 0);
+            if (status != APR_SUCCESS) {
+                /* We had a failure: Close connection to backend */
+                conn->close++;
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                            "proxy: send failed to %pI (%s)",
+                            conn->worker->cp->addr,
+                            conn->worker->hostname);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            else {
+                /* Client send zero bytes with C-L > 0
+                 */
+                return HTTP_BAD_REQUEST;
+            }
+        }
     }
 
-
-    if ((heartbeatres) && (requests > 150)) {
-	heartbeatres = requests / 10;	/* Print line every 10% of requests */
-	if (heartbeatres < 100)
-	    heartbeatres = 100;	/* but never more often than once every 100
-				 * connections. */
+    /* read the response */
+    conn->data = NULL;
+    status = ajp_read_header(conn->sock, r, maxsize,

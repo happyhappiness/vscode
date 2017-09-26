@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|stop|shutdown]", pad);
+fprintf(stderr, "table_set: val not in ancestor pool of t\n");

@@ -1,15 +1,21 @@
-    if (ap_threads_max_free < ap_threads_min_free + 1)	/* Don't thrash... */
-        ap_threads_max_free = ap_threads_min_free + 1;
-    request_count = 0;
+    }
+    do {
+        apr_bucket *bucket;
 
-    startup_workers(ap_threads_to_start);
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
 
-     /* Allow the Apache screen to be closed normally on exit()*/
-    hold_screen_on_exit = 0;
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		"%s configured -- resuming normal operations",
-		ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-		"Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {
+            const char *data;
+            apr_size_t len;
+
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                seen_eos = 1;
+                break;

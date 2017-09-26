@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                             ap_server_conf,
-                             "removed PID file %s (pid=%ld)",
-                             pidfile, (long)getpid());
+apr_file_printf(out, " %s (static)\n", modi->name);

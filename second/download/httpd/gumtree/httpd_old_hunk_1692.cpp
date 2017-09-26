@@ -1,25 +1,18 @@
-    stats = malloc(requests * sizeof(struct data));
-
-    FD_ZERO(&readbits);
-    FD_ZERO(&writebits);
-
-    /* setup request */
-    sprintf(request, "GET %s HTTP/1.0\r\n"
-                     "User-Agent: ApacheBench/%s\r\n"
-                     "%s"
-                     "Host: %s\r\n"
-                     "Accept: */*\r\n"
-                     "\r\n", 
-                     path, 
-                     VERSION,
-                     keepalive ? "Connection: Keep-Alive\r\n" : "", 
-                     hostname);
-
-    reqlen = strlen(request);
-
-    /* ok - lets start */
-    gettimeofday(&start, 0);
-
-    /* initialise lots of requests */
-    for (i = 0; i < concurrency; i++)
-        start_connect(&con[i]);
+            apr_md5_encode((const char *)htdbm->userpass, (const char *)salt,
+                            cpw, sizeof(cpw));
+        break;
+        case ALG_PLAIN:
+            /* XXX this len limitation is not in sync with any HTTPd len. */
+            apr_cpystrn(cpw,htdbm->userpass,sizeof(cpw));
+#if APR_HAVE_CRYPT_H
+            fprintf(stderr, "Warning: Plain text passwords aren't supported by the "
+                    "server on this platform!\n");
+#endif
+        break;
+#if APR_HAVE_CRYPT_H
+        case ALG_CRYPT:
+            (void) srand((int) time((time_t *) NULL));
+            to64(&salt[0], rand(), 8);
+            salt[8] = '\0';
+            apr_cpystrn(cpw, (char *)crypt(htdbm->userpass, salt), sizeof(cpw) - 1);
+            fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");

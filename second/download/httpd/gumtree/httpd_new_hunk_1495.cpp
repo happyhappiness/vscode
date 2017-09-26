@@ -1,76 +1,54 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
-    }
-}
+**
+**  OpenSSL Callback Functions
+**  _________________________________________________________________
+*/
 
-#elif defined(USE_OS2SEM_SERIALIZED_ACCEPT)
-
-static HMTX lock_sem = -1;
-
-static void accept_mutex_cleanup(void *foo)
+/*
+ * Hand out the already generated DH parameters...
+ * Based on the authentication strength.
+ */
+DH *ssl_callback_TmpDH(SSL *ssl, int export, int keylen)
 {
-    DosReleaseMutexSem(lock_sem);
-    DosCloseMutexSem(lock_sem);
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    EVP_PKEY *pkey;
+    int type;
+
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out built-in DH parameters for %d-bit "
+                  "authenticated connection", keylen);
+
+#ifdef SSL_CERT_SET_SERVER
+    /*
+     * When multiple certs/keys are configured for the SSL_CTX: make sure
+     * that we get the private key which is indeed used for the current
+     * SSL connection (available in OpenSSL 1.0.2 or later only)
+     */
+    SSL_set_current_cert(ssl, SSL_CERT_SET_SERVER);
+#endif
+    pkey = SSL_get_privatekey(ssl);
+    type = pkey ? EVP_PKEY_type(pkey->type) : EVP_PKEY_NONE;
+
+    /*
+     * OpenSSL will call us with either keylen == 512 or keylen == 1024
+     * (see the definition of SSL_EXPORT_PKEYLENGTH in ssl_locl.h).
+     * Adjust the DH parameter length according to the size of the
+     * RSA/DSA private key used for the current connection, and always
+     * use at least 1024-bit parameters.
+     * Note: This may cause interoperability issues with implementations
+     * which limit their DH support to 1024 bit - e.g. Java 7 and earlier.
+     * In this case, SSLCertificateFile can be used to specify fixed
+     * 1024-bit DH parameters (with the effect that OpenSSL skips this
+     * callback).
+     */
+    if ((type == EVP_PKEY_RSA) || (type == EVP_PKEY_DSA)) {
+        keylen = EVP_PKEY_bits(pkey);
+    }
+
+    return ssl_dh_GetTmpParam(keylen);
 }
 
 /*
- * Initialize mutex lock.
- * Done by each child at it's birth
+ * This OpenSSL callback function is called when OpenSSL
+ * does client authentication and verifies the certificate chain.
  */
-static void accept_mutex_child_init(pool *p)
-{
-    int rc = DosOpenMutexSem(NULL, &lock_sem);
-
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "Child cannot open lock semaphore");
-	clean_child_exit(APEXIT_CHILDINIT);
-    }
-}
-
-/*
- * Initialize mutex lock.
- * Must be safe to call this on a restart.
- */
-static void accept_mutex_init(pool *p)
-{
-    int rc = DosCreateMutexSem(NULL, &lock_sem, DC_SEM_SHARED, FALSE);
-
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "Parent cannot create lock semaphore");
-	exit(APEXIT_INIT);
-    }
-
-    ap_register_cleanup(p, NULL, accept_mutex_cleanup, ap_null_cleanup);
-}
-
-static void accept_mutex_on(void)
-{
-    int rc = DosRequestMutexSem(lock_sem, SEM_INDEFINITE_WAIT);
-
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d getting accept lock. Exiting!", rc);
-	clean_child_exit(APEXIT_CHILDFATAL);
-    }
-}
-
-static void accept_mutex_off(void)
-{
-    int rc = DosReleaseMutexSem(lock_sem);
-    
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d freeing accept lock. Exiting!", rc);
-	clean_child_exit(APEXIT_CHILDFATAL);
-    }
-}
-
-#else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+int ssl_callback_SSLVerify(int ok, X509_STORE_CTX *ctx)

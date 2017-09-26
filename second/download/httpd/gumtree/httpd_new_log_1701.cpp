@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                             "SSL cipher suite not renegotiated: "
-                             "access to %s denied using cipher %s",
-                              r->filename,
-                              SSL_CIPHER_get_name(cipher));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: ServerSupport function "
+                          "HSE_REQ_TRANSMIT_FILE "
+                          "ap_pass_brigade failed: %s", r->filename);

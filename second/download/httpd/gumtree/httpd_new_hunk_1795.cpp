@@ -1,93 +1,27 @@
-        int iEnvBlockLen;
+        return rv;
+    }
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
+#if (APR_POOL_DEBUG & APR_POOL_DEBUG_VERBOSE_ALL)
+    rv = apr_env_get(&logpath, "APR_POOL_DEBUG_LOG", global_pool);
 
-	interpreter[0] = 0;
-	pid = -1;
+    /* Don't pass file_stderr directly to apr_file_open() here, since
+     * apr_file_open() can call back to apr_pool_log_event() and that
+     * may attempt to use then then non-NULL but partially set up file
+     * object. */
+    if (rv == APR_SUCCESS) {
+        apr_file_open(&debug_log, logpath, APR_APPEND|APR_WRITE|APR_CREATE,
+                      APR_OS_DEFAULT, global_pool);
+    }
+    else {
+        apr_file_open_stderr(&debug_log, global_pool);
+    }
 
-	exename = strrchr(r->filename, '/');
-	if (!exename) {
-	    exename = strrchr(r->filename, '\\');
-	}
-	if (!exename) {
-	    exename = r->filename;
-	}
-	else {
-	    exename++;
-	}
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT")
-		|| !strcasecmp(dot, ".CMD")
-		|| !strcasecmp(dot, ".EXE")
-		||  !strcasecmp(dot, ".COM")) {
-		is_exe = 1;
-	    }
-	}
+    /* debug_log is now a file handle. */
+    file_stderr = debug_log;
 
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r')
-			|| (interpreter[i] == '\n')) {
-			break;
-		    }
-		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-	    }
-	    else {
-	        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-                    is_binary = 1;
-		}
-	    }
-	}
-        /* Bail out if we haven't figured out what kind of
-         * file this is by now..
-         */
-        if (!is_exe && !is_script && !is_binary) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		"%s is not executable; ensure interpreted scripts have "
-		"\"#!\" first line", 
-		r->filename);
-            return (pid);
-	}
-
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
-
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
+    if (file_stderr) {
+        apr_file_printf(file_stderr,
+            "POOL DEBUG: [PID"
+#if APR_HAS_THREADS
+            "/TID"
+#endif /* APR_HAS_THREADS */

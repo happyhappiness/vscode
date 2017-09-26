@@ -1,14 +1,12 @@
-#ifdef WIN32
-	if (i == SOCKET_ERROR)
-	    errno = WSAGetLastError();
-#endif /* WIN32 */
-    } while (i == -1 && errno == EINTR);
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy connect to %s port %d failed",
-		     inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
-    }
-    ap_kill_timeout(r);
+{
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
 
-    return i;
-}
+    if (!svr->persist) {
+        /* Return a once-only connection */
+        rv = dbd_construct(&rec, svr, s->process->pool);
+        return (rv == APR_SUCCESS) ? arec : NULL;
+    }
+

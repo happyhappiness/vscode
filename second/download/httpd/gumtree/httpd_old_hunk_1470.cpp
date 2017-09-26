@@ -1,13 +1,12 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
     }
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
+        return ap_proxyerror(r, HTTP_FORBIDDEN,
+                             "Connect to remote machine blocked");
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);
+    return OK;
+}
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",

@@ -1,13 +1,78 @@
-        return DECLINED;
+    *indexes = apr_array_make(r->pool, ranges, sizeof(indexes_t));
+    while ((cur = ap_getword(r->pool, &range, ','))) {
+        char *dash;
+        char *errp;
+        apr_off_t number, start, end;
 
-    r->allowed |= (AP_METHOD_BIT << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
+        if (!*cur)
+            break;
 
-    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+        /*
+         * Per RFC 2616 14.35.1: If there is at least one syntactically invalid
+         * byte-range-spec, we must ignore the whole header.
+         */
 
-    ap_rputs(DOCTYPE_HTML_3_2
-	     "<html><head><title>Server Information</title></head>\n", r);
-    ap_rputs("<body><h1 align=\"center\">Apache Server Information</h1>\n", r);
-    if (!r->args || strcasecmp(r->args, "list")) {
-        if (!r->args) {
+        if (!(dash = strchr(cur, '-'))) {
+            return 0;
+        }
+
+        if (dash == cur) {
+            /* In the form "-5" */
+            if (apr_strtoff(&number, dash+1, &errp, 10) || *errp) {
+                return 0;
+            }
+            if (number < 1) {
+                return 0;
+            }
+            start = clength - number;
+            end = clength - 1;
+        }
+        else {
+            *dash++ = '\0';
+            if (apr_strtoff(&number, cur, &errp, 10) || *errp) {
+                return 0;
+            }
+            start = number;
+            if (*dash) {
+                if (apr_strtoff(&number, dash, &errp, 10) || *errp) {
+                    return 0;
+                }
+                end = number;
+                if (start > end) {
+                    return 0;
+                }
+            }
+            else {                  /* "5-" */
+                end = clength - 1;
+            }
+        }
+
+        if (start < 0) {
+            start = 0;
+        }
+        if (start >= clength) {
+            unsatisfiable = 1;
+            continue;
+        }
+        if (end >= clength) {
+            end = clength - 1;
+        }
+
+        idx = (indexes_t *)apr_array_push(*indexes);
+        idx->start = start;
+        idx->end = end;
+        sum_lengths += end - start + 1;
+        /* new set again */
+        num_ranges++;
+    }
+
+    if (num_ranges == 0 && unsatisfiable) {
+        /* If all ranges are unsatisfiable, we should return 416 */
+        return -1;
+    }
+    if (sum_lengths >= clength) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges not smaller than file, ignoring.");
+        return 0;
+    }
+

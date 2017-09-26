@@ -1,86 +1,42 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
-	}		
-	return rcode;
+
+    return 1;
 }
 
-int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
+int ssl_init_ssl_connection(conn_rec *c)
 {
-    int rcode;
-    struct tlsserveropts sWS2Opts;
-    struct nwtlsopts    sNWTLSOpts;
-    unicode_t SASKey[512];
-    unsigned long ulFlag;
-    
-    memset((char *)&sWS2Opts, 0, sizeof(struct tlsserveropts));
-    memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
-    
-    
-    ulFlag = SO_TLS_ENABLE;
-    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long), NULL, 0, NULL, NULL, NULL);
-    if(rcode)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_ENABLE)", WSAGetLastError());
-        goto ERR;
-    }
-    
-    
-    ulFlag = SO_TLS_SERVER;
-    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long),NULL, 0, NULL, NULL, NULL);
-    
-    if(rcode)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
-        goto ERR;
-    }
-    
-    loc2uni(UNI_LOCAL_DEFAULT, SASKey, key, 0, 0);
+    SSLSrvConfigRec *sc;
+    SSL *ssl;
+    SSLConnRec *sslconn = myConnConfig(c);
+    char *vhost_md5;
+    modssl_ctx_t *mctx;
+    server_rec *server;
 
-    //setup the tlsserveropts struct
-    sWS2Opts.wallet = SASKey;
-    sWS2Opts.walletlen = unilen(SASKey);
-    sWS2Opts.sidtimeout = 0;
-    sWS2Opts.sidentries = 0;
-    sWS2Opts.siddir = NULL;
-    sWS2Opts.options = &sNWTLSOpts;
-    
-    //setup the nwtlsopts structure
-    
-    sNWTLSOpts.walletProvider               = WAL_PROV_KMO;
-    sNWTLSOpts.keysList                     = NULL;
-    sNWTLSOpts.numElementsInKeyList         = 0;
-    sNWTLSOpts.reservedforfutureuse         = NULL;
-    sNWTLSOpts.reservedforfutureCRL         = NULL;
-    sNWTLSOpts.reservedforfutureCRLLen      = NULL;
-    sNWTLSOpts.reserved1                    = NULL;
-    sNWTLSOpts.reserved2                    = NULL;
-    sNWTLSOpts.reserved3                    = NULL;
-    
-    
-    rcode = WSAIoctl(socketHnd, 
-                     SO_TLS_SET_SERVER, 
-                     &sWS2Opts, 
-                     sizeof(struct tlsserveropts), 
-                     NULL, 
-                     0, 
-                     NULL, 
-                     NULL, 
-                     NULL);
-    if(SOCKET_ERROR == rcode) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());
-        goto ERR;
+    if (!sslconn) {
+        sslconn = ssl_init_connection_ctx(c);
     }
-    
-ERR:
-    return rcode;
-}
+    server = sslconn->server;
+    sc = mySrvConfig(server);
 
-static const char *set_secure_listener(cmd_parms *cmd, void *dummy, 
-                                       const char *ips, const char* key, 
-                                       const char* mutual)
-{
-    NWSSLSrvConfigRec* sc = get_nwssl_cfg(cmd->server);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
+     */
+    ssl_rand_seed(server, c->pool, SSL_RSCTX_CONNECT, "");
+
+    mctx = sslconn->is_proxy ? sc->proxy : sc->server;
+
+    /*
+     * Create a new SSL connection with the configured server SSL context and
+     * attach this to the socket. Additionally we register this attachment
+     * so we can detach later.
+     */
+    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to create a new SSL connection from the SSL "
+                      "context");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
+    }
+

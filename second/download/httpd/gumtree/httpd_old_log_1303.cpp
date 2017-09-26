@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                         main_server,
-                         "Error reading request on cgid socket");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);

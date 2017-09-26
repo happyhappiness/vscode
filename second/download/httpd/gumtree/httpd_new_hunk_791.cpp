@@ -1,48 +1,16 @@
 
-            /* NEVER save an EOS in here.  If we are saving a brigade with
-             * an EOS bucket, then we are doing keepalive connections, and
-             * we want to process to second request fully.
-             */
-            if (APR_BUCKET_IS_EOS(last_e)) {
-                apr_bucket *bucket;
-                int file_bucket_saved = 0;
-                apr_bucket_delete(last_e);
-                for (bucket = APR_BRIGADE_FIRST(b);
-                     bucket != APR_BRIGADE_SENTINEL(b);
-                     bucket = APR_BUCKET_NEXT(bucket)) {
+    SSL_set_shutdown(ssl, shutdown_type);
+    SSL_smart_shutdown(ssl);
 
-                    /* Do a read on each bucket to pull in the
-                     * data from pipe and socket buckets, so
-                     * that we don't leave their file descriptors
-                     * open indefinitely.  Do the same for file
-                     * buckets, with one exception: allow the
-                     * first file bucket in the brigade to remain
-                     * a file bucket, so that we don't end up
-                     * doing an mmap+memcpy every time a client
-                     * requests a <8KB file over a keepalive
-                     * connection.
-                     */
-                    if (APR_BUCKET_IS_FILE(bucket) && !file_bucket_saved) {
-                        file_bucket_saved = 1;
-                    }
-                    else {
-                        const char *buf;
-                        apr_size_t len = 0;
-                        rv = apr_bucket_read(bucket, &buf, &len,
-                                             APR_BLOCK_READ);
-                        if (rv != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                                         c->base_server, "core_output_filter:"
-                                         " Error reading from bucket.");
-                            return HTTP_INTERNAL_SERVER_ERROR;
-                        }
-                    }
-                }
-            }
-            ap_save_brigade(f, &ctx->b, &b, c->pool);
+    /* and finally log the fact that we've closed the connection */
+    if (c->base_server->loglevel >= APLOG_INFO) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, c->base_server));
+    }
 
-            return APR_SUCCESS;
-        }
-
-        if (fd) {
-            apr_hdtr_t hdtr;
+    /* deallocate the SSL connection */
+    if (sslconn->client_cert) {
+        X509_free(sslconn->client_cert);
+        sslconn->client_cert = NULL;

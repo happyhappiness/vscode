@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                    "SIGHUP received.  Attempting to restart");
+ap_register_output_filter("FIXUP_HEADERS_ERR", ap_headers_error_filter,
+                              NULL, AP_FTYPE_CONTENT_SET);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " large as ThreadsPerChild (%d). Automatically",
-                    ap_threads_per_child);
+printf("%sdebug: after reduction, shifting from state %d \
+to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);

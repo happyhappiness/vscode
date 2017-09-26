@@ -1,13 +1,17 @@
-		    encoding_len++;
-		    continue;
-		}
-		else {
-		    /* should not be possible */
-		    /* abandon malfunctioning module */
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-				MODNAME ": bad state %d (ns)", state);
-		    return DECLINED;
-		}
-		/* NOTREACHED */
-	    }
-	    /* NOTREACHED */
+        return AJP_EBAD_SIGNATURE;
+    }
+
+    msglen  = ((head[2] & 0xff) << 8);
+    msglen += (head[3] & 0xFF);
+
+    if (msglen > AJP_MSG_BUFFER_SZ) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_check_msg_header() incoming message is "
+                     "too big %" APR_SIZE_T_FMT ", max is %d",
+                     msglen, AJP_MSG_BUFFER_SZ);
+        return AJP_ETOBIG;
+    }
+
+    msg->len = msglen + AJP_HEADER_LEN;
+    msg->pos = AJP_HEADER_LEN;
+    *len     = msglen;

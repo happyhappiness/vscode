@@ -1,15 +1,13 @@
-
-    case HSE_REQ_ASYNC_READ_CLIENT:
-    {
-        apr_uint32_t read = 0;
-        int res;
-        if (!cid->dconf.fake_async) {
-            if (cid->dconf.log_unsupported) 
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                            "ISAPI: asynchronous I/O not supported: %s", 
-                            r->filename);
-            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-            return 0;
+        if (score_idx) {
+            ap_update_child_status_from_indexes(0, *score_idx,
+                                                SERVER_DEAD, NULL);
         }
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
 
-        if (r->remaining < *buf_size) {
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    apr_thread_mutex_destroy(child_lock);
+
+    if (use_acceptex) {

@@ -1,27 +1,19 @@
-static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+                    ((peercert = SSL_get_peer_certificate(ssl)) != NULL))
+                {
+                    renegotiate_quick = TRUE;
+                    X509_free(peercert);
+                }
+
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "Changed client verification type will force "
+                             "%srenegotiation",
+                             renegotiate_quick ? "quick " : "");
+             }
+        }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "LDAP: SSL trusted certificate authority file - %s", 
-                       file);
-
-    st->cert_auth_file = ap_server_root_relative(cmd->pool, file);
-
-    return(NULL);
-}
-
-
-const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
-{
-    util_ldap_state_t *st = 
-    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-                                              &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
+    /*
+     * override SSLCACertificateFile & SSLCACertificatePath
+     * This is only enabled if the SSL_set_cert_store() function
+     * is available in the ssl library.  the 1.x based mod_ssl

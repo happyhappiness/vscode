@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO,
-				0, ap_server_conf,
-				"removed PID file %s (pid=%ld)",
-				pidfile, (long)getpid());
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Oops, no RSA or DSA server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);

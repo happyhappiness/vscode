@@ -1,12 +1,22 @@
-        if (d_uri.path) {
-            ap_unescape_url(d_uri.path);
-        }
-        if (d_uri.query) {
-            ap_unescape_url(d_uri.query);
-        }
+    if (sslconn) {
+        return sslconn;
+    }
 
-        if (r->method_number == M_CONNECT) {
-            if (strcmp(resp->uri, r_uri.hostinfo)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Digest: uri mismatch - <%s> does not match "
-                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+    sslconn = apr_pcalloc(c->pool, sizeof(*sslconn));
+
+    myConnConfigSet(c, sslconn);
+
+    return sslconn;
+}
+
+int ssl_proxy_enable(conn_rec *c)
+{
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+
+    SSLConnRec *sslconn = ssl_init_connection_ctx(c);
+
+    if (!sc->proxy_enabled) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "SSL Proxy requested for %s but not enabled "
+                      "[Hint: SSLProxyEngine]", sc->vhost_id);
+

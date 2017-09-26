@@ -1,2 +1,3 @@
-printf("Processing: " CONF_FMT_STRING, 
-                mintot - mincon, meantot - meancon,  maxtot - maxcon);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Request "
+                  "header exceeds LimitRequestFieldSize after merging: %.*s",
+                  field_name_len(key), key);

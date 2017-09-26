@@ -1,14 +1,19 @@
-    if (conf->ignorecachecontrol == 1 && auth == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "incoming request is asking for a uncached version of "
-                     "%s, but we know better and are ignoring it", url);
-    }
-    else {
-        if (ap_cache_liststr(cc_in, "no-store", NULL) ||
-            ap_cache_liststr(pragma, "no-cache", NULL) || (auth != NULL)) {
-            /* delete the previously cached file */
-            cache_remove_url(r, cache->types, url);
+}
 
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: no-store forbids caching of %s", url);
-            return DECLINED;
+BOOL ssl_scache_shmcb_store(server_rec *s, UCHAR *id, int idlen,
+                           time_t timeout, SSL_SESSION * pSession)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    void *shm_segment;
+    BOOL to_return = FALSE;
+
+    /* We've kludged our pointer into the other cache's member variable. */
+    shm_segment = (void *) mc->tSessionCacheDataTable;
+    ssl_mutex_on(s);
+    if (!shmcb_store_session(s, shm_segment, id, idlen, pSession, timeout))
+        /* in this cache engine, "stores" should never fail. */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "'shmcb' code was unable to store a "
+                     "session in the cache.");
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,

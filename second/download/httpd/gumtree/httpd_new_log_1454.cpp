@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: must include a wildcard pattern "
-                    "for Include %s\n", ap_server_argv0, fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "AuthUserFile not specified in the configuration");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "disk_cache: Could not cache URL %s [%d]", key, rv);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit RSA private key", bits);

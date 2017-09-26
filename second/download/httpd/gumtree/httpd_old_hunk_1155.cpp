@@ -1,17 +1,14 @@
-        } else {
-            ResetEvent(qwait_event);
+    if (r->uri[0] != '/' && r->uri[0] != '\0') {
+        return DECLINED;
+    }
+
+    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
+        if (ap_is_HTTP_REDIRECT(status)) {
+            /* include QUERY_STRING if any */
+            if (r->args) {
+                ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
+            }
+            apr_table_setn(r->headers_out, "Location", ret);
         }
-        apr_thread_mutex_unlock(qlock);
-  
-        if (!context) {
-            /* We failed to grab a context off the queue, consider allocating a
-             * new one out of the child pool. There may be up to ap_threads_per_child
-             * contexts in the system at once.
-             */
-            if (num_completion_contexts >= ap_threads_per_child) {
-                /* All workers are busy, need to wait for one */
-                static int reported = 0;
-                if (!reported) {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                                 "Server ran out of threads to serve requests. Consider "
-                                 "raising the ThreadsPerChild setting");
+        return status;
+    }

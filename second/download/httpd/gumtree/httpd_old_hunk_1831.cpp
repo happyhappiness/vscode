@@ -1,13 +1,14 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");
+        }
 
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+        /* Set a timeout on the socket */
+        if (worker->timeout_set == 1) {
+            apr_socket_timeout_set(newsock, worker->timeout);
+        }
+        else if (conf->timeout_set == 1) {
+            apr_socket_timeout_set(newsock, conf->timeout);
+        }
+        else {

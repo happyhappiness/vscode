@@ -1,17 +1,32 @@
-                return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                apr_pstrcat(p, "Corrupt status line returned by remote "
-                            "server: ", buffer, NULL));
-            }
-            backasswards = 0;
+     * just the certificate/keys of one virtual host (which one cannot be said
+     * easily - but that doesn't matter here).
+     */
+    table = apr_hash_make(p);
 
-            buffer[12] = '\0';
-            r->status = atoi(&buffer[9]);
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
 
-            buffer[12] = ' ';
-            r->status_line = apr_pstrdup(p, &buffer[9]);
+        if (!(sc->enabled && s->addrs)) {
+            continue;
+        }
 
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
+        key = apr_psprintf(p, "%pA:%u",
+                           &s->addrs->host_addr, s->addrs->host_port);
+        klen = strlen(key);
 
-            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: SSL server IP/port conflict: "
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s), 
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"), 
+                         ps->defn_line_number);
+            conflict = TRUE;
+            continue;
+        }
+
+        apr_hash_set(table, key, klen, s);

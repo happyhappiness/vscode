@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: write to temporary file %s failed",
-                                 tmpfile_name);
+ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);

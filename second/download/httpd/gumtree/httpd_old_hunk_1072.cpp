@@ -1,22 +1,17 @@
-                apr_pstrcat(p, "Corrupt status line returned by remote "
-                            "server: ", buffer, NULL));
-            }
-            backasswards = 0;
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+	fprintf(stderr, "%s: invalid URL\n", argv[0]);
+	usage(argv[0]);
+    }
 
-            keepchar = buffer[12];
-            if (keepchar == '\0') {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d status line "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
-            }
-            buffer[12] = '\0';
-            r->status = atoi(&buffer[9]);
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+       fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
+    }
 
-            buffer[12] = keepchar;
-            r->status_line = apr_pstrdup(p, &buffer[9]);
-            
-
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
+    if ((heartbeatres) && (requests > 150)) {
+	heartbeatres = requests / 10;	/* Print line every 10% of requests */
+	if (heartbeatres < 100)
+	    heartbeatres = 100;	/* but never more often than once every 100
+				 * connections. */
+    }

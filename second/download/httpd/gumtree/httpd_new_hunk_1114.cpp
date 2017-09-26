@@ -1,13 +1,17 @@
+static const char *util_ldap_set_cache_bytes(cmd_parms *cmd, void *dummy,
+                                             const char *bytes)
+{
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                                  &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 
-    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
-                               ap_accept_lock_mech, _pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock");
-        mpm_state = AP_MPMQ_STOPPING;
-        return 1;
+    if (err != NULL) {
+        return err;
     }
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
-        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+    st->cache_bytes = atol(bytes);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting shared memory "
+                 " cache size to %" APR_SIZE_T_FMT " bytes.",

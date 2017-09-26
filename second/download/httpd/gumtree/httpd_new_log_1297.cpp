@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "MCacheMaxStreamingBuffer must be greater than or equal to MCacheMinObjectSize. "
-                     "Resetting MCacheMaxStreamingBuffer to MCacheMinObjectSize.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Custom error page caused AP_FILTER_ERROR");

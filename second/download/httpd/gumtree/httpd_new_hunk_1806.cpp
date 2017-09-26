@@ -1,18 +1,39 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+    c->bread = 0;
+    c->keepalive = 0;
+    c->cbx = 0;
+    c->gotheader = 0;
+    c->rwrite = 0;
+    if (c->ctx)
+        apr_pool_clear(c->ctx);
+    else
+        apr_pool_create(&c->ctx, cntxt);
+
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
+    apr_err("socket", rv);
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+    if ((rv = apr_socket_opt_set(c->aprsock, APR_SO_NONBLOCK, 1))
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    if (windowsize != 0) {
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_SNDBUF, 
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket send buffer", rv);
+        }
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_RCVBUF, 
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket receive buffer", rv);
+        }
+    }
+
+    c->start = lasttime = apr_time_now();
+#ifdef USE_SSL
+    if (is_ssl) {
+        BIO *bio;
+        apr_os_sock_t fd;
+
+        if ((c->ssl = SSL_new(ssl_ctx)) == NULL) {

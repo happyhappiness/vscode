@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Parse error in type map, Content-Length: "
+                                  "'%s' in %s is invalid.",
+                                  body, r->filename);

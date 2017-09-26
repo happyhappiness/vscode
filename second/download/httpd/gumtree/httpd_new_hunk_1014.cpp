@@ -1,13 +1,14 @@
-            SSL_do_handshake(ssl);
+	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
+		    continue;
+		}
+	    }
 
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation request failed");
+	    ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "%s: %s", malformed,
+                          apr_filepath_name_get(r->filename));
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
 
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Awaiting re-negotiation handshake");
-
+	*l++ = '\0';
+	while (*l && apr_isspace(*l)) {
+	    ++l;

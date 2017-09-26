@@ -1,25 +1,13 @@
-                     "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-        apr_signal(SIGSEGV, sig_coredump);
-#ifdef SIGBUS
-        apr_signal(SIGBUS, sig_coredump);
-#endif /* SIGBUS */
-#ifdef SIGABORT
-        apr_signal(SIGABORT, sig_coredump);
-#endif /* SIGABORT */
-#ifdef SIGABRT
-        apr_signal(SIGABRT, sig_coredump);
-#endif /* SIGABRT */
-#ifdef SIGILL
-        apr_signal(SIGILL, sig_coredump);
-#endif /* SIGILL */
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+        rv = apr_dbd_check_conn(svr->conn->driver, pool, svr->conn->handle);
+        if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+            errmsg = apr_dbd_error(arec->driver, arec->handle, rv);
+            if (!errmsg) {
+                errmsg = "(unknown)";
+            }
+            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          "DBD[%s] Error: %s", svr->name, errmsg);
+            svr->conn = NULL;
+        }
+    }
+/* We don't have a connection right now, so we'll open one */
+    if (!svr->conn) {

@@ -1,13 +1,22 @@
+#if AP_NONBLOCK_WHEN_MULTI_LISTEN
+    /* if multiple listening sockets, make them non-blocking so that
+     * if select()/poll() reports readability for a reset connection that
+     * is already forgotten about by the time we call accept, we won't
+     * be hung until another connection arrives on that port
+     */
+    if (ap_listeners && ap_listeners->next) {
+        for (lr = ap_listeners; lr; lr = lr->next) {
+            apr_status_t status;
 
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
+            if (status != APR_SUCCESS) {
+                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                              "unable to make listening socket non-blocking");
+                return -1;
+            }
+        }
     }
+#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
 
-    ap_destroy_sub_req(rr);
+    /* we come through here on both passes of the open logs phase
+     * only register the cleanup once... otherwise we try to close

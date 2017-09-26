@@ -1,29 +1,34 @@
-    err = ap_proxy_host2addr(host, &server_hp);
-    if (err != NULL)
-	return ap_proxyerror(r, err);	/* give up */
+                if (str[j] >= 'a' && str[j] <= 'z') {
+                    str[j] = str[j] - ('a' - 'A');
+                }
+                j++;
+            }
+            apr_table_setn(e, str, vals[i]);
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+            /* handle remote_user_attribute, if set */
+            if (sec->remote_user_attribute && 
+                !strcmp(sec->remote_user_attribute, sec->attributes[i])) {
+                r->user = (char *)apr_pstrdup(r->pool, vals[i]);
+                remote_user_attribute_set = 1;
+            }
+            i++;
+        }
     }
 
-    if (conf->recv_buffer_size > 0
-	&& setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+    /* sanity check */
+    if (sec->remote_user_attribute && !remote_user_attribute_set) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                  "REMOTE_USER was to be set with attribute '%s', "
+                  "but this attribute was not requested for in the "
+                  "LDAP query for the user. REMOTE_USER will fall "
+                  "back to username or DN as appropriate.", getpid(),
+                  sec->remote_user_attribute);
     }
 
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
+
+    return AUTH_GRANTED;
+}
 

@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "%s: username contains illegal character '%c'\n",
-		argv[0], *arg);
+apr_pool_destroy(ptrans);

@@ -1,17 +1,19 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't unlink unix domain socket %s",
-                     sconf->sockname);
-        /* just a warning; don't bail out */
-    }
+                }
+            }
+            apr_brigade_cleanup(bb);
 
-    /* cgid should use its own suexec doer */
-    ap_hook_get_suexec_identity(cgid_suexec_id_doer, NULL, NULL,
-                                APR_HOOK_REALLY_FIRST);
-    apr_hook_sort_all();
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                if (APR_STATUS_IS_TIMEUP(rv)) { 
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                return bail_out_on_error(ctx, f, http_error);
+            }
 
-    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't create unix domain socket");
-        return errno;
-    } 
-
+            if (!ctx->remaining) {
+                /* Handle trailers by calling ap_get_mime_headers again! */
+                ctx->state = BODY_NONE;

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "loaded %d client certs for SSL proxy",
-                 ncerts);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
+                "ISAPI: Could not determine HTTP response code; using %d",
+                cid->r->status);

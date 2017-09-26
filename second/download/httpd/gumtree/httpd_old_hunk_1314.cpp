@@ -1,21 +1,13 @@
-         */
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_EXTENSION_TRIGGER "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+            /* Treat as stale, causing revalidation */
+            return 0;
+        }
 
-    default:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction (%d) not supported: "
-                          "%s", HSE_code, r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "Incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it",
+                     r->unparsed_uri);
     }
-}
 
-/**********************************************************
- *
+    /* These come from the cached entity. */
+    cc_cresp = apr_table_get(h->resp_hdrs, "Cache-Control");
+    expstr = apr_table_get(h->resp_hdrs, "Expires");

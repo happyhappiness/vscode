@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: FTP: apr_socket_opt_set(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "Premature end of script headers: %s",
+                          apr_filepath_name_get(r->filename));

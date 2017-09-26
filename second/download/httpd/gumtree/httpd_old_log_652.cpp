@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, p,
-                     "%s", errmsg);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);

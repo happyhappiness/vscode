@@ -1,18 +1,17 @@
-            maxcon = max(maxcon, s.ctime);
-            maxtot = max(maxtot, s.time);
-            totalcon += s.ctime;
-            total += s.time;
-        }
-        printf("\nConnnection Times (ms)\n");
-        printf("           min   avg   max\n");
-        printf("Connect: %5d %5d %5d\n", mincon, totalcon / requests, maxcon);
-        printf("Total:   %5d %5d %5d\n", mintot, total / requests, maxtot);
-    }
+    break;
 
-    exit(0);
-}
-
-/* --------------------------------------------------------- */
-
-/* start asnchronous non-blocking connection */
+    case OP_TYPEEXACT:
+    case OP_TYPEUPTO:
+    case OP_TYPEMINUPTO:
+    fprintf(f, "    %s", OP_names[code[3]]);
+    if (code[3] == OP_PROP || code[3] == OP_NOTPROP)
+      {
+      fprintf(f, " %s ", get_ucpname(code[4]));
+      extra = 1;
+      }
+    fprintf(f, "{");
+    if (*code != OP_TYPEEXACT) fprintf(f, "0,");
+    fprintf(f, "%d}", GET2(code,1));
+    if (*code == OP_TYPEMINUPTO) fprintf(f, "?");
+    break;
 

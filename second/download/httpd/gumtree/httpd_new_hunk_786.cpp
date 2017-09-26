@@ -1,19 +1,13 @@
+        apr_finfo_t direntry;
+        apr_int32_t finfo_flags = APR_FINFO_TYPE|APR_FINFO_NAME;
+        apr_status_t rv;
 
-PROXY_DECLARE(int) ap_proxyerror(request_rec *r, int statuscode, const char *message)
-{
-    apr_table_setn(r->notes, "error-notes",
-	apr_pstrcat(r->pool, 
-		"The proxy server could not handle the request "
-		"<em><a href=\"", ap_escape_uri(r->pool, r->uri),
-		"\">", ap_escape_html(r->pool, r->method),
-		"&nbsp;", 
-		ap_escape_html(r->pool, r->uri), "</a></em>.<p>\n"
-		"Reason: <strong>",
-		ap_escape_html(r->pool, message), 
-		"</strong></p>", NULL));
+        if ((rv = apr_dir_open(&dir, ca_path, ptemp)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                    "Failed to open Certificate Path `%s'",
+                    ca_path);
+            ssl_die();
+        }
 
-    /* Allow "error-notes" string to be printed by ap_send_error_response() */
-    apr_table_setn(r->notes, "verbose-error-to", apr_pstrdup(r->pool, "*"));
-
-    r->status_line = apr_psprintf(r->pool, "%3.3u Proxy Error", statuscode);
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+        while ((apr_dir_read(&direntry, finfo_flags, dir)) == APR_SUCCESS) {
+            const char *file;

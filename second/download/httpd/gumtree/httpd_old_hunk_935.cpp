@@ -1,28 +1,37 @@
-    }
-
-    /*
-     *  only do something under runtime if the engine is really enabled,
-     *  for this directory, else return immediately!
-     */
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-        /* FollowSymLinks is mandatory! */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-                     "which implies that RewriteRule directive is forbidden: "
-                     "%s", r->filename);
-        return HTTP_FORBIDDEN;
-    }
-    else {
-        /* FollowSymLinks is given, but the user can
-         * still turn off the rewriting engine
+         * logs a warning later
          */
-        if (dconf->state == ENGINE_DISABLED) {
-            return DECLINED;
-        }
+        changed_limit_at_restart = 1;
+        return NULL;
     }
+    thread_limit = tmp_thread_limit;
+    
+    if (thread_limit > MAX_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: ThreadLimit of %d exceeds compile time limit "
+                    "of %d threads,", thread_limit, MAX_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+       thread_limit = MAX_THREAD_LIMIT;
+    } 
+    else if (thread_limit < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+	thread_limit = 1;
+    }
+    return NULL;
+}
+static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+    if (use_acceptex) {
+        use_acceptex = 0;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL, 
+                     "Disabled use of AcceptEx() WinSock2 API");
+    }
+    return NULL;
+}
 
-    /*
-     *  remember the current filename before rewriting for later check
-     *  to prevent deadlooping because of internal redirects
-     *  on final URL/filename which can be equal to the inital one.
-     */
+static const command_rec winnt_cmds[] = {

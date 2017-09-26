@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABORT)");
+apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default." NL);

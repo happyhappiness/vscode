@@ -1,4 +1,2 @@
-ap_register_output_filter("CACHE_IN", 
-                              cache_in_filter, 
-                              NULL,
-                              AP_FTYPE_CONTENT_SET);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %u -- Aborting.", exitcode);

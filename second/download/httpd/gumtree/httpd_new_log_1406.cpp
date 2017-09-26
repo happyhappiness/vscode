@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: origin server sent 401 without WWW-Authenticate header");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "Could not allocate memory for LDAP cache entry");

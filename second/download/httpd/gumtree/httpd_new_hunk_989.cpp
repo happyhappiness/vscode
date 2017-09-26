@@ -1,14 +1,33 @@
-    return 0;
-}
 
-static void usage(void)
+static int reclaim_one_pid(pid_t pid, action_t action)
 {
-    apr_file_printf(errfile, "Usage:\n");
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
-    apr_file_printf(errfile, " -c  Create a new file.\n");
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
+    apr_proc_t proc;
+    apr_status_t waitret;
+
+    proc.pid = pid;
+    waitret = apr_proc_wait(&proc, NULL, NULL, APR_NOWAIT);
+    if (waitret != APR_CHILD_NOTDONE) {
+        return 1;
+    }
+
+    switch(action) {
+    case DO_NOTHING:
+        break;
+
+    case SEND_SIGTERM:
+        /* ok, now it's being annoying */
+        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);
+        kill(pid, SIGTERM);
+        break;
+
+    case SEND_SIGKILL:
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGKILL",

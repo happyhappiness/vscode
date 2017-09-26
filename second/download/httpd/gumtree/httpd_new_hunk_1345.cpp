@@ -1,14 +1,15 @@
-                    ap_rputs(")\n", r);
-                    ap_rprintf(r,
-                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
-                               ap_escape_html(r->pool,
-                                              ws_record->client),
-                               ap_escape_html(r->pool,
-                                              ap_escape_logitem(r->pool,
-                                                                ws_record->request)),
-                               ap_escape_html(r->pool,
-                                              ws_record->vhost));
-                }
-                else { /* !no_table_report */
-                    if (ws_record->status == SERVER_DEAD)
-                        ap_rprintf(r,
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
+    }
+
+    child_created = 1;
+
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
+
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.

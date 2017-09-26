@@ -1,1 +1,1 @@
-printf ("Skipped selects:\t%d\n", skips);
+printf("%3d", *tables++);

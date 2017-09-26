@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "ThreadLimit. Resetting to %d", thread_limit);
+id = apr_psprintf(r->pool, "%x:%lx:%x", getpid(), time(NULL),
+                          apr_atomic_inc32(&next_id));

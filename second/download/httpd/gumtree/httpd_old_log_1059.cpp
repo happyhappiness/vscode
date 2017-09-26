@@ -1,1 +1,1 @@
-fprintf(stderr, "%s: %s\n", argv[0], record);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);

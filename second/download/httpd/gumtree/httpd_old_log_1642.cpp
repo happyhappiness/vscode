@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary 256 bit ECC key");

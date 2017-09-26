@@ -1,4 +1,2 @@
-apr_file_printf(errfile, "%s: cannot open file %s for read access\n"
-		    "%s: existing auth data would be lost on "
-		    "password mismatch",
-		    argv[0], pwfilename, argv[0]);
+ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_socket_accept: (client socket)");

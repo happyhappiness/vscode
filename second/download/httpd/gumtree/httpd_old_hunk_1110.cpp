@@ -1,53 +1,108 @@
-        case AP_MPMQ_MAX_REQUESTS_DAEMON:
-            *result = ap_max_requests_per_child;
-            return APR_SUCCESS;
-        case AP_MPMQ_MAX_DAEMONS:
-            *result = ap_daemons_limit;
-            return APR_SUCCESS;
-    }
-    return APR_ENOTIMPL;
-}
-
-/* a clean exit from a child with proper cleanup */ 
-static void clean_child_exit(int code) __attribute__ ((noreturn));
-static void clean_child_exit(int code)
+ * us all the error-handling in one place.
+ */
+static apr_status_t dbd_construct(void **db, void *params, apr_pool_t *pool)
 {
-    if (pchild) {
-        apr_pool_destroy(pchild);
+    svr_cfg *svr = (svr_cfg*) params;
+    ap_dbd_t *rec = apr_pcalloc(pool, sizeof(ap_dbd_t));
+    apr_status_t rv = apr_dbd_get_driver(pool, svr->name, &rec->driver);
+
+/* Error-checking get_driver isn't necessary now (because it's done at
+ * config-time).  But in case that changes in future ...
+ */
+    switch (rv) {
+    case APR_ENOTIMPL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: driver for %s not available", svr->name);
+        return rv;
+    case APR_EDSOOPEN:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: can't find driver for %s", svr->name);
+        return rv;
+    case APR_ESYMNOTFOUND:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: driver for %s is invalid or corrupted", svr->name);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
-    exit(code);
-}
 
-/* handle all varieties of core dumping signals */
-static void sig_coredump(int sig)
-{
-    apr_filepath_set(ap_coredump_dir, pconf);
-    apr_signal(sig, SIG_DFL);
-    if (ap_my_pid == parent_pid) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE,
-                     0, ap_server_conf,
-                     "seg fault or similar nasty error detected "
-                     "in the parent process");
-        
-        /* XXX we can probably add some rudimentary cleanup code here,
-         * like getting rid of the pid file.  If any additional bad stuff
-         * happens, we are protected from recursive errors taking down the
-         * system since this function is no longer the signal handler   GLA
-         */
+    rv = apr_dbd_open(rec->driver, pool, svr->params, &rec->handle);
+    switch (rv) {
+    case APR_EGENERAL:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: Can't connect to %s[%s]", svr->name, svr->params);
+        return rv;
+    default:
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: mod_dbd not compatible with apr in open");
+        return rv;
+    case APR_SUCCESS:
+        break;
     }
-    kill(ap_my_pid, sig);
-    /* At this point we've got sig blocked, because we're still inside
-     * the signal handler.  When we leave the signal handler it will
-     * be unblocked, and we'll take the signal... and coredump or whatever
-     * is appropriate for this particular Unix.  In addition the parent
-     * will see the real signal we received -- whereas if we called
-     * abort() here, the parent would only see SIGABRT.
-     */
+    *db = rec;
+    rv = dbd_prepared_init(pool, svr, rec);
+    return rv;
 }
-
-static void just_die(int sig)
+#if APR_HAS_THREADS
+static apr_status_t dbd_destruct(void *sql, void *params, apr_pool_t *pool)
 {
-    clean_child_exit(0);
+    ap_dbd_t *rec = sql;
+    return apr_dbd_close(rec->driver, rec->handle);
 }
 
-/*****************************************************************
+static apr_status_t dbd_setup(apr_pool_t *pool, server_rec *s)
+{
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    apr_status_t rv = apr_reslist_create(&svr->dbpool, svr->nmin, svr->nkeep,
+                                         svr->nmax, svr->exptime,
+                                         dbd_construct, dbd_destruct,
+                                         svr, pool);
+    if (rv == APR_SUCCESS) {
+        apr_pool_cleanup_register(pool, svr->dbpool,
+                                  (void*)apr_reslist_destroy,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD Pool: failed to initialise");
+    }
+    return rv;
+}
+
+#endif
+
+
+/* Functions we export for modules to use:
+        - open acquires a connection from the pool (opens one if necessary)
+        - close releases it back in to the pool
+*/
+AP_DECLARE(void) ap_dbd_close(server_rec *s, ap_dbd_t *sql)
+{
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    if (!svr->persist) {
+        apr_dbd_close(sql->driver, sql->handle);
+    }
+#if APR_HAS_THREADS
+    else {
+        apr_reslist_release(svr->dbpool, sql);
+    }
+#endif
+}
+static apr_status_t dbd_close(void *CONN)
+{
+    ap_dbd_t *conn = CONN;
+    return apr_dbd_close(conn->driver, conn->handle);
+}
+#define arec ((ap_dbd_t*)rec)
+#if APR_HAS_THREADS
+AP_DECLARE(ap_dbd_t*) ap_dbd_open(apr_pool_t *pool, server_rec *s)
+{
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
+

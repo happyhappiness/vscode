@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: failed to get a socket for %s", 
-                     addr);
+ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);

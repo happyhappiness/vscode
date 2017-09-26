@@ -1,13 +1,13 @@
-#else
-    q.dsize = strlen(q.dptr) + 1;
-#endif
+    int max_daemons, forked, threaded;
 
-
-    if (!(f = dbm_open(auth_dbmpwfile, O_RDONLY, 0664))) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "could not open dbm auth file: %s", auth_dbmpwfile);
-	return NULL;
-    }
-
-    d = dbm_fetch(f, q);
-
+    ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
+    ap_rprintf(r,
+               "<dl><dt><strong>Server Version:</strong> "
+               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
+               ap_get_server_version());
+    ap_rprintf(r,
+               "<dt><strong>Server Built:</strong> "
+               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
+               ap_get_server_built());
+    ap_rprintf(r,
+               "<dt><strong>Module Magic Number:</strong> "

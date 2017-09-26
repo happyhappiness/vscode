@@ -1,19 +1,12 @@
-void cache_pq_dump(cache_pqueue_t *q,
-                   FILE*out,
-                   cache_pqueue_print_entry print)
-{
-    int i;
+    rp->request_config  = ap_create_request_config(c->pool);
+    proxy_run_create_req(r, rp);
 
-    fprintf(stdout,"posn\tleft\tright\tparent\tmaxchild\t...\n");
-    for (i = 1; i < q->size ;i++) {
-        fprintf(stdout,
-                "%d\t%d\t%d\t%d\t%" APR_SSIZE_T_FMT "\t",
-                i,
-                left(i), right(i), parent(i),
-                maxchild(q, i));
-        print(out, q->d[i]);
-    }
+    return rp;
 }
 
+
 /*
- * this is a debug function.. so it's EASY not fast
+ * list is a comma-separated list of case-insensitive tokens, with
+ * optional whitespace around the tokens.
+ * The return returns 1 if the token val is found in the list, or 0
+ * otherwise.

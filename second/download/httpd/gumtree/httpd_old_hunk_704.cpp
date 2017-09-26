@@ -1,16 +1,21 @@
-                        r->connection->pool);
-        ap_sock_disable_nagle(csd);
-        ap_set_module_config(r->connection->conn_config, &core_module, csd);
-        return OK;
+    while ((rv = apr_file_gets(argsbuffer, HUGE_STRING_LEN,
+                               script_err)) == APR_SUCCESS) {
+        newline = strchr(argsbuffer, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                      "%s", argsbuffer);            
     }
-    else {
-        /* sconf is the server config for this vhost, so if our socket
-         * is not the same that was set in the config, then the request
-         * needs to be passed to another child. */
-        if (sconf->sd != child_info_table[child_num].sd) {
-            if (pass_request(r) == -1) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             ap_server_conf, "Could not pass request to proper "
-                             "child, request will not be honored.");
-            }
-            longjmp(jmpbuffer, 1); 
+
+    return rv;
+}
+
+static int log_script(request_rec *r, cgi_server_conf * conf, int ret,
+                      char *dbuf, const char *sbuf, apr_bucket_brigade *bb, 
+                      apr_file_t *script_err)
+{
+    const apr_array_header_t *hdrs_arr = apr_table_elts(r->headers_in);
+    const apr_table_entry_t *hdrs = (const apr_table_entry_t *) hdrs_arr->elts;
+    char argsbuffer[HUGE_STRING_LEN];
+    apr_file_t *f = NULL;

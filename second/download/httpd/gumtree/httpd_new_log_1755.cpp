@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
-                          "make_sock: failed to set ReceiveBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                          "unable to control socket non-blocking status");

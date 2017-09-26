@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                     "piped_log_spawn: unable to setup child process '%s': %s",
-                     pl->program, apr_strerror(status, buf, sizeof(buf)));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "printenv directive does not take tags in %s", 
+                        r->filename);

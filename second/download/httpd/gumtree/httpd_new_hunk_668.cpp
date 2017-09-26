@@ -1,36 +1,72 @@
-	    /* file doesn't exist on disk, so we can't do anything based on
-	     * modification time.  Note that this does _not_ log an error.
-	     */
-	    return DECLINED;
-	}
-	base = r->finfo.mtime;
-        additional_sec = atoi(&code[1]);
-        additional = apr_time_from_sec(additional_sec);
-        break;
-    case 'A':
-        /* there's been some discussion and it's possible that 
-         * 'access time' will be stored in request structure
-         */
-        base = r->request_time;
-        additional_sec = atoi(&code[1]);
-        additional = apr_time_from_sec(additional_sec);
-        break;
-    default:
-        /* expecting the add_* routines to be case-hardened this 
-         * is just a reminder that module is beta
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: bad expires code: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
+        return ate + termch - head;
     }
-
-    expires = base + additional;
-    apr_table_mergen(r->headers_out, "Cache-Control",
-		    apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
-                                 apr_time_sec(expires - r->request_time)));
-    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
-    apr_rfc822_date(timestr, expires);
-    apr_table_setn(r->headers_out, "Expires", timestr);
-    return OK;
+    return ate;
 }
 
+int APR_THREAD_FUNC WriteClient(isapi_cid    *cid,
+                                void         *buf_data,
+                                apr_uint32_t *size_arg,
+                                apr_uint32_t  flags)
+{
+    request_rec *r = cid->r;
+    conn_rec *c = r->connection;
+    apr_uint32_t buf_size = *size_arg;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    apr_status_t rv;
+
+    if (!cid->headers_set) {
+        /* It appears that the foxisapi module and other clients
+         * presume that WriteClient("headers\n\nbody") will work.
+         * Parse them out, or die trying.
+         */
+        apr_ssize_t ate;
+        ate = send_response_header(cid, NULL, (char*)buf_data,
+                                   0, buf_size);
+        if (ate < 0) {
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return 0;
+        }
+
+        (char*)buf_data += ate;
+        buf_size -= ate;
+    }
+
+    if (buf_size) {
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_transient_create(buf_data, buf_size, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+    }
+
+    if ((flags & HSE_IO_ASYNC) && cid->completion) {
+        if (rv == OK) {
+            cid->completion(cid->ecb, cid->completion_arg,
+                            *size_arg, ERROR_SUCCESS);
+        }
+        else {
+            cid->completion(cid->ecb, cid->completion_arg,
+                            *size_arg, ERROR_WRITE_FAULT);
+        }
+    }
+    return (rv == OK);
+}
+
+int APR_THREAD_FUNC ServerSupportFunction(isapi_cid    *cid,
+                                          apr_uint32_t  HSE_code,
+                                          void         *buf_data,
+                                          apr_uint32_t *buf_size,
+                                          apr_uint32_t *data_type)
+{
+    request_rec *r = cid->r;
+    conn_rec *c = r->connection;
+    request_rec *subreq;
+
+    switch (HSE_code) {
+    case HSE_REQ_SEND_URL_REDIRECT_RESP:
+        /* Set the status to be returned when the HttpExtensionProc()
+         * is done.
+         * WARNING: Microsoft now advertises HSE_REQ_SEND_URL_REDIRECT_RESP

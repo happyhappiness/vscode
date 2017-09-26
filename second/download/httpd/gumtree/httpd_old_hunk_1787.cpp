@@ -1,20 +1,32 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL,
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
+    else if (!one_process && !ap_my_generation) {
+        /* Open a null handle to soak stdout in this process.
+         * We need to emulate apr_proc_detach, unix performs this
+         * same check in the pre_config hook (although it is
+         * arguably premature).  Services already fixed this.
+         */
+        apr_file_t *nullfile;
+        apr_status_t rv;
+        apr_pool_t *pproc = apr_pool_parent_get(pconf);
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+        if ((rv = apr_file_open(&nullfile, "NUL",
+                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                                pproc)) == APR_SUCCESS) {
+            apr_file_t *nullstdout;
+            if (apr_file_open_stdout(&nullstdout, pproc)
+                    == APR_SUCCESS)
+                apr_file_dup2(nullstdout, nullfile, pproc);
+            apr_file_close(nullfile);
+        }
+    }
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    /* Win9x: disable AcceptEx */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        use_acceptex = 0;
+    }
+

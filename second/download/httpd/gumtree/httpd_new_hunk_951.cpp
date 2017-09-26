@@ -1,20 +1,31 @@
-            }
 
-            /* Check the listen queue on all sockets for requests */
-            memcpy(&main_fds, &listenfds, sizeof(fd_set));
-            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
+    setup_signal_names(apr_psprintf(pchild,"ap%d", parent_pid));
 
-            if (srv <= 0) {
-                if (srv < 0) {
-                    ap_log_error(APLOG_MARK, APLOG_NOTICE, apr_get_netos_error(), ap_server_conf,
-                        "select() failed on listen socket");
-                    apr_thread_yield();
-                }
-                continue;
-            }
+    /* This is a child process, not in single process mode */
+    if (!one_process) {
+        /* Set up events and the scoreboard */
+        get_handles_from_parent(s, &exit_event, &start_mutex,
+                                &ap_scoreboard_shm);
 
-            /* remember the last_lr we searched last time around so that
-            we don't end up starving any particular listening socket */
-            if (last_lr == NULL) {
-                lr = ap_listeners;
-            }
+        /* Set up the listeners */
+        get_listeners_from_parent(s);
+
+        ap_my_generation = ap_scoreboard_image->global->running_generation;
+    }
+    else {
+        /* Single process mode - this lock doesn't even need to exist */
+        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix,
+                                   APR_LOCK_DEFAULT, s->process->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                         "%s child %d: Unable to init the start_mutex.",
+                         service_name, my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
+
+        /* Borrow the shutdown_even as our _child_ loop exit event */
+        exit_event = shutdown_event;
+    }
+}
+
+

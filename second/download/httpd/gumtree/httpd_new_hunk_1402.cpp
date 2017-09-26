@@ -1,13 +1,40 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        else if (child_threads_active == ap_threads_per_child) {
+            had_healthy_child = 1;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
+    }
+
+    if (sick_child_detected) {
+        if (had_healthy_child) {
+            /* Assume this is a transient error, even though it may not be.  Leave
+             * the server up in case it is able to serve some requests or the
+             * problem will be resolved.
+             */
+            sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case, as no child ever fully initialized; give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "A resource shortage or other unrecoverable failure "
+                         "was encountered before any child process initialized "
+                         "successfully... httpd is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
+
+    ap_max_daemons_limit = last_non_dead + 1;

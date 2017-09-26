@@ -1,0 +1,1 @@
+ap_rputs("<tr><td>LB Method:</td><td><select name=\"lm\">", r);

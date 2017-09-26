@@ -1,0 +1,1 @@
+usage(argv[0], "Incorrect number of arguments");

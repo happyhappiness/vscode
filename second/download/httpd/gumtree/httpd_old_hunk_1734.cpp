@@ -1,13 +1,13 @@
-	return ap_proxyerror(r, err);	/* give up */
+    apr_rfc822_date(dates, r->request_time);
+    apr_table_setn(r->headers_out, "Date", dates);
+    apr_table_setn(r->headers_out, "Server", ap_get_server_banner());
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
+    /* set content-type */
+    if (dirlisting) {
+        ap_set_content_type(r, "text/html");
     }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    else {
+        if (r->content_type) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: Content-Type set to %s", r->content_type);
+        }

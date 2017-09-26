@@ -1,91 +1,110 @@
-    else {
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
+                "Oops, no RSA, DSA or ECC server private key found?!");
+#else
+                "Oops, no RSA or DSA server private key found?!");
+#endif
+        ssl_die();
     }
+
+    /*
+     * Try to read DH parameters from the (first) SSLCertificateFile
+     */
+    if ((mctx->pks->cert_files[0] != NULL) &&
+        (dhparams = ssl_dh_GetParamFromFile(mctx->pks->cert_files[0]))) {
+        SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id,
+                     mctx->pks->cert_files[0]);
+    }
+
+#ifndef OPENSSL_NO_EC
+    /*
+     * Similarly, try to read the ECDH curve name from SSLCertificateFile...
+     */
+    if ((mctx->pks->cert_files[0] != NULL) &&
+        (ecparams = ssl_ec_GetParamFromFile(mctx->pks->cert_files[0])) &&
+        (nid = EC_GROUP_get_curve_name(ecparams)) &&
+        (eckey = EC_KEY_new_by_curve_name(nid))) {
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "ECDH curve %s for %s specified in %s",
+                     OBJ_nid2sn(nid), vhost_id, mctx->pks->cert_files[0]);
+    }
+    /*
+     * ...otherwise, enable auto curve selection (OpenSSL 1.0.2 and later)
+     * or configure NIST P-256 (required to enable ECDHE for earlier versions)
+     */
+    else {
+#if defined(SSL_CTX_set_ecdh_auto)
+        SSL_CTX_set_ecdh_auto(mctx->ssl_ctx, 1);
+#else
+        eckey = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+#endif
+    }
+    EC_KEY_free(eckey);
 #endif
 }
-    
-API_EXPORT(void) ap_log_error (const char *file, int line, int level,
-			      const server_rec *s, const char *fmt, ...)
+
+#ifdef HAVE_TLS_SESSION_TICKETS
+static void ssl_init_ticket_key(server_rec *s,
+                                apr_pool_t *p,
+                                apr_pool_t *ptemp,
+                                modssl_ctx_t *mctx)
 {
-    va_list args;
+    apr_status_t rv;
+    apr_file_t *fp;
+    apr_size_t len;
+    char buf[TLSEXT_TICKET_KEY_LEN];
+    char *path;
+    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
 
-    va_start(args, fmt);
-    log_error_core(file, line, level, s, NULL, fmt, args);
-    va_end(args);
-}
-
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-			       const request_rec *r, const char *fmt, ...)
-{
-    va_list args;
-
-    va_start(args, fmt);
-    log_error_core(file, line, level, r->server, r, fmt, args);
-    if (ap_table_get(r->notes, "error-notes") == NULL) {
-	char errstr[MAX_STRING_LEN];
-
-	ap_vsnprintf(errstr, sizeof(errstr), fmt, args);
-	ap_table_set(r->notes, "error-notes", errstr);
-    }
-    va_end(args);
-}
-
-void ap_log_pid (pool *p, char *fname)
-{
-    FILE *pid_file;
-    struct stat finfo;
-    static pid_t saved_pid = -1;
-    pid_t mypid;
-
-    if (!fname) return;
-
-    fname = ap_server_root_relative (p, fname);
-    mypid = getpid();
-    if (mypid != saved_pid && stat(fname,&finfo) == 0) {
-      /* USR1 and HUP call this on each restart.
-       * Only warn on first time through for this pid.
-       *
-       * XXX: Could just write first time through too, although
-       *      that may screw up scripts written to do something
-       *      based on the last modification time of the pid file.
-       */
-      ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-		   ap_psprintf(p,
-			       "pid file %s overwritten -- Unclean shutdown of previous apache run?",
-			       fname)
-		   );
+    if (!ticket_key->file_path) {
+        return;
     }
 
-    if(!(pid_file = fopen(fname,"w"))) {
-	perror("fopen");
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-        exit(1);
+    path = ap_server_root_relative(p, ticket_key->file_path);
+
+    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
+                       APR_OS_DEFAULT, ptemp);
+
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                     "Failed to open ticket key file %s: (%d) %pm",
+                     path, rv, &rv);
+        ssl_die();
     }
-    fprintf(pid_file,"%ld\n",(long)mypid);
-    fclose(pid_file);
-    saved_pid = mypid;
-}
 
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, "%s", err);
-}
+    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
 
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-			      const char *msg, server_rec *s)
-{
-    ap_log_error(file, 0, APLOG_ERR, s, "%s", msg);
-}
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                     "Failed to read %d bytes from %s: (%d) %pm",
+                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
+        ssl_die();
+    }
 
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-{
-    va_list args;
-    
-    va_start(args, fmt);
-    log_error_core(APLOG_MARK, APLOG_ERR, s, NULL, fmt, args);
-    va_end(args);
-}
+    memcpy(ticket_key->key_name, buf, 16);
+    memcpy(ticket_key->hmac_secret, buf + 16, 16);
+    memcpy(ticket_key->aes_key, buf + 32, 16);
 
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
+    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
+                                          ssl_callback_SessionTicket)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                     "Unable to initialize TLS session ticket key callback "
+                     "(incompatible OpenSSL version?)");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_EMERG, s);
+        ssl_die();
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);
+}
+#endif
+
+static void ssl_init_proxy_certs(server_rec *s,
+                                 apr_pool_t *p,
+                                 apr_pool_t *ptemp,
+                                 modssl_ctx_t *mctx)
 {
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

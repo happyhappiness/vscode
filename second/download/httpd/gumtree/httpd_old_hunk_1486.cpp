@@ -1,13 +1,27 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+             */
+            rv = HTTP_SERVICE_UNAVAILABLE;
+        } else {
+            rv = HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+
+    /*
+     * Ensure that we sent an EOS bucket thru the filter chain, if we already
+     * have sent some data. Maybe ap_proxy_backend_broke was called and added
+     * one to the brigade already (no longer making it empty). So we should
+     * not do this in this case.
+     */
+    if (data_sent && !r->eos_sent && APR_BRIGADE_EMPTY(output_brigade)) {
+        e = apr_bucket_eos_create(r->connection->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+    }
+
+    /* If we have added something to the brigade above, sent it */
+    if (!APR_BRIGADE_EMPTY(output_brigade))
+        ap_pass_brigade(r->output_filters, output_brigade);
+
+    apr_brigade_destroy(output_brigade);
+
+    return rv;
+}
+

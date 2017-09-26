@@ -1,19 +1,23 @@
+    t->index_initialized |= s->index_initialized;
+}
+
+APR_DECLARE(void) apr_table_overlap(apr_table_t *a, const apr_table_t *b,
+				    unsigned flags)
+{
+    if (a->a.nelts + b->a.nelts == 0) {
+        return;
     }
 
-    apr_pool_tag(global_pool, "APR global pool");
-
-    apr_pools_initialized = 1;
-
-    /* This has to happen here because mutexes might be backed by
-     * atomics.  It used to be snug and safe in apr_initialize().
-     */
-    if ((rv = apr_atomic_init(global_pool)) != APR_SUCCESS) {
-        return rv;
+#if APR_POOL_DEBUG
+    /* Since the keys and values are not copied, it's required that
+     * b->a.pool has a lifetime at least as long as a->a.pool. */
+    if (!apr_pool_is_ancestor(b->a.pool, a->a.pool)) {
+        fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");
+        abort();
     }
+#endif
 
-#if (APR_POOL_DEBUG & APR_POOL_DEBUG_VERBOSE_ALL)
-    apr_file_open_stderr(&file_stderr, global_pool);
-    if (file_stderr) {
-        apr_file_printf(file_stderr,
-            "POOL DEBUG: [PID"
-#if APR_HAS_THREADS
+    apr_table_cat(a, b);
+
+    apr_table_compress(a, flags);
+}

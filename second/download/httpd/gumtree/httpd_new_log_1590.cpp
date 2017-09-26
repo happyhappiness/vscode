@@ -1,2 +1,3 @@
-apr_file_printf(errfile, "Adding password for %s in realm %s.\n", 
-                    argv[4], argv[3]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered premature end-of-stream while "
+                                  "reading inflate header");

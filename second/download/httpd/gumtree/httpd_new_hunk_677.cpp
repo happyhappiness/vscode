@@ -1,13 +1,21 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: FTP: serving URL %s", url);
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-    /* create space for state information */
-    backend = (proxy_conn_rec *) ap_get_module_config(c->conn_config, &proxy_ftp_module);
-    if (!backend) {
-        backend = apr_pcalloc(c->pool, sizeof(proxy_conn_rec));
-        backend->connection = NULL;
-        backend->hostname = NULL;
-        backend->port = 0;
-        ap_set_module_config(c->conn_config, &proxy_ftp_module, backend);
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
     }
-    if (backend->connection)
+}
+
+/**********************************************************
+ *

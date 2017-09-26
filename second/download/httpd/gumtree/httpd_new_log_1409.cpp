@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create scoreboard \"%s\" "
-                     "(name-based shared memory failure)", fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");

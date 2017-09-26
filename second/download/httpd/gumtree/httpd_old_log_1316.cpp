@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, 
-                             c->base_server,
-                             "SSL handshake failed (server %s, client %s)",
-                             ssl_util_vhostid(c->pool, c->base_server),
-                             c->remote_ip ? c->remote_ip : "unknown");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_lock(rewrite_log_lock) failed");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
-                "log writer isn't correctly setup");
+fprintf(stderr, "ab: Could not open POST data file (%s): %s\n", pfile,
+                apr_strerror(rv, errmsg, sizeof errmsg));

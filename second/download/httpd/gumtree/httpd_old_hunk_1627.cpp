@@ -1,23 +1,13 @@
-#ifdef USE_PERL_SSI
-            else if (!strcmp(directive, "perl")) {
-                ret = handle_perl(f, r, error);
-            }
-#endif
-            else {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "httpd: unknown directive \"%s\" "
-                            "in parsed doc %s",
-                            directive, r->filename);
-                if (printing) {
-                    ap_rputs(error, r);
+                    ap_rputs(")\n", r);
+                    ap_rprintf(r,
+                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
+                               ap_escape_html(r->pool,
+                                              ws_record->client),
+                               ap_escape_html(r->pool,
+                                              ws_record->request),
+                               ap_escape_html(r->pool,
+                                              ws_record->vhost));
                 }
-                ret = find_string(f, ENDING_SEQUENCE, r, 0);
-            }
-            if (ret) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "httpd: premature EOF in parsed file %s",
-                            r->filename);
-                return;
-            }
-        }
-        else {
+                else { /* !no_table_report */
+                    if (ws_record->status == SERVER_DEAD)
+                        ap_rprintf(r,

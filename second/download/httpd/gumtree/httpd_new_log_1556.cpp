@@ -1,2 +1,4 @@
-fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
-                    h->comment);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "ajp_marshal_into_msgb: "
+                         "Error appending the method '%s' as request attribute",
+                         r->method);

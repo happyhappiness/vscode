@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             ap_server_conf,
-                             "long lost child came home! (pid %ld)",
-                             (long)pid.pid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "mod_rewrite: can't access text RewriteMap file %s",
+                          s->checkfile);

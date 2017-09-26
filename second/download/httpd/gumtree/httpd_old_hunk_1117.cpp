@@ -1,6 +1,12 @@
-    ap_max_mem_free = (apr_uint32_t)value * 1024;
+                                                 void *dummy,
+                                                 int mode)
+{
+    util_ldap_state_t *st =
+    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                              &ldap_module);
 
-    return NULL;
-}
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                      "LDAP: SSL verify server certificate - %s",
+                      mode?"TRUE":"FALSE");
 
-#endif /* AP_MPM_WANT_SET_MAX_MEM_FREE */
+    st->verify_svr_cert = mode;

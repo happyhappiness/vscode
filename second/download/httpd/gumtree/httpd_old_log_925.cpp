@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT|APLOG_STARTUP, 0, 
-                     NULL, "no listening sockets available, shutting down");
+fprintf(stderr, "Reading a token: ");

@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                  "[%d] auth_ldap authorise: "
-                                  "require dn: LDAP error [%s][%s]",
-                                  getpid(), ldc->reason, ldap_err2string(result));
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");

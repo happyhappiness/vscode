@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: MaxRequestsPerThread was set below 0"
-                     "reset to 0, but this may not be what you want.");
+ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);

@@ -1,13 +1,15 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-	exit(1);
-    }
-
-    return server_hostname;
-}
-
+         * We can omit the check for SSL_PROTOCOL_SSLV2 as there is
+         * no way for OpenSSL to screw up things in this case (it's
+         * impossible to include extensions in a pure SSLv2 ClientHello,
+         * protocol-wise).
+         */
+        if (hostname_note &&
+#ifndef OPENSSL_NO_SSL3
+            sc->proxy->protocol != SSL_PROTOCOL_SSLV3 &&
+#endif
+            apr_ipsubnet_create(&ip, hostname_note, NULL,
+                                c->pool) != APR_SUCCESS) {
+            if (SSL_set_tlsext_host_name(filter_ctx->pssl, hostname_note)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SNI extension for SSL Proxy request set to '%s'",
+                              hostname_note);

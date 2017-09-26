@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %d exiting.", my_pid, thread_num);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: return code %d from HttpExtensionProc() "
+                           "was not not recognized", rv);

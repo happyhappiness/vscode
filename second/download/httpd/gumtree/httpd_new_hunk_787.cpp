@@ -1,14 +1,22 @@
+                    if (inctx->block == APR_NONBLOCK_READ) {
+                        break;
+                    }
+                    continue;  /* Blocking and nothing yet?  Try again. */
+                }
+                else {
+                    ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                                  "SSL input filter read failed.");
+                }
+            }
+            else /* if (ssl_err == SSL_ERROR_SSL) */ {
+                /*
+                 * Log SSL errors and any unexpected conditions.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
 
-        c->aborted = 1;
-
-        return DECLINED; /* XXX */
-    }
-
-    vhost_md5 = ap_md5_binary(c->pool, (unsigned char *)sc->vhost_id,
-                              sc->vhost_id_len);
-
-    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
-                                    MD5_DIGESTSIZE*2))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Unable to set session id context to `%s'", vhost_md5);
+            }
+            if (inctx->rc == APR_SUCCESS) {
+                inctx->rc = APR_EGENERAL;
+            }

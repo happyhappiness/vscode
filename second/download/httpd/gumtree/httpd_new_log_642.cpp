@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Please contact the vendor for the correct version.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag %s in %s", tag, directive, r->filename);

@@ -1,25 +1,13 @@
+    cache_handle_t *h;
 
-	/* every zero-byte counts as 8 zero-bits */
-	bits = 8 * quads;
+    list = cache->providers;
 
-	if (bits != 32)		/* no warning for fully qualified IP address */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
-		 inet_ntoa(This->addr), bits);
+    /* Remove the stale cache entry if present. If not, we're
+     * being called from outside of a request; remove the
+     * non-stale handle.
+     */
+    h = cache->stale_handle ? cache->stale_handle : cache->handle;
+    if (!h) {
+       return OK;
     }
-
-    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
-
-    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	    "Warning: NetMask and IP-Addr disagree in %s/%ld",
-		inet_ntoa(This->addr), bits);
-	This->addr.s_addr &= This->mask.s_addr;
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	    "         Set to %s/%ld",
-		inet_ntoa(This->addr), bits);
-    }
-
-    if (*addr == '\0') {
-	This->matcher = proxy_match_ipaddr;
-	return 1;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,

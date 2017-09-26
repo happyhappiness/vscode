@@ -1,32 +1,55 @@
-                      "[%d] ldap cache: Setting operation cache size to %ld entries.", 
-                      getpid(), st->compare_cache_size);
+    }
 
+    ap_threads_max_free = atoi(arg);
     return NULL;
 }
 
-#ifdef APU_HAS_LDAP_NETSCAPE_SSL
-static const char *util_ldap_set_certdbpath(cmd_parms *cmd, void *dummy, const char *path)
+static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg) 
 {
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "[%d] ldap cache: Setting LDAP SSL client certificate dbpath to %s.", 
-                      getpid(), path);
-
-    st->have_certdb = 1;
-    if (ldapssl_client_init(path, NULL) != 0) {
-        return "Could not initialize SSL client";
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-    else {
-        return NULL;
+
+    ap_threads_limit = atoi(arg);
+    if (ap_threads_limit > HARD_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: MaxThreads of %d exceeds compile time limit "
+                    "of %d threads,", ap_threads_limit, HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " lowering MaxThreads to %d.  To increase, please "
+                    "see the", HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " HARD_THREAD_LIMIT define in %s.",
+                    AP_MPM_HARD_LIMITS_FILE);
+       ap_threads_limit = HARD_THREAD_LIMIT;
+    } 
+    else if (ap_threads_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+            "WARNING: Require MaxThreads > 0, setting to 1");
+        ap_threads_limit = 1;
     }
+    return NULL;
 }
-#endif
 
-void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+static const char *set_thread_stacksize(cmd_parms *cmd, void *dummy, 
+                                        const char *arg)
 {
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+    
+    ap_thread_stack_size = atoi(arg);
+    return NULL;
+}
 
+static const command_rec netware_mpm_cmds[] = {
+AP_INIT_TAKE1("ThreadStackSize", set_thread_stacksize, NULL, RSRC_CONF,
+              "Stack size each created thread will use."),
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("StartThreads", set_threads_to_start, NULL, RSRC_CONF,
+              "Number of worker threads launched at server startup"),
+AP_INIT_TAKE1("MinSpareThreads", set_min_free_threads, NULL, RSRC_CONF,
+              "Minimum number of idle threads, to handle request spikes"),
+AP_INIT_TAKE1("MaxSpareThreads", set_max_free_threads, NULL, RSRC_CONF,

@@ -1,14 +1,16 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+        /* This assumes that the tempfile is on the same file system
+         * as the cache_root. If not, then we need a file copy/move
+         * rather than a rename.
+         */
+        rv = apr_file_rename(dobj->tempfile, dobj->datafile, r->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                         "disk_cache: rename tempfile to datafile failed:"
+                         " %s -> %s", dobj->tempfile, dobj->datafile);
+            apr_file_remove(dobj->tempfile, r->pool);
+        }
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+        dobj->tfd = NULL;
+    }
+
+    return APR_SUCCESS;

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             c->base_server,
-                             "SSL client authentication failed: %s",
-                             error ? error : "unknown");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: could not create rewrite_log_lock");

@@ -1,40 +1,77 @@
-	    parms[0] = '\0';
+    /* Seems IIS does not enforce the requirement for \r\n termination
+     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
+     * ap_scan_script_header_err_strs handles this aspect for us.
+     *
+     * Parse them out, or die trying
+     */
+    old_status = cid->r->status;
+
+    if (stat) {
+        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
+                stat, head, NULL);
+    }
+    else {
+        res = ap_scan_script_header_err_strs(cid->r, NULL, &termch, &termarg,
+                head, NULL);
     }
 
-/* try to set up PASV data connection first */
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    /* Set our status. */
+    if (res) {
+        /* This is an immediate error result from the parser
+         */
+        cid->r->status = res;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else if (cid->r->status) {
+        /* We have a status in r->status, so let's just use it.
+         * This is likely to be the Status: parsed above, and
+         * may also be a delayed error result from the parser.
+         * If it was filled in, status_line should also have
+         * been filled in.
+         */
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else if (cid->ecb->dwHttpStatusCode
+              && cid->ecb->dwHttpStatusCode != HTTP_OK) {
+        /* Now we fall back on dwHttpStatusCode if it appears
+         * ap_scan_script_header fell back on the default code.
+         * Any other results set dwHttpStatusCode to the decoded
+         * status value.
+         */
+        cid->r->status = cid->ecb->dwHttpStatusCode;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+    }
+    else if (old_status) {
+        /* Well... either there is no dwHttpStatusCode or it's HTTP_OK.
+         * In any case, we don't have a good status to return yet...
+         * Perhaps the one we came in with will be better. Let's use it,
+         * if we were given one (note this is a pendantic case, it would
+         * normally be covered above unless the scan script code unset
+         * the r->status). Should there be a check here as to whether
+         * we are setting a valid response code?
+         */
+        cid->r->status = old_status;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else {
+        /* None of dwHttpStatusCode, the parser's r->status nor the 
+         * old value of r->status were helpful, and nothing was decoded
+         * from Status: string passed to us.  Let's just say HTTP_OK 
+         * and get the data out, this was the isapi dev's oversight.
+         */
+        cid->r->status = HTTP_OK;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
+                "ISAPI: Could not determine HTTP response code; using %d",
+                cid->r->status);
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
+    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
+        return -1;
     }
 
-    ap_bputs("PASV" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: PASV command issued");
-/* possible results: 227, 421, 500, 501, 502, 530 */
-    /* 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2). */
-    /* 421 Service not available, closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    /* 501 Syntax error in parameters or arguments. */
-    /* 502 Command not implemented. */
-    /* 530 Not logged in. */
-    i = ap_bgets(pasv, sizeof(pasv), f);
-    if (i == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    /* If only Status was passed, we consumed nothing
+     */

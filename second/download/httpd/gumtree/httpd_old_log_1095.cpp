@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "proxy: FTP: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Symbolic link not allowed: %s",
+                                  r->filename);

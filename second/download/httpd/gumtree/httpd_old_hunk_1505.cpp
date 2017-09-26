@@ -1,12 +1,18 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
+        if (!schSCManager) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                         "Failed to open the NT Service Manager");
+            return;
+        }
 
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name,
+                                 SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                                 SERVICE_USER_DEFINED_CONTROL |
+                                 SERVICE_START | SERVICE_STOP);
 
-    ap_destroy_mutex(start_mutex);
-    return (0);
+        if (schService == NULL) {
+            /* Could not open the service */
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                         "Failed to open the %s Service", mpm_display_name);
+            CloseServiceHandle(schSCManager);
+            return;

@@ -1,13 +1,13 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
 
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
-        }
+                    rv = apr_bucket_read(e, &buffer, &len, APR_BLOCK_READ);
 
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+                    if (rv == APR_SUCCESS) {
+                        parsing = 1;
+                        rv = parse_chunk_size(ctx, buffer, len,
+                                f->r->server->limit_req_fieldsize, strict);
+                    }
+                    if (rv != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r,
+                                      "Error reading/parsing chunk %s ",
+                                      (APR_ENOSPC == rv) ? "(overflow)" : "");
+                        if (parsing) {

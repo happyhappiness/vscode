@@ -1,13 +1,13 @@
-{
-    regex_t *compiled;
-    int regex_error;
+    would_block = 0;
+#endif
 
-    compiled = ap_pregcomp(r->pool, rexp, REG_EXTENDED | REG_NOSUB);
-    if (compiled == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "unable to compile pattern \"%s\"", rexp);
-        return -1;
+    request_count = 0;
+
+    ClearScreen (getscreenhandle());
+    printf("%s \n", ap_get_server_version());
+
+    for (i=0;i<SERVER_NUM_STATUS;i++) {
+        status_array[i] = 0;
     }
-    regex_error = regexec(compiled, string, 0, (regmatch_t *) NULL, 0);
-    ap_pregfree(r->pool, compiled);
-    return (!regex_error);
+
+    for (i = 0; i < ap_threads_limit; ++i) {

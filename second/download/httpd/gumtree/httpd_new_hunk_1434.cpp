@@ -1,21 +1,20 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
+    apr_table_entry_t *end_elt;
+    apr_uint32_t checksum;
+    int hash;
+
+#if APR_POOL_DEBUG
+    {
+	apr_pool_t *pool;
+	pool = apr_pool_find(key);
+	if ((pool != key) && (!apr_pool_is_ancestor(pool, t->a.pool))) {
+	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
+	    abort();
 	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
+	pool = apr_pool_find(val);
+	if ((pool != val) && (!apr_pool_is_ancestor(pool, t->a.pool))) {
+	    fprintf(stderr, "apr_table_mergen: val not in ancestor pool of t\n");
+	    abort();
 	}
     }
+#endif
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{

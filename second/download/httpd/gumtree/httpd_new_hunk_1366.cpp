@@ -1,22 +1,13 @@
-    }
-    return HTTP_INTERNAL_SERVER_ERROR;
-}
+    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
+        if (ap_is_HTTP_REDIRECT(status)) {
+            char *orig_target = ret;
+            if (ret[0] == '/') {
 
-static void menu_header(request_rec *r, char *menu)
-{
-    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
-
-    ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
-              ap_escape_html(r->pool, r->uri),
-              "</title>\n</head><body>\n", NULL);
-
-    if (!strcasecmp(menu, "formatted")) {
-        ap_rvputs(r, "<h1>Menu for ", 
-                  ap_escape_html(r->pool, r->uri),
-                  "</h1>\n<hr />\n\n", NULL);
-    }
-
-    return;
-}
-
-static void menu_blank(request_rec *r, char *menu)
+                ret = ap_construct_url(r->pool, ret, r);
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);
+            }
+            if (!ap_is_url(ret)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

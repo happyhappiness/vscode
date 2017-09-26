@@ -1,2 +1,2 @@
-printf("Total:      " CONF_FMT_STRING,
-		   mintot, (int) (meantot + 0.5), sdtot, mediantot, maxtot);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; URI must not contain a fragment");

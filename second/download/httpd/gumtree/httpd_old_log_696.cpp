@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -t                : run syntax check for config files "
-                 "(with docroot check)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "unknown parameter \"%s\" to tag exec in %s",
+                                  tag, file);

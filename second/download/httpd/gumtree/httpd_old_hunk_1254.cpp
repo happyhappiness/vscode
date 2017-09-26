@@ -1,12 +1,12 @@
+        info->status = r->status;
+    }
 
-    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
-                                        (request_rec *) NULL);
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, in);
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
-}
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", r->unparsed_uri);
 
-
-static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
-{
-    int i;

@@ -1,0 +1,1 @@
+fprintf(out, "%d,%.3f\n", i, t);

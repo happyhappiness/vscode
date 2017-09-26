@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                "failed to write %d of %d bytes (%s)",
-                n > 0 ? len - n : len, len, reason);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                            "proxy: send failed to %pI (%s)",
+                            conn->worker->cp->addr,
+                            conn->worker->hostname);

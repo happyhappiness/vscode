@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot create SSLMutex");
+fprintf(stderr, " %.*s", (int)(val.dptr+val.dsize - (cmnt+1)), cmnt + 1);

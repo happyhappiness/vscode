@@ -1,31 +1,15 @@
-    /* Initialize the cache_handle */
-    h->cache_obj = obj;
-    h->req_hdrs = NULL;  /* Pick these up in recall_headers() */
-    return OK;
-}
-
-static int remove_entity(cache_handle_t *h) 
-{
-    cache_object_t *obj = h->cache_obj;
-
-    /* Remove the cache object from the cache under protection */
-    if (sconf->lock) {
-        apr_thread_mutex_lock(sconf->lock);
-    }
-    /* If the object is not already marked for cleanup, remove
-     * it from the cache and mark it for cleanup. Remember,
-     * an object marked for cleanup is by design not in the
-     * hash table.
-     */
-    if (!obj->cleanup) {
-        cache_remove(sconf->cache_cache, obj);
-        obj->cleanup = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
+        }
+        ptr = value+vlen;
     }
 
-    if (sconf->lock) {
-        apr_thread_mutex_unlock(sconf->lock);
-    }
+    process = dbopen(login, server);
 
-    return OK;
-}
+    fprintf(stderr, "databaseName [%s]\n", databaseName);
+
+    if (databaseName != NULL)
+    {
+        dbuse(process, databaseName);
+    }
+ 
+    dbloginfree(login);
+    if (process == NULL) {

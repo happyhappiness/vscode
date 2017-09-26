@@ -1,1 +1,4 @@
-ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  Check your 'Require' directive"
+                                  : "perform authentication. AuthType not set!",
+                                   r);

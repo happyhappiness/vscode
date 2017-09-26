@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
-                         0, ap_server_conf,
-                         "seg fault or similar nasty error detected "
-                         "in the parent process");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
+                 "Connection to child %ld established "
+                 "(server %s, client %s)", c->id, sc->vhost_id, 
+                 c->remote_ip ? c->remote_ip : "unknown");

@@ -1,27 +1,26 @@
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
+    "USER_NAME=",
+    "TZ=",
+    NULL
+};
 
-    	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "Graceful restart requested, doing restart");
 
-        /* Wait for all of the threads to terminate before initiating the restart */
-        DBPRINT0 ("Restart pending. Waiting for threads to terminate...\n");
-        while (worker_thread_count > 0) {
-            apr_thread_yield();
+static void err_output(const char *fmt, va_list ap)
+{
+#ifdef AP_LOG_EXEC
+    time_t timevar;
+    struct tm *lt;
+
+    if (!log) {
+        if ((log = fopen(AP_LOG_EXEC, "a")) == NULL) {
+            fprintf(stderr, "failed to open log file\n");
+            perror("fopen");
+            exit(1);
         }
-        DBPRINT0 ("restarting...\n");
     }
 
-    return 0;
-}
+    time(&timevar);
+    lt = localtime(&timevar);
 
-static int netware_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
-{
-    int debug;
-    char *addrname = NULL;
-
-    debug = ap_exists_config_define("DEBUG");
-
-    is_graceful = 0;
-    ap_my_pid = getpid();
-    addrname = getaddressspacename (NULL, NULL);
-    if (addrname) {
+    fprintf(log, "[%d-%.2d-%.2d %.2d:%.2d:%.2d]: ",
+            lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
+            lt->tm_hour, lt->tm_min, lt->tm_sec);

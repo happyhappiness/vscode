@@ -1,13 +1,23 @@
-       for that source. */
-    lookup = dav_lookup_uri(source, r, 0 /* must_be_absolute */);
-    if (lookup.rnew == NULL) {
-        if (lookup.err.status == HTTP_BAD_REQUEST) {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          lookup.err.desc);
-            return HTTP_BAD_REQUEST;
+
+#define KEYMAX 1024
+
+    ssl_mutex_on(s);
+    for (;;) {
+        /* allocate the key array in a memory sub pool */
+        apr_pool_sub_make(&p, mc->pPool, NULL);
+        if (p == NULL)
+            break;
+        if ((keylist = apr_palloc(p, sizeof(dbmkey)*KEYMAX)) == NULL) {
+            apr_pool_destroy(p);
+            break;
         }
 
-        /* ### this assumes that dav_lookup_uri() only generates a status
-         * ### that Apache can provide a status line for!! */
-
+        /* pass 1: scan DBM database */
+        keyidx = 0;
+        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile, 
+                               APR_DBM_RWCREATE,SSL_DBM_FILE_MODE,
+                               p)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot open SSLSessionCache DBM file `%s' for "
+                         "scanning",
+                         mc->szSessionCacheDataFile);

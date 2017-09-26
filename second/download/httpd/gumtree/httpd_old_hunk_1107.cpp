@@ -1,13 +1,21 @@
-    }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: All worker threads have exited.", my_pid);
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-    CloseHandle(allowed_globals.jobsemaphore);
-    apr_thread_mutex_destroy(allowed_globals.jobmutex);
-    if (osver.dwPlatformId != VER_PLATFORM_WIN32_WINDOWS) {
-    	apr_thread_mutex_destroy(qlock);
-        CloseHandle(qwait_event);
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
     }
+}
 
-    apr_pool_destroy(pchild);
-    CloseHandle(exit_event);
+/**********************************************************
+ *

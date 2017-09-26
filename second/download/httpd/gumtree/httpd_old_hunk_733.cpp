@@ -1,13 +1,21 @@
-               pthread_kill(*listener_os_thread, 0)
-#else
-               kill(ap_my_pid, 0)
-#endif
-               == 0) {
-            /* listener not dead yet */
-            apr_sleep(APR_USEC_PER_SEC / 2);
-            wakeup_listener();
-            ++iter;
-        }
-        if (iter >= 10) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "the listener thread didn't exit");
+        ap_method_registry_init(p);
+    }
+
+    if (methname == NULL) {
+        return M_INVALID;
+    }
+    
+    /* Check if the method was previously registered.  If it was
+     * return the associated method number.
+     */
+    methnum = (int *)apr_hash_get(methods_registry, methname,
+                                  APR_HASH_KEY_STRING);
+    if (methnum != NULL)
+        return *methnum;
+        
+    if (cur_method_number > METHOD_NUMBER_LAST) {
+        /* The method registry  has run out of dynamically
+         * assignable method numbers. Log this and return M_INVALID.
+         */
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p,
+                      "Maximum new request methods %d reached while "

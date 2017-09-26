@@ -1,33 +1,24 @@
-    if (idle_worker_stack == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
-                     "worker_stack_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
+{
+    conn_rec *c = r->connection;
+    struct modssl_buffer_ctx *ctx;
+    apr_bucket_brigade *tempb;
+    apr_off_t total = 0; /* total length buffered */
+    int eos = 0; /* non-zero once EOS is seen */
 
-    worker_wakeups = (worker_wakeup_info **)
-        apr_palloc(pchild, sizeof(worker_wakeup_info *) *
-                   ap_threads_per_child);
+    /* Create the context which will be passed to the input filter;
+     * containing a setaside pool and a brigade which constrain the
+     * lifetime of the buffered data. */
+    ctx = apr_palloc(r->pool, sizeof *ctx);
+    apr_pool_create(&ctx->pool, r->pool);
+    ctx->bb = apr_brigade_create(ctx->pool, c->bucket_alloc);
 
-    loops = prev_threads_created = 0;
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
-            worker_wakeup_info *wakeup;
+    /* ... and a temporary brigade. */
+    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
 
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer");
 
-            wakeup = worker_wakeup_create(pchild);
-            if (wakeup == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0,
-                             ap_server_conf, "worker_wakeup_create failed");
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
-            worker_wakeups[threads_created] = wakeup;
-            my_info = (proc_info *)malloc(sizeof(proc_info));
-            if (my_info == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
-                             "malloc: out of memory");
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
+    do {
+        apr_status_t rv;
+        apr_bucket *e, *next;
+
+        /* The request body is read from the protocol-level input

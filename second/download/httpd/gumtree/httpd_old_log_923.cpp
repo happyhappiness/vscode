@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE|APLOG_NOERRNO, APR_SUCCESS, ap_server_conf,
-                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
+fprintf(stderr, "Stack size increased to %d\n", ssl_expr_yystacksize);

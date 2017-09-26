@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "cache: Response length still unknown, setting "
-                             "aside content for url: %s", url);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+              "proxy: ap_get_scoreboard_lb(%d) failed for worker %s",
+              worker->id, worker->name);

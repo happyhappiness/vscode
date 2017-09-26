@@ -1,2 +1,2 @@
-r(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Waiting for %d worker threads to exit.", my_pid, threads_created);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary %d bit RSA key", keylen);

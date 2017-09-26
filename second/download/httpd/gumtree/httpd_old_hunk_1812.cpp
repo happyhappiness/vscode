@@ -1,13 +1,14 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+
+#ifdef NOT_ASCII
+    inbytes_left = outbytes_left = reqlen;
+    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
+                   request, &outbytes_left);
+    if (status || inbytes_left || outbytes_left) {
+        fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
+           status, inbytes_left, outbytes_left);
+        exit(1);
     }
+#endif              /* NOT_ASCII */
+
+    /* This only needs to be done once */
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))

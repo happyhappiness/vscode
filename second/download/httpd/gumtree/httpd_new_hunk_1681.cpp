@@ -1,13 +1,16 @@
-		    data = lf + 1;	/* Reset data */
-		break;
-	    }
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
+#ifdef SIGFPE
+    if (sigaction(SIGFPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGFPE)");
+#endif
 
-	    if (!(value = strchr(data, ':'))) {
-		SetLastError(ERROR);	/* XXX: Find right error */
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			    "ISA sent invalid headers", r->filename);
-		return FALSE;
-	    }
+#else /* NO_USE_SIGACTION */
 
-	    *value++ = '\0';
-	    while (*value && ap_isspace(*value)) ++value;
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);

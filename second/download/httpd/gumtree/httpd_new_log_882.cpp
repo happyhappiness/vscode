@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "Graceful restart requested, doing restart");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                                  "SSL input filter read failed.");

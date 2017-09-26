@@ -1,18 +1,35 @@
-        } else {
-            ResetEvent(qwait_event);
-        }
-        apr_thread_mutex_unlock(qlock);
-  
-        if (!context) {
-            /* We failed to grab a context off the queue, consider allocating
-             * a new one out of the child pool. There may be up to 
-             * (ap_threads_per_child + num_listeners) contexts in the system 
-             * at once.
+    if (r->uri[0] != '/' && r->uri[0] != '\0') {
+        return DECLINED;
+    }
+
+    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
+        if (ap_is_HTTP_REDIRECT(status)) {
+            char *orig_target = ret;
+            if (ret[0] == '/') {
+
+                ret = ap_construct_url(r->pool, ret, r);
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);
+            }
+            if (!ap_is_url(ret)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "cannot redirect '%s' to '%s'; "
+                              "target is not a valid absoluteURI or abs_path",
+                              r->uri, ret);
+                /* restore the config value, so as not to get a
+                 * "regression" on existing "working" configs.
+                 */
+                ret = orig_target;
+            }
+            /* append requested query only, if the config didn't
+             * supply its own.
              */
-            if (num_completion_contexts >= max_num_completion_contexts) {
-                /* All workers are busy, need to wait for one */
-                static int reported = 0;
-                if (!reported) {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                                 "Server ran out of threads to serve requests. Consider "
-                                 "raising the ThreadsPerChild setting");
+            if (r->args && !ap_strchr(ret, '?')) {
+                ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
+            }
+            apr_table_setn(r->headers_out, "Location", ret);
+        }
+        return status;
+    }

@@ -1,15 +1,15 @@
-	   "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
-	   trstring, tdstring, tdstring, doclen);
-    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
-	   "<td colspan=2 %s>%d</td></tr>\n",
-	   trstring, tdstring, tdstring, concurrency);
-    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
-	   "<td colspan=2 %s>%qd.%03ld seconds</td></tr>\n",
-	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
-           (long)apr_time_usec(timetaken));
-    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
-	   "<td colspan=2 %s>%ld</td></tr>\n",
-	   trstring, tdstring, tdstring, done);
-    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
-	   "<td colspan=2 %s>%ld</td></tr>\n",
-	   trstring, tdstring, tdstring, bad);
+
+    if (dirconf->fixup_out->nelts || dirconf->fixup_err->nelts) {
+        ap_add_output_filter("FIXUP_HEADERS_OUT", NULL, r, r->connection);
+    }
+}
+
+/*
+ * Make sure our error-path filter is in place.
+ */
+static void ap_headers_insert_error_filter(request_rec *r)
+{
+    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
+                                                 &headers_module);
+
+    if (dirconf->fixup_err->nelts) {

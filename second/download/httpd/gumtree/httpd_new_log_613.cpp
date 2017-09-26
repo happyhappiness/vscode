@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_insert_encoded_session");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not send interim 101 Upgrade response");

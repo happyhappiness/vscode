@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, main_s,
-                         "NameVirtualHost %s:%u has no VirtualHosts",
-                         ic->sar->virthost, ic->sar->host_port);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad);

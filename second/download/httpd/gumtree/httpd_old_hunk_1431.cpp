@@ -1,40 +1,32 @@
-	return;
+
+    /* Check that all client certs have got certificates and private
+     * keys. */
+    for (n = 0; n < ncerts; n++) {
+        X509_INFO *inf = sk_X509_INFO_value(sk, n);
+
+        if (!inf->x509 || !inf->x_pkey) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die();
+            return;
+        }
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
+    if (!pkp->ca_cert_file || !store) {
+        return;
+    }
 
+    /* Load all of the CA certs and construct a chain */
+    pkp->ca_certs = (STACK_OF(X509) **) apr_pcalloc(p, ncerts * sizeof(sk));
+    sctx = X509_STORE_CTX_new();
 
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    if (!sctx) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                     "SSL proxy client cert initialization failed");

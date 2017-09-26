@@ -1,12 +1,13 @@
-    /* 
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
-    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(int));
-    while (1) {
-        for (i = 0; i < ap_threads_per_child; i++) {
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
+
+    parms = default_parms;
+    parms.pool = p;
+    parms.temp_pool = ptemp;
+    parms.server = s;
+    parms.override = (RSRC_CONF | OR_ALL) & ~(OR_AUTHCFG | OR_LIMIT);
+    parms.override_opts = OPT_ALL | OPT_INCNOEXEC | OPT_SYM_OWNER | OPT_MULTI;
+    parms.limited = -1;
+
+    errmsg = ap_walk_config(conftree, &parms, s->lookup_defaults);
+    if (errmsg) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, p,
+                     "Syntax error on line %d of %s:",

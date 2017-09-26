@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s: %s\n", argv[0], record);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);

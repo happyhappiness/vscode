@@ -1,32 +1,13 @@
-                                 "Error reading from remote server");
-        }
-        if (rc != 229 && rc != 500 && rc != 501 && rc != 502) {
-            return ap_proxyerror(r, HTTP_BAD_GATEWAY, ftpmessage);
-        }
-        else if (rc == 229) {
-            char *pstr;
-            char *tok_cntx;
 
-            pstr = ftpmessage;
-            pstr = apr_strtok(pstr, " ", &tok_cntx);    /* separate result code */
-            if (pstr != NULL) {
-                if (*(pstr + strlen(pstr) + 1) == '=') {
-                    pstr += strlen(pstr) + 2;
-                }
-                else {
-                    pstr = apr_strtok(NULL, "(", &tok_cntx);    /* separate address &
-                                                                 * port params */
-                    if (pstr != NULL)
-                        pstr = apr_strtok(NULL, ")", &tok_cntx);
-                }
-            }
+    status = ilink_read(sock, msg->buf, hlen);
 
-            if (pstr) {
-                apr_sockaddr_t *epsv_addr;
-                data_port = atoi(pstr + 3);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                     "ajp_ilink_receive() can't receive header");
+        return AJP_ENO_HEADER;
+    }
 
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "proxy: FTP: EPSV contacting remote host on port %d",
-                             data_port);
+    status = ajp_msg_check_header(msg, &blen);
 
-                if ((rv = apr_socket_create(&data_sock, connect_addr->family, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,

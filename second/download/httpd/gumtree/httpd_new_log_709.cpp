@@ -1,3 +1,2 @@
-r(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		"%s configured -- resuming normal operations",
-		ap_get_server_version());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" to tag exec in %s", tag, file);

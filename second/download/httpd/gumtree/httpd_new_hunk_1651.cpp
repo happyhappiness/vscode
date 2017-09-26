@@ -1,22 +1,14 @@
+     *
+     * Handle two way transfer of data over the socket (this is a tunnel).
+     */
+
+/*    r->sent_bodyct = 1;*/
+
+    if ((rv = apr_pollset_create(&pollset, 2, r->pool, 0)) != APR_SUCCESS) {
+        apr_socket_close(sock);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+            "proxy: CONNECT: error apr_pollset_create()");
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /* perform sub-request for the file name without the suffix */
-    result = 0;
-    sub_filename = ap_pstrndup(r->pool, r->filename, suffix_pos);
-#if MIME_MAGIC_DEBUG
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		MODNAME ": subrequest lookup for %s", sub_filename);
-#endif /* MIME_MAGIC_DEBUG */
-    sub = ap_sub_req_lookup_file(sub_filename, r);
-
-    /* extract content type/encoding/language from sub-request */
-    if (sub->content_type) {
-	r->content_type = ap_pstrdup(r->pool, sub->content_type);
-#if MIME_MAGIC_DEBUG
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    MODNAME ": subrequest %s got %s",
-		    sub_filename, r->content_type);
-#endif /* MIME_MAGIC_DEBUG */
-	if (sub->content_encoding)
-	    r->content_encoding =
-		ap_pstrdup(r->pool, sub->content_encoding);
+    /* Add client side to the poll */

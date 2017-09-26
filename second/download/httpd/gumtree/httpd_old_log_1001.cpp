@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG | APLOG_NOERRNO, 0, NULL, "Opening config handler %s", descr);
+printf("Server loaded:  APR %s, APR-UTIL %s\n",
+           apr_version_string(), apu_version_string());

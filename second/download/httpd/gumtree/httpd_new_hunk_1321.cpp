@@ -1,12 +1,13 @@
-            break;
-        }
+     */
+    if (mctx->pks->certs[SSL_AIDX_RSA] ||
+        mctx->pks->certs[SSL_AIDX_DSA])
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die();
     }
 }
 
-/*
- *  Access Handler
- */
-int ssl_hook_Access(request_rec *r)
-{
-    SSLDirConfigRec *dc = myDirConfig(r);
-    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+#ifndef OPENSSL_NO_TLSEXT
+static void ssl_init_ctx_tls_extensions(server_rec *s,

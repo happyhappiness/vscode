@@ -1,26 +1,25 @@
-        type_e = CACHE_TYPE_FILE;
-    }
-    else {
-        return DECLINED;
+                                      apr_pool_t *ptrans)
+{
+    apr_socket_t *csd;
+    apr_status_t status;
+    int sockdes;
+
+    status = apr_accept(&csd, lr->sd, ptrans);
+    if (status == APR_SUCCESS) { 
+        *accepted = csd;
+        apr_os_sock_get(&sockdes, csd);
+        if (sockdes >= FD_SETSIZE) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                         "new file descriptor %d is too large; you probably need "
+                         "to rebuild Apache with a larger FD_SETSIZE "
+                         "(currently %d)",
+                         sockdes, FD_SETSIZE);
+            apr_socket_close(csd);
+            return APR_EINTR;
+        } 
+        return status;
     }
 
-    /* In principle, we should be able to dispense with the cache_size checks
-     * when caching open file descriptors.  However, code in cache_insert() and 
-     * other places does not make the distinction whether a file's content or
-     * descriptor is being cached. For now, just do all the same size checks
-     * regardless of what we are caching.
-     */
-    if (len < sconf->min_cache_object_size || 
-        len > sconf->max_cache_object_size) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache_mem: URL %s failed the size check, "
-                     "or is incomplete", 
-                     key);
-        return DECLINED;
+    if (APR_STATUS_IS_EINTR(status)) {
+        return status;
     }
-    if (type_e == CACHE_TYPE_FILE) {
-        /* CACHE_TYPE_FILE is only valid for local content handled by the 
-         * default handler. Need a better way to check if the file is
-         * local or not.
-         */
-        if (!r->filename) {

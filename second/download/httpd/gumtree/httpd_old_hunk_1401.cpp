@@ -1,49 +1,26 @@
-#endif /* APR_CHARSET_EBCDIC */
+            ap_run_test_config(pconf, server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
+        }
+    }
 
-#define MAX_STRING_LEN 256
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
 
-#define ERR_OVERFLOW 5
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
+        }
+    }
 
-#ifndef HAVE_GETPASS
+    /* If our config failed, deal with that here. */
+    if (rv != OK) {
+        destroy_and_exit_process(process, 1);
+    }
 
-/* MPE, Win32, NetWare and BeOS all lack a native getpass() */
+    apr_pool_clear(plog);
 
-#if !defined(HAVE_TERMIOS_H) && !defined(WIN32) && !defined(NETWARE)
-/*
- * MPE lacks getpass() and a way to suppress stdin echo.  So for now, just
- * issue the prompt and read the results with echo.  (Ugh).
- */
-
-static char *getpass(const char *prompt)
-{
-    static char password[MAX_STRING_LEN];
-
-    fputs(prompt, stderr);
-    fgets((char *) &password, sizeof(password), stdin);
-
-    return (char *) &password;
-}
-
-#elif defined (HAVE_TERMIOS_H)
-#include <stdio.h>
-
-static char *getpass(const char *prompt)
-{
-    struct termios attr;
-    static char password[MAX_STRING_LEN];
-    int n=0;
-    fputs(prompt, stderr);
-    fflush(stderr);
-	
-    if (tcgetattr(STDIN_FILENO, &attr) != 0)
-        return NULL;
-    attr.c_lflag &= ~(ECHO);
-
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
-	    return NULL;
-    while ((password[n] = getchar()) != '\n') {
-        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
-            n++;
-        } else {
-            fprintf(stderr,"\n");
-            fputs(prompt, stderr);
+    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);

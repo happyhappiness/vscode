@@ -1,14 +1,20 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-                     "client stopped connection before send body completed");
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
+            if ( pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
+                             pidfile, getpid());
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught " AP_SIG_GRACEFUL_STOP_STRING
+                         ", shutting down gracefully");
         }
+
+        if (ap_graceful_shutdown_timeout) {
+            cutoff = apr_time_now() +
+                     apr_time_from_sec(ap_graceful_shutdown_timeout);
+        }
+
+        /* Don't really exit until each child has finished */
+        shutdown_pending = 0;
+        do {
+            /* Pause for a second */

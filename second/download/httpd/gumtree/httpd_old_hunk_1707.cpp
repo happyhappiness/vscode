@@ -1,15 +1,12 @@
+                     dc && dc->charset_default ? dc->charset_default : "(none)");
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
+
+    if (!ctx->ran) {  /* filter never ran before */
+        chk_filter_chain(f);
+        ctx->ran = 1;
     }
-#else
-    if (x) {
-	alarm_fn = fn;
+
+    if (ctx->noop) {
+        return ap_get_brigade(f->next, bb, mode, block, readbytes);
     }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+

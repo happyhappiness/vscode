@@ -1,2 +1,2 @@
-ap_register_output_filter(deflateFilterName, deflate_out_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");

@@ -1,24 +1,14 @@
     }
 
-    /* Create a pipe to send handles to the child */
-    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
-                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
-    }
+    /* Was this the final bucket? If yes, close the temp file and perform
+     * sanity checks.
+     */
+    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+        const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
 
-    /* Open a null handle to soak info from the child */
-    if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE, 
-                             APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
-        || ((rv = apr_procattr_child_out_set(attr, child_out, NULL)) 
-                != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to connect child stdout to NUL.");
-        apr_pool_destroy(ptemp);
-        return -1;
-    }
-
-    /* Connect the child's initial stderr to our main server error log 
-     * or share our own stderr handle.
+        if (r->connection->aborted || r->no_cache) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "disk_cache: Discarding body for URL %s "
+                         "because connection has been aborted.",
+                         h->cache_obj->key);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */

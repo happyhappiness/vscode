@@ -1,13 +1,28 @@
-#if AP_NONBLOCK_WHEN_MULTI_LISTEN
-    /* if multiple listening sockets, make them non-blocking so that
-     * if select()/poll() reports readability for a reset connection that
-     * is already forgotten about by the time we call accept, we won't
-     * be hung until another connection arrives on that port
-     */
-    if (ap_listeners->next) {
-        for (lr = ap_listeners; lr; lr = lr->next) {
-            apr_status_t status;
+                    /* sanity check */
+                    if (APR_BRIGADE_EMPTY(bb)) {
+                        apr_brigade_cleanup(bb);
+                        break;
+                    }
 
-            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
-            if (status != APR_SUCCESS) {
-                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                    /* found the last brigade? */
+                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+                        /* signal that we must leave */
+                        finish = TRUE;
+                    }
+
+                    /* try send what we read */
+                    if (ap_pass_brigade(r->output_filters, bb) != APR_SUCCESS
+                        || c->aborted) {
+                        /* Ack! Phbtt! Die! User aborted! */
+                        backend->close = 1;  /* this causes socket close below */
+                        finish = TRUE;
+                    }
+
+                    /* make sure we always clean up after ourselves */
+                    apr_brigade_cleanup(bb);
+
+                } while (!finish);
+            }
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: end body send");
+        }

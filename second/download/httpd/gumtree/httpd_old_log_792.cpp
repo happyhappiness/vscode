@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    "ThreadLimit. Resetting to %d", thread_limit);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "mod_log_forensic: mod_unique_id must also be active");

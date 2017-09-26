@@ -1,22 +1,13 @@
-    if (!connect) {
-        apr_sockaddr_t *local_addr;
-        char *local_ip;
-        apr_port_t local_port;
-        unsigned int h0, h1, h2, h3, p0, p1;
-
-        if ((rv = apr_socket_create(&local_sock, APR_INET, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FTP: error creating local socket");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        apr_socket_addr_get(&local_addr, APR_LOCAL, sock);
-        apr_sockaddr_port_get(&local_port, local_addr);
-        apr_sockaddr_ip_get(&local_ip, local_addr);
-
-        if ((rv = apr_setsocketopt(local_sock, APR_SO_REUSEADDR, one)) != APR_SUCCESS) {
-#ifndef _OSD_POSIX              /* BS2000 has this option "always on" */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FTP: error setting reuseaddr option");
-            return HTTP_INTERNAL_SERVER_ERROR;
-#endif                          /* _OSD_POSIX */
-        }
+    /* Sendfile not supported by this OS */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                 "mod_file_cache: unable to cache file: %s. Sendfile is not supported on this OS", filename);
+#endif
+    return NULL;
+}
+static const char *cachefilemmap(cmd_parms *cmd, void *dummy, const char *filename) 
+{
+#if APR_HAS_MMAP
+    cache_the_file(cmd, filename, 1);
+#else
+    /* MMAP not supported by this OS */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,

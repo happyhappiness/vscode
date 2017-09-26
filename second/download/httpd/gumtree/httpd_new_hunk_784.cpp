@@ -1,52 +1,28 @@
-        return APR_SUCCESS;
-    }
+    const char *key;
+    apr_ssize_t klen;
 
-    rewritemaps = conf->rewritemaps;
-    entries = (rewritemap_entry *)rewritemaps->elts;
-    for (i = 0; i < rewritemaps->nelts; i++) {
-        apr_file_t *fpin = NULL;
-        apr_file_t *fpout = NULL;
-        rewritemap_entry *map = &entries[i];
+    BOOL conflict = FALSE;
 
-        if (map->type != MAPTYPE_PRG) {
-            continue;
+    /*
+     * Give out warnings when a server has HTTPS configured
+     * for the HTTP port or vice versa
+     */
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
+
+        if ((sc->enabled == SSL_ENABLED_TRUE) && (s->port == DEFAULT_HTTP_PORT)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTPS(%d) "
+                         "on the standard HTTP(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
         }
-        if (map->argv[0] == NULL
-            || *(map->argv[0]) == '\0'
-            || map->fpin  != NULL
-            || map->fpout != NULL        ) {
-            continue;
-        }
-        rc = rewritemap_program_child(p, map->argv[0], map->argv,
-                                      &fpout, &fpin);
-        if (rc != APR_SUCCESS || fpin == NULL || fpout == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                         "mod_rewrite: could not startup RewriteMap "
-                         "program %s", map->datafile);
-            return rc;
-        }
-        map->fpin  = fpin;
-        map->fpout = fpout;
-    }
-    return APR_SUCCESS;
-}
 
-/* child process code */
-static apr_status_t rewritemap_program_child(apr_pool_t *p, 
-                                             const char *progname, char **argv,
-                                             apr_file_t **fpout,
-                                             apr_file_t **fpin)
-{
-    apr_status_t rc;
-    apr_procattr_t *procattr;
-    apr_proc_t *procnew;
-
-    if (((rc = apr_procattr_create(&procattr, p)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_io_set(procattr, APR_FULL_BLOCK, APR_FULL_BLOCK,
-                                   APR_NO_PIPE)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_dir_set(procattr, 
-                                   ap_make_dirstr_parent(p, argv[0])))
-         != APR_SUCCESS) ||
-        ((rc = apr_procattr_cmdtype_set(procattr, APR_PROGRAM)) != APR_SUCCESS)) {
-        /* Something bad happened, give up and go away. */
-    }
+        if ((sc->enabled == SSL_ENABLED_FALSE) && (s->port == DEFAULT_HTTPS_PORT)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTP(%d) "
+                         "on the standard HTTPS(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);

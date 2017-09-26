@@ -1,23 +1,33 @@
-#endif
+     * signal_monitor event so we can take further action
+     */
+    SetEvent(globdat.service_init);
 
-static void show_compile_settings(void)
+    WaitForSingleObject(globdat.service_term, INFINITE);
+}
+
+
+static DWORD WINAPI service_nt_dispatch_thread(LPVOID nada)
 {
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-#ifdef HAVE_MMAP
-    printf(" -D HAVE_MMAP\n");
-#endif
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
+    apr_status_t rv = APR_SUCCESS;
+
+    SERVICE_TABLE_ENTRY dispatchTable[] =
+    {
+        { "", service_nt_main_fn },
+        { NULL, NULL }
+    };
+
+    /* ###: utf-ize */
+    if (!StartServiceCtrlDispatcher(dispatchTable))
+    {
+        /* This is a genuine failure of the SCM. */
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "Error starting service control dispatcher");
+    }
+
+    return (rv);
+}
+
+
+apr_status_t mpm_service_set_name(apr_pool_t *p, const char **display_name,
+                                  const char *set_name)

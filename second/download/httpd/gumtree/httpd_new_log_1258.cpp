@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it.\n");
+apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
+                        argv[0], dirname);

@@ -1,29 +1,27 @@
-        if (tenc) {
-            if (!strcasecmp(tenc, "chunked")) {
-                ctx->state = BODY_CHUNK;
-            }
-        }
-        else if (lenp) {
-            int conversion_error = 0;
-            char *endstr;
+      "specify an address and/or port with a key pair name.\n"
+      "Optional third parameter of MUTUAL configures the port for mutual authentication."),
+    AP_INIT_TAKE2("NWSSLUpgradeable", set_secure_upgradeable_listener, NULL, RSRC_CONF,
+      "specify an address and/or port with a key pair name, that can be upgraded to an SSL connection.\n"
+      "The address and/or port must have already be defined using a Listen directive."),
+    AP_INIT_ITERATE("NWSSLTrustedCerts", set_trusted_certs, NULL, RSRC_CONF,
+        "Adds trusted certificates that are used to create secure connections to proxied servers"),
+    {NULL}
+};
 
-            ctx->state = BODY_LENGTH;
-            errno = 0;
-            ctx->remaining = strtol(lenp, &endstr, 10);	/* we depend on ANSI */
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);
 
-            /* This protects us from over/underflow (the errno check),
-             * non-digit chars in the string (excluding leading space)
-             * (the endstr checks) and a negative number. Depending
-             * on the strtol implementation, the errno check may also
-             * trigger on an all whitespace string */
-            if (errno || (endstr && *endstr) || (ctx->remaining < 0)) {
-                 conversion_error = 1; 
-            }
+    ap_hook_pre_config(nwssl_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_pre_connection(nwssl_pre_connection, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_config(nwssl_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_fixups(nwssl_hook_Fixup, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_http_scheme(nwssl_hook_http_scheme, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_default_port(nwssl_hook_default_port, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_insert_filter(ssl_hook_Insert_Filter, NULL, NULL, APR_HOOK_MIDDLE);
 
-            if (conversion_error) {
-                apr_bucket_brigade *bb;
+    APR_REGISTER_OPTIONAL_FN(ssl_is_https);
+    APR_REGISTER_OPTIONAL_FN(ssl_var_lookup);
 
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Invalid Content-Length");
-
-                bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
+    APR_REGISTER_OPTIONAL_FN(ssl_proxy_enable);
+    APR_REGISTER_OPTIONAL_FN(ssl_engine_disable);

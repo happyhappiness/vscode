@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGSEGV)");
+ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);

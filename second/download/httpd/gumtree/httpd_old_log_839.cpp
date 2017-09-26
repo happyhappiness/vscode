@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, APR_SUCCESS,
-                             ap_server_conf, "removed PID file %s (pid=%d)",
-                             pidfile, getpid());
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: No HTTP headers "
+			 "returned by %s (%s)", r->uri, r->method);

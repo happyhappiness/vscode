@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "could not read request body for SSL buffer");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");

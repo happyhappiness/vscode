@@ -1,14 +1,21 @@
-     * segment. */
-    apr_file_remove(fname, pool); /* ignore errors */
-
-    rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, fname, pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create scoreboard "
-                     "(name-based shared memory failure)");
-        return rv;
+    if (err != NULL) {
+        return err;
     }
-#endif /* APR_HAS_SHARED_MEMORY */
-    return APR_SUCCESS;
+
+    min_spare_threads = atoi(arg);
+    if (min_spare_threads <= 0) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: detected MinSpareThreads set to non-positive.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Resetting to 1 to avoid almost certain Apache failure.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Please read the documentation.");
+       min_spare_threads = 1;
+    }
+       
+    return NULL;
 }
 
+static const char *set_max_spare_threads(cmd_parms *cmd, void *dummy,
+                                         const char *arg)
+{

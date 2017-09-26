@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: search for temporary directory failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);

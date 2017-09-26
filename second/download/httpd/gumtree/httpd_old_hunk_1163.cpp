@@ -1,13 +1,12 @@
-        }
-        strncpy(kb, key.dptr, key.dsize);
-        kb[key.dsize] = '\0';
-        fprintf(stderr, "    %-32s", kb);
-        strncpy(rec, val.dptr, val.dsize);
-        rec[val.dsize] = '\0';
-        cmnt = strchr(rec, ';');
-        if (cmnt)
-            fprintf(stderr, cmnt + 1);
-        fprintf(stderr, "\n");
-        rv = apr_dbm_nextkey(htdbm->dbm, &key);
-        if (rv != APR_SUCCESS)
-            fprintf(stderr, "Failed getting NextKey\n");
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "ap_proxy_ajp_request error read after end");
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_SEND_HEADERS:
+                /* AJP13_SEND_HEADERS: process them */
+                status = ajp_parse_header(r, conf, conn->data);
+                if (status != APR_SUCCESS) {
+                    backend_failed = 1;
+                }
+                headers_sent = 1;

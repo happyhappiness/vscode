@@ -1,24 +1,34 @@
-    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
+     * If the connection pool is NULL the worker
+     * cleanup has been run. Just return.
+     */
+    if (!worker->cp)
+        return APR_SUCCESS;
 
-    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
-            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
-            
-    if (s == INVALID_SOCKET) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: failed to get a socket for %s", 
-                     addr);
-        return -1;
+#if APR_HAS_THREADS
+    /* Sanity check: Did we already return the pooled connection? */
+    if (conn->inreslist) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool,
+                      "proxy: Pooled connection 0x%pp for worker %s has been"
+                      " already returned to the connection pool.", conn,
+                      worker->name);
+        return APR_SUCCESS;
     }
-        
-    if (!mutual) {
-        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
-		    
-        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
-            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
-            return -1;
-        }
-    }
+#endif
 
+    /* determine if the connection need to be closed */
+    if (conn->close_on_recycle || conn->close) {
+        apr_pool_t *p = conn->pool;
+        apr_pool_clear(conn->pool);
+        memset(conn, 0, sizeof(proxy_conn_rec));
+        conn->pool = p;
+        conn->worker = worker;
+    }
+#if APR_HAS_THREADS
+    if (worker->hmax && worker->cp->res) {
+        conn->inreslist = 1;
+        apr_reslist_release(worker->cp->res, (void *)conn);
+    }
+    else
+#endif
+    {
+        worker->cp->conn = conn;

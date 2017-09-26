@@ -1,40 +1,24 @@
-    else {
-        fname = ap_server_root_relative(p, s->error_fname);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
-                         "%s: Invalid error log path %s.",
-                         ap_server_argv0, s->error_fname);
-            return DONE;
+             * ssl_io_filter_error will disable the ssl filters when it
+             * sees this status code.
+             */
+            return HTTP_BAD_REQUEST;
         }
-        if ((rc = apr_file_open(&s->error_log, fname,
-                               APR_APPEND | APR_READ | APR_WRITE | APR_CREATE,
-                               APR_OS_DEFAULT, p)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "%s: could not open error log file %s.",
-                         ap_server_argv0, fname);
-            return DONE;
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");
         }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, c->base_server));
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
 
-        apr_file_inherit_set(s->error_log);
-    }
-
-    return OK;
-}
-
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
-                 apr_pool_t *ptemp, server_rec *s_main)
-{
-    apr_status_t rc = APR_SUCCESS;
-    server_rec *virt, *q;
-    int replace_stderr;
-    apr_file_t *errfile = NULL;
-
-    if (open_error_log(s_main, p) != OK) {
-        return DONE;
-    }
-
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        /* replace stderr with this new log */
-        apr_file_flush(s_main->error_log);
-        if ((rc = apr_file_open_stderr(&errfile, p)) == APR_SUCCESS) {
+        }
+        if (inctx->rc == APR_SUCCESS) {
+            inctx->rc = APR_EGENERAL;
+        }

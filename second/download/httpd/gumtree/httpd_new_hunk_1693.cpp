@@ -1,20 +1,13 @@
-        memcpy(&sel_write, &writebits, sizeof(readbits));
+    return APR_SUCCESS;
+}
 
-        /* check for time limit expiry */
-        gettimeofday(&now, 0);
-        if (tlimit && timedif(now, start) > (tlimit * 1000)) {
-            requests = done;    /* so stats are correct */
-        }
+static void htdbm_usage(void)
+{
 
-        /* Timeout of 30 seconds. */
-        timeout.tv_sec = 30;
-        timeout.tv_usec = 0;
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-        if (!n) {
-            err("\nServer timed out\n\n");
-        }
-        if (n < 1)
-            err("select");
-
-        for (i = 0; i < concurrency; i++) {
-            int s = con[i].fd;
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+#define CRYPT_OPTION "d"
+#else
+#define CRYPT_OPTION ""
+#endif
+    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
+    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");

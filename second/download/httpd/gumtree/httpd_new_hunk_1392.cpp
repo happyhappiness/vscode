@@ -1,13 +1,23 @@
-      "specify an address and/or port with a key pair name.\n"
-      "Optional third parameter of MUTUAL configures the port for mutual authentication."),
-    AP_INIT_TAKE2("NWSSLUpgradeable", set_secure_upgradeable_listener, NULL, RSRC_CONF,
-      "specify an address and/or port with a key pair name, that can be upgraded to an SSL connection.\n"
-      "The address and/or port must have already be defined using a Listen directive."),
-    AP_INIT_ITERATE("NWSSLTrustedCerts", set_trusted_certs, NULL, RSRC_CONF,
-      "Adds trusted certificates that are used to create secure connections to proxied servers"),
-    {NULL}
-};
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
 
-static void register_hooks(apr_pool_t *p)
-{
-    ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);
+        if (psf->error_override && ap_is_HTTP_ERROR(r->status)) {
+            /* clear r->status for override error, otherwise ErrorDocument
+             * thinks that this is a recursive error, and doesn't find the
+             * custom error page
+             */
+            rv = r->status;
+            r->status = HTTP_OK;
+        } else {
+            rv = OK;
+        }
+    }
+
+    if (backend_failed) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: dialog to %pI (%s) failed",
+                     conn->worker->cp->addr,

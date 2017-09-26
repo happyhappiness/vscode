@@ -1,4 +1,4 @@
-fprintf(stderr, "%s: Directory %s exceeds the maximum include "
-                    "directory nesting level of %u. You have probably a "
-                    "recursion somewhere.\n", ap_server_argv0, path,
-                    AP_MAX_INCLUDE_DIR_DEPTH);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Extraneous text found '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(ll), ll);

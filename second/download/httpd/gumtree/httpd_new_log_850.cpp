@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                    "server reached MaxClients setting, consider"
-                    " raising the MaxClients setting");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "proxy: %s: retrying the worker for (%s)",
+                     proxy_function, worker->hostname);

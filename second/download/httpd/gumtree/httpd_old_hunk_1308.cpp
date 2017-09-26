@@ -1,13 +1,12 @@
+                                                       &authn_file_module);
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    apr_status_t status;
+    char *file_password = NULL;
 
-        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
-            if (cid->dconf.log_unsupported)
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
-                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
-            SetLastError(ERROR_INVALID_PARAMETER);
-            return 0;
-        }
-        
-        /* Presume the handle was opened with the CORRECT semantics
-         * for TransmitFile 
-         */
+    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);
+        return AUTH_GENERAL_ERROR;

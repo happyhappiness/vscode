@@ -1,13 +1,13 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+                    e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "proxy: error processing end");
+                        output_failed = 1;
+                    }
+                    /* XXX: what about flush here? See mod_jk */
+                    data_sent = 1;
+                }
+                request_ended = 1;
+                break;

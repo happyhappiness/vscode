@@ -1,23 +1,12 @@
- */
-void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
-{
-    unsigned long e;
 
-    while ((e = ERR_get_error())) {
-        char err[256], *annotation;
+    *url = apr_pstrcat(r->pool, worker->name, path, NULL);
 
-        ERR_error_string_n(e, err, sizeof err);
-        annotation = ssl_log_annotation(err);
-
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s %s",
-                         e, err, annotation); 
-        }
-        else {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s",
-                         e, err); 
-        }
-    }
+    return OK;
 }
+
+static int proxy_balancer_pre_request(proxy_worker **worker,
+                                      proxy_balancer **balancer,
+                                      request_rec *r,
+                                      proxy_server_conf *conf, char **url)
+{
+    int access_status;

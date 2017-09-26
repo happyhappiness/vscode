@@ -1,65 +1,49 @@
+                    return;
+                }
 
-    new->expiresbytype = apr_table_overlay(p, add->expiresbytype,
-                                        base->expiresbytype);
-    return new;
-}
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_psprintf(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                                "<pre>\n%.*s</pre>\n",
+                                                (int)LOG_NAME_MAX_LEN,
+                                                ap_escape_html(r->pool,
+                                                               last_field)));
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);
+                    return;
+                }
+                
+                tmp_field = value - 1; /* last character of field-name */
 
-static int add_expires(request_rec *r)
-{
-    expires_dir_config *conf;
-    char *code;
-    apr_time_t base;
-    apr_time_t additional;
-    apr_time_t expires;
-    int additional_sec;
-    char *timestr;
+                *value++ = '\0'; /* NUL-terminate at colon */
 
-    if (ap_is_HTTP_ERROR(r->status))       /* Don't add Expires headers to errors */
-        return DECLINED;
+                while (*value == ' ' || *value == '\t') {
+                    ++value;            /* Skip to start of value   */
+                }
 
-    if (r->main != NULL)        /* Say no to subrequests */
-        return DECLINED;
+                /* Strip LWS after field-name: */
+                while (tmp_field > last_field 
+                       && (*tmp_field == ' ' || *tmp_field == '\t')) {
+                    *tmp_field-- = '\0';
+                }
+                
+                /* Strip LWS after field-value: */
+                tmp_field = last_field + last_len - 1;
+                while (tmp_field > value
+                       && (*tmp_field == ' ' || *tmp_field == '\t')) {
+                    *tmp_field-- = '\0';
+                }
 
-    conf = (expires_dir_config *) ap_get_module_config(r->per_dir_config, &expires_module);
-    if (conf == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (conf->active != ACTIVE_ON)
-        return DECLINED;
-
-    /* we perhaps could use the default_type(r) in its place but that
-     * may be 2nd guesing the desired configuration...  calling table_get
-     * with a NULL key will SEGV us
-     *
-     * I still don't know *why* r->content_type would ever be NULL, this
-     * is possibly a result of fixups being called in many different
-     * places.  Fixups is probably the wrong place to be doing all this
-     * work...  Bah.
-     *
-     * Changed as of 08.Jun.96 don't DECLINE, look for an ExpiresDefault.
-     */
-    if (r->content_type == NULL)
-        code = NULL;
-    else
-        code = (char *) apr_table_get(conf->expiresbytype, 
-		ap_field_noparam(r->pool, r->content_type));
-
-    if (code == NULL) {
-        /* no expires defined for that type, is there a default? */
-        code = conf->expiresdefault;
-
-        if (code[0] == '\0')
-            return OK;
-    }
-
-    /* we have our code */
-
-    switch (code[0]) {
-    case 'M':
-	if (r->finfo.filetype == 0) { 
-	    /* file doesn't exist on disk, so we can't do anything based on
-	     * modification time.  Note that this does _not_ log an error.
-	     */
+                apr_table_addn(r->headers_in, last_field, value);
+                
+                /* reset the alloc_len so that we'll allocate a new
+                 * buffer if we have to do any more folding: we can't
+                 * use the previous buffer because its contents are
+                 * now part of r->headers_in
+                 */
+                alloc_len = 0;

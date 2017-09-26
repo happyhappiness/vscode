@@ -1,19 +1,13 @@
-		      "[%d] auth_ldap authenticate: "
-		      "ap_get_basic_auth_pw() returns %d", getpid(), result);
-        util_ldap_connection_close(ldc);
-        return result;
+        }
+        if (i != SERVER_DEAD)
+            total+=status_array[i];
     }
+    printf ("Total Running:\t%d\tout of: \t%d\n", total, ap_threads_limit);
+    printf ("Requests per interval:\t%d\n", reqs);
 
-    if (r->user == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-		      "[%d] auth_ldap authenticate: no user specified", getpid());
-        util_ldap_connection_close(ldc);
-        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-    }
-
-    /* build the username filter */
-    mod_auth_ldap_build_filter(filtbuf, r, sec);
-
-    /* do the user search */
-    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, sent_pw, &dn, &vals);
+#ifdef DBINFO_ON
+    printf ("Would blocks:\t%d\n", wblock);
+    printf ("Successful retries:\t%d\n", retry_success);
+    printf ("Failed retries:\t%d\n", retry_fail);
+    printf ("Avg retries:\t%d\n", retry_success == 0 ? 0 : avg_retries / retry_success);
+#endif

@@ -1,24 +1,30 @@
-        else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            return r;
-        }
-    }
+                status = ajp_parse_data(r, conn->data, &size, &buff);
+                if (status == APR_SUCCESS) {
+                    e = apr_bucket_transient_create(buff, size,
+                                                    r->connection->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
 
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if ((access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-        ap_run_log_transaction(r);
-        return NULL;
-    }
-
-    return r;
-}
+                    if ( (conn->worker->flush_packets == flush_on) ||
+                         ( (conn->worker->flush_packets == flush_auto) &&
+                           (apr_poll(conn_poll, 1, &conn_poll_fd,
+                                     conn->worker->flush_wait)
+                             == APR_TIMEUP) ) ) {
+                        e = apr_bucket_flush_create(r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                    }
+                    apr_brigade_length(output_brigade, 0, &bb_len);
+                    if (bb_len != -1)
+                        conn->worker->s->read += bb_len;
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body");
+                        isok = 0;
+                    }
+                    data_sent = 1;
+                    apr_brigade_cleanup(output_brigade);
+                }
+                else {
+                    isok = 0;
+                }
+                break;

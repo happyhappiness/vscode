@@ -1,13 +1,14 @@
-        exit(0);
+        }
+#endif
     }
-    apr_file_printf(errfile, "password for user %s\n", user);
+    else
+#endif
+    {
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
+        rv = connection_constructor((void **)&(worker->cp->conn), worker, worker->cp->pool);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+             "proxy: initialized single connection worker %d in child %" APR_PID_T_FMT " for (%s)",
+             worker->id, getpid(), worker->hostname);
     }
-    apr_file_close(ftemp);
+    if (rv == APR_SUCCESS) {
+        worker->status |= (PROXY_WORKER_INITIALIZED);

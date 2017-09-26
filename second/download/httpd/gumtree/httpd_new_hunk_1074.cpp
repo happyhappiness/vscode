@@ -1,15 +1,29 @@
- */
-void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+    apr_terminate();
+#ifdef NETWARE
+    pressanykey();
+#endif
+}
+
+static void htdbm_terminate(htdbm_t *htdbm)
 {
-    unsigned long e;
+    if (htdbm->dbm)
+        apr_dbm_close(htdbm->dbm);
+    htdbm->dbm = NULL;
+}
 
-    while ((e = ERR_get_error())) {
-        char err[256], *annotation;
+static htdbm_t *h;
 
-        ERR_error_string_n(e, err, sizeof err);
-        annotation = ssl_log_annotation(err);
+static void htdbm_interrupted(void)
+{
+    htdbm_terminate(h);
+    fprintf(stderr, "htdbm Interrupted !\n");
+    exit(ERR_INTERRUPTED);
+}
 
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s %s",
-                         e, err, annotation); 
+static apr_status_t htdbm_init(apr_pool_t **pool, htdbm_t **hdbm)
+{
+
+#if APR_CHARSET_EBCDIC
+    apr_status_t rv;
+#endif
+

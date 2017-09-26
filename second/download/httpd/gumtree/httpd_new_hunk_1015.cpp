@@ -1,13 +1,21 @@
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                        "Not accepted by client!?");
-
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
         }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "XML parser error (at end). status=%d", status);
+        return HTTP_BAD_REQUEST;
+    }
 
-        /*
-         * Remember the peer certificate's DN
+#if APR_CHARSET_EBCDIC
+    apr_xml_parser_convert_doc(r->pool, *pdoc, ap_hdrs_from_ascii);
+#endif
+    return OK;
+
+  parser_error:
+    (void) apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "XML Parser Error: %s", errbuf);
+
+    /* FALLTHRU */
+
+  read_error:
+    /* make sure the parser is terminated */
+    (void) apr_xml_parser_done(parser, NULL);

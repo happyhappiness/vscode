@@ -1,48 +1,41 @@
+    strcat(record, "\n");
+    return 0;
 }
 
-static void set_signals(void)
+static void usage(void)
 {
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
+#endif
+        ".\n");
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            ".\n");
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");
+    apr_file_printf(errfile, " -D  Delete the specified user.\n");
+    apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default.\n");
+    apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");
+    exit(ERR_SYNTAX);
+}
 
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    if (!one_process) {
-        sa.sa_handler = sig_coredump;
-#if defined(SA_ONESHOT)
-        sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-        sa.sa_flags = SA_RESETHAND;
-#endif
-        if (sigaction(SIGSEGV, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                         "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-        if (sigaction(SIGBUS, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                         "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-        if (sigaction(SIGABORT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                         "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-        if (sigaction(SIGABRT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                         "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-        if (sigaction(SIGILL, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                         "sigaction(SIGILL)");
-#endif
-        sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
+/*
+ * Check to see if the specified file can be opened for the given
+ * access.

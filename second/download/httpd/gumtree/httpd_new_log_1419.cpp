@@ -1,5 +1,1 @@
-ap_fputstrs(output, bb,
-                  "<D:status>HTTP/1.1 ",
-                  ap_get_status_line(response->status),
-                  "</D:status>" DEBUG_CR,
-                  NULL);
+ap_rputs("<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>", r);

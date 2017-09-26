@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd [-cmdps] passwordfile username\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                 : hold open the console window on error");

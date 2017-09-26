@@ -1,13 +1,12 @@
+        idx = SSL_TMP_KEY_DH_1024;
+    }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    return (DH *)mc->pTmpKeys[idx];
+}
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+/*
+ * This OpenSSL callback function is called when OpenSSL
+ * does client authentication and verifies the certificate chain.
+ */
+int ssl_callback_SSLVerify(int ok, X509_STORE_CTX *ctx)
+{

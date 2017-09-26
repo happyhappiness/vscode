@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, 
-                         ap_server_conf, "processor unbind failed %d", status);
+ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);

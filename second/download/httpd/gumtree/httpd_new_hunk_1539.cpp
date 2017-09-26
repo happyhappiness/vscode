@@ -1,13 +1,18 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			     "proxy: error creating cache directory %s",
-			     c->filename);
-	    *p = '/';
-	    ++p;
-	}
-#if defined(OS2) || defined(WIN32)
-	/* Under OS/2 use rename. */
-	if (rename(c->tempfile, c->filename) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			 "proxy: error renaming cache file %s to %s",
-			 c->tempfile, c->filename);
-    }
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);
+                    return;
+                }
+
+                if (value == last_field) {
+                    r->status = HTTP_BAD_REQUEST;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field name was empty");
+                    return;
+                }
+
+                *value++ = '\0'; /* NUL-terminate at colon */
+
+                if (strpbrk(last_field, "\t\n\v\f\r ")) {
+                    r->status = HTTP_BAD_REQUEST;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,

@@ -1,20 +1,21 @@
-/* ------------------------------------------------------- */
+        return err;
+    }
 
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.120 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
+    ap_min_spare_threads = atoi(arg);
+
+    if (ap_min_spare_threads <= 0) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: detected MinSpareThreads set to non-positive.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Resetting to 1 to avoid almost certain Apache failure.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Please read the documentation.");
+       ap_min_spare_threads = 1;
     }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.120 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
+       
+    return NULL;
 }
 
+
+
+static const char *set_max_spare_threads(cmd_parms *cmd, void *dummy,

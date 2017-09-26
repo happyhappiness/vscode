@@ -1,24 +1,29 @@
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT) 
-    {
-        SC_HANDLE   schService;
-        SC_HANDLE   schSCManager;
+                                ws_record->times.tms_cutime +
+                                ws_record->times.tms_cstime) / tick,
+#endif
+                               (long)apr_time_sec(nowtime -
+                                                  ws_record->last_used),
+                               (long)req_time);
 
-        schSCManager = OpenSCManager(NULL, NULL, // default machine & database
-                                     SC_MANAGER_CONNECT);
-        
-        if (!schSCManager) {
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
-                         "Failed to open the NT Service Manager");
-            return;
-        }
+                    ap_rprintf(r, "</td><td>%-1.1f</td><td>%-2.2f</td><td>%-2.2f\n",
+                               (float)conn_bytes / KBYTE, (float) my_bytes / MBYTE,
+                               (float)bytes / MBYTE);
 
-        /* ###: utf-ize */
-        schService = OpenService(schSCManager, mpm_service_name, 
-                                 SERVICE_INTERROGATE | SERVICE_QUERY_STATUS | 
-                                 SERVICE_START | SERVICE_STOP);
+                    if (ws_record->status == SERVER_BUSY_READ)
+                        ap_rprintf(r,
+                                   "</td><td>?</td><td nowrap>?</td><td nowrap>..reading.. </td></tr>\n\n");
+                    else
+                        ap_rprintf(r,
+                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
+                                   ap_escape_html(r->pool,
+                                                  ws_record->client),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->vhost),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->request));
+                } /* no_table_report */
+            } /* for (j...) */
+        } /* for (i...) */
 
-        if (schService == NULL) {
-            /* Could not open the service */
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
-                         "Failed to open the %s Service", mpm_display_name);
-            CloseServiceHandle(schSCManager);
+        if (!no_table_report) {
+            ap_rputs("</table>\n \

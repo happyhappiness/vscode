@@ -1,14 +1,22 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s (default: %s)",
-		apr_proc_mutex_name(accept_mutex),
-		apr_proc_mutex_defname());
-#endif
-    restart_pending = shutdown_pending = 0;
+    }
+    if (!found && !(mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
+    }
+    else if (!found && (mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "User %s not found\n", user);
+        exit(0);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-    server_main_loop(remaining_children_to_start);
-
-    if (shutdown_pending) {
-        /* Time to gracefully shut down:
-         * Kill child processes, tell them to call child_exit, etc...
-         * (By "gracefully" we don't mean graceful in the same sense as 
-         * "apachectl graceful" where we allow old connections to finish.)
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], pwfilename);
+        exit(ERR_FILEPERM);
+    }
+    apr_file_close(ftemp);
+    return 0;
+}

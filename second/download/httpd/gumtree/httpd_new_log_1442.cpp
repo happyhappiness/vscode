@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "proxy: BALANCER: (%s).  Forcing recovery for worker (%s), failonstatus %d",
+                             balancer->name, worker->name, val);

@@ -1,22 +1,13 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
+        note_digest_auth_failure(r, conf, resp, 1);
+        return HTTP_UNAUTHORIZED;
     }
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
-}
 
+    tmp = resp->nonce[NONCE_TIME_LEN];
+    resp->nonce[NONCE_TIME_LEN] = '\0';
+    apr_base64_decode_binary(nonce_time.arr, resp->nonce);
+    gen_nonce_hash(hash, resp->nonce, resp->opaque, r->server, conf);
+    resp->nonce[NONCE_TIME_LEN] = tmp;
+    resp->nonce_time = nonce_time.time;
 
-static int check_symlinks(char *d, int opts)
-{
-#if defined(OS2) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+    if (strcmp(hash, resp->nonce+NONCE_TIME_LEN)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

@@ -1,13 +1,28 @@
-        store_variant_list(r, neg);
-        res = MULTIPLE_CHOICES;
-        goto return_from_multi;
+static const char *
+     proxy_get_host_of_request(request_rec *r)
+{
+    char *url, *user = NULL, *password = NULL, *err, *host;
+    apr_port_t port;
+
+    if (r->hostname != NULL) {
+        return r->hostname;
     }
 
-    if (!best) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "no acceptable variant: %s", r->filename);
+    /* Set url to the first char after "scheme://" */
+    if ((url = strchr(r->uri, ':')) == NULL || url[1] != '/' || url[2] != '/') {
+        return NULL;
+    }
 
-        set_neg_headers(r, neg, na_result);
-        store_variant_list(r, neg);
-        res = NOT_ACCEPTABLE;
-        goto return_from_multi;
+    url = apr_pstrdup(r->pool, &url[1]);    /* make it point to "//", which is what proxy_canon_netloc expects */
+
+    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
+
+    if (err != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "%s", err);
+    }
+
+    r->hostname = host;
+
+    return host;        /* ought to return the port, too */
+}
+

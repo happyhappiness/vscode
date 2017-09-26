@@ -1,12 +1,20 @@
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                         "mod_rewrite: could not init rewrite_mapr_lock_acquire"
+                         " in child");
+        }
+    }
 
-            total_read += len;
-            if (limit_xml_body && total_read > limit_xml_body) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "XML request body is larger than the configured "
-                              "limit of %lu", (unsigned long)limit_xml_body);
-                goto read_error;
-            }
+#ifndef REWRITELOG_DISABLED
+    rv = apr_global_mutex_child_init(&rewrite_log_lock, NULL, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: could not init rewrite log lock in child");
+    }
+#endif
 
-            status = apr_xml_parser_feed(parser, data, len);
-            if (status) {
-                goto parser_error;
+    /* create the lookup cache */
+    if (!init_cache(p)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: could not init map cache in child");
+    }
+}

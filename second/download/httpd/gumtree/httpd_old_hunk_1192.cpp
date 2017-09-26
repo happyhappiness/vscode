@@ -1,66 +1,15 @@
+        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
+        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
 
-    return st;
-}
+        cert_store = X509_STORE_new();
 
-static apr_status_t util_ldap_cleanup_module(void *data)
-{
-    server_rec *s = data;
+        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "Unable to reconfigure verify locations "
+                         "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
-    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
-                                          s->module_config, &ldap_module);
+            X509_STORE_free(cert_store);
 
-    #if APR_HAS_LDAP_SSL
-        #if APR_HAS_NOVELL_LDAPSDK
-            if (st->ssl_support)
-                ldapssl_client_deinit();
-        #endif
-    #endif
-   
-    return(APR_SUCCESS);
-}
-
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
-{
-    int rc = LDAP_SUCCESS;
-    apr_status_t result;
-    char buf[MAX_STRING_LEN];
-
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
-
-#if APR_HAS_SHARED_MEMORY
-    server_rec *s_vhost;
-    util_ldap_state_t *st_vhost;
-    
-    /* initializing cache if file is here and we already don't have shm addr*/
-    if (st->cache_file && !st->cache_shm) {
-#endif
-        result = util_ldap_cache_init(p, st);
-        apr_strerror(result, buf, sizeof(buf));
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
-                     "LDAP cache init: %s", buf);
-
-#if APR_HAS_SHARED_MEMORY
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
-                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
-
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-            st_vhost->cache_shm = st->cache_shm;
-            st_vhost->cache_rmm = st->cache_rmm;
-            st_vhost->cache_file = st->cache_file;
-            s_vhost = s_vhost->next;
+            return HTTP_FORBIDDEN;
         }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
-    }
-#endif
-    
-    /* log the LDAP SDK used 
-     */
-    #if APR_HAS_NETSCAPE_LDAPSDK 

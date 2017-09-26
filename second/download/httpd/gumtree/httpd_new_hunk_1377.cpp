@@ -1,20 +1,18 @@
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: header only");
+
+    rv = ap_process_config_tree(server_conf, ap_conftree,
+                                process->pconf, ptemp);
+    if (rv == OK) {
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        /*
+         * Sort hooks again because ap_process_config_tree may have added
+         * modules and hence hooks. This happens with mod_perl and modules
+         * written in perl.
+         */
+        apr_hook_sort_all();
+
+        if (configtestonly) {
+            ap_run_test_config(pconf, server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
         }
-    }
-
-    /* See define of AP_MAX_INTERIM_RESPONSES for why */
-    if (received_continue > AP_MAX_INTERIM_RESPONSES) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             apr_psprintf(p, 
-                             "Too many (%d) interim responses from origin server",
-                             received_continue));
-    }
-
-    if ( conf->error_override ) {
-        /* the code above this checks for 'OK' which is what the hook expects */
-        if ( r->status == HTTP_OK )
-            return OK;
-        else  {
-            /* clear r->status for override error, otherwise ErrorDocument

@@ -1,13 +1,13 @@
-#endif
-    
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-        if (strcmp(argv[1], "-c"))
-            usage();
-        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
-
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
+                    }
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body");
+                        output_failed = 1;
+                    }
+                    data_sent = 1;
+                    apr_brigade_cleanup(output_brigade);
+                }
+                else {

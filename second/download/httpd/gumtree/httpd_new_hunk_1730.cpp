@@ -1,30 +1,15 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+    else {
+        proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
+        if (!worker) {
+            const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);
+        }
+        PROXY_COPY_CONF_PARAMS(worker, conf);
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
-    }
-
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+        for (i = 0; i < arr->nelts; i++) {
+            const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                               elts[i].val);

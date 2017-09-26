@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "disk_cache: Served headers for URL %s",  dobj->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit DH parameters", bits);

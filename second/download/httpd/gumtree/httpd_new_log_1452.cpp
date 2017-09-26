@@ -1,2 +1,1 @@
-fprintf(stderr, "%s: wildcard patterns not allowed in Include "
-                    "%s\n", ap_server_argv0, fname);
+n(user, argv[4], sizeof(user));

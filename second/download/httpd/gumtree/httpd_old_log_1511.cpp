@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGBUS)");
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            "." NL);

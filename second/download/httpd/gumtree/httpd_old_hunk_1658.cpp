@@ -1,13 +1,12 @@
-    /*
-     *  only do something under runtime if the engine is really enabled,
-     *  for this directory, else return immediately!
-     */
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-        /* FollowSymLinks is mandatory! */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-                     "which implies that RewriteRule directive is forbidden: "
-                     "%s", r->filename);
-        return FORBIDDEN;
-    }
-    else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                         "ProxyReceiveBufferSize, using default");
+        }
+#endif
+
+        /* Set a timeout on the socket */
+        if (conf->timeout_set == 1) {
+            apr_socket_timeout_set(*newsock, conf->timeout);
+        }
+        else {
+             apr_socket_timeout_set(*newsock, s->timeout);

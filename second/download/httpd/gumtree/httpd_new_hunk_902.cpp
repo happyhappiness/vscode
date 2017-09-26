@@ -1,28 +1,21 @@
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
+        apr_thread_yield();
+        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+    }
+    mpm_state = AP_MPMQ_STOPPING;
+
+
+    /* Shutdown the listen sockets so that we don't get stuck in a blocking call.
+    shutdown_listeners();*/
+
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "caught SIGTERM, shutting down");
+
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
         }
-    }
-    else {
-        sec->filter = "objectclass=*";
-    }
 
-      /* "ldaps" indicates secure ldap connections desired
-      */
-    if (strncasecmp(url, "ldaps", 5) == 0)
-    {
-        sec->secure = 1;
-        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server,
-                     "LDAP: auth_ldap using SSL connections");
+        return 1;
     }
-    else
-    {
-        sec->secure = 0;
-        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, 
-                     "LDAP: auth_ldap not using SSL connections");
-    }
-
-    sec->have_ldap_url = 1;
-    apr_ldap_free_urldesc(urld);
-    return NULL;
-}

@@ -1,2 +1,4 @@
-apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+                                    "Inflated content ratio is larger than the "
+                                    "configured limit %i by %i time(s)",
+                                    dc->ratio_limit, dc->ratio_burst);

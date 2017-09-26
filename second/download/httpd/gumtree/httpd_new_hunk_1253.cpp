@@ -1,17 +1,25 @@
+         */
+        rv = cache->provider->store_body(cache->handle, r, in);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                         "cache: Cache provider's store_body failed!");
+            ap_remove_output_filter(f);
 
-/*
- * worker_main()
- * Main entry point for the worker threads. Worker threads block in 
- * win*_get_connection() awaiting a connection to service.
- */
-static unsigned int __stdcall worker_main(void *thread_num_val)
-{
-    static int requests_this_child = 0;
-    PCOMP_CONTEXT context = NULL;
-    int thread_num = (int)thread_num_val;
-    ap_sb_handle_t *sbh;
+            /* give someone else the chance to cache the file */
+            ap_cache_remove_lock(conf, r, cache->handle ?
+                    (char *)cache->handle->cache_obj->key : NULL, NULL);
+        }
+        else {
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
-    while (1) {
-        conn_rec *c;
+        	/* proactively remove the lock as soon as we see the eos bucket */
+            ap_cache_remove_lock(conf, r, cache->handle ?
+                    (char *)cache->handle->cache_obj->key : NULL, in);
+
+        }
+
+        return ap_pass_brigade(f->next, in);
+    }
+
+    /*
+     * Setup Data in Cache
+     * -------------------

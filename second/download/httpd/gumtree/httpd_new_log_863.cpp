@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering MaxThreads to %d.  To increase, please "
-                    "see the", HARD_THREAD_LIMIT);
+ap_log_error(APLOG_MARK, loglevel, rv, s,
+                         "proxy: %s: attempt to connect to %pI (%s) failed",
+                         proxy_function,
+                         backend_addr,
+                         worker->hostname);

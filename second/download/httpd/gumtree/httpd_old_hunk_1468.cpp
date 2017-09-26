@@ -1,25 +1,12 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);
+            return AJP_EOVERFLOW;
+        }
     }
-    return;
-}
-
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    /* Use the environment vars prefixed with AJP_
+     * and pass it to the header striping that prefix.
+     */
+    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+        if (!strncmp(elts[i].key, "AJP_", 4)) {
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||

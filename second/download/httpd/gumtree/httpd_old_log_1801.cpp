@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          PARTITION_ERR_FMT, range_end+1, clength);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination buffer too "
+                     "small %" APR_SIZE_T_FMT ", max size is %d",
+                     smsg->len, AJP_MSG_BUFFER_SZ);

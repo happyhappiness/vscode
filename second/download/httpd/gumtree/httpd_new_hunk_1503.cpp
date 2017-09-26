@@ -1,18 +1,24 @@
-	    hold_off_on_exponential_spawning = 10;
-	}
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager.");
+            return (rv);
+        }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+#if APR_HAS_UNICODE_FS
+        IF_WIN_OS_IS_UNICODE
+        {
+            schService = OpenServiceW(schSCManager, mpm_service_name_w, DELETE);
+        }
+#endif /* APR_HAS_UNICODE_FS */
+#if APR_HAS_ANSI_FS
+        ELSE_WIN_OS_IS_ANSI
+        {
+            schService = OpenService(schSCManager, mpm_service_name, DELETE);
+        }
+#endif
+        if (!schService) {
+           rv = apr_get_os_error();
+           ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                        "%s: OpenService failed", mpm_display_name);
+           return (rv);
+        }

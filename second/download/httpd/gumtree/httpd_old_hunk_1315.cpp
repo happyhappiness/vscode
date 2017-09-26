@@ -1,12 +1,12 @@
-        return ap_pass_brigade(f->next, bb);
+    }
+    else if (r->no_cache) {
+        /* or we've been asked not to cache it above */
+        reason = "r->no_cache present";
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                 "cache: running CACHE_OUT filter");
+    if (reason) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: %s not cached. Reason: %s", r->unparsed_uri,
+                     reason);
 
-    /* recall_headers() was called in cache_select_url() */
-    cache->provider->recall_body(cache->handle, r->pool, bb);
-
-    /* This filter is done once it has served up its content */
-    ap_remove_output_filter(f);
-
+        /* remove this filter from the chain */

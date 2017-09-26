@@ -1,15 +1,15 @@
-        putline(ftemp, record);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
+        ERR_error_string_n(e, err, sizeof err);
+        annotation = ssl_log_annotation(err);
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
+        if (annotation) {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s %s",
+                         e, err, annotation);
+        }
+        else {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err);
+        }
     }
-    apr_file_close(ftemp);
-    return 0;
 }

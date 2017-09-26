@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                         "Parent: child process exited with status %u -- Restarting.", exitcode);
+apr_file_printf(writetty, "In order to read them you have to provide us with the pass phrases.\n");

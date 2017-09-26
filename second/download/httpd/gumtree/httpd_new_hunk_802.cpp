@@ -1,18 +1,13 @@
-        return OK;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                     "Determining if request should be passed. "
-                     "Child Num: %d, SD: %d, sd from table: %d, hostname from server: %s", child_num, 
-                     sconf->input, child_info_table[child_num].input, 
-                     r->server->server_hostname);
-        /* sconf is the server config for this vhost, so if our socket
-         * is not the same that was set in the config, then the request
-         * needs to be passed to another child. */
-        if (sconf->input != child_info_table[child_num].input) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                         "Passing request.");
-            if (pass_request(r) == -1) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             ap_server_conf, "Could not pass request to proper "
-                             "child, request will not be honored.");
+    if (mode == AP_MODE_READBYTES) {
+        apr_bucket *e;
+
+        /* Partition the buffered brigade. */
+        rv = apr_brigade_partition(ctx->bb, bytes, &e);
+        if (rv && rv != APR_INCOMPLETE) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not partition buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
+
+        /* If the buffered brigade contains less then the requested

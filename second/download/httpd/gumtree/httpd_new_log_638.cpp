@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                         "new file descriptor %d is too large; you probably need "
-                         "to rebuild Apache with a larger FD_SETSIZE "
-                         "(currently %d)",
-                         sockdes, FD_SETSIZE);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown value "
+                              "\"%s\" to parameter \"encoding\" of tag echo in "
+                              "%s", tag_val, r->filename);

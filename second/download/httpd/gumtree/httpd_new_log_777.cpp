@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             ap_server_conf, "Could not pass request to proper "
-                             "child, request will not be honored.");
+ap_rputs("<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>", r);

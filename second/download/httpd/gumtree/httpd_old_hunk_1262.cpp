@@ -1,26 +1,13 @@
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "set timeout on socket to connect to listener");
-        apr_socket_close(sock);
-        return rv;
-    }
-
-    rv = apr_connect(sock, pod->sa);
-    if (rv != APR_SUCCESS) {
-        int log_level = APLOG_WARNING;
-
-        if (APR_STATUS_IS_TIMEUP(rv)) {
-            /* probably some server processes bailed out already and there
-             * is nobody around to call accept and clear out the kernel
-             * connection queue; usually this is not worth logging
-             */
-            log_level = APLOG_DEBUG;
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */
+            conn->close++;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: ap_get_brigade failed");
+            apr_brigade_destroy(input_brigade);
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
 
-        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
-                     "connect to listener");
-    }
-
-    apr_socket_close(sock);
-    apr_pool_destroy(p);
-
-    return rv;
+        /* have something */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: APR_BUCKET_IS_EOS");

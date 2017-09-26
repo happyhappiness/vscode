@@ -1,26 +1,33 @@
-
-    return APR_SUCCESS;
-}
-
-static apr_status_t ssl_io_filter_cleanup(void *data)
-{
-    ssl_filter_ctx_t *filter_ctx = data;
-
-    if (filter_ctx->pssl) {
-        conn_rec *c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
-        SSLConnRec *sslconn = myConnConfig(c);
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                     "SSL connection destroyed without being closed");
-
-        SSL_free(filter_ctx->pssl);
-        sslconn->ssl = filter_ctx->pssl = NULL;
+                 */
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            conn->worker->s->transferred += bufsiz;
+            send_body = 1;
+        }
+        else if (content_length > 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: read zero bytes, expecting"
+                         " %" APR_OFF_T_FMT " bytes",
+                         content_length);
+            status = ajp_send_data_msg(conn->sock, msg, 0);
+            if (status != APR_SUCCESS) {
+                /* We had a failure: Close connection to backend */
+                conn->close++;
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                            "proxy: send failed to %pI (%s)",
+                            conn->worker->cp->addr,
+                            conn->worker->hostname);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            else {
+                /* Client send zero bytes with C-L > 0
+                 */
+                return HTTP_BAD_REQUEST;
+            }
+        }
     }
-  
-    return APR_SUCCESS;
-}
 
-/*
- * The hook is NOT registered with ap_hook_process_connection. Instead, it is
- * called manually from the churn () before it tries to read any data.
- * There is some problem if I accept conn_rec *. Still investigating..
+    /* read the response */
+    conn->data = NULL;
+    status = ajp_read_header(conn->sock, r, maxsize,
+                             (ajp_msg_t **)&(conn->data));

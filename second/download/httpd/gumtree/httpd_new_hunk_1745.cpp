@@ -1,13 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+     * segment. */
+    apr_shm_remove(fname, pool); /* ignore errors */
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, fname, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "unable to create or access scoreboard \"%s\" "
+                     "(name-based shared memory failure)", fname);
+        return rv;
+    }
+#endif /* APR_HAS_SHARED_MEMORY */
+    return APR_SUCCESS;
+}

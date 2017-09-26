@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: Caching url: %s", url);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: initialized plain memory for worker %s",
+              worker->name);

@@ -1,13 +1,17 @@
-        if (apr_fnmatch_test(path)) {
-            fprintf(stderr, "%s: wildcard patterns not allowed in Include "
-                    "%s\n", ap_server_argv0, fname);
-            exit(1);
-        }
+    }
+    else {
+        depth = mctx->auth.verify_depth;
+    }
 
-        if (!ap_is_directory(p, path)){ 
-            fprintf(stderr, "%s: Include directory '%s' not found",
-                    ap_server_argv0, path);
-            exit(1);
-        }
+    if (errdepth > depth) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn,
+                      "Certificate Verification: Certificate Chain too long "
+                      "(chain has %d certificates, but maximum allowed are "
+                      "only %d)",
+                      errdepth, depth);
 
-        if (!apr_fnmatch_test(pattern)) {
+        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+
+        ok = FALSE;
+    }

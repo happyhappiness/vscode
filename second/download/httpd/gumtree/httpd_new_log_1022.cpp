@@ -1,2 +1,3 @@
-printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-	       (float) (1000 * timetaken / done));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"     : process directive after reading "
+                 "config files");

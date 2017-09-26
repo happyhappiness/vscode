@@ -1,41 +1,33 @@
-	    return cond_status;
-	}
+            ++balancer;
+        }
+        ap_rputs("  </httpd:balancers>\n", r);
+        ap_rputs("</httpd:manager>", r);
+    }
+    else {
+        ap_set_content_type(r, "text/html");
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head><title>Balancer Manager</title></head>\n", r);
+        ap_rputs("<body><h1>Load Balancer Manager for ", r);
+        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+            ap_rputs("<hr />\n<h3>LoadBalancer Status for ", r);
+            ap_rvputs(r, "<a href=\"", r->uri, "?b=",
+                      balancer->name + sizeof("balancer://") - 1,
+                      "\">", NULL);
+            ap_rvputs(r, balancer->name, "</a></h3>\n\n", NULL);
+            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
+                "<th>StickySession</th><th>Timeout</th><th>FailoverAttempts</th><th>Method</th>"
+                "</tr>\n<tr>", r);
+            ap_rvputs(r, "<td>", balancer->sticky, NULL);
+            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                apr_time_sec(balancer->timeout));
+            ap_rprintf(r, "<td>%d</td>\n", balancer->max_attempts);
+            ap_rprintf(r, "<td>%s</td>\n",
+                       balancer->lbmethod->name);
+            ap_rputs("</table>\n<br />", r);

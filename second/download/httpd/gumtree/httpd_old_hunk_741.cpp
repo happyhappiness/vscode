@@ -1,15 +1,20 @@
-	    int maybeASCII = 0, maybeEBCDIC = 0;
-	    unsigned char *cp, native;
-            apr_size_t inbytes_left, outbytes_left;
+    if (script && r->prev && r->prev->prev)
+	return DECLINED;
 
-	    for (cp = w; *cp != '\0'; ++cp) {
-                native = apr_xlate_conv_byte(ap_hdrs_from_ascii, *cp);
-		if (isprint(*cp) && !isprint(native))
-		    ++maybeEBCDIC;
-		if (!isprint(*cp) && isprint(native))
-		    ++maybeASCII;
-            }
-	    if (maybeASCII > maybeEBCDIC) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)",
-                             r->filename);
+    /* Second, check for actions (which override the method scripts) */
+    action = r->handler ? r->handler :
+	ap_field_noparam(r->pool, r->content_type);
+    if ((t = apr_table_get(conf->action_types,
+		       action ? action : ap_default_type(r)))) {
+	script = t;
+	if (r->finfo.filetype == 0) {
+	    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+			"File does not exist: %s", r->filename);
+	    return HTTP_NOT_FOUND;
+	}
+    }
+
+    if (script == NULL)
+	return DECLINED;
+
+    ap_internal_redirect_handler(apr_pstrcat(r->pool, script,

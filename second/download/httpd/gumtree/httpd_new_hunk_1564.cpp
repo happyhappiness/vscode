@@ -1,24 +1,98 @@
-    if (!sec->auth_dbpwfile)
-	return DECLINED;
+        }
 
-    if (!(real_pw = get_db_pw(r, c->user, sec->auth_dbpwfile))) {
-	if (!(sec->auth_dbauthoritative))
-	    return DECLINED;
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "DB user %s not found: %s", c->user, r->filename);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
+
+        if (ctx->validation_buffer) {
+            if (ctx->validation_buffer_length < VALIDATION_SIZE) {
+                apr_size_t copy_size;
+
+                copy_size = VALIDATION_SIZE - ctx->validation_buffer_length;
+                if (copy_size > ctx->stream.avail_in)
+                    copy_size = ctx->stream.avail_in;
+                memcpy(ctx->validation_buffer + ctx->validation_buffer_length,
+                       ctx->stream.next_in, copy_size);
+                /* Saved copy_size bytes */
+                ctx->stream.avail_in -= copy_size;
+                ctx->validation_buffer_length += copy_size;
+            }
+            if (ctx->stream.avail_in) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Zlib: %d bytes of garbage at the end of "
+                              "compressed stream.", ctx->stream.avail_in);
+                /*
+                 * There is nothing worth consuming for zlib left, because it is
+                 * either garbage data or the data has been copied to the
+                 * validation buffer (processing validation data is no business
+                 * for zlib). So set ctx->stream.avail_in to zero to indicate
+                 * this to the following while loop.
+                 */
+                ctx->stream.avail_in = 0;
+            }
+        }
+
+        zRC = Z_OK;
+
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                           NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+                ctx->stream.avail_out = c->bufferSize;
+                /* Send what we have right now to the next filter. */
+                rv = ap_pass_brigade(f->next, ctx->bb);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+            }
+
+            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+            if (zRC == Z_STREAM_END) {
+                /*
+                 * We have inflated all data. Now try to capture the
+                 * validation bytes. We may not have them all available
+                 * right now, but capture what is there.
+                 */
+                ctx->validation_buffer = apr_pcalloc(f->r->pool,
+                                                     VALIDATION_SIZE);
+                if (ctx->stream.avail_in > VALIDATION_SIZE) {
+                    ctx->validation_buffer_length = VALIDATION_SIZE;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Zlib: %d bytes of garbage at the end of "
+                                  "compressed stream.",
+                                  ctx->stream.avail_in - VALIDATION_SIZE);
+                } else if (ctx->stream.avail_in > 0) {
+                           ctx->validation_buffer_length = ctx->stream.avail_in;
+                }
+                if (ctx->validation_buffer_length)
+                    memcpy(ctx->validation_buffer, ctx->stream.next_in,
+                           ctx->validation_buffer_length);
+                break;
+            }
+
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
+        }
+
+        apr_bucket_delete(e);
     }
-    /* Password is up to first : if exists */
-    colon_pw = strchr(real_pw, ':');
-    if (colon_pw)
-	*colon_pw = '\0';
-    /* anyone know where the prototype for crypt is? */
-    if (strcmp(real_pw, (char *) crypt(sent_pw, real_pw))) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "DB user %s: password mismatch: %s", c->user, r->uri);
-	ap_note_basic_auth_failure(r);
-	return AUTH_REQUIRED;
-    }
-    return OK;
+
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
 }
+
+#define PROTO_FLAGS AP_FILTER_PROTO_CHANGE|AP_FILTER_PROTO_CHANGE_LENGTH
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter(deflateFilterName, deflate_out_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+    ap_register_output_filter("INFLATE", inflate_out_filter, NULL,
+                              AP_FTYPE_RESOURCE-1);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                 "cache: serving %s", r->uri);
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );

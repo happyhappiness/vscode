@@ -1,13 +1,13 @@
 
-    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
-                               ap_accept_lock_mech, _pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock");
-        mpm_state = AP_MPMQ_STOPPING;
-        return 1;
+            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
+                    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+            exit(1);
+        }
+        apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
+                    argv[4], argv[3]);
+        add_password(argv[4], argv[3], f);
+        apr_file_close(f);
+        exit(0);
     }
-
-#if APR_USE_SYSVSEM_SERIALIZE
-    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
-        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+    else if (argc != 4)

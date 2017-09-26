@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);

@@ -1,14 +1,13 @@
-    }
-    ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
-    return;
-}
-static void register_hooks(apr_pool_t *p)
-{
-    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
-    ap_hook_insert_error_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_insert_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
-}
-
-module AP_MODULE_DECLARE_DATA expires_module =
-{
+                /* if this is the last brigade, cleanup the
+                 * backend connection first to prevent the
+                 * backend server from hanging around waiting
+                 * for a slow client to eat these bytes
+                 */
+                ap_flush_conn(data);
+                apr_socket_close(data_sock);
+                data_sock = NULL;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: FTP: data connection closed");
+                /* signal that we must leave */
+                finish = TRUE;
+            }

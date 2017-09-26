@@ -1,13 +1,12 @@
-        return DECLINED;
+    p = db ? db->pool : p;
 
-    if (strcmp(r->handler, "ldap-status")) {
-        return DECLINED;
+    /* There might not be a <db> if we had problems creating it. */
+    if (db == NULL) {
+        errcode = 1;
+        errstr = "Could not open property database.";
+    }
+    else {
+        (void) apr_dbm_geterror(db->file, &errcode, errbuf, sizeof(errbuf));
+        errstr = apr_pstrdup(p, errbuf);
     }
 
-    r->content_type = "text/html";
-    if (r->header_only)
-        return OK;
-
-    ap_rputs(DOCTYPE_HTML_3_2
-             "<html><head><title>LDAP Cache Information</title></head>\n", r);
-    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "can't query MPM state; not restarting "
-                         "piped log program '%s'",
-                         pl->program);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %lu: Child process is running", my_pid);

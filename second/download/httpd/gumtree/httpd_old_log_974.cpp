@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
-                             0, ap_server_conf,
-                             "child pid %ld exit signal %s (%d)",
-                             (long)pid->pid, sigdesc, signum);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Syntax error in -C/-c directive:");

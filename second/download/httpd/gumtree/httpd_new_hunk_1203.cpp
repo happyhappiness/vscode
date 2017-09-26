@@ -1,14 +1,13 @@
-        /* set no timeout */
-        apr_socket_timeout_set(p_conn->sock, 0);
-        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
-        /* put back old timeout */
-        apr_socket_timeout_set(p_conn->sock, current_timeout);
-        if ( APR_STATUS_IS_EOF(socket_status) ) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
-                         "proxy: previous connection is closed, creating a new connection.");
-            new = 1;
-        }
-    }
-    if (new) {
+/*
+ * Hand out the already generated DH parameters...
+ */
+DH *ssl_callback_TmpDH(SSL *ssl, int export, int keylen)
+{
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    SSLModConfigRec *mc = myModConfigFromConn(c);
+    int idx;
 
-        /* create a new socket */
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary %d bit DH key", keylen);
+
+    switch (keylen) {

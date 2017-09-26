@@ -1,1 +1,1 @@
-fprintf(stdout,"posn\tleft\tright\tparent\tminchild\t...\n");
+printf("SSL write failed - closing connection\n");

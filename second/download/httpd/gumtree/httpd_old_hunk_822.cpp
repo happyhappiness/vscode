@@ -1,13 +1,13 @@
-                    cache->exp = exp;
-                    cache->lastmod = lastmod;
-                    cache->info = info;
-                }
-                APR_BRIGADE_FOREACH(e, in) {
-                    apr_bucket *copy;
-                    apr_bucket_copy(e, &copy);
-                    APR_BRIGADE_INSERT_TAIL(cache->saved_brigade, copy);
-                }
-                cache->saved_size += size;
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "cache: Response length still unknown, setting "
-                             "aside content for url: %s", url);
+    apr_status_t rv;
+
+    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
+        return TRUE;
+    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to acquire global mutex lock");
+        return FALSE;
+    }
+    return TRUE;
+}
+
+int ssl_mutex_off(server_rec *s)

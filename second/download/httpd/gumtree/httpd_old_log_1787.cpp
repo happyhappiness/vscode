@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                            "Parent: Unable to connect child stderr.");
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "Failed to acquire DBD connection from pool!");

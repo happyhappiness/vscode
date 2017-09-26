@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                    "SIGHUP received.  Attempting to restart");
+printf("%sdebug: state %d, error recovery shifting\
+ to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yytable[ssl_expr_yyn]);

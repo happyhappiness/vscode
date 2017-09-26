@@ -1,59 +1,39 @@
-     * They are tested here one by one to be clear and unambiguous. 
-     */
+ * 20020529 (2.0.37-dev) Standardized the names of some apr_pool_*_set funcs
+ * 20020602 (2.0.37-dev) Bucket API change (metadata buckets)
+ * 20020612 (2.0.38-dev) Changed server_rec->[keep_alive_]timeout to apr time
+ * 20020625 (2.0.40-dev) Changed conn_rec->keepalive to an enumeration
+ * 20020628 (2.0.40-dev) Added filter_init to filter registration functions
+ * 20020903 (2.0.41-dev) APR's error constants changed
+ * 20020903.2 (2.0.46-dev) add ap_escape_logitem
+ * 20020903.3 (2.0.46-dev) allow_encoded_slashes added to core_dir_config
+ * 20020903.4 (2.0.47-dev) add ap_is_recursion_limit_exceeded()
+ * 20020903.5 (2.0.49-dev) add ap_escape_errorlog_item()
+ * 20020903.6 (2.0.49-dev) add insert_error_filter hook
+ * 20020903.7 (2.0.49-dev) added XHTML Doctypes
+ * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
+ *                         ap_finalize_sub_req_protocol on Win32 and NetWare
+ * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+ *                         calling ap_setup_prelinked_modules
+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+ * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
+ * 20020903.13 (2.0.62-dev) Add *ftp_directory_charset to proxy_dir_conf
+ * 20020903.14 (2.0.64-dev) added ap_vhost_iterate_given_conn
+ * 20020903.15 (2.0.65-dev) added state_set, options_set, baseurl_set to
+ *                          rewrite_server_conf and rewrite_perdir_conf
+ * 20020903.16 (2.0.65)     add max_ranges to core_dir_config and add
+ *                          ap_set_accept_ranges()
+ */
 
-    /* RFC2616 13.4 we are allowed to cache 200, 203, 206, 300, 301 or 410
-     * We don't cache 206, because we don't (yet) cache partial responses.
-     * We include 304 Not Modified here too as this is the origin server
-     * telling us to serve the cached copy. */
-    if ((r->status != HTTP_OK && r->status != HTTP_NON_AUTHORITATIVE && 
-         r->status != HTTP_MULTIPLE_CHOICES && 
-         r->status != HTTP_MOVED_PERMANENTLY && 
-         r->status != HTTP_NOT_MODIFIED) ||
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
-    /* if a broken Expires header is present, don't cache it */
-        (exps != NULL && exp == APR_DATE_BAD) ||
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 16                    /* 0...n */
 
-    /* if the server said 304 Not Modified but we have no cache file - pass
-     * this untouched to the user agent, it's not for us. */
-        (r->status == HTTP_NOT_MODIFIED && (NULL == cache->handle)) ||
-
-    /* 200 OK response from HTTP/1.0 and up without a Last-Modified header/Etag 
-     */
-    /* XXX mod-include clears last_modified/expires/etags - this is why we have
-     * a optional function for a key-gen ;-) 
-     */
-        (r->status == HTTP_OK && lastmods == NULL && etag == NULL 
-            && (conf->no_last_mod_ignore ==0)) ||
-
-    /* HEAD requests */
-        r->header_only ||
-
-    /* RFC2616 14.9.2 Cache-Control: no-store response indicating do not
-     * cache, or stop now if you are trying to cache it */
-        ap_cache_liststr(cc_out, "no-store", NULL) ||
-
-    /* RFC2616 14.9.1 Cache-Control: private
-     * this object is marked for this user's eyes only. Behave as a tunnel. */
-        ap_cache_liststr(cc_out, "private", NULL) ||
-
-    /* RFC2616 14.8 Authorisation:
-     * if authorisation is included in the request, we don't cache, but we
-     * can cache if the following exceptions are true:
-     * 1) If Cache-Control: s-maxage is included
-     * 2) If Cache-Control: must-revalidate is included
-     * 3) If Cache-Control: public is included
-     */
-        (ap_table_get(r->headers_in, "Authorization") != NULL &&
-         !(ap_cache_liststr(cc_out, "s-maxage", NULL) || 
-           ap_cache_liststr(cc_out, "must-revalidate", NULL) || 
-           ap_cache_liststr(cc_out, "public", NULL))
-        ) ||
-
-    /* or we've been asked not to cache it above */
-        r->no_cache) {
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: response is not cachable");
-
-        /* remove this object from the cache 
-         * BillS Asks.. Why do we need to make this call to remove_url?
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

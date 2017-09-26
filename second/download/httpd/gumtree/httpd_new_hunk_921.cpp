@@ -1,28 +1,23 @@
-{
-    if (sig == SIGHUP) {
-        ++daemon_should_exit;
-    }
-}
+                 * to 'leak' storage. I don't think this is worth fixing...
+                 */
+                apr_allocator_t *allocator;
 
-static void cgid_child_errfn(apr_pool_t *pool, apr_status_t err,
-                             const char *description)
-{
-    request_rec *r;
-    void *vr;
+                apr_thread_mutex_lock(child_lock);
+                context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
-    r = vr;
+                context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+                if (context->Overlapped.hEvent == NULL) {
+                    /* Hopefully this is a temporary condition ... */
+                    ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
+                                 "mpm_get_completion_context: CreateEvent failed.");
 
-    /* sure we got r, but don't call ap_log_rerror() because we don't
-     * have r->headers_in and possibly other storage referenced by
-     * ap_log_rerror()
-     */
-    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
-}
+                    apr_thread_mutex_unlock(child_lock);
+                    return NULL;
+                }
 
-static int cgid_server(void *data) 
-{ 
-    struct sockaddr_un unix_addr;
-    int sd, sd2, rc;
-    mode_t omask;
-    apr_socklen_t len;
+                /* Create the tranaction pool */
+                apr_allocator_create(&allocator);
+                apr_allocator_max_free_set(allocator, ap_max_mem_free);
+                rv = apr_pool_create_ex(&context->ptrans, pchild, NULL, allocator);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,

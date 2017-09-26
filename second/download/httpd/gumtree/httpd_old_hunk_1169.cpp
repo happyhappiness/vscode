@@ -1,33 +1,23 @@
-	getword(x, l, ':');
-	if (strcmp(user, w) || strcmp(realm, x)) {
-	    putline(tfp, line);
-	    continue;
-	}
-	else {
-	    printf("Changing password for user %s in realm %s\n", user, realm);
-	    add_password(user, realm, tfp);
-	    found = 1;
-	}
-    }
-    if (!found) {
-	printf("Adding user %s in realm %s\n", user, realm);
-	add_password(user, realm, tfp);
-    }
-    apr_file_close(f);
-#if defined(OS2) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-
-#ifdef OMIT_DELONCLOSE
-    apr_file_close(tfp);
-    system(command);
-    apr_file_remove(tn, cntxt);
-#else
-    system(command);
-    apr_file_close(tfp);
-#endif
-
-    return 0;
-}
+             * behaviour here might break something.
+             *
+             * So let's make it configurable.
+             */
+            const char *policy = apr_table_get(r->subprocess_env,
+                                               "proxy-interim-response");
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received interim %d response",
+                         r->status);
+            if (!policy || !strcasecmp(policy, "RFC")) {
+                ap_send_interim_response(r, 1);
+            }
+            /* FIXME: refine this to be able to specify per-response-status
+             * policies and maybe also add option to bail out with 502
+             */
+            else if (strcasecmp(policy, "Suppress")) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                             "undefined proxy interim response policy");
+            }
+        }
+        /* Moved the fixups of Date headers and those affected by
+         * ProxyPassReverse/etc from here to ap_proxy_read_headers
+         */

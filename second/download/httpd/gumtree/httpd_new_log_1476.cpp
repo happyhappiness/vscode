@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing argument "
-                          "name for value to tag %s in %s",
-                          apr_pstrmemdup(ctx->r->pool, ctx->directive,
-                                         ctx->ctx->directive_length),
-                                         ctx->r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %lu: Exit event signaled. Child process is ending.", my_pid);

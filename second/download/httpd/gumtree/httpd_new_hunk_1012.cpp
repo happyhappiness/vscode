@@ -1,60 +1,31 @@
-** |              rewriting logfile support
-** |                                                       |
-** +-------------------------------------------------------+
-*/
-
-
-static int open_rewritelog(server_rec *s, apr_pool_t *p)
-{
-    rewrite_server_conf *conf;
-    const char *fname;
-    apr_status_t rc;
-    piped_log *pl;
-    int rewritelog_flags = ( APR_WRITE | APR_APPEND | APR_CREATE );
-    apr_fileperms_t rewritelog_mode = ( APR_UREAD | APR_UWRITE |
-                                        APR_GREAD | APR_WREAD );
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* - no logfile configured
-     * - logfilename empty
-     * - virtual log shared w/ main server
-     */
-    if (!conf->rewritelogfile || !*conf->rewritelogfile || conf->rewritelogfp) {
-        return 1;
-    }
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", conf->rewritelogfile+1);
-            return 0;
-        }
-        conf->rewritelogfp = ap_piped_log_write_fd(pl);
-    }
-    else if (*conf->rewritelogfile != '\0') {
-        fname = ap_server_root_relative(p, conf->rewritelogfile);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile);
-            return 0;
-        }
-        if ((rc = apr_file_open(&conf->rewritelogfp, fname,
-                                rewritelog_flags, rewritelog_mode, p))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                         "mod_rewrite: could not open RewriteLog "
-                         "file %s", fname);
-            return 0;
-        }
-    }
-
-    return 1;
 }
 
-static void rewritelog(request_rec *r, int level, const char *text, ...)
+AP_DECLARE(ap_filter_t *) ap_add_input_filter(const char *name, void *ctx,
+                                              request_rec *r, conn_rec *c)
 {
-    rewrite_server_conf *conf;
-    conn_rec *conn;
+    return add_any_filter(name, ctx, r, c, registered_input_filters,
+                          r ? &r->input_filters : NULL,
+                          r ? &r->proto_input_filters : NULL, &c->input_filters);
+}
+
+AP_DECLARE(ap_filter_t *) ap_add_input_filter_handle(ap_filter_rec_t *f,
+                                                     void *ctx,
+                                                     request_rec *r,
+                                                     conn_rec *c)
+{
+    return add_any_filter_handle(f, ctx, r, c, r ? &r->input_filters : NULL,
+                                 r ? &r->proto_input_filters : NULL,
+                                 &c->input_filters);
+}
+
+AP_DECLARE(ap_filter_t *) ap_add_output_filter(const char *name, void *ctx,
+                                               request_rec *r, conn_rec *c)
+{
+    return add_any_filter(name, ctx, r, c, registered_output_filters,
+                          r ? &r->output_filters : NULL,
+                          r ? &r->proto_output_filters : NULL, &c->output_filters);
+}
+
+AP_DECLARE(ap_filter_t *) ap_add_output_filter_handle(ap_filter_rec_t *f,
+                                                      void *ctx,
+                                                      request_rec *r,

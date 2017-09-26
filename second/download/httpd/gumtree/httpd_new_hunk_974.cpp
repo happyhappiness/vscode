@@ -1,13 +1,26 @@
+        }
+        else {
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                != APR_SUCCESS) {
+                int level = APLOG_EMERG;
+
+                if (ap_scoreboard_image->parent[process_slot].generation !=
+                    ap_scoreboard_image->global->running_generation) {
+                    level = APLOG_DEBUG; /* common to get these at restart time */
+                }
+                ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+            }
+            break;
+        }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring permitted SSL ciphers [%s]", 
-                 suite);
+    ap_close_listeners();
+    ap_queue_term(worker_queue);
+    dying = 1;
+    ap_scoreboard_image->parent[process_slot].quiescing = 1;
 
-    if (!SSL_CTX_set_cipher_list(ctx, MODSSL_PCHAR_CAST suite)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to configure permitted SSL ciphers");
-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
-        ssl_die();
-    }
-}
+    /* wake up the main thread */
+    kill(ap_my_pid, SIGTERM);

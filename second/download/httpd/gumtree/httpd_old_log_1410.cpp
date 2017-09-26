@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "\thtpasswd [-cmdps] passwordfile username\n");

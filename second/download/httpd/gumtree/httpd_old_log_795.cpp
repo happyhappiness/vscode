@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require ServerLimit > 0, setting to 1");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "mod_rewrite's internal redirect status: %d/%d.",
+                  reqc->redirects, reqc->redirect_limit);

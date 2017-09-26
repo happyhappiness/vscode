@@ -1,1 +1,0 @@
-printf(" -D APR_HAVE_IPV6\n");

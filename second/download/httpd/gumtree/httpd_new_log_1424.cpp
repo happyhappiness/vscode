@@ -1,5 +1,5 @@
-ap_fputstrs(output, bb,
-                DEBUG_CR "<D:href>",
-                dav_xml_escape_uri(pool, response->href),
-                "</D:href>" DEBUG_CR,
-                NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "proxy: NOT Closing connection to client"
+                                   " although reading from backend server %s:%d"
+                                   " failed.", backend->hostname,
+                                   backend->port);

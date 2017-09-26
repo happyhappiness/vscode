@@ -1,2 +1,4 @@
-ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  Check your authn provider!"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

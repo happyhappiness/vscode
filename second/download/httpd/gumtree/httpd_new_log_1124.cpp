@@ -1,1 +1,1 @@
-printf ("Failed retries:\t%d\n", retry_fail);
+fprintf(f, "0x%02x", *tables++);

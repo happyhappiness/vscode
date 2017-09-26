@@ -1,19 +1,13 @@
-        strs[i] = process_item(r, orig, &items[i]);
+     * Some information about the certificate(s)
+     */
+
+    if (SSL_X509_isSGC(cert)) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "%s server certificate enables "
+                     "Server Gated Cryptography (SGC)",
+                     ssl_asn1_keystr(type));
     }
 
-    for (i = 0; i < format->nelts; ++i) {
-        len += strl[i] = strlen(strs[i]);
-    }
-    if (!log_writer) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
-                "log writer isn't correctly setup");
-         return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
-    /* xxx: do we return an error on log_writer? */
-    return OK;
-}
-
-static int multi_log_transaction(request_rec *r)
-{
-    multi_log_state *mls = ap_get_module_config(r->server->module_config,
+    if (SSL_X509_getBC(cert, &is_ca, &pathlen)) {
+        if (is_ca) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,

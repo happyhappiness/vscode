@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+r(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);

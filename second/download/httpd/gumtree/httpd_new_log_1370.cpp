@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Microsoft LDAP SDK" );
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "Symbolic link not allowed "
+                                      "or link target not accessible: %s",
+                                      r->filename);

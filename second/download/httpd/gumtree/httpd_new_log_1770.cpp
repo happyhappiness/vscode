@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
+                                     "cache: attempt to remove url from cache unsuccessful.");

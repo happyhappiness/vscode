@@ -1,24 +1,28 @@
+            apr_brigade_cleanup(bb);
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                if (APR_STATUS_IS_TIMEUP(rv)) { 
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                return bail_out_on_error(ctx, f, http_error);
+            }
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+            if (!ctx->remaining) {
+                /* Handle trailers by calling ap_get_mime_headers again! */
+                ctx->state = BODY_NONE;
+                ap_get_mime_headers(f->r);
+                e = apr_bucket_eos_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(b, e);
+                ctx->eos_sent = 1;
+                return APR_SUCCESS;
+            }
+        }
     }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
+    else {
+        bb = ctx->bb;
     }
-
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

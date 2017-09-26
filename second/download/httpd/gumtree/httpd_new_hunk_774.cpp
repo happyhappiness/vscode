@@ -1,17 +1,59 @@
-        rv = cache_create_entity(r, cache->types, url, size);
-    }
-    
-    if (rv != OK) {
-        /* Caching layer declined the opportunity to cache the response */
-        ap_remove_output_filter(f);
-        if (split_point) {
-            apr_bucket_brigade *already_sent = in;
-            in = apr_brigade_split(in, split_point);
-            apr_brigade_destroy(already_sent);
-        }
-        return ap_pass_brigade(f->next, in);
+ *  ssl_engine_init.c
+ *  Initialization of Servers
+ */
+                             /* ``Recursive, adj.;
+                                  see Recursive.''
+                                        -- Unknown   */
+#include "ssl_private.h"
+
+/*  _________________________________________________________________
+**
+**  Module Initialization
+**  _________________________________________________________________
+*/
+
+static char *ssl_add_version_component(apr_pool_t *p,
+                                       server_rec *s,
+                                       char *name)
+{
+    char *val = ssl_var_lookup(p, s, NULL, NULL, name);
+
+    if (val && *val) {
+        ap_add_version_component(p, val);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: Caching url: %s", url);
+    return val;
+}
 
+static char *version_components[] = {
+    "SSL_VERSION_PRODUCT",
+    "SSL_VERSION_INTERFACE",
+    "SSL_VERSION_LIBRARY",
+    NULL
+};
+
+static void ssl_add_version_components(apr_pool_t *p,
+                                       server_rec *s)
+{
+    char *vals[sizeof(version_components)/sizeof(char *)];
+    int i;
+
+    for (i=0; version_components[i]; i++) {
+        vals[i] = ssl_add_version_component(p, s,
+                                            version_components[i]);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Server: %s, Interface: %s, Library: %s",
+                 AP_SERVER_BASEVERSION,
+                 vals[1],  /* SSL_VERSION_INTERFACE */
+                 vals[2]); /* SSL_VERSION_LIBRARY */
+}
+
+
+/*
+ * Handle the Temporary RSA Keys and DH Params
+ */
+
+#define MODSSL_TMP_KEY_FREE(mc, type, idx) \
+    if (mc->pTmpKeys[idx]) { \

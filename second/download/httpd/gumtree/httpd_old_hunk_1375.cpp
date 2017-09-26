@@ -1,13 +1,12 @@
-                /* if this is the last brigade, cleanup the
-                 * backend connection first to prevent the
-                 * backend server from hanging around waiting
-                 * for a slow client to eat these bytes
-                 */
-                ap_flush_conn(data);
-                apr_socket_close(data_sock);
-                data_sock = NULL;
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: FTP: data connection closed");
-                /* signal that we must leave */
-                finish = TRUE;
-            }
+        conn->close++;
+        apr_brigade_destroy(input_brigade);
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: read response failed from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        /*
+         * This is only non fatal when we have not sent (parts) of a possible
+         * request body so far (we do not store it and thus cannot sent it
+         * again) and the method is idempotent. In this case we can dare to
+         * retry it with a different worker if we are a balancer member.
+         */

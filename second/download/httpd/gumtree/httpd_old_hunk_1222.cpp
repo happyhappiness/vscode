@@ -1,13 +1,12 @@
-        return ap_pass_brigade(f->next, bb);
+*/
+
+    if (!sec->have_ldap_url) {
+        return DECLINED;
     }
 
-    apr_table_unset(r->headers_out, "Upgrade");
-
-    if (r) {
-        csd = (apr_socket_t*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Unable to get upgradeable socket handle");
-        return ap_pass_brigade(f->next, bb);
-    }
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,

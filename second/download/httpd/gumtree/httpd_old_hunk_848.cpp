@@ -1,13 +1,17 @@
-    pad_scratch[name_width] = '\0';
 
-    if (autoindex_opts & TABLE_INDEXING) {
-        int cols = 1;
-        ap_rputs("<table><tr>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
-            ap_rputs("<th title=\"Icon\">", r);
-            if ((tp = find_default_icon(d, "^^BLANKICON^^"))) {
-                ap_rvputs(r, "<img src=\"", ap_escape_html(scratch, tp),
-                             "\" alt=\"[ICO]\"", NULL);
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
+AP_DECLARE(apr_status_t) unixd_accept(void **accepted, ap_listen_rec *lr,
+                                        apr_pool_t *ptrans)
+{
+    apr_socket_t *csd;
+    apr_status_t status;
+
+    *accepted = NULL;
+    status = apr_accept(&csd, lr->sd, ptrans);
+    if (status == APR_SUCCESS) { 
+        *accepted = csd;
+        return APR_SUCCESS;
+    }
+
+    if (APR_STATUS_IS_EINTR(status)) {
+        return status;
+    }

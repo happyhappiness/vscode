@@ -1,2 +1,1 @@
-fprintf(stderr, "%s: Include directory '%s' not found",
-                        ap_server_argv0, path);
+apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);

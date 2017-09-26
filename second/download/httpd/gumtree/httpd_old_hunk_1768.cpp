@@ -1,14 +1,23 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+                char *template;
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+                status = apr_temp_dir_get(&temp_dir, p);
+                if (status != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                                 "proxy: search for temporary directory failed");
+                    return status;
+                }
+                apr_filepath_merge(&template, temp_dir,
+                                   "modproxy.tmp.XXXXXX",
+                                   APR_FILEPATH_NATIVE, p);
+                status = apr_file_mktemp(&tmpfile, template, 0, p);
+                if (status != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                                 "proxy: creation of temporary file in directory %s failed",
+                                 temp_dir);
+                    return status;
+                }
+            }
+            for (e = APR_BRIGADE_FIRST(input_brigade);
+                 e != APR_BRIGADE_SENTINEL(input_brigade);
+                 e = APR_BUCKET_NEXT(e)) {
+                const char *data;

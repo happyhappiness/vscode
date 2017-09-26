@@ -1,13 +1,12 @@
-    if (!found) {
-	printf("Adding user %s in realm %s\n", user, realm);
-	add_password(user, realm, tfp);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "Error looking up %s in database", user);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_password == NULL) {
+            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
+        }
+        /* we can't break out here or row won't get cleaned up */
     }
-    fclose(f);
-    fclose(tfp);
-#if defined(__EMX__) || defined(WIN32)
-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
-#else
-    sprintf(command, "cp %s %s", tn, argv[1]);
-#endif
-    system(command);
-    unlink(tn);
+
+    if (!dbd_password) {
+        return AUTH_USER_NOT_FOUND;

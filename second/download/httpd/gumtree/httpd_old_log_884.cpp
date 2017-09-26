@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT|APLOG_STARTUP, 0, 
-                     NULL, "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                        "SSL output filter write failed.");

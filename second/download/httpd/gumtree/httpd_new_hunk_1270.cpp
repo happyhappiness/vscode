@@ -1,30 +1,56 @@
-    /* eliminate the '.' if there is one */
-    if (*ext == '.')
-        ++ext;
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
+        }
+        else {
+            request_rec *id = r->main ? r->main : r;
 
-    /* check if we have a registered command for the extension*/
-    new_cmd = apr_table_get(d->file_type_handlers, ext);
-    e_info->detached = AP_PROC_DETACHED;
-    if (new_cmd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Could not find a command associated with the %s extension", ext);
-        return APR_EBADF;
-    }
-    if (stricmp(new_cmd, "OS")) {
-        /* If we have a registered command then add the file that was passed in as a
-          parameter to the registered command. */
-        *cmd = apr_pstrcat (p, new_cmd, " ", cmd_only, NULL);
+            /* Additional mitigation for CVE-2009-3555: At this point,
+             * before renegotiating, an (entire) request has been read
+             * from the connection.  An attacker may have sent further
+             * data to "prefix" any subsequent request by the victim's
+             * client after the renegotiation; this data may already
+             * have been read and buffered.  Forcing a connection
+             * closure after the response ensures such data will be
+             * discarded.  Legimately pipelined HTTP requests will be
+             * retried anyway with this approach. */
+            if (has_buffered_data(r)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "insecure SSL re-negotiation required, but "
+                              "a pipelined request is present; keepalive "
+                              "disabled");
+                r->connection->keepalive = AP_CONN_CLOSE;
+            }
 
-        /* Run in its own address space if specified */
-        if(apr_table_get(d->file_handler_mode, ext))
-            e_info->detached |= AP_PROC_NEWADDRSPACE;
-    }
+            /* Perform a full renegotiation. */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+#if defined(SSL_get_secure_renegotiation_support)
+                          SSL_get_secure_renegotiation_support(ssl) ? 
+                          "client does" : "client does not"
+#else
+                          "server does not"
+#endif
+                );
 
-    /* Tokenize the full command string into its arguments */
-    apr_tokenize_to_argv(*cmd, (char***)argv, p);
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
 
-    /* The first argument should be the executible */
-    *cmd = ap_server_root_relative(p, *argv[0]);
+            /* Toggle the renegotiation state to allow the new
+             * handshake to proceed. */
+            sslconn->reneg_state = RENEG_ALLOW;
+            
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
 
-    return APR_SUCCESS;
-}
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation request failed");
+                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,

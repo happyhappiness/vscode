@@ -1,12 +1,15 @@
 
+    return;
+}
 
-AP_DECLARE(int) ap_mpm_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s )
+void ssl_io_filter_register(apr_pool_t *p)
 {
-    static int restart = 0;            /* Default is "not a restart" */
+    ap_register_input_filter  (ssl_io_filter, ssl_io_filter_input,  NULL, AP_FTYPE_CONNECTION + 5);
+    ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);
+    
+    ap_register_input_filter  (ssl_io_buffer, ssl_io_filter_buffer, NULL, AP_FTYPE_PROTOCOL - 1);
 
-    /* ### If non-graceful restarts are ever introduced - we need to rerun 
-     * the pre_mpm hook on subsequent non-graceful restarts.  But Win32 
-     * has only graceful style restarts - and we need this hook to act 
-     * the same on Win32 as on Unix.
-     */
-    if (!restart && ((parent_pid == my_pid) || one_process)) {
+    return;
+}
+
+/*  _________________________________________________________________

@@ -1,22 +1,31 @@
- *   scoreboard shm handle [to recreate the ap_scoreboard]
- */
-void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
-                             apr_proc_mutex_t **child_start_mutex,
-                             apr_shm_t **scoreboard_shm)
-{
-    HANDLE hScore;
-    HANDLE ready_event;
-    HANDLE os_start;
-    DWORD BytesRead;
-    void *sb_shared;
-    apr_status_t rv;
-    
-    /* *** We now do this was back in winnt_rewrite_args
-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
-     */
-    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+
+    case ALG_PLAIN:
+        /* XXX this len limitation is not in sync with any HTTPd len. */
+        apr_cpystrn(cpw,pw,sizeof(cpw));
+        break;
+
+#if (!(defined(WIN32) || defined(NETWARE)))
+    case ALG_CRYPT:
+    default:
+        if (seed_rand()) {
+            break;
+        }
+        to64(&salt[0], rand(), 8);
+        salt[8] = '\0';
+
+        apr_cpystrn(cpw, crypt(pw, salt), sizeof(cpw) - 1);
+        if (strlen(pw) > 8) {
+            char *truncpw = strdup(pw);
+            truncpw[8] = '\0';
+            if (!strcmp(cpw, crypt(truncpw, salt))) {
+                apr_file_printf(errfile, "Warning: Password truncated to 8 characters "
+                                "by CRYPT algorithm." NL);
+            }
+            free(truncpw);
+        }
+        break;
+#endif
+    }
+    memset(pw, '\0', strlen(pw));
+
+    /*

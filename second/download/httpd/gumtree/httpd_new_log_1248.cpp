@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+apr_file_printf(errfile, "%s: password too long (> %d)" NL,
+                argv[0], MAX_STRING_LEN);

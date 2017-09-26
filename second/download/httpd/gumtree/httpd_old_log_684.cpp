@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
+                          "name in parsed document %s", ctx->r->filename);

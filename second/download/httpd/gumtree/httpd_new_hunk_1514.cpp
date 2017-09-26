@@ -1,14 +1,12 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-                     "client stopped connection before send mmap completed");
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
-        }
+}
+
+static int check_nonce(request_rec *r, digest_header_rec *resp,
+                       const digest_config_rec *conf)
+{
+    apr_time_t dt;
+    time_rec nonce_time;
+    char tmp, hash[NONCE_HASH_LEN+1];
+
+    if (strlen(resp->nonce) != NONCE_LEN) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: invalid nonce %s received - length is not %d",

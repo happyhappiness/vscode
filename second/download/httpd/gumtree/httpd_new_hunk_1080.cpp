@@ -1,22 +1,28 @@
-}
+            htdbm_list(h);
+            break;
+        default:
+            htdbm_make(h);
+            break;
 
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
-
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
     }
+    if (need_file && !h->rdonly) {
+        if ((rv = htdbm_save(h, &changed)) != APR_SUCCESS) {
+            apr_strerror(rv, errbuf, sizeof(errbuf));
+            exit(ERR_FILEPERM);
+        }
+        fprintf(stdout, "Database %s %s.\n", h->filename,
+                h->create ? "created" : (changed ? "modified" : "updated"));
+    }
+    if (cmd == HTDBM_NOFILE) {
+        if (!need_cmnt) {
+            fprintf(stderr, "%s:%s\n", h->username, h->userpass);
+        }
+        else {
+            fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
+                    h->comment);
+        }
+    }
+    htdbm_terminate(h);
 
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
+    return 0; /* Suppress compiler warning. */
+}

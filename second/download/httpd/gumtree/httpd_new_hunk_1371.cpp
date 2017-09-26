@@ -1,32 +1,34 @@
-            && (service_to_start_success != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
-                     "%s: Unable to start the service manager.",
-                     service_name);
-        exit(APEXIT_INIT);
-    }
-    else if (!one_process && !ap_my_generation) {
-        /* Open a null handle to soak stdout in this process.
-         * We need to emulate apr_proc_detach, unix performs this
-         * same check in the pre_config hook (although it is
-         * arguably premature).  Services already fixed this.
-         */
-        apr_file_t *nullfile;
-        apr_status_t rv;
-        apr_pool_t *pproc = apr_pool_parent_get(pconf);
-
-        if ((rv = apr_file_open(&nullfile, "NUL",
-                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
-                                pproc)) == APR_SUCCESS) {
-            apr_file_t *nullstdout;
-            if (apr_file_open_stdout(&nullstdout, pproc)
-                    == APR_SUCCESS)
-                apr_file_dup2(nullstdout, nullfile, pproc);
-            apr_file_close(nullfile);
-        }
-    }
-
-    /* Win9x: disable AcceptEx */
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
-        use_acceptex = 0;
-    }
-
+                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                        }
+                        apr_brigade_length(output_brigade, 0, &bb_len);
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
+                    }
+                    if (headers_sent) {
+                        if (ap_pass_brigade(r->output_filters,
+                                            output_brigade) != APR_SUCCESS) {
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                          "proxy: error processing body.%s",
+                                          r->connection->aborted ?
+                                          " Client aborted connection." : "");
+                            output_failed = 1;
+                        }
+                        data_sent = 1;
+                        apr_brigade_cleanup(output_brigade);
+                    }
+                }
+                else {
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                status = ajp_parse_reuse(r, conn->data, &conn_reuse);
+                if (status != APR_SUCCESS) {
+                    backend_failed = 1;
+                }
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "proxy: error processing end");

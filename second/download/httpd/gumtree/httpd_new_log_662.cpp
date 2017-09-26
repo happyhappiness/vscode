@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                     "%s: could not log pid to file %s",
-                     ap_server_argv0, fname);
+ap_log_rerror(APLOG_MARK,
+                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "endif directive does not take tags in %s",
+                      r->filename);

@@ -1,17 +1,14 @@
-    apr_status_t status;
-#ifdef NOT_ASCII
-    apr_size_t inbytes_left, outbytes_left;
-#endif
+RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
+{
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    SSLModConfigRec *mc = myModConfig(c->base_server);
+    int idx;
 
-    if (isproxy) {
-	connecthost = apr_pstrdup(cntxt, proxyhost);
-	connectport = proxyport;
-    }
-    else {
-	connecthost = apr_pstrdup(cntxt, hostname);
-	connectport = port;
-    }
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary %d bit RSA key", keylen);
 
-    if (!use_html) {
-	printf("Benchmarking %s ", hostname);
-	if (isproxy)
+    /* doesn't matter if export flag is on,
+     * we won't be asked for keylen > 512 in that case.
+     * if we are asked for a keylen > 1024, it is too expensive
+     * to generate on the fly.
+     * XXX: any reason not to generate 2048 bit keys at startup?

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
+                              NULL, AP_FTYPE_CONTENT_SET);

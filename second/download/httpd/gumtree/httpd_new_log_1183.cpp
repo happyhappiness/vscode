@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to connect child stdout to NUL.\n");
+printf("Req char = \\x%02x%s\n", ch, caseless);

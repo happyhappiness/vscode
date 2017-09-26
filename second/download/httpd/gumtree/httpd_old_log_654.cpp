@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0,
-                          cmd->pool,
-                          "Warning: DocumentRoot [%s] does not exist",
-                          arg);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Unmatched '(' in \"%s\" in file %s",
+                        expr, r->filename);

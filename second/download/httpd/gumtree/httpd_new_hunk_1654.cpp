@@ -1,13 +1,18 @@
-    ++filp;
-    prefix_len = strlen(filp);
+                                                    conf->recv_buffer_size))) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "proxy: FTP: apr_socket_opt_set(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+                }
+#endif
 
-    dirp = ap_popendir(neg->pool, neg->dir_name);
+                rv = apr_socket_opt_set(data_sock, APR_TCP_NODELAY, 1);
+                if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "apr_socket_opt_set(APR_TCP_NODELAY): Failed to set");
+                }
 
-    if (dirp == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                    "cannot read directory for multi: %s", neg->dir_name);
-        return HTTP_FORBIDDEN;
-    }
-
-    while ((dir_entry = readdir(dirp))) {
-        request_rec *sub_req;
+                /* make the connection */
+                apr_sockaddr_info_get(&pasv_addr, apr_psprintf(p, "%d.%d.%d.%d", h3, h2, h1, h0), connect_addr->family, pasvport, 0, p);
+                rv = apr_socket_connect(data_sock, pasv_addr);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                                 "proxy: FTP: PASV attempt to connect to %pI failed - Firewall/NAT?", pasv_addr);

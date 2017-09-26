@@ -1,1 +1,3 @@
-decl_die(access_status, "check access", r);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "xlate output filter not added implicitly because "
+                          "CharsetOptions included 'NoImplicitAdd'");

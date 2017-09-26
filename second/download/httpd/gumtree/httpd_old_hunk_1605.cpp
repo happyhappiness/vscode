@@ -1,13 +1,13 @@
-        case token_and:
-        case token_or:
-#ifdef DEBUG_INCLUDE
-            ap_rputs("     Token: and/or\n", r);
-#endif
-            if (current == (struct parse_node *) NULL) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                ap_rputs(error, r);
-                goto RETURN;
-            }
-            /* Percolate upwards */
+    if (hold_screen_on_exit > 0) {
+        hold_screen_on_exit = 0;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "%s configured -- resuming normal operations",
+            ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+            "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+            "AcceptMutex: %s (default: %s)",
+            apr_proc_mutex_name(accept_mutex),

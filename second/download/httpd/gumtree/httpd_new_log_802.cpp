@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, 
-                         ap_server_conf,
-                         "processor unbind failed %d", status);
+ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL, "%s", desc);

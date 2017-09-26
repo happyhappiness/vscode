@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Cannot allocate hash table in shared memory: %s",
-                     table_strerror(ta_errno));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                 "inflate: extra field too big (not "
+                                 "supported)");

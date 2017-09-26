@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);

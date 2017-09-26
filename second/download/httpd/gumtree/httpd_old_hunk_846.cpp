@@ -1,13 +1,19 @@
-    /* Iterate accross the brigade and populate the cache storage */
-    APR_BRIGADE_FOREACH(e, b) {
-        const char *s;
-        apr_size_t len;
 
-        if (APR_BUCKET_IS_EOS(e)) {
-            /* Open for business */
-            obj->complete = 1;
-            break;
-        }
-        rv = apr_bucket_read(e, &s, &len, eblock);
-        if (rv != APR_SUCCESS) {
-            return rv;
+/*
+ * This file will include OS specific functions which are not inlineable.
+ * Any inlineable functions should be defined in os-inline.c instead.
+ */
+
+#include "httpd.h"
+#include "os.h"
+
+AP_DECLARE(apr_status_t) ap_os_create_privileged_process(
+    const request_rec *r,
+    apr_proc_t *newproc, const char *progname,
+    const char * const *args,
+    const char * const *env,
+    apr_procattr_t *attr, apr_pool_t *p)
+{
+    return apr_proc_create(newproc, progname, args, env, attr, p);
+}
+

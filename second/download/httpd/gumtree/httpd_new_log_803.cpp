@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, 
-                             ap_server_conf,
-                             "server reached MaxClients setting, consider"
-                             " raising the MaxClients setting");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "mod_rewrite: Running external rewrite maps "
+                         "without defining a RewriteLock is DANGEROUS!");

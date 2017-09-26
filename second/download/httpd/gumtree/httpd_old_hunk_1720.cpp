@@ -1,29 +1,19 @@
-	}
+    }
+    return HTTP_INTERNAL_SERVER_ERROR;
+}
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+static void menu_header(request_rec *r, char *menu)
+{
+    ap_set_content_type(r, "text/html");
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", r->uri,
+           "</title>\n</head><body>\n", NULL);
+
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<h1>Menu for ", r->uri, "</h1>\n<hr />\n\n", NULL);
+    }
+
+    return;
+}
+
+static void menu_blank(request_rec *r, char *menu)

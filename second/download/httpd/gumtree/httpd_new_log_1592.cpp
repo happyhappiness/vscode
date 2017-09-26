@@ -1,2 +1,2 @@
-apr_file_printf(errfile,
-		"Could not open passwd file %s for reading.\n", argv[1]);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid flags %02x", ctx->zlib_flags);

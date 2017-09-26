@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "the listener thread didn't exit");
+r(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "Incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it",
+                     r->unparsed_uri);

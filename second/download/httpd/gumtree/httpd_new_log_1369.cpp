@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "access to %s failed; stat of '%s' failed.",
+                                  r->uri, r->filename);

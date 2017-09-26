@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, main_s, buf);
+printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);

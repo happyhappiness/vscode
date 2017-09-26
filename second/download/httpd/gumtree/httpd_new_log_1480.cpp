@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "mod_include: Options +Includes (or IncludesNoExec) "
-                      "wasn't set, INCLUDES filter removed");
+ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %lu: %d threads blocked on the completion port", my_pid, g_blocked_threads);

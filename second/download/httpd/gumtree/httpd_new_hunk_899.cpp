@@ -1,13 +1,15 @@
-start_over:
+{
+    int status_array[SERVER_NUM_STATUS];
+    int i, status, total=0;
+    int reqs = request_count;
+#ifdef DBINFO_ON
+    int wblock = would_block;
 
-    /* There is a good AuthLDAPURL, right? */
-    if (sec->host) {
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       sec->binddn, sec->bindpw, sec->deref,
-                                       sec->secure);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authenticate: no sec->host - weird...?", getpid());
-        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-    }
+    would_block = 0;
+#endif
+
+    request_count = 0;
+
+    ClearScreen (getscreenhandle());
+    printf("%s \n", ap_get_server_version());
+

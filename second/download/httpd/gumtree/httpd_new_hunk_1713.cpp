@@ -1,20 +1,13 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
-    }
+        return DECLINED;
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
 
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    ap_rputs(DOCTYPE_XHTML_1_0T
+             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+             "<head>\n"
+             "  <title>Server Information</title>\n" "</head>\n", r);
+    ap_rputs("<body><h1 style=\"text-align: center\">"

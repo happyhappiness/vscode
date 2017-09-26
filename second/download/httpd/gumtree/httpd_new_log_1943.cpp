@@ -1,0 +1,1 @@
+printf("Write errors:           %d\n", epipe);

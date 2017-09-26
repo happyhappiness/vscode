@@ -1,26 +1,13 @@
-            ap_chdir_file(r->filename);
-#endif
-        }
-        else if (!strcmp(tag, "cgi")) {
-            parse_string(r, tag_val, parsed_string, sizeof(parsed_string), 0);
-            if (include_cgi(parsed_string, r) == -1) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                            "invalid CGI ref \"%s\" in %s", tag_val, file);
-                ap_rputs(error, r);
-            }
-            /* grumble groan */
-#ifndef WIN32
-            ap_chdir_file(r->filename);
-#endif
-        }
-        else if (!strcmp(tag, "done")) {
-            return 0;
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "unknown parameter \"%s\" to tag exec in %s",
-                        tag, file);
-            ap_rputs(error, r);
-        }
-    }
+
+    /*
+     * record that we've entered the world !
+     */
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+
+    restart_pending = shutdown_pending = 0;
 

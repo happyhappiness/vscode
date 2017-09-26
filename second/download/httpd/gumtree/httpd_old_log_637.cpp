@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, cmd->server,
-                 "Platform does not support rlimit for %s", cmd->cmd->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" to tag include in %s",
+                            tag, r->filename);

@@ -1,13 +1,13 @@
-    }
-#endif
+        /* The AJP protocol does not want body data yet */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: request is chunked");
+    } else {
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                maxsize - AJP_HEADER_SZ);
 
-    for (m = conf->magic; m; m = m->next) {
-#if MIME_MAGIC_DEBUG
-	rule_counter++;
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r,
-		    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
-#endif
-
-	/* check if main entry matches */
-	if (!mget(r, &p, s, m, nbytes) ||
-	    !mcheck(r, &p, m)) {
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */
+            conn->close++;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: ap_get_brigade failed");

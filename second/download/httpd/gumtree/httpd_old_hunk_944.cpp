@@ -1,41 +1,15 @@
-    apr_status_t rv;
+    restart_pending = shutdown_pending = 0;
 
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE) 
-        return TRUE;
+    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+    event_handles[RESTART_HANDLE] = restart_event;
 
-    if ((rv = apr_global_mutex_create(&mc->pMutex, mc->szMutexFile,
-                                APR_LOCK_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot create SSLMutex file `%s'",
-                     mc->szMutexFile);
-        return FALSE;
+    /* Create a single child process */
+    rv = create_process(pconf, &event_handles[CHILD_HANDLE], 
+                        &child_exit_event, &child_pid);
+    if (rv < 0) 
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
     }
-
-#if APR_USE_SYSVSEM_SERIALIZE
-    rv = unixd_set_global_mutex_perms(mc->pMutex);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Could not set permissions on ssl_mutex; check User "
-                     "and Group directives");
-        return FALSE;
-    }
-#endif
-    return TRUE;
-}
-
-int ssl_mutex_reinit(server_rec *s, apr_pool_t *p)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-
-    if (apr_global_mutex_child_init(&mc->pMutex,
-                                    mc->szMutexFile, p) != APR_SUCCESS)
-        return FALSE;
-    return TRUE;
-}
-
-int ssl_mutex_on(server_rec *s)
-{
-    SSLModConfigRec *mc = myModConfig(s);

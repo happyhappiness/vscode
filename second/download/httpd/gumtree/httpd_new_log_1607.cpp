@@ -1,1 +1,3 @@
-ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "Zlib error %d inflating data (%s)", zRC,
+                              ctx->stream.msg);

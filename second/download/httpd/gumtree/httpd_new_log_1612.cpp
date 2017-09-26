@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                         "cache: error returned while checking for cached "
-                         "file by %s cache", cache->provider_name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
+                              "Failed to read request header line %s", field);

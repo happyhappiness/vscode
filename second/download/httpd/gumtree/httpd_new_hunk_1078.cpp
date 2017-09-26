@@ -1,19 +1,26 @@
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_hook_sort_all();
-        apr_pool_clear(plog);
-        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Unable to open logs");
-            destroy_and_exit_process(process, 1);
-        }
+        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
+        apr_strerror(rv, errbuf, sizeof(errbuf));
+        exit(1);
+    }
+    /*
+     * Preliminary check to make sure they provided at least
+     * three arguments, we'll do better argument checking as
+     * we parse the command line.
+     */
+    if (argc < 3)
+       htdbm_usage();
+    /*
+     * Go through the argument list and pick out any options.  They
+     * have to precede any other arguments.
+     */
+    for (i = 1; i < argc; i++) {
+        arg = argv[i];
+        if (*arg != '-')
+            break;
 
-        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Configuration Failed");
-            destroy_and_exit_process(process, 1);
-        }
-
-        apr_pool_destroy(ptemp);
-        apr_pool_lock(pconf, 1);
-
+        while (*++arg != '\0') {
+            switch (*arg) {
+            case 'b':
+                pwd_supplied = 1;
+                need_pwd = 0;
+                args_left++;

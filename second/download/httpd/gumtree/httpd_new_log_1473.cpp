@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "unknown directive \"%s\" in parsed doc %s",
-                                  apr_pstrmemdup(r->pool, ctx->directive,
-                                                 ctx->ctx->directive_length),
-                                                 r->filename);
+r(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %lu: Starting %d worker threads.", my_pid, ap_threads_per_child);

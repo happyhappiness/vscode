@@ -1,13 +1,26 @@
-    if (name == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-               "Internal error: pcfg_openfile() called with NULL filename");
-        return APR_EBADF;
+           at a time so we need to fall on our sword... */
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        return 1;
     }
 
-    status = apr_file_open(&file, name, APR_READ | APR_BUFFERED, APR_OS_DEFAULT, p);
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                "Opening config file %s (%s)",
-                name, (status != APR_SUCCESS) ? 
-                apr_strerror(status, buf, sizeof(buf)) : "successful");
-#endif
+    /* worker_thread_count_mutex
+     * locks the worker_thread_count so we have ana ccurate count...
+     */
+    rv = apr_thread_mutex_create(&worker_thread_count_mutex, 0, pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create worker thread count lock");
+        return 1;
+    }
+
+    /*
+     * Startup/shutdown... 
+     */
+    
+    if (!is_graceful) {
+        /* setup the scoreboard shared memory */
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            return 1;
+        }
+

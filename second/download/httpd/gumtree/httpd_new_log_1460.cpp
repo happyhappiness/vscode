@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " Automatically lowering MaxClients to %d.  To increase,",
-                    server_limit * ap_threads_per_child);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
+                            obj->key, mobj->m_len);

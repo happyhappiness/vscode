@@ -1,18 +1,13 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+            X509_REVOKED *revoked =
+                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
+                if (s->loglevel >= APLOG_INFO) {
+                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
+                    long serial = ASN1_INTEGER_get(sn);
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                                 "Certificate with serial %ld (0x%lX) "
+                                 "revoked per CRL from issuer %s",

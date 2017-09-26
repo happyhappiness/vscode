@@ -1,30 +1,12 @@
- * selected again.  Non-active fields always start in ascending order.
- */
-static void emit_link(request_rec *r, const char *anchor, char column,
-                      char curkey, char curdirection,
-                      const char *colargs, int nosort)
-{
-    char qvalue[13];
-    int reverse;
+                ap_signal_parent(SIGNAL_PARENT_RESTART);
+            }
+        }
+    }
 
-    if (!nosort) {
-        reverse = ((curkey == column) && (curdirection == D_ASCENDING));
-        qvalue[0] = '?';
-        qvalue[1] = 'C';
-        qvalue[2] = '=';
-        qvalue[3] = column;
-        qvalue[4] = '&';
-        qvalue[5] = 'a';
-        qvalue[6] = 'm';
-        qvalue[7] = 'p';
-        qvalue[8] = ';';
-        qvalue[9] = 'O';
-        qvalue[10] = '=';
-        qvalue[11] = reverse ? D_DESCENDING : D_ASCENDING;
-        qvalue[12] = '\0';
-        ap_rvputs(r, "<a href=\"", qvalue, colargs ? colargs : "",
-                     "\">", anchor, "</a>", NULL);
-    }
-    else {
-        ap_rputs(anchor, r);
-    }
+    if (success)
+        fprintf(stderr,"The %s service has %s.\n", mpm_display_name, 
+               signal ? "restarted" : "stopped");
+    else
+        fprintf(stderr,"Failed to %s the %s service.\n", 
+               signal ? "restart" : "stop", mpm_display_name);
+}

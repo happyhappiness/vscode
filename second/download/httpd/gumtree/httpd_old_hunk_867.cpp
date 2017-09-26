@@ -1,22 +1,21 @@
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, buff);
-        }
+    }
 
-        /*
-         * Verify the signature on this CRL
-         */
-        if (X509_CRL_verify(crl, X509_get_pubkey(cert)) <= 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Invalid signature on CRL");
+#if APR_TCP_NODELAY_INHERITED
+    ap_sock_disable_nagle(s);
+#endif
 
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
-            X509_OBJECT_free_contents(&obj);
+    if ((stat = apr_bind(s, server->bind_addr)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
+                      "make_sock: could not bind to address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
 
-            return FALSE;
-        }
-
-        /*
-         * Check date of CRL to make sure it's not expired
-         */
-        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
-
-        if (i == 0) {
+    if ((stat = apr_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;

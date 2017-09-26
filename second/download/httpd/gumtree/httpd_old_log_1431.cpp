@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: %s", r->filename);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  No user file?"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

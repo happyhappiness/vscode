@@ -1,12 +1,12 @@
-                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
-            return(!OK);
-        }
-    }
-    */
-
-    if (!charset_confname) {
-        return OK;
+        r->status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
     }
 
-    charset_confname = ap_server_root_relative(p, charset_confname);
-    if (!charset_confname) {
+    if (r->status != HTTP_OK) {
+        ap_send_error_response(r, 0);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        return r;
+    }

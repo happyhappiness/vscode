@@ -1,14 +1,16 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
+        }
+        cur_lbset++;
+    } while (cur_lbset <= max_lbset && !mycandidate);
+
+    if (mycandidate) {
+        mycandidate->s->lbstatus -= total_factor;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+
     }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
+
+    return mycandidate;
 }
 
-
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+/*

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
-                    "password\n\n");
+apr_file_printf(errfile, "%s: cannot create file %s" NL,
+                                argv[0], pwfilename);

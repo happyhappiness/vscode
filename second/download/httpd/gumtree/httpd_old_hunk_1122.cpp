@@ -1,24 +1,12 @@
-	 */
-	if (l == c->rwrite)
-	    break;
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing body");
+                    isok = 0;
+                }
+                break;
+            default:
+                isok = 0;
+                break;
+        }
 
-#ifdef USE_SSL
-        if (ssl != 1)
-	if (e != APR_SUCCESS) {
-	    /*
-	     * Let's hope this traps EWOULDBLOCK too !
-	     */
-	    if (!APR_STATUS_IS_EAGAIN(e)) {
-		epipe++;
-		printf("Send request failed!\n");
-		close_connection(c);
-	    }
-	    return;
-	}
-#endif
-	c->rwrote += l;
-	c->rwrite -= l;
-    } while (1);
-
-    totalposted += c->rwrite;
-    c->state = STATE_READ;

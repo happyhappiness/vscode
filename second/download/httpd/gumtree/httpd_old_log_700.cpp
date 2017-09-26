@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR| APLOG_NOERRNO, 0,
-                     NULL, "Configuration Failed\n");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't unlink unix domain socket %s",
+                     sconf->sockname);

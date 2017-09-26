@@ -1,13 +1,24 @@
-     *
-     * !! BUT ALL THIS IS STILL NOT RE-IMPLEMENTED FOR APACHE 2.0 !!
-     */
-    if (renegotiate && !renegotiate_quick && (r->method_number == M_POST)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "SSL Re-negotiation in conjunction "
-                     "with POST method not supported!\n"
-                     "hint: try SSLOptions +OptRenegotiate");
+    resident_time = now - info->response_time;
+    current_age = corrected_initial_age + resident_time;
 
-        return HTTP_METHOD_NOT_ALLOWED;
-    }
+    return apr_time_sec(current_age);
+}
+
+CACHE_DECLARE(int) ap_cache_check_freshness(cache_handle_t *h,
+                                            request_rec *r)
+{
+    apr_int64_t age, maxage_req, maxage_cresp, maxage, smaxage, maxstale;
+    apr_int64_t minfresh;
+    const char *cc_cresp, *cc_req;
+    const char *pragma;
+    const char *agestr = NULL;
+    const char *expstr = NULL;
+    char *val;
+    apr_time_t age_c = 0;
+    cache_info *info = &(h->cache_obj->info);
+    cache_server_conf *conf =
+      (cache_server_conf *)ap_get_module_config(r->server->module_config,
+                                                &cache_module);
 
     /*
+     * We now want to check if our cached data is still fresh. This depends

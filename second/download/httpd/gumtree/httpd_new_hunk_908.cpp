@@ -1,13 +1,15 @@
-        }
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
+#endif
 
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
+     * processing one
+     */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)

@@ -1,12 +1,13 @@
-	states fresh;		/* states for a fresh start */
-	states tmp;		/* temporary */
-	states empty;		/* empty set of states */
-};
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "mod_asis: ap_pass_brigade failed for file %s", r->filename);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    else {
+        apr_file_close(f);
+    }
 
-#include "engine.ih"
-
-#ifdef REDEBUG
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-#else

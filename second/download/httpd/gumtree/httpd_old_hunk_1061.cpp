@@ -1,13 +1,15 @@
-    }
-    if (autoindex_opts & TABLE_INDEXING) {
-        ap_rvputs(r, breakrow, "</table>\n", NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr /></pre>\n", r);
-        }
-        else {
-            ap_rputs("</pre>\n", r);
-        }
-    }
-    else {
+		fprintf(stderr, "Completed %ld requests\n", done);
+		fflush(stderr);
+	    }
+	    c->done = apr_time_now();
+	    s.read = c->read;
+	    s.starttime = c->start;
+	    s.ctime = (c->connect - c->start) / 1000;
+	    s.waittime = (c->beginread - c->endwrite) / 1000;
+	    s.time = (c->done - c->start) / 1000;
+	    stats[done++] = s;
+	}
+	c->keepalive = 0;
+	c->length = 0;
+	c->gotheader = 0;
+	c->cbx = 0;

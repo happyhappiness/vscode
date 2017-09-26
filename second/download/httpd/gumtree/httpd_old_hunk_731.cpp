@@ -1,13 +1,17 @@
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                    "apr_thread_create: unable to create worker thread");
-                /* In case system resources are maxxed out, we don't want
-                   Apache running away with the CPU trying to fork over and
-                   over and over again if we exit. */
-                apr_sleep(10 * APR_USEC_PER_SEC);
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
-            threads_created++;
+                     "<code>ExtendedStatus On</code> directive.\n", r);
         }
-        /* Start the listener only when there are workers available */
-        if (!listener_started && threads_created) {
+    }
+
+    {
+        /* Run extension hooks to insert extra content. */
+        int flags = 
+            (short_report ? AP_STATUS_SHORT : 0) | 
+            (no_table_report ? AP_STATUS_NOTABLE : 0) |
+            (ap_extended_status ? AP_STATUS_EXTENDED : 0);
+        
+        ap_run_status_hook(r, flags);
+    }
+
+    if (!short_report) {
+        ap_rputs(ap_psignature("<hr />\n",r), r);
+        ap_rputs("</body></html>\n", r);

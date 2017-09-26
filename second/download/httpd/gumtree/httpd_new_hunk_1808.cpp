@@ -1,13 +1,24 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+            good++;
+            close_connection(c);
+            return;
+        }
+        /* catch legitimate fatal apr_socket_recv errors */
+        else if (status != APR_SUCCESS) {
+            err_recv++;
+            if (recverrok) {
+                bad++;
+                close_connection(c);
+                if (verbosity >= 1) {
+                    char buf[120];
+                    fprintf(stderr,"%s: %s (%d)\n", "apr_socket_recv", apr_strerror(status, buf, sizeof buf), status);
+                }
+                return;
+            } else {
+                apr_err("apr_socket_recv", status);
+            }
+        }
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+    totalread += r;
+    if (c->read == 0) {
+        c->beginread = apr_time_now();

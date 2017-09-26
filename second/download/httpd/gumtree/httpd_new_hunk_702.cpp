@@ -1,15 +1,13 @@
-    struct cmsghdr *cmsg;
-    char sockname[80];
-    struct iovec iov;
-    int ret, dp;
-    apr_os_sock_t sd;
+{
+    apr_file_t *f = NULL;
+    apr_finfo_t finfo;
+    char time_str[APR_CTIME_LEN];
+    int log_flags = rv ? APLOG_ERR : APLOG_ERR;
 
-    ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, ptrans,
-                 "trying to receive request from other child");
+    ap_log_rerror(APLOG_MARK, log_flags, rv, r,
+                  "%s: %s", error, r->filename);
 
-    apr_os_sock_get(&sd, lr->sd);
-
-    iov.iov_base = sockname;
-    iov.iov_len = 80;
-
-    msg.msg_name = NULL;
+    /* XXX Very expensive mainline case! Open, then getfileinfo! */
+    if (!conf->logname ||
+        ((apr_stat(&finfo, conf->logname,
+                   APR_FINFO_SIZE, r->pool) == APR_SUCCESS) &&

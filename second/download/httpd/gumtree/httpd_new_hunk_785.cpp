@@ -1,25 +1,34 @@
-                return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                apr_pstrcat(p, "Corrupt status line returned by remote "
-                            "server: ", buffer, NULL));
-            }
-            backasswards = 0;
+     * just the certificate/keys of one virtual host (which one cannot be said
+     * easily - but that doesn't matter here).
+     */
+    table = apr_hash_make(p);
 
-            keepchar = buffer[12];
-            if (keepchar == '\0') {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d status line "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
-            }
-            buffer[12] = '\0';
-            r->status = atoi(&buffer[9]);
+    for (s = base_server; s; s = s->next) {
+        char *addr;
 
-            buffer[12] = keepchar;
-            r->status_line = apr_pstrdup(p, &buffer[9]);
-            
+        sc = mySrvConfig(s);
 
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
+        if (!((sc->enabled == SSL_ENABLED_TRUE) && s->addrs)) {
+            continue;
+        }
 
-            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
+        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
+        klen = strlen(key);
+
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: SSL server IP/port conflict: "
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s),
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"),
+                         ps->defn_line_number);
+            conflict = TRUE;
+            continue;
+        }
+
+        apr_hash_set(table, key, klen, s);

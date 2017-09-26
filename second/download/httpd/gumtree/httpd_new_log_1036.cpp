@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on stdout.\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -V                 : show compile settings");

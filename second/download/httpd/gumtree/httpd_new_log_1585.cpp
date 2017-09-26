@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Usage: htdigest [-c] passwordfile realm username\n");
+fprintf(stderr,"\n");

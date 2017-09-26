@@ -1,21 +1,32 @@
+    }
 
-static apr_status_t ef_close_file(void *vfile)
-{
-    return apr_file_close(vfile);
+  while ((nextfile = readdirectory(dir)) != NULL)
+    {
+    int frc;
+    sprintf(buffer, "%.512s%c%.128s", filename, sep, nextfile);
+    frc = grep_or_recurse(buffer, recurse, TRUE, FALSE);
+    if (frc == 0 && rc == 1) rc = 0;
+    }
+
+  closedirectory(dir);
+  return rc;
+  }
+
+/* If the file is not a directory, or we are not recursing, scan it. If this is
+the first and only argument at top level, we don't show the file name.
+Otherwise, control is via the show_filenames variable. */
+
+in = fopen(filename, "r");
+if (in == NULL)
+  {
+  fprintf(stderr, "pcregrep: Failed to open %s: %s\n", filename, strerror(errno));
+  return 2;
+  }
+
+rc = pcregrep(in, (show_filenames && !only_one_at_top)? filename : NULL);
+fclose(in);
+return rc;
 }
 
-static void child_errfn(apr_pool_t *p, apr_status_t err, const char *desc)
-{
-    request_rec *r;
-    void *vr;
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, p);
-    r = vr;
-    
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
-}
 
-/* init_ext_filter_process: get the external filter process going
- * This is per-filter-instance (i.e., per-request) initialization.
- */
-static apr_status_t init_ext_filter_process(ap_filter_t *f)

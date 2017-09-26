@@ -1,0 +1,1 @@
+printf("Req char = \\x%02x\n", re->req_char);

@@ -1,16 +1,30 @@
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);
+    }
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
         }
-        if (cid->dconf.log_to_errlog)
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "ISAPI: %s: %s", cid->r->filename,
-                          (char*) buf_data);
-        return 1;
-        
-    case HSE_REQ_IO_COMPLETION:
-        /* Emulates a completion port...  Record callback address and 
-         * user defined arg, we will call this after any async request 
-         * (e.g. transmitfile) as if the request executed async.
-         * Per MS docs... HSE_REQ_IO_COMPLETION replaces any prior call
-         * to HSE_REQ_IO_COMPLETION, and buf_data may be set to NULL.
-         */
-        if (cid->dconf.fake_async) {
-            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;
+    }
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+        while (g_blocked_threads > 0) {
+            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+            for (i=g_blocked_threads; i > 0; i--) {
+                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+            }
+            Sleep(1000);
+        }
+        /* Empty the accept queue of completion contexts */

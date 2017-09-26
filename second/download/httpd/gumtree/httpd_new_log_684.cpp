@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
+                          "directive name in parsed document %s",
+                          intern->r->filename);

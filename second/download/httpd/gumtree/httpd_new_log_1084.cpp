@@ -1,1 +1,2 @@
-ap_register_output_filter(filter->name, ef_output_filter, NULL, filter->ftype);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

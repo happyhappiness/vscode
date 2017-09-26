@@ -1,14 +1,14 @@
+         * Read in server certificate(s): This is the easy part
+         * because this file isn't encrypted in any way.
+         */
+        if (sc->server->pks->cert_files[0] == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
+                         "Server should be SSL-aware but has no certificate "
+                         "configured [Hint: SSLCertificateFile] (%s:%d)",
+                         pServ->defn_name, pServ->defn_line_number);
+            ssl_die();
+        }
+        algoCert = SSL_ALGO_UNKNOWN;
+        algoKey  = SSL_ALGO_UNKNOWN;
+        for (i = 0, j = 0; i < SSL_AIDX_MAX && sc->server->pks->cert_files[i] != NULL; i++) {
 
-    /* firstly, try a proxy, unless a NoProxy directive is active */
-    if (!direct_connect) {
-        for (i = 0; i < proxies->nelts; i++) {
-            p2 = ap_strchr_c(ents[i].scheme, ':');  /* is it a partial URL? */
-            if (strcmp(ents[i].scheme, "*") == 0 ||
-                (ents[i].use_regex && 
-                 ap_regexec(ents[i].regexp, url, 0,NULL, 0) == 0) ||
-                (p2 == NULL && strcasecmp(scheme, ents[i].scheme) == 0) ||
-                (p2 != NULL &&
-                 strncasecmp(url, ents[i].scheme, strlen(ents[i].scheme)) == 0)) {
-
-                /* handle the scheme */
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

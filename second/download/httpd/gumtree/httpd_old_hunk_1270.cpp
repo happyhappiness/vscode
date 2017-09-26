@@ -1,35 +1,27 @@
-    /* eliminate the '.' if there is one */
-    if (*ext == '.')
-        ++ext;
-
-    /* check if we have a registered command for the extension*/
-    new_cmd = apr_table_get(d->file_type_handlers, ext);
-    if (new_cmd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Could not find a command associated with the %s extension", ext);
-        return APR_EBADF;
-    }
-    if (stricmp(new_cmd, "OS")) {
-        /* If we have a registered command then add the file that was passed in as a
-          parameter to the registered command. */
-        *cmd = apr_pstrcat (p, new_cmd, " ", cmd_only, NULL);
-
-        /* Run in its own address space if specified */
-        detached = apr_table_get(d->file_handler_mode, ext);
-        if (detached) {
-            e_info->cmd_type = APR_PROGRAM_ENV;
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
         }
         else {
-            e_info->cmd_type = APR_PROGRAM;
-        }
-    }
+            request_rec *id = r->main ? r->main : r;
 
-    /* Tokenize the full command string into its arguments */
-    apr_tokenize_to_argv(*cmd, (char***)argv, p);
-    e_info->detached = 1;
+            /* do a full renegotiation */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: "
+                          "complete handshake protocol");
 
-    /* The first argument should be the executible */
-    *cmd = ap_server_root_relative(p, *argv[0]);
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
 
-    return APR_SUCCESS;
-}
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation request failed");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,

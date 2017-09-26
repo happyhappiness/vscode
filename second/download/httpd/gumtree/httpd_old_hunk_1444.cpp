@@ -1,13 +1,31 @@
+        }
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
+        lenp = apr_table_get(f->r->headers_in, "Content-Length");
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+        if (tenc) {
+            if (!strcasecmp(tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+            /* test lenp, because it gives another case we can handle */
+            else if (!lenp) {
+                /* Something that isn't in HTTP, unless some future
+                 * edition defines new transfer ecodings, is unsupported.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r,
+                  "Unknown Transfer-Encoding: %s; using Content-Length", tenc);
+                tenc = NULL;
+            }
+        }
+        if (lenp && !tenc) {
+            char *endstr;
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+            ctx->state = BODY_LENGTH;
+            errno = 0;
+
+            /* Protects against over/underflow, non-digit chars in the

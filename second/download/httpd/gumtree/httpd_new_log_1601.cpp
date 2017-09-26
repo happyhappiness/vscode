@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);

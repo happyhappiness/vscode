@@ -1,14 +1,30 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
+    }
+
+    /*
+     * now parse path/search args, according to rfc1738:
+     * process the path.
+     *
+     * In a reverse proxy, our URL has been processed, so canonicalise
+     * unless proxy-nocanon is set to say it's raw
+     * In a forward proxy, we have and MUST NOT MANGLE the original.
+     */
+    switch (r->proxyreq) {
+    default: /* wtf are we doing here? */
+    case PROXYREQ_REVERSE:
+        if (apr_table_get(r->notes, "proxy-nocanon")) {
+            path = url;   /* this is the raw path */
+        }
+        else {
+            path = ap_proxy_canonenc(r->pool, url, strlen(url),
+                                     enc_path, 0, r->proxyreq);
+            search = r->args;
+        }
+        break;
+    case PROXYREQ_PROXY:
+        path = url;
+        break;
+    }

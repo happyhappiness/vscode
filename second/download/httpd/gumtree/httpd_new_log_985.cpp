@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);

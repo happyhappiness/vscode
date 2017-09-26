@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");

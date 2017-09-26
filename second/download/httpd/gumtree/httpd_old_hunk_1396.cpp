@@ -1,14 +1,12 @@
-
-        /* cleanup */
-        if (cipher_list_old) {
-            sk_SSL_CIPHER_free(cipher_list_old);
-        }
-
-        /* tracing */
-        if (renegotiate) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Reconfigured cipher suite will force renegotiation");
-        }
     }
 
-    /*
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
+}
+
+static void ssl_init_proxy_ctx(server_rec *s,
+                               apr_pool_t *p,
+                               apr_pool_t *ptemp,
+                               SSLSrvConfigRec *sc)

@@ -1,93 +1,80 @@
-    ap_init_scoreboard(sb_shared);
+    r = vr;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+    /* sure we got r, but don't call ap_log_rerror() because we don't
+     * have r->headers_in and possibly other storage referenced by
+     * ap_log_rerror()
+     */
+    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
 }
 
-
-static int send_handles_to_child(apr_pool_t *p, 
-                                 HANDLE child_ready_event,
-                                 HANDLE child_exit_event, 
-                                 apr_proc_mutex_t *child_start_mutex,
-                                 apr_shm_t *scoreboard_shm,
-                                 HANDLE hProcess, 
-                                 apr_file_t *child_in)
+static int cgid_server(void *data)
 {
-    apr_status_t rv;
-    HANDLE hCurrentProcess = GetCurrentProcess();
-    HANDLE hDup;
-    HANDLE os_start;
-    HANDLE hScore;
-    DWORD BytesWritten;
+    struct sockaddr_un unix_addr;
+    int sd, sd2, rc;
+    mode_t omask;
+    apr_socklen_t len;
+    apr_pool_t *ptrans;
+    server_rec *main_server = data;
+    apr_hash_t *script_hash = apr_hash_make(pcgi);
 
-    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
-        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the ready event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, child_exit_event, hProcess, &hDup,
-                         EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the exit event handle for the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
-        return -1;
-    }
-    if ((rv = apr_os_proc_mutex_get(&os_start, child_start_mutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the start mutex for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, os_start, hProcess, &hDup,
-                         SYNCHRONIZE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the start mutex to the child");
-        return -1;
-    }
-    if ((rv = apr_os_shm_get(&hScore, scoreboard_shm)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the scoreboard handle for the child");
-        return -1;
-    }
-    if (!DuplicateHandle(hCurrentProcess, hScore, hProcess, &hDup,
-                         FILE_MAP_READ | FILE_MAP_WRITE, FALSE, 0)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the scoreboard handle to the child");
-        return -1;
-    }
-    if ((rv = apr_file_write_full(child_in, &hDup, sizeof(hDup), &BytesWritten))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the scoreboard handle to the child");
-        return -1;
+    apr_pool_create(&ptrans, pcgi);
+
+    apr_signal(SIGCHLD, SIG_IGN);
+    apr_signal(SIGHUP, daemon_signal_handler);
+
+    /* Close our copy of the listening sockets */
+    ap_close_listeners();
+
+    /* cgid should use its own suexec doer */
+    ap_hook_get_suexec_identity(cgid_suexec_id_doer, NULL, NULL,
+                                APR_HOOK_REALLY_FIRST);
+    apr_hook_sort_all();
+
+    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't create unix domain socket");
+        return errno;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent the scoreboard to the child");
-    return 0;
-}
+    memset(&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    apr_cpystrn(unix_addr.sun_path, sockname, sizeof unix_addr.sun_path);
 
+    omask = umask(0077); /* so that only Apache can use socket */
+    rc = bind(sd, (struct sockaddr *)&unix_addr, sizeof(unix_addr));
+    umask(omask); /* can't fail, so can't clobber errno */
+    if (rc < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't bind unix domain socket %s",
+                     sockname);
+        return errno;
+    }
 
-/* 
- * get_listeners_from_parent()
- * The listen sockets are opened in the parent. This function, which runs
- * exclusively in the child process, receives them from the parent and
- * makes them availeble in the child.
- */
+    if (listen(sd, DEFAULT_CGID_LISTENBACKLOG) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't listen on unix domain socket");
+        return errno;
+    }
+
+    if (!geteuid()) {
+        if (chown(sockname, unixd_config.user_id, -1) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                         "Couldn't change owner of unix domain socket %s",
+                         sockname);
+            return errno;
+        }
+    }
+
+    unixd_setup_child(); /* if running as root, switch to configured user/group */
+
+    while (!daemon_should_exit) {
+        int errfileno = STDERR_FILENO;
+        char *argv0;
+        char **env;
+        const char * const *argv;
+        apr_int32_t in_pipe;
+        apr_int32_t out_pipe;
+        apr_int32_t err_pipe;
+        apr_cmdtype_e cmd_type;
+        request_rec *r;
+        apr_procattr_t *procattr = NULL;

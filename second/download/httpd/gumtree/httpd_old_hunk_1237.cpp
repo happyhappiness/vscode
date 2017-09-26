@@ -1,13 +1,14 @@
-     *
-     * Log into the ftp server, send the username & password, change to the
-     * correct directory...
-     */
+    printf("Write errors:           %d\n", epipe);
+    if (err_response)
+        printf("Non-2xx responses:      %d\n", err_response);
+    if (keepalive)
+        printf("Keep-Alive requests:    %d\n", doneka);
+    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
+    if (posting > 0)
+        printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);
+    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
 
-    /* set up the connection filters */
-    ap_run_pre_connection(origin, sock);
-
-    /* possible results: */
-    /* 120 Service ready in nnn minutes. */
-    /* 220 Service ready for new user. */
-    /* 421 Service not available, closing control connection. */
-    rc = proxy_ftp_command(NULL, r, origin, bb, &ftpmessage);
+    /* avoid divide by zero */
+    if (timetaken && done) {
+        printf("Requests per second:    %.2f [#/sec] (mean)\n",
+               (double) done / timetaken);

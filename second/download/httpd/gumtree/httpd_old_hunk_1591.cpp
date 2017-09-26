@@ -1,13 +1,13 @@
+         */
+        err = apr_sockaddr_info_get(&(worker->cp->addr),
+                                    conn->hostname, APR_UNSPEC,
+                                    conn->port, 0,
+                                    worker->cp->pool);
+        conn->addr = worker->cp->addr;
+        PROXY_THREAD_UNLOCK(worker);
     }
+    else
+        conn->addr = worker->cp->addr;
 
-    return HTTP_INTERNAL_SERVER_ERROR;        /* If we make it this far,
-                                                 we failed. They lose! */
-
-need_2_fields:
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		"map file %s, line %d syntax error: requires at "
-                "least two fields", r->uri, imap->line_number);
-    /* fall through */
-menu_bail:
-    ap_cfg_closefile(imap);
-    if (showmenu) {
+    if (err != APR_SUCCESS) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,

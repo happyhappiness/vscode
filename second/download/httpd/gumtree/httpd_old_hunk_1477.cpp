@@ -1,18 +1,13 @@
-	exit(0);
-    }
-    else if (argc != 3)
-	usage();
+                || endstr == lenp || *endstr || ctx->remaining < 0) {
 
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
+                ctx->remaining = 0;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Invalid Content-Length");
 
-    if (!(f = fopen(argv[1], "r"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+            }
+
+            /* If we have a limit in effect and we know the C-L ahead of
+             * time, stop it here if it is invalid.
+             */
+            if (ctx->limit && ctx->limit < ctx->remaining) {

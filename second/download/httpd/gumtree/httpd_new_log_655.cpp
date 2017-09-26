@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
-                     "cannot use a full URL in a 401 ErrorDocument "
-                     "directive --- ignoring!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag if in %s", tag, r->filename);

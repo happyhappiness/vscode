@@ -1,34 +1,43 @@
-        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
-        if (!any_dying_threads) {
-            last_non_dead = i;
-            ++total_non_dead;
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
+{
+
+    apr_status_t rv;
+
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                             "proxy: BALANCER: (%s).  Forcing recovery for worker (%s), failonstatus %d",
+                             balancer->name, worker->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
         }
     }
 
-    if (sick_child_detected) {
-        if (active_thread_count > 0) {
-            /* some child processes appear to be working.  don't kill the
-             * whole server.
-             */
-            sick_child_detected = 0;
-        }
-        else {
-            /* looks like a basket case.  give up.  
-             */
-            shutdown_pending = 1;
-            child_fatal = 1;
-            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf,
-                         "No active workers found..."
-                         " Apache is exiting!");
-            /* the child already logged the failure details */
-            return;
-        }
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
     }
-                                                    
-    ap_max_daemons_limit = last_non_dead + 1;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-    if (idle_thread_count > max_spare_threads) {
-        /* Kill off one child */
-        ap_mpm_pod_signal(pod, TRUE);
-        idle_spawn_rate = 1;
+    if (worker && worker->s->busy)
+        worker->s->busy--;
+
+    return OK;
+
+}

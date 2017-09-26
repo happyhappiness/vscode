@@ -1,5 +1,3 @@
-apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-#if defined(WIN32) || defined(TPF) || defined(NETWARE)
-	" (default)"
-#endif
-	".\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -h                 : list available command line options "
+                 "(this page)");

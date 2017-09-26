@@ -1,33 +1,17 @@
-                *alg = ALG_CRYPT;
-            }
-            else if (*arg == 'b') {
-                *mask |= APHTP_NONINTERACTIVE;
-                args_left++;
-            }
-            else if (*arg == 'D') {
-                *mask |= APHTP_DELUSER;
-            }
-            else {
-                usage();
-            }
-        }
+     */
+    rv = apr_socket_timeout_set(sock, apr_time_from_sec(3));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "set timeout on socket to connect to listener");
+        apr_socket_close(sock);
+        apr_pool_destroy(p);
+        return rv;
     }
 
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
-        apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
-     */
-    if ((argc - i) != args_left) {
+    rv = apr_socket_connect(sock, ap_listeners->bind_addr);
+    if (rv != APR_SUCCESS) {
+        int log_level = APLOG_WARNING;
+
+        if (APR_STATUS_IS_TIMEUP(rv)) {
+            /* probably some server processes bailed out already and there
+             * is nobody around to call accept and clear out the kernel

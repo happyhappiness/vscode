@@ -1,2 +1,2 @@
-ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", r->uri,
-           "</title>\n</head><body>\n", NULL);
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                          "DBD[%s] Error: %s", svr->name, errmsg);

@@ -1,27 +1,32 @@
-        }
-    }
-
-    return rc;
 }
 
-/* Open the error log for the given server_rec.  If IS_MAIN is
- * non-zero, s is the main server. */
-static int open_error_log(server_rec *s, int is_main, apr_pool_t *p)
+AP_DECLARE(void) ap_send_interim_response(request_rec *r, int send_headers)
 {
-    const char *fname;
-    int rc;
+    hdr_ptr x;
+    char *status_line = NULL;
+    request_rec *rr;
 
-    if (*s->error_fname == '|') {
-        apr_file_t *dummy = NULL;
+    if (r->proto_num < 1001) {
+        /* don't send interim response to HTTP/1.0 Client */
+        return;
+    }
+    if (!ap_is_HTTP_INFO(r->status)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                      "Status is %d - not sending interim response", r->status);
+        return;
+    }
 
-        /* Spawn a new child logger.  If this is the main server_rec,
-         * the new child must use a dummy stderr since the current
-         * stderr might be a pipe to the old logger.  Otherwise, the
-         * child inherits the parents stderr. */
-        rc = log_child(p, s->error_fname + 1, &dummy, is_main);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process");
-            return DONE;
-        }
+    /* if we send an interim response, we're no longer in a state of
+     * expecting one.  Also, this could feasibly be in a subrequest,
+     * so we need to propagate the fact that we responded.
+     */
+    for (rr = r; rr != NULL; rr = rr->main) {
+        rr->expecting_100 = 0;
+    }
+
+    status_line = apr_pstrcat(r->pool, AP_SERVER_PROTOCOL, " ", r->status_line, CRLF, NULL);
+    ap_xlate_proto_to_ascii(status_line, strlen(status_line));
+
+    x.f = r->connection->output_filters;
+    x.bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
 

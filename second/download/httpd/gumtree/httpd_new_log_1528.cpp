@@ -1,2 +1,2 @@
-printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
-                    worker_thread_count);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Status is %d - not sending interim response", r->status);

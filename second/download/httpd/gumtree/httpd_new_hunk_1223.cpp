@@ -1,15 +1,12 @@
-    if (csd && key) {
-        int sockdes;
-        apr_os_sock_get(&sockdes, csd);
-
-
-        ret = SSLize_Socket(sockdes, key, r);
-        if (!ret) {
-            csd_data->is_secure = 1;
-        }
+        grp->name = "uniquemember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
     }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Upgradeable socket handle not found");
-        return ap_pass_brigade(f->next, bb);
-    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+

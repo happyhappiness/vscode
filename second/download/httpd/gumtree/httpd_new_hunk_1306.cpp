@@ -1,13 +1,13 @@
+        cleanup_tempfile_and_exit(1);
+    }
+    pw = pwin;
+    apr_file_printf(f, "%s:%s:", user, realm);
 
-    case HSE_REQ_GET_SSPI_INFO:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                           "is not supported: %s", r->filename);
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
-        
-    case HSE_APPEND_LOG_PARAMETER:
-        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
-         */
-        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+    /* Do MD5 stuff */
+    apr_snprintf(string, sizeof(string), "%s:%s:%s", user, realm, pw);
+
+    apr_md5_init(&context);
+#if APR_CHARSET_EBCDIC
+    apr_md5_set_xlate(&context, to_ascii);
+#endif
+    apr_md5_update(&context, (unsigned char *) string, strlen(string));

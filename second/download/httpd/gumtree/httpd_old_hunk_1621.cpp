@@ -1,13 +1,16 @@
-#endif
-        *printing = !(*conditional_status);
-        *conditional_status = 1;
-        return 0;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "else directive does not take tags in %s",
-		    r->filename);
-        if (*printing) {
-            ap_rputs(error, r);
+        apr_array_header_t* varray;
+        apr_time_t expire;
+
+        len = sizeof(expire);
+        apr_file_read_full(dobj->hfd, &expire, len, &len);
+
+        if (expire < r->request_time) {
+            return DECLINED;
         }
-        return -1;
+
+        varray = apr_array_make(r->pool, 5, sizeof(char*));
+        rc = read_array(r, varray, dobj->hfd);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                         "disk_cache: Cannot parse vary header file: %s",
+                         dobj->hdrsfile);

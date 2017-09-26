@@ -1,22 +1,31 @@
-                        * the network is up again, and restart the children.
-                        * Ben Hyde noted that temporary ENETDOWN situations
-                        * occur in mobile IP.
-                        */
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
-                            "apr_accept: giving up.");
-                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, bucket_alloc);
-    
-                    default:
-                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
-                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
-                }
+    do {
+        const apr_pollfd_t *results;
+        apr_int32_t num;
+
+        rv = apr_pollset_poll(data->pollset, timeout, &num, &results);
+        if (APR_STATUS_IS_TIMEUP(rv)) {
+            if (timeout) {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, data->r,
+                              "Timeout waiting for output from CGI script %s",
+                              data->r->filename);
+                return rv;
+            }
+            else {
+                return APR_EAGAIN;
             }
         }
+        else if (APR_STATUS_IS_EINTR(rv)) {
+            continue;
+        }
+        else if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r,
+                          "poll failed waiting for CGI child");
+            return rv;
+        }
 
-        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
-        /*
-        * We now have a connection, so set it up with the appropriate
-        * socket options, file descriptors, and read/write buffers.
-        */
-        current_conn = ap_run_create_connection(ptrans, ap_server_conf, csd, 
+        for (; num; num--, results++) {
+            if (results[0].client_data == (void *)1) {
+                /* stdout */
+                rv = cgi_read_stdout(b, results[0].desc.f, str, len);
+                if (APR_STATUS_IS_EOF(rv)) {
+                    rv = APR_SUCCESS;

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "storing in index %u, at offset %u",
-                 new_pos, new_offset);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);

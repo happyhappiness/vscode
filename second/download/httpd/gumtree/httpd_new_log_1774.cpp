@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "could not read bucket for SSL buffer");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);

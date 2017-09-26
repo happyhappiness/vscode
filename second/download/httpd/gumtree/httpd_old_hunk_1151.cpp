@@ -1,22 +1,13 @@
-    int csd;
-    ap_sb_handle_t *sbh;
+    request_rec *r = f->r;
+    ef_ctx_t *ctx = f->ctx;
+    apr_status_t rv;
 
-    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
-    apr_os_sock_get(&csd, sock);
-
-    if (csd >= FD_SETSIZE) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "new file descriptor %d is too large; you probably need "
-                     "to rebuild Apache with a larger FD_SETSIZE "
-                     "(currently %d)", 
-                     csd, FD_SETSIZE);
-        apr_socket_close(sock);
-        return;
+    if (!ctx) {
+        if ((rv = init_filter_instance(f)) != APR_SUCCESS) {
+            return rv;
+        }
+        ctx = f->ctx;
     }
-
-    current_conn = ap_run_create_connection(p, ap_server_conf, sock,
-                                            conn_id, sbh, bucket_alloc);
-    if (current_conn) {
-        ap_process_connection(current_conn, sock);
-        ap_lingering_close(current_conn);
-    }
+    if (ctx->noop) {
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, bb);

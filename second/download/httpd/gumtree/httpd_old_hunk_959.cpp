@@ -1,20 +1,86 @@
-/* ------------------------------------------------------- */
+                                   NULL,                 // no load svc group
+                                   NULL,                 // no tag identifier
+                                   "Tcpip\0Afd\0",       // dependencies
+                                   NULL,                 // use SYSTEM account
+                                   NULL);                // no password
 
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
+            if (!schService) 
+            {
+                rv = apr_get_os_error();
+                ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                             "Failed to create WinNT Service Profile");
+                CloseServiceHandle(schSCManager);
+                return (rv);
+            }
+        }
+	
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
     }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        /* Store the launch command in the registry */
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -n %s -k runservice", 
+                                 exe_path, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X, 
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv == APR_SUCCESS) {
+            rv = ap_regkey_value_set(key, mpm_service_name, 
+                                     launch_cmd, 0, pconf);
+            ap_regkey_close(key);
+        }
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to add the RunServices registry entry.", 
+                         mpm_display_name);
+            return (rv);
+        }
+
+        apr_snprintf(key_name, sizeof(key_name), SERVICECONFIG, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name, 
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to create the registry service key.", 
+                         mpm_display_name);
+            return (rv);
+        }
+        rv = ap_regkey_value_set(key, "ImagePath", launch_cmd, 0, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to store ImagePath in the registry.", 
+                         mpm_display_name);
+            ap_regkey_close(key);
+            return (rv);
+        }
+        rv = ap_regkey_value_set(key, "DisplayName", 
+                                 mpm_display_name, 0, pconf);
+        ap_regkey_close(key);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to store DisplayName in the registry.", 
+                         mpm_display_name);
+            return (rv);
+        }
     }
+
+    set_service_description();
+
+    /* For both WinNT & Win9x store the service ConfigArgs in the registry...
+     */
+    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name, 
+                        APR_READ | APR_WRITE | APR_CREATE, pconf);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
+        ap_regkey_close(key);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                     "%s: Failed to store the ConfigArgs in the registry.", 
+                     mpm_display_name);
+        return (rv);
+    }
+    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
+    return APR_SUCCESS;
 }
-

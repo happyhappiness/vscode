@@ -1,41 +1,34 @@
-        type_e = CACHE_TYPE_FILE;
-    }
-    else {
-        return DECLINED;
-    }
+        if (d_uri.hostname) {
+            ap_unescape_url(d_uri.hostname);
+        }
+        if (d_uri.path) {
+            ap_unescape_url(d_uri.path);
+        }
+        if (d_uri.query) {
+            ap_unescape_url(d_uri.query);
+        }
+        else if (r_uri.query) {
+            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't 
+             * include the query string in the uri Authorization component
+             * or when computing the response component.  the second part
+             * works out ok, since we can hash the header and get the same
+             * result.  however, the uri from the request line won't match
+             * the uri Authorization component since the header lacks the 
+             * query string, leaving us incompatable with a (broken) MSIE.
+             * 
+             * the workaround is to fake a query string match if in the proper
+             * environment - BrowserMatch MSIE, for example.  the cool thing
+             * is that if MSIE ever fixes itself the simple match ought to 
+             * work and this code won't be reached anyway, even if the
+             * environment is set.
+             */
+            
+            if (apr_table_get(r->subprocess_env, 
+                              "AuthDigestEnableQueryStringHack")) {
+                d_uri.query = r_uri.query;
+            }
+        }
 
-    /*
-     * TODO: Get smarter about managing the cache size. If the cache is 
-     * full, we need to garbage collect stale/infrequently referenced
-     * objects.
-     * we have a self-sizing cache now
-    if (sconf->object_cnt >= sconf->max_object_cnt) {
-        return DECLINED;
-    }
-     */
-    if (type_e == CACHE_TYPE_HEAP) {
-        /* We can safely ignore these measures when caching open fds */
-        if (len < sconf->min_cache_object_size || 
-            len > sconf->max_cache_object_size) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_mem: URL %s failed the size check, "
-                         "or is incomplete", 
-                         key);
-            return DECLINED;
-        }
-        /*
-         * not needed now we have a self-sizing cache.
-        if ((sconf->cache_size + len) > sconf->max_cache_size) {
-            return DECLINED;
-        }
-        */
-    } else {
-        /* CACHE_TYPE_FILE is only valid for local content 
-         * handled by the default handler? 
-         * This is not the right check...
-         */
-        if (!r->filename) {
-            return DECLINED;
-        }
-    }
-
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

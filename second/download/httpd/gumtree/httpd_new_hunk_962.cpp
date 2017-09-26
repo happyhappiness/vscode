@@ -1,28 +1,37 @@
-	apr_file_close(f);
-	exit(0);
-    }
-    else if (argc != 4)
-	usage();
+    return APR_SUCCESS;
+}
 
-    if (apr_file_mktemp(&tfp, tn,
-#ifdef OMIT_DELONCLOSE
-    APR_CREATE | APR_READ | APR_WRITE | APR_EXCL
-#else
-    0
-#endif
-    , cntxt) != APR_SUCCESS) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
 
-    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	cleanup_tempfile_and_exit(1);
-    }
-    strcpy(user, argv[3]);
-    strcpy(realm, argv[2]);
+/* signal_service_transition is a simple thunk to signal the service
+ * and monitor its successful transition.  If the signal passed is 0,
+ * then the caller is assumed to already have performed some service
+ * operation to be monitored (such as StartService), and no actual
+ * ControlService signal is sent.
+ */
 
-    found = 0;
-    while (!(get_line(line, MAX_STRING_LEN, f))) {
+static int signal_service_transition(SC_HANDLE schService, DWORD signal, DWORD pending, DWORD complete)
+{
+    if (signal && !ControlService(schService, signal, &globdat.ssStatus))
+        return FALSE;
+
+    do {
+        Sleep(1000);
+        if (!QueryServiceStatus(schService, &globdat.ssStatus))
+            return FALSE;
+    } while (globdat.ssStatus.dwCurrentState == pending);
+
+    return (globdat.ssStatus.dwCurrentState == complete);
+}
+
+
+apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
+                               const char * const * argv)
+{
+    apr_status_t rv;
+
+    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        char **start_argv;
+        SC_HANDLE   schService;

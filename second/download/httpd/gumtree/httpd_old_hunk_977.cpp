@@ -1,13 +1,14 @@
-                /* client cert is in the session cache, but there is
-                 * no chain, since ssl3_get_client_certificate()
-                 * sk_X509_shift-ed the peer cert out of the chain.
-                 * we put it back here for the purpose of quick_renegotiation.
-                 */
-                cert_stack = sk_new_null();
-                sk_X509_push(cert_stack, cert);
-            }
+}
 
-            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Cannot find peer certificate chain");
+static void join_start_thread(apr_thread_t *start_thread_id)
+{
+    apr_status_t rv, thread_rv;
 
+    start_thread_may_exit = 1; /* tell it to give up in case it is still 
+                                * trying to take over slots from a 
+                                * previous generation
+                                */
+    rv = apr_thread_join(&thread_rv, start_thread_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "apr_thread_join: unable to join the start "

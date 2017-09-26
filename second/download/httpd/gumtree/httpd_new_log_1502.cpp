@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
-                              "ap_listen_open: unable to make socket non-blocking");
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);

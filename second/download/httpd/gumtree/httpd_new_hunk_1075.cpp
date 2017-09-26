@@ -1,32 +1,13 @@
-        apr_socket_close(lr->sd);
-        lr->active = 0;
-        next = lr->next;
+    apr_signal(SIGINT, (void (*)(int)) htdbm_interrupted);
+
+    (*hdbm) = (htdbm_t *)apr_pcalloc(*pool, sizeof(htdbm_t));
+    (*hdbm)->pool = *pool;
+
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&((*hdbm)->to_ascii), "ISO-8859-1", APR_DEFAULT_CHARSET, (*hdbm)->pool);
+    if (rv) {
+        fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", rv);
+        return APR_EGENERAL;
     }
-    old_listeners = NULL;
-
-#if AP_NONBLOCK_WHEN_MULTI_LISTEN
-    /* if multiple listening sockets, make them non-blocking so that
-     * if select()/poll() reports readability for a reset connection that
-     * is already forgotten about by the time we call accept, we won't
-     * be hung until another connection arrives on that port
-     */
-    if (ap_listeners->next) {
-        for (lr = ap_listeners; lr; lr = lr->next) {
-            apr_status_t status;
-
-            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
-            if (status != APR_SUCCESS) {
-                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
-                              "ap_listen_open: unable to make socket non-blocking");
-                return -1;
-            }
-        }
-    }
-#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
-
-    /* we come through here on both passes of the open logs phase
-     * only register the cleanup once... otherwise we try to close
-     * listening sockets twice when cleaning up prior to exec
-     */
-    apr_pool_userdata_get(&data, userdata_key, pool);
-    if (!data) {
+    rv = apr_SHA1InitEBCDIC((*hdbm)->to_ascii);
+    if (rv) {

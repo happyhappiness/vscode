@@ -1,19 +1,67 @@
+
+/*************************************************
+*       Functions for directory scanning         *
+*************************************************/
+
+/* These functions are defined so that they can be made system specific,
+although at present the only ones are for Unix, and for "no directory recursion
+support". */
+
+
+/************* Directory scanning in Unix ***********/
+
+#if IS_UNIX
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
+typedef DIR directory_type;
+
+int
+isdirectory(char *filename)
+{
+struct stat statbuf;
+if (stat(filename, &statbuf) < 0)
+  return 0;        /* In the expectation that opening as a file will fail */
+return ((statbuf.st_mode & S_IFMT) == S_IFDIR)? '/' : 0;
 }
 
-static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                 apr_pool_t *ptemp, server_rec *s)
+directory_type *
+opendirectory(char *filename)
 {
-    int rc = LDAP_SUCCESS;
+return opendir(filename);
+}
 
-    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
-                                                s->module_config, 
-                                                &ldap_module);
+char *
+readdirectory(directory_type *dir)
+{
+for (;;)
+  {
+  struct dirent *dent = readdir(dir);
+  if (dent == NULL) return NULL;
+  if (strcmp(dent->d_name, ".") != 0 && strcmp(dent->d_name, "..") != 0)
+    return dent->d_name;
+  }
+return NULL;   /* Keep compiler happy; never executed */
+}
 
-        /* log the LDAP SDK used 
-        */
-    #if APR_HAS_NETSCAPE_LDAPSDK 
-    
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Netscape LDAP SDK" );
+void
+closedirectory(directory_type *dir)
+{
+closedir(dir);
+}
 
-    #elif APR_HAS_NOVELL_LDAPSDK
+
+#else
+
+
+/************* Directory scanning when we can't do it ***********/
+
+/* The type is void, and apart from isdirectory(), the functions do nothing. */
+
+typedef void directory_type;
+
+int isdirectory(char *filename) { return FALSE; }
+directory_type * opendirectory(char *filename) {}
+char *readdirectory(directory_type *dir) {}
+void closedirectory(directory_type *dir) {}

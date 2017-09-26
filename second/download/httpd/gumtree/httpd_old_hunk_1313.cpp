@@ -1,13 +1,12 @@
-    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_CLOSE_CONNECTION "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
 
-    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
-        /* Returns True if client is connected c.f. MSKB Q188346
-         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
-         */
+        lockname = apr_pstrcat(r->pool, conf->lockpath, dir, "/", lockname, NULL);
+    }
+    return apr_file_remove(lockname, r->pool);
+}
+
+CACHE_DECLARE(int) ap_cache_check_freshness(cache_handle_t *h,
+                                            request_rec *r)
+{
+    apr_status_t status;
+    apr_int64_t age, maxage_req, maxage_cresp, maxage, smaxage, maxstale;
+    apr_int64_t minfresh;

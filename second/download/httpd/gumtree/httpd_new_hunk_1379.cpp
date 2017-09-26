@@ -1,14 +1,18 @@
-void ssl_io_filter_init(conn_rec *c, SSL *ssl)
-{
-    ssl_filter_ctx_t *filter_ctx;
-
-    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
-
-    filter_ctx->config          = myConnConfig(c);
-
-    filter_ctx->nobuffer        = 0;
-    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
-                                                   filter_ctx, NULL, c);
-
-    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
-    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
+        if (ap_process_config_tree(server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        /*
+         * Sort hooks again because ap_process_config_tree may have added
+         * modules and hence hooks. This happens with mod_perl and modules
+         * written in perl.
+         */
+        apr_hook_sort_all();
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }

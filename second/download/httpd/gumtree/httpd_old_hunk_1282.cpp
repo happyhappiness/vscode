@@ -1,25 +1,13 @@
-                 * to have nothing to do with the incoming packet
-                 */
-                r->headers_out = apr_table_make(r->pool,1);
-                r->status = HTTP_BAD_GATEWAY;
-                r->status_line = "bad gateway";
-                return r->status;
+        proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
+        if (!worker) {
+            const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);
+        }
+        PROXY_COPY_CONF_PARAMS(worker, conf);
 
-            } else {
-                /* strip connection listed hop-by-hop headers from response */
-                const char *buf;
-                p_conn->close += ap_proxy_liststr(apr_table_get(r->headers_out,
-                                                                "Connection"),
-                                                  "close");
-                ap_proxy_clear_connection(p, r->headers_out);
-                if ((buf = apr_table_get(r->headers_out, "Content-Type"))) {
-                    ap_set_content_type(r, apr_pstrdup(p, buf));
-                }            
-                ap_proxy_pre_http_request(origin,rp);
-            }
-
-            /* handle Via header in response */
-            if (conf->viaopt != via_off && conf->viaopt != via_block) {
-                /* create a "Via:" response header entry and merge it */
-                apr_table_mergen(r->headers_out, "Via",
-                                 (conf->viaopt == via_full)
+        for (i = 0; i < arr->nelts; i++) {
+            const char *err = set_worker_param(cmd->pool, worker, elts[i].key,

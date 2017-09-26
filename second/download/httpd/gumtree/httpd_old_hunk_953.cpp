@@ -1,77 +1,74 @@
-     */
-    if (context) {
-        apr_pool_clear(context->ptrans);
-        context->next = NULL;
-        ResetEvent(context->Overlapped.hEvent);
-        apr_thread_mutex_lock(qlock);
-        if (qtail)
-            qtail->next = context;
-        else
-            qhead = context;
-        qtail = context;
-        apr_thread_mutex_unlock(qlock);
-    }
+    return (DefWindowProc(hWnd, msg, wParam, lParam));
 }
 
-AP_DECLARE(PCOMP_CONTEXT) mpm_get_completion_context(void)
+static DWORD WINAPI monitor_service_9x_thread(void *service_name)
 {
-    apr_status_t rv;
-    PCOMP_CONTEXT context = NULL;
-
-    /* Grab a context off the queue */
-    apr_thread_mutex_lock(qlock);
-    if (qhead) {
-        context = qhead;
-        qhead = qhead->next;
-        if (!qhead)
-            qtail = NULL;
-    }
-    apr_thread_mutex_unlock(qlock);
-
-    /* If we failed to grab a context off the queue, alloc one out of 
-     * the child pool. There may be up to ap_threads_per_child contexts
-     * in the system at once.
+    /* When running as a service under Windows 9x, there is no console
+     * window present, and no ConsoleCtrlHandler to call when the system 
+     * is shutdown.  If the WatchWindow thread is created with a NULL
+     * service_name argument, then the ...SystemMonitor window class is
+     * used to create the "Apache" window to watch for logoff and shutdown.
+     * If the service_name is provided, the ...ServiceMonitor window class
+     * is used to create the window named by the service_name argument,
+     * and the logoff message is ignored.
      */
-    if (!context) {
-        if (num_completion_contexts >= ap_threads_per_child) {
-            static int reported = 0;
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                             "Server ran out of threads to serve requests. Consider "
-                             "raising the ThreadsPerChild setting");
-                reported = 1;
-            }
-            return NULL;
-        }
-        /* Note:
-         * Multiple failures in the next two steps will cause the pchild pool
-         * to 'leak' storage. I don't think this is worth fixing...
-         */
-        context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
+    WNDCLASS wc;
+    HWND hwndMain;
+    MSG msg;
+    
+    wc.style         = CS_GLOBALCLASS;
+    wc.lpfnWndProc   = monitor_service_9x_proc; 
+    wc.cbClsExtra    = 0;
+    wc.cbWndExtra    = 0; 
+    wc.hInstance     = NULL;
+    wc.hIcon         = NULL;
+    wc.hCursor       = NULL;
+    wc.hbrBackground = NULL;
+    wc.lpszMenuName  = NULL;
+    if (service_name)
+	wc.lpszClassName = "ApacheWin95ServiceMonitor";
+    else
+	wc.lpszClassName = "ApacheWin95SystemMonitor";
+ 
+    die_on_logoff = service_name ? FALSE : TRUE;
 
-        context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (context->Overlapped.hEvent == NULL) {
-            /* Hopefully this is a temporary condition ... */
-            ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
-                         "mpm_get_completion_context: CreateEvent failed.");
-            return NULL;
-        }
-
-        /* Create the tranaction pool */
-        if ((rv = apr_pool_create(&context->ptrans, pchild)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
-                         "mpm_get_completion_context: Failed to create the transaction pool.");
-            CloseHandle(context->Overlapped.hEvent);
-            return NULL;
-        }
-        apr_pool_tag(context->ptrans, "ptrans");
-
-        context->accept_socket = INVALID_SOCKET;
-        context->ba = apr_bucket_alloc_create(pchild);
-        apr_atomic_inc(&num_completion_contexts);
+    if (!RegisterClass(&wc)) 
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), 
+                     NULL, "Could not register window class for WatchWindow");
+        globdat.service_thread_id = 0;
+        return 0;
+    }
+    
+    /* Create an invisible window */
+    hwndMain = CreateWindow(wc.lpszClassName, 
+                            service_name ? (char *) service_name : "Apache",
+ 	                    WS_OVERLAPPEDWINDOW & ~WS_VISIBLE, 
+                            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 
+                            CW_USEDEFAULT, NULL, NULL, NULL, NULL);
+                            
+    if (!hwndMain)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), 
+                     NULL, "Could not create WatchWindow");
+        globdat.service_thread_id = 0;
+        return 0;
     }
 
-    return context;
-}
+    /* If we succeed, eliminate the console window.
+     * Signal the parent we are all set up, and
+     * watch the message queue while the window lives.
+     */
+    FreeConsole();
+    SetEvent(globdat.service_init);
 
-AP_DECLARE(apr_status_t) mpm_post_completion_context(PCOMP_CONTEXT context, 
+    while (GetMessage(&msg, NULL, 0, 0)) 
+    {
+        if (msg.message == WM_CLOSE)
+            DestroyWindow(hwndMain); 
+        else {
+	    TranslateMessage(&msg);
+	    DispatchMessage(&msg);
+        }
+    }
+    globdat.service_thread_id = 0;

@@ -1,18 +1,13 @@
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "cannot redirect '%s' to '%s'; "
-                              "target is not a valid absoluteURI or abs_path",
-                              r->uri, ret);
-            }
-            else {
-                /* append requested query only, if the config didn't
-                 * supply its own.
-                 */
-                if (r->args && !ap_strchr(ret, '?')) {
-                    ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
-                }
-                apr_table_setn(r->headers_out, "Location", ret);
-            }
-        }
-        return status;
-    }
+static apr_status_t pod_signal_internal(ap_pod_t *pod, int graceful)
+{
+    apr_status_t rv;
+    char char_of_death = graceful ? GRACEFUL_CHAR : RESTART_CHAR;
+    apr_size_t one = 1;
 
+    rv = apr_file_write(pod->pod_out, &char_of_death, &one);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "write pipe_of_death");
+    }
+    return rv;
+}

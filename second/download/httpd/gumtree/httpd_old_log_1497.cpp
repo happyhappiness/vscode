@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", description);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %d", lcnt, dwProcessId);

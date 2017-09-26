@@ -1,13 +1,13 @@
-            }
-            if (!printing) {
-                continue;
-            }
-            if (!strcmp(directive, "exec")) {
-                if (noexec) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                                "httpd: exec used but not allowed in %s",
-                                r->filename);
-                    if (printing) {
-                        ap_rputs(error, r);
-                    }
-                    ret = find_string(f, ENDING_SEQUENCE, r, 0);
+                        while (cmd) {
+                            if (cmd->name) {
+                                ap_rprintf(r, "<dd><tt>%s%s - <i>",
+                                           ap_escape_html(r->pool, cmd->name),
+                                           cmd->name[0] == '<' ? "&gt;" : "");
+                                if (cmd->errmsg) {
+                                    ap_rputs(cmd->errmsg, r);
+                                }
+                                ap_rputs("</i></tt></dd>\n", r);
+                            }
+                            else {
+                                break;
+                            }

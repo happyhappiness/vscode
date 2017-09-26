@@ -1,22 +1,18 @@
-                          "make_sock: failed to set SendBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
-            /* not a fatal error */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                              "SSL Proxy: Peer certificate CN mismatch:"
+                              " Certificate CN: %s Requested hostname: %s",
+                              hostname, hostname_note);
+                /* ensure that the SSL structures etc are freed, etc: */
+                ssl_filter_io_shutdown(filter_ctx, c, 1);
+                apr_table_set(c->notes, "SSL_connect_rv", "err");
+                return HTTP_BAD_GATEWAY;
+            }
         }
-    }
-    if (receive_buffer_size) {
-        stat = apr_socket_opt_set(s, APR_SO_RCVBUF, receive_buffer_size);
-        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
-                          "make_sock: failed to set ReceiveBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
-            /* not a fatal error */
-        }
+
+        apr_table_set(c->notes, "SSL_connect_rv", "ok");
+        return APR_SUCCESS;
     }
 
-#if APR_TCP_NODELAY_INHERITED
-    ap_sock_disable_nagle(s);
-#endif
-
-    if ((stat = apr_bind(s, server->bind_addr)) != APR_SUCCESS) {
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                     (filter_ctx->pbioRead->ptr);

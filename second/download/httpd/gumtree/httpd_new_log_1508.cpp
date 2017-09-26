@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Configuration Failed");
+apr_file_printf(errfile, "Error writing temp file: %s" NL, errstr);

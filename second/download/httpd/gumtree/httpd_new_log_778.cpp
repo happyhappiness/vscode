@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: NumServers of %d exceeds ServerLimit value "
-                    "of %d servers,", num_daemons, server_limit);
+ap_rputs("</tt></dt></dl><hr />", r);

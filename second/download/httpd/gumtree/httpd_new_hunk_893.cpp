@@ -1,13 +1,33 @@
-	   "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
-	   trstring, tdstring, tdstring, doclen);
-    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
-	   "<td colspan=2 %s>%d</td></tr>\n",
-	   trstring, tdstring, tdstring, concurrency);
-    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
-	   "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
-	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
-           (long)apr_time_usec(timetaken));
-    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
-	   "<td colspan=2 %s>%ld</td></tr>\n",
-	   trstring, tdstring, tdstring, done);
-    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
+    }
+
+    max_spare_threads = atoi(arg);
+    return NULL;
+}
+
+static const char *set_threads_limit (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_thread_limit = atoi(arg);
+    if (ap_thread_limit > HARD_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: MaxClients of %d exceeds compile time limit "
+                    "of %d servers,", ap_thread_limit, HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering MaxClients to %d.  To increase, please "
+                    "see the", HARD_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " HARD_THREAD_LIMIT define in server/mpm/beos/mpm_default.h.");
+       ap_thread_limit = HARD_THREAD_LIMIT;
+    }
+    else if (ap_thread_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require MaxClients > 0, setting to %d", HARD_THREAD_LIMIT);
+        ap_thread_limit = HARD_THREAD_LIMIT;
+    }
+    return NULL;
+}
+

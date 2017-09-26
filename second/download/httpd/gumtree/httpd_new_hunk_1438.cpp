@@ -1,13 +1,17 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
+    /*
+     *  Check for problematic re-initializations
+     */
+    if (mctx->pks->certs[SSL_AIDX_RSA] ||
+        mctx->pks->certs[SSL_AIDX_DSA]
+#ifndef OPENSSL_NO_EC
+      || mctx->pks->certs[SSL_AIDX_ECC]
+#endif
+        )
     {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die();
+    }

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Invalid signature on CRL");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                         "Reconfigured cipher suite will force renegotiation");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -l                : list compiled in modules");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "exec used but not allowed in %s", r->filename);

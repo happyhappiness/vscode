@@ -1,13 +1,13 @@
-                }
-            }
-        }
-        else {
-            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
-                != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                             "apr_proc_mutex_unlock failed. Attempting to "
-                             "shutdown process gracefully.");
-                signal_threads(ST_GRACEFUL);
-            }
-            break;
-        }
+    else {
+        /* no last slash, buh?! */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "internal error in mod_cern_meta: %s", r->filename);
+        /* should really barf, but hey, let's be friends... */
+        return DECLINED;
+    };
+
+    metafilename = apr_pstrcat(r->pool, scrap_book, "/",
+               dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
+               "/", real_file,
+         dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
+               NULL);

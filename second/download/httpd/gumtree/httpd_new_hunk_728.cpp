@@ -1,44 +1,32 @@
-        
-        CloseServiceHandle(schService);        
-        CloseServiceHandle(schSCManager);
-    }
-    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
-    {
-        apr_status_t rv2, rv3;
-        ap_regkey_t *key;
-        fprintf(stderr,"Removing the %s service\n", mpm_display_name);
+                    ap_rputs(")\n", r);
+                    ap_rprintf(r,
+                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
+                               ap_escape_html(r->pool,
+                                              ws_record->client),
+                               ap_escape_html(r->pool,
+                                              ws_record->request),
+                               ap_escape_html(r->pool,
+                                              ws_record->vhost));
+                }
+                else { /* !no_table_report */
+                    if (ws_record->status == SERVER_DEAD)
+                        ap_rprintf(r,
+                                   "<tr><td><b>%d-%d</b></td><td>-</td><td>%d/%lu/%lu",
+                                   i, (int)worker_generation,
+                                   (int)conn_lres, my_lres, lres);
+                    else
+                        ap_rprintf(r,
+                                   "<tr><td><b>%d-%d</b></td><td>%"
+                                   APR_PID_T_FMT
+                                   "</td><td>%d/%lu/%lu",
+                                   i, (int)worker_generation,
+                                   worker_pid,
+                                   (int)conn_lres,
+                                   my_lres, lres);
 
-        /* TODO: assure the service is stopped before continuing */
-
-        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X, 
-                            APR_READ | APR_WRITE | APR_CREATE, pconf);
-        if (rv == APR_SUCCESS) {
-            rv = ap_regkey_value_remove(key, mpm_service_name, pconf);
-            ap_regkey_close(key);
-        }
-        if (rv != APR_SUCCESS) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "%s: Failed to remove the RunServices registry "
-                         "entry.", mpm_display_name);
-        }
-        
-        /* we blast Services/us, not just the Services/us/Parameters branch */
-        apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
-        rv2 = ap_regkey_remove(AP_REGKEY_LOCAL_MACHINE, key_name, pconf);
-        apr_snprintf(key_name, sizeof(key_name), SERVICECONFIG, mpm_service_name);
-        rv3 = ap_regkey_remove(AP_REGKEY_LOCAL_MACHINE, key_name, pconf);
-        rv2 = (rv2 != APR_SUCCESS) ? rv2 : rv3;
-        if (rv2 != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv2, NULL,
-                         "%s: Failed to remove the service config from the "
-                         "registry.", mpm_display_name);
-        }
-        rv = (rv != APR_SUCCESS) ? rv : rv2;
-        if (rv != APR_SUCCESS)
-            return rv;
-    }
-    fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);
-    return APR_SUCCESS;
-}
-
-
+                    switch (ws_record->status) {
+                    case SERVER_READY:
+                        ap_rputs("</td><td>_", r);
+                        break;
+                    case SERVER_STARTING:
+                        ap_rputs("</td><td><b>S</b>", r);

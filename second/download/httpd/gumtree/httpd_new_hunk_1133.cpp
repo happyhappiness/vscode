@@ -1,36 +1,58 @@
 
-static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+            if (rc == 0)
+                thefile->bufpos = 0;
+        }
+
+        return rc;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "LDAP: SSL trusted certificate authority file - %s", 
-                       file);
-
-    st->cert_auth_file = ap_server_root_relative(cmd->pool, file);
-
-    return(NULL);
+    /* There isn't anything to do if we aren't buffering the output
+     * so just return success.
+     */
+    return APR_SUCCESS; 
 }
 
+struct apr_file_printf_data {
+    apr_vformatter_buff_t vbuff;
+    apr_file_t *fptr;
+    char *buf;
+};
 
-const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
+static int file_printf_flush(apr_vformatter_buff_t *buff)
 {
-    util_ldap_state_t *st = 
-    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-                                              &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+    struct apr_file_printf_data *data = (struct apr_file_printf_data *)buff;
+
+    if (apr_file_write_full(data->fptr, data->buf,
+                            data->vbuff.curpos - data->buf, NULL)) {
+        return -1;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "LDAP: SSL trusted certificate authority file type - %s", 
-                       Type);
+    data->vbuff.curpos = data->buf;
+    return 0;
+}
 
-    if (0 == strcmp("DER_FILE", Type))
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    struct apr_file_printf_data data;
+    va_list ap;
+    int count;
+
+    data.buf = malloc(HUGE_STRING_LEN);
+    if (data.buf == NULL) {
+        return 0;
+    }
+    data.vbuff.curpos = data.buf;
+    data.vbuff.endpos = data.buf + HUGE_STRING_LEN;
+    data.fptr = fptr;
+    va_start(ap, format);
+    count = apr_vformatter(file_printf_flush,
+                           (apr_vformatter_buff_t *)&data, format, ap);
+    /* apr_vformatter does not call flush for the last bits */
+    if (count >= 0) file_printf_flush((apr_vformatter_buff_t *)&data);
+
+    va_end(ap);
+
+    free(data.buf);
+    return count;
+}

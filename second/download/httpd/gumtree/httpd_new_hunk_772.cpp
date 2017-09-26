@@ -1,157 +1,114 @@
-     */
-    if (!cache) {
-        cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-        ap_set_module_config(r->request_config, &cache_module, cache);
+
+    ssl_io_filter_init(c, ssl);
+
+    return APR_SUCCESS;
+}
+
+static const char *ssl_hook_http_scheme(const request_rec *r)
+{
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+
+    if (sc->enabled == SSL_ENABLED_FALSE || sc->enabled == SSL_ENABLED_OPTIONAL) {
+        return NULL;
     }
 
-    /* If we've previously processed and set aside part of this
-     * response, skip the cacheability checks
-     */
-    if (cache->saved_brigade != NULL) {
-        exp = cache->exp;
-        lastmod = cache->lastmod;
-        info = cache->info;
+    return "https";
+}
+
+static apr_port_t ssl_hook_default_port(const request_rec *r)
+{
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+
+    if (sc->enabled == SSL_ENABLED_FALSE || sc->enabled == SSL_ENABLED_OPTIONAL) {
+        return 0;
     }
-    else {
 
-        /*
-         * Pass Data to Cache
-         * ------------------
-         * This section passes the brigades into the cache modules, but only
-         * if the setup section (see below) is complete.
-         */
+    return 443;
+}
 
-        /* have we already run the cachability check and set up the
-         * cached file handle? 
-         */
-        if (cache->in_checked) {
-            /* pass the brigades into the cache, then pass them
-             * up the filter stack
-             */
-            rv = cache_write_entity_body(cache->handle, r, in);
-            if (rv != APR_SUCCESS) {
-                ap_remove_output_filter(f);
-            }
-            return ap_pass_brigade(f->next, in);
-        }
+static int ssl_hook_pre_connection(conn_rec *c, void *csd)
+{
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+    SSLConnRec *sslconn = myConnConfig(c);
 
-        /*
-         * Setup Data in Cache
-         * -------------------
-         * This section opens the cache entity and sets various caching
-         * parameters, and decides whether this URL should be cached at
-         * all. This section is* run before the above section.
-         */
-        info = apr_pcalloc(r->pool, sizeof(cache_info));
+    /*
+     * Immediately stop processing if SSL is disabled for this connection
+     */
+    if (!(sc && (sc->enabled == SSL_ENABLED_TRUE ||
+                 (sslconn && sslconn->is_proxy))))
+    {
+        return DECLINED;
+    }
 
-        /* read expiry date; if a bad date, then leave it so the client can
-         * read it 
-         */
-        exps = apr_table_get(r->headers_out, "Expires");
-        if (exps != NULL) {
-            if (APR_DATE_BAD == (exp = apr_date_parse_http(exps))) {
-                exps = NULL;
-            }
-        }
-        else {
-            exp = APR_DATE_BAD;
-        }
+    /*
+     * Create SSL context
+     */
+    if (!sslconn) {
+        sslconn = ssl_init_connection_ctx(c);
+    }
 
-        /* read the last-modified date; if the date is bad, then delete it */
-        lastmods = apr_table_get(r->headers_out, "Last-Modified");
-        if (lastmods != NULL) {
-            if (APR_DATE_BAD == (lastmod = apr_date_parse_http(lastmods))) {
-                lastmods = NULL;
-            }
-        }
-        else {
-            lastmod = APR_DATE_BAD;
-        }
+    if (sslconn->disabled) {
+        return DECLINED;
+    }
 
-        /* read the etag from the entity */
-        etag = apr_table_get(r->headers_out, "Etag");
+    /*
+     * Remember the connection information for
+     * later access inside callback functions
+     */
 
-        /*
-         * what responses should we not cache?
-         *
-         * At this point we decide based on the response headers whether it
-         * is appropriate _NOT_ to cache the data from the server. There are
-         * a whole lot of conditions that prevent us from caching this data.
-         * They are tested here one by one to be clear and unambiguous. 
-         */
+    ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                  "Connection to child %ld established "
+                  "(server %s)", c->id, sc->vhost_id);
 
-        /* RFC2616 13.4 we are allowed to cache 200, 203, 206, 300, 301 or 410
-         * We don't cache 206, because we don't (yet) cache partial responses.
-         * We include 304 Not Modified here too as this is the origin server
-         * telling us to serve the cached copy.
-         */
-        if ((r->status != HTTP_OK && r->status != HTTP_NON_AUTHORITATIVE
-             && r->status != HTTP_MULTIPLE_CHOICES
-             && r->status != HTTP_MOVED_PERMANENTLY
-             && r->status != HTTP_NOT_MODIFIED)
-            /* if a broken Expires header is present, don't cache it */
-            || (exps != NULL && exp == APR_DATE_BAD)
-            /* if query string present but no expiration time, don't cache it
-             * (RFC 2616/13.9)
-             */
-            || (r->args && exps == NULL)
-            /* if the server said 304 Not Modified but we have no cache
-             * file - pass this untouched to the user agent, it's not for us.
-             */
-            || (r->status == HTTP_NOT_MODIFIED && (NULL == cache->handle))
-            /* 200 OK response from HTTP/1.0 and up without a Last-Modified
-             * header/Etag 
-             */
-            /* XXX mod-include clears last_modified/expires/etags - this
-             * is why we have an optional function for a key-gen ;-) 
-             */
-            || (r->status == HTTP_OK && lastmods == NULL && etag == NULL 
-                && (conf->no_last_mod_ignore ==0))
-            /* HEAD requests */
-            || r->header_only
-            /* RFC2616 14.9.2 Cache-Control: no-store response
-             * indicating do not cache, or stop now if you are
-             * trying to cache it */
-            || ap_cache_liststr(cc_out, "no-store", NULL)
-            /* RFC2616 14.9.1 Cache-Control: private
-             * this object is marked for this user's eyes only. Behave
-             * as a tunnel.
-             */
-            || ap_cache_liststr(cc_out, "private", NULL)
-            /* RFC2616 14.8 Authorisation:
-             * if authorisation is included in the request, we don't cache,
-             * but we can cache if the following exceptions are true:
-             * 1) If Cache-Control: s-maxage is included
-             * 2) If Cache-Control: must-revalidate is included
-             * 3) If Cache-Control: public is included
-             */
-            || (apr_table_get(r->headers_in, "Authorization") != NULL
-                && !(ap_cache_liststr(cc_out, "s-maxage", NULL)
-                     || ap_cache_liststr(cc_out, "must-revalidate", NULL)
-                     || ap_cache_liststr(cc_out, "public", NULL)))
-            /* or we've been asked not to cache it above */
-            || r->no_cache) {
+    return ssl_init_ssl_connection(c);
+}
 
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: response is not cachable");
 
-            /* remove this object from the cache 
-             * BillS Asks.. Why do we need to make this call to remove_url?
-             * leave it in for now..
-             */
-            cache_remove_url(r, cache->types, url);
+static void ssl_hook_Insert_Filter(request_rec *r)
+{
+    SSLSrvConfigRec *sc = mySrvConfig(r->server);
 
-            /* remove this filter from the chain */
-            ap_remove_output_filter(f);
+    if (sc->enabled == SSL_ENABLED_OPTIONAL) {
+        ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);
+    }
+}
 
-            /* ship the data up the stack */
-            return ap_pass_brigade(f->next, in);
-        }
-        cache->in_checked = 1;
-    } /* if cache->saved_brigade==NULL */
+/*
+ *  the module registration phase
+ */
 
-    /* Set the content length if known.  We almost certainly do NOT want to
-     * cache streams with unknown content lengths in the in-memory cache.
-     * Streams with unknown content length should be first cached in the
-     * file system. If they are withing acceptable limits, then they can be 
-     * moved to the in-memory cache.
+static void ssl_register_hooks(apr_pool_t *p)
+{
+    /* ssl_hook_ReadReq needs to use the BrowserMatch settings so must
+     * run after mod_setenvif's post_read_request hook. */
+    static const char *pre_prr[] = { "mod_setenvif.c", NULL };
+
+    ssl_io_filter_register(p);
+
+    ap_hook_pre_connection(ssl_hook_pre_connection,NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_test_config   (ssl_hook_ConfigTest,    NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_config   (ssl_init_Module,        NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_http_scheme   (ssl_hook_http_scheme,   NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_default_port  (ssl_hook_default_port,  NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_pre_config    (ssl_hook_pre_config,    NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_child_init    (ssl_init_Child,         NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_check_user_id (ssl_hook_UserCheck,     NULL,NULL, APR_HOOK_FIRST);
+    ap_hook_fixups        (ssl_hook_Fixup,         NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_access_checker(ssl_hook_Access,        NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_auth_checker  (ssl_hook_Auth,          NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_read_request(ssl_hook_ReadReq, pre_prr,NULL, APR_HOOK_MIDDLE);
+    ap_hook_insert_filter (ssl_hook_Insert_Filter, NULL,NULL, APR_HOOK_MIDDLE);
+/*    ap_hook_handler       (ssl_hook_Upgrade,       NULL,NULL, APR_HOOK_MIDDLE); */
+
+    ssl_var_register();
+
+    APR_REGISTER_OPTIONAL_FN(ssl_proxy_enable);
+    APR_REGISTER_OPTIONAL_FN(ssl_engine_disable);
+
+    APR_REGISTER_OPTIONAL_FN(ssl_extlist_by_oid);
+}
+
+module AP_MODULE_DECLARE_DATA ssl_module = {
+    STANDARD20_MODULE_STUFF,
+    ssl_config_perdir_create,   /* create per-dir    config structures */
+    ssl_config_perdir_merge,    /* merge  per-dir    config structures */

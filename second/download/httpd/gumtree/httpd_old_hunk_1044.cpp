@@ -1,12 +1,12 @@
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "unknown parameter \"%s\" to tag include in %s",
-                            tag, r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-            }
-        }
-    }
-    return 0;
-}
+  case 'h': filenames = FALSE; break;
+  case 'i': options |= PCRE_CASELESS; break;
+  case 'l': filenames_only = TRUE;
+  case 'n': number = TRUE; break;
+  case 'r': recurse = TRUE; break;
+  case 's': silent = TRUE; break;
+  case 'v': invert = TRUE; break;
+  case 'x': whole_lines = TRUE; options |= PCRE_ANCHORED; break;
 
+  case 'V':
+  fprintf(stderr, "pcregrep version %s using ", VERSION);
+  fprintf(stderr, "PCRE version %s\n", pcre_version());

@@ -1,19 +1,33 @@
-                        * the network is up again, and restart the children.
-                        * Ben Hyde noted that temporary ENETDOWN situations
-                        * occur in mobile IP.
-                        */
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
-                            "apr_accept: giving up.");
-                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, 
-                                         bucket_alloc);
-                }
-                else {
-                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
-                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
-                }
-            }
-        }
+    apr_hash_t *res;
+    apr_hash_entry_t *new_vals = NULL;
+    apr_hash_entry_t *iter;
+    apr_hash_entry_t *ent;
+    unsigned int i,j,k;
 
-        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
-        /*
+#if APR_POOL_DEBUG
+    /* we don't copy keys and values, so it's necessary that
+     * overlay->a.pool and base->a.pool have a life span at least
+     * as long as p
+     */
+    if (!apr_pool_is_ancestor(overlay->pool, p)) {
+        fprintf(stderr,
+                "apr_hash_merge: overlay's pool is not an ancestor of p\n");
+        abort();
+    }
+    if (!apr_pool_is_ancestor(base->pool, p)) {
+        fprintf(stderr,
+                "apr_hash_merge: base's pool is not an ancestor of p\n");
+        abort();
+    }
+#endif
+
+    res = apr_palloc(p, sizeof(apr_hash_t));
+    res->pool = p;
+    res->free = NULL;
+    res->hash_func = base->hash_func;
+    res->count = base->count;
+    res->max = (overlay->max > base->max) ? overlay->max : base->max;
+    if (base->count + overlay->count > res->max) {
+        res->max = res->max * 2 + 1;
+    }
+    res->array = alloc_array(res, res->max);

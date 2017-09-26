@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                 "initialize MM %p RMM %p",
-                 mc->pSessionCacheDataMM, mc->pSessionCacheDataRMM);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reduced client verification depth will force "
+                         "renegotiation");

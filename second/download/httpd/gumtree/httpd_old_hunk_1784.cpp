@@ -1,13 +1,22 @@
+                status = apr_pollset_poll(pollset, -1, &numdesc, &pdesc);
+                if (status != APR_SUCCESS) {
+                    if (APR_STATUS_IS_EINTR(status)) {
+                        if (one_process && shutdown_pending) {
+                            return;
+                        }
+                        continue;
+                    }
+                    /* Single Unix documents select as returning errnos
+                     * EBADF, EINTR, and EINVAL... and in none of those
+                     * cases does it make sense to continue.  In fact
+                     * on Linux 2.0.x we seem to end up with EFAULT
+                     * occasionally, and we'd loop forever due to it.
+                     */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status,
+                                 ap_server_conf, "apr_pollset_poll: (listen)");
+                    clean_child_exit(1);
+                }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+                /* We can always use pdesc[0], but sockets at position N
+                 * could end up completely starved of attention in a very
+                 * busy server. Therefore, we round-robin across the

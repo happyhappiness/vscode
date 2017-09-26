@@ -1,21 +1,29 @@
- */
-static const char *mod_auth_ldap_parse_url(cmd_parms *cmd, 
-                                    void *config,
-                                    const char *url)
+        ssl_die();
+    }
+    shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
+    shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "shmcb_init allocated %" APR_SIZE_T_FMT 
+                 " bytes of shared memory",
+                 shm_segsize);
+    if (!shmcb_init_memory(s, shm_segment, shm_segsize)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Failure initialising 'shmcb' shared memory");
+        ssl_die();
+    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Shared memory session cache initialised");
+
+    /* 
+     * Success ... we hack the memory block into place by cheating for
+     * now and stealing a member variable the original shared memory
+     * cache was using. :-)
+     */
+    mc->tSessionCacheDataTable = (table_t *) shm_segment;
+    return;
+}
+
+void ssl_scache_shmcb_kill(server_rec *s)
 {
-    int result;
-    LDAPURLDesc *urld;
-
-    mod_auth_ldap_config_t *sec = config;
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
-	         cmd->server, "[%d] auth_ldap url parse: `%s'", 
-	         getpid(), url);
-
-    result = ldap_url_parse(url, &(urld));
-    if (result != LDAP_SUCCESS) {
-        switch (result) {
-        case LDAP_URL_ERR_NOTLDAP:
-            return "LDAP URL does not begin with ldap://";
-        case LDAP_URL_ERR_NODN:
-            return "LDAP URL does not have a DN";
+    SSLModConfigRec *mc = myModConfig(s);

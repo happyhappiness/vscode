@@ -1,13 +1,13 @@
+            else {
+                /* Something that isn't a HTTP request, unless some future
+                 * edition defines new transfer encodings, is unsupported.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
+            }
+            lenp = NULL;
+        }
+        if (lenp) {
+            char *endstr;
 
-    tn = NULL;
-    signal(SIGINT, (void (*)()) interrupted);
-    if (argc == 4) {
-	if (strcmp(argv[1], "-c"))
-	    usage();
-	if (!(tfp = fopen(argv[2], "w"))) {
-	    fprintf(stderr, "Could not open passwd file %s for writing.\n",
-		    argv[2]);
-	    perror("fopen");
-	    exit(1);
-	}
-	printf("Adding password for %s.\n", argv[3]);

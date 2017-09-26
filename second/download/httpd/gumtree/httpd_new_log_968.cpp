@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require ThreadLimit > 0, setting to 1");
+ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         NULL, "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);

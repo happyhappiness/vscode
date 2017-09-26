@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: driver for %s not available", svr->name);

@@ -1,13 +1,13 @@
-static void show_compile_settings(void)
-{
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u:%u\n",
-           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+    FD_ZERO(&listenfds);
+    for (lr = ap_listeners; lr; lr = lr->next) {
+        if (lr->sd != NULL) {
+            apr_os_sock_get(&nsd, lr->sd);
+            FD_SET(nsd, &listenfds);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "Child %d: Listening on port %d.", my_pid, lr->bind_addr->port);
+        }
+    }
 
-    /* sizeof(foo) is long on some platforms so we might as well
-     * make it long everywhere to keep the printf format
-     * consistent
-     */
-    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
-    printf("Server compiled with....\n");
+    head_listener = ap_listeners;
+
+    while (!shutdown_in_progress) {

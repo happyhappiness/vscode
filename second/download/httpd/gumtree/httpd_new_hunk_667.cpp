@@ -1,21 +1,35 @@
-    struct accept_rec accept_info;
-    void *new_var;
-    int anymatch = 0;
-
-    clean_var_rec(&mime_info);
-
-    if (r->proxyreq || !r->filename 
-                    || !ap_os_is_path_absolute(neg->pool, r->filename)) {
-        return DECLINED;
+    /* Seems IIS does not enforce the requirement for \r\n termination
+     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
+     * ap_scan_script_header_err_strs handles this aspect for us.
+     *
+     * Parse them out, or die trying
+     */
+    if (stat) {
+        cid->r->status = ap_scan_script_header_err_strs(cid->r, NULL,
+                                        &termch, &termarg, stat, head, NULL);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else {
+        cid->r->status = ap_scan_script_header_err_strs(cid->r, NULL,
+                                        &termch, &termarg, head, NULL);
+        if (cid->ecb->dwHttpStatusCode && cid->r->status == HTTP_OK
+                && cid->ecb->dwHttpStatusCode != HTTP_OK) {
+            /* We tried every way to Sunday to get the status...
+             * so now we fall back on dwHttpStatusCode if it appears
+             * ap_scan_script_header fell back on the default code.
+             * Any other results set dwHttpStatusCode to the decoded
+             * status value.
+             */
+            cid->r->status = cid->ecb->dwHttpStatusCode;
+            cid->r->status_line = ap_get_status_line(cid->r->status);
+        }
+        else {
+            cid->ecb->dwHttpStatusCode = cid->r->status;
+        }
+    }
+    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
+        return -1;
     }
 
-    /* Only absolute paths here */
-    if (!(filp = strrchr(r->filename, '/'))) {
-        return DECLINED;
-    }
-    ++filp;
-    prefix_len = strlen(filp);
-
-    if ((status = apr_dir_open(&dirp, neg->dir_name, neg->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                    "cannot read directory for multi: %s", neg->dir_name);
+    /* If only Status was passed, we consumed nothing
+     */

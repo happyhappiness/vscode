@@ -1,19 +1,19 @@
-    r = vr;
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
 
-    /* sure we got r, but don't call ap_log_rerror() because we don't
-     * have r->headers_in and possibly other storage referenced by
-     * ap_log_rerror()
-     */
-    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", 
-#ifdef AP_UNSAFE_ERROR_LOG_UNESCAPED
-                 description
-#else
-                 ap_escape_logitem(pool, description)
-#endif
-                 );
-}
+            return HTTP_FORBIDDEN;
+        }
 
-static int cgid_server(void *data) 
-{ 
-    struct sockaddr_un unix_addr;
-    int sd, sd2, rc;
+        if (ok != 1) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Access to %s denied for %s "
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->connection->remote_ip);
+
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled "
+                          "(see SSL logfile for more details)");

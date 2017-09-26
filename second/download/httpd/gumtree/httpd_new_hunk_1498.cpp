@@ -1,13 +1,13 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+        }
+        else {
+            /* no way to know what type of error occurred */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);
+            return AP_FILTER_ERROR;
+        }
     }
-#elif defined(OS2)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+    else {              /* unusual method (not GET or POST) */
+        if (r->method_number == M_INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid method in request %s", r->the_request);

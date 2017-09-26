@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unable to reconfigure verify locations "
+                          "for client authentication");

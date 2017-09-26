@@ -1,52 +1,40 @@
+                }
+                continue;
             }
-            else if (tok[0] == '*') {
-                /* we may use any variant selection algorithm, configure
-                 * to use the Apache algorithm
-                 */
-                neg->may_choose = 1;
-
-                /* We disable header fiddles on the assumption that a
-                 * client sending Negotiate knows how to send correct
-                 * headers which don't need fiddling.
-                 */
-                neg->dont_fiddle_headers = 1;
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ++err_count;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: Unknown. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                continue;
             }
-        }
-    }
+            err_count = 0;
 
-#ifdef NEG_DEBUG
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-            "dont_fiddle_headers=%d use_rvsa=%d ua_supports_trans=%d "
-            "send_alternates=%d, may_choose=%d",
-            neg->dont_fiddle_headers, neg->use_rvsa,
-            neg->ua_supports_trans, neg->send_alternates, neg->may_choose);
-#endif
-
-}
-
-/* Sometimes clients will give us no Accept info at all; this routine sets
- * up the standard default for that case, and also arranges for us to be
- * willing to run a CGI script if we find one.  (In fact, we set up to
- * dramatically prefer CGI scripts in cases where that's appropriate,
- * e.g., POST or when URI includes query args or extra path info).
- */
-static void maybe_add_default_accepts(negotiation_state *neg,
-                                      int prefer_scripts)
-{
-    accept_rec *new_accept;
-
-    if (!neg->accepts) {
-        neg->accepts = apr_array_make(neg->pool, 4, sizeof(accept_rec));
-
-        new_accept = (accept_rec *) apr_array_push(neg->accepts);
-
-        new_accept->name = "*/*";
-        new_accept->quality = 1.0f;
-        new_accept->level = 0.0f;
-    }
-
-    new_accept = (accept_rec *) apr_array_push(neg->accepts);
-
-    new_accept->name = CGI_MAGIC_TYPE;
-    if (neg->use_rvsa) {
-        new_accept->quality = 0;
+            /* Wait for pending i/o.
+             * Wake up once per second to check for shutdown .
+             * XXX: We should be waiting on exit_event instead of polling
+             */
+            while (1) {
+                rv = WaitForSingleObject(context->Overlapped.hEvent, 1000);
+                if (rv == WAIT_OBJECT_0) {
+                    if (context->accept_socket == INVALID_SOCKET) {
+                        /* socket already closed */
+                        break;
+                    }
+                    if (!GetOverlappedResult((HANDLE)context->accept_socket,
+                                             &context->Overlapped,
+                                             &BytesRead, FALSE)) {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                     apr_get_os_error(), ap_server_conf,
+                             "winnt_accept: Asynchronous AcceptEx failed.");
+                        closesocket(context->accept_socket);
+                        context->accept_socket = INVALID_SOCKET;
+                    }
+                    break;

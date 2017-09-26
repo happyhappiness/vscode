@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "could not setaside bucket for SSL buffer");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);

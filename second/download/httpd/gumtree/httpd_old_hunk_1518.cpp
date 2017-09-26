@@ -1,13 +1,20 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
-    }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
+
+    } while (again);
+
+    return APR_SUCCESS;
 }
+
+typedef struct header_struct {
+    apr_pool_t *pool;
+    apr_bucket_brigade *bb;
+} header_struct;
+
+/* Send a single HTTP header field to the client.  Note that this function
+ * is used in calls to table_do(), so their interfaces are co-dependent.
+ * In other words, don't change this one without checking table_do in alloc.c.
+ * It returns true unless there was a write error of some kind.
+ */
+static int form_header_field(header_struct *h,
+                             const char *fieldname, const char *fieldval)
+{
+#if APR_CHARSET_EBCDIC

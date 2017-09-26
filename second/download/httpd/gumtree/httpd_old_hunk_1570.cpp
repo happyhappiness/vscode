@@ -1,13 +1,13 @@
-		while (groups[0]) {
-		    v = ap_getword(r->pool, &groups, ',');
-		    if (!strcmp(v, w))
-			return OK;
-		}
-	    }
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"user %s not in right group: %s",
-			user, r->filename);
-	    ap_note_basic_auth_failure(r);
-	    return AUTH_REQUIRED;
-	}
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     MODNAME ": Invalid magic file path %s", conf->magicfile);
+        return -1;
     }
+    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED,
+                                APR_OS_DEFAULT, p) != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                     MODNAME ": can't read magic file %s", fname);
+        return -1;
+    }
+
+    /* set up the magic list (empty) */

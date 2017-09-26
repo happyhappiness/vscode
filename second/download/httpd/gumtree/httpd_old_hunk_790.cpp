@@ -1,13 +1,14 @@
-            /*
-             * Now recurse these... we handle errors and subdirectories
-             * via the recursion, which is nice
-             */
-            for (current = 0; current < candidates->nelts; ++current) {
-                fnew = &((fnames *) candidates->elts)[current];
-                fprintf(stderr, " Processing config file: %s\n", fnew->fname);
-                ap_process_resource_config(s, fnew->fname, conftree, p, ptemp);
-            }
-        }
+    SSLConnRec *sslconn = myConnConfig(f->c);
+    apr_bucket *bucket;
 
-        return;
-    }
+    switch (status) {
+      case HTTP_BAD_REQUEST:
+            /* log the situation */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                         f->c->base_server,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, f->c->base_server);
+
+            sslconn->non_ssl_request = 1;
+            ssl_io_filter_disable(sslconn, f);

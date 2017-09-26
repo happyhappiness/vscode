@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
+fprintf(stderr, "%s: could not open config directory %s: %s\n",
+                    ap_server_argv0, path,
+                    apr_strerror(rv, errmsg, sizeof errmsg));

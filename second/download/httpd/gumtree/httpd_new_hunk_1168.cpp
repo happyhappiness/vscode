@@ -1,42 +1,13 @@
-	if (strcmp(argv[1], "-c"))
-	    usage();
-	rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
-
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-	    exit(1);
-	}
-        apr_file_printf(errfile, "Adding password for %s in realm %s.\n", 
-                    argv[4], argv[3]);
-	add_password(argv[4], argv[3], f);
-	apr_file_close(f);
-	exit(0);
-    }
-    else if (argc != 4)
-	usage();
-
-    if (apr_temp_dir_get((const char**)&dirname, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(1);
-    }
-    dirname = apr_psprintf(cntxt, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&tfp, dirname, 0, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
-	exit(1);
+     * that the can and have done so unless they they remove
+     * their decoding from the headers_in T-E list.
+     * XXX: Make this extensible, but in doing so, presume the
+     * encoding has been done by the extensions' handler, and
+     * do not modify add_te_chunked's logic
+     */
+    if (old_te_val && strcasecmp(old_te_val, "chunked") != 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: %s Transfer-Encoding is not supported",
+                     old_te_val);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
-        apr_file_printf(errfile,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-        apr_file_printf(errfile, "Use -c option to create new one.\n");
-	cleanup_tempfile_and_exit(1);
-    }
-    apr_cpystrn(user, argv[3], sizeof(user));
-    apr_cpystrn(realm, argv[2], sizeof(realm));
-
-    found = 0;

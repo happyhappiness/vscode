@@ -1,26 +1,45 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
+         * indicator in the r specifying that the body is coded in the
+         * implementation character set (i.e., the charset of the source
+         * code).  This would get several different types of documents
+         * translated properly: mod_autoindex output, mod_status output,
+         * mod_info output, hard-coded error documents, etc.
+         */
+        strcmp(mime_type, DIR_MAGIC_TYPE) == 0 ||
 #endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    exit(1);
-}
+        strncasecmp(mime_type, "message/", 8) == 0) {
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+            rv = apr_xlate_open(&ctx->xlate,
+                        dc->charset_default, dc->charset_source, f->r->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                              "can't open translation %s->%s",
+                              dc->charset_source, dc->charset_default);
+                ctx->noop = 1;
+            }
+        }
+        else {
+                ctx->noop = 1;
+                if (dc->debug >= DBGLVL_GORY)
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                                  "mime type is %s; no translation selected",
+                                  mime_type);
+            }
+    }
+
+    if (dc->debug >= DBGLVL_GORY) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                     "xlate_out_filter() - "
+                     "charset_source: %s charset_default: %s",
+                     dc && dc->charset_source ? dc->charset_source : "(none)",
+                     dc && dc->charset_default ? dc->charset_default : "(none)");
+    }
+
+    if (!ctx->ran) {  /* filter never ran before */
+        chk_filter_chain(f);
+        ctx->ran = 1;
+    }
+
+    if (ctx->noop) {
+        return ap_pass_brigade(f->next, bb);
+    }
+

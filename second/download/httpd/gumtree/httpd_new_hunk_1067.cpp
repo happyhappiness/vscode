@@ -1,13 +1,17 @@
-		       "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
-                       max_daemons, threaded ? "yes" : "no",
-                       forked ? "yes" : "no");
-            ap_rprintf(r, "<dt><strong>Server Root:</strong> "
-                        "<tt>%s</tt></dt>\n", ap_server_root);
-            ap_rprintf(r, "<dt><strong>Config File:</strong> "
-		       "<tt>%s</tt></dt>\n", ap_conftree->filename);
-            ap_rputs("</dl><hr />", r);
-        }
-        for (modp = ap_top_module; modp; modp = modp->next) {
-            if (!r->args || !strcasecmp(modp->name, r->args)) {
-                ap_rprintf(r, "<dl><dt><a name=\"%s\"><strong>Module Name:</strong> "
-                            "<font size=\"+1\"><tt>%s</tt></font></a></dt>\n",
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#endif
+    exit(EINVAL);
+}
+
+/* ------------------------------------------------------- */
+
+/* split URL into parts */

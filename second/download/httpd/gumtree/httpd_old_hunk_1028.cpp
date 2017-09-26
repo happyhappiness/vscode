@@ -1,13 +1,20 @@
-                    max_clients, ap_daemons_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " and would exceed the ServerLimit value of %d.",
-                    server_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " Automatically lowering MaxClients to %d.  To increase,",
-                    server_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " please see the ServerLimit directive.");
-       ap_daemons_limit = server_limit;
-    } 
-    else if (ap_daemons_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+				const char *val)
+{
+    apr_table_entry_t *elts;
+    apr_uint32_t checksum;
+    int hash;
+
+#ifdef POOL_DEBUG
+    {
+	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
+
+    hash = TABLE_HASH(key);

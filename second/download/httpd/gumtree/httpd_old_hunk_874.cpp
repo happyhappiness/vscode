@@ -1,12 +1,15 @@
-                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
-                      server->bind_addr);
-        apr_socket_close(s);
-        return stat;
+         *
+         * XXX: Could just write first time through too, although
+         *      that may screw up scripts written to do something
+         *      based on the last modification time of the pid file.
+         */
+        ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, p,
+                      apr_psprintf(p, "pid file %s overwritten -- Unclean "
+                                   "shutdown of previous Apache run?",
+                                   fname));
     }
 
-    /*
-     * To send data over high bandwidth-delay connections at full
-     * speed we must force the TCP window to open wide enough to keep the
-     * pipe full.  The default window size on many systems
-     * is only 4kB.  Cross-country WAN connections of 100ms
-     * at 1Mb/s are not impossible for well connected sites.
+    if ((rv = apr_file_open(&pid_file, fname,
+                            APR_WRITE | APR_CREATE | APR_TRUNCATE,
+                            APR_UREAD | APR_UWRITE | APR_GREAD | APR_WREAD, p))
+        != APR_SUCCESS) {

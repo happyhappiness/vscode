@@ -1,18 +1,38 @@
-                mime_info.description = desc;
-            }
-            else if (!strncmp(buffer, "body:", 5)) {
-                char *tag = apr_pstrdup(neg->pool, body);
-                char *eol = strchr(tag, '\0');
-                apr_size_t len = MAX_STRING_LEN;
-                while (--eol >= tag && apr_isspace(*eol))
-                    *eol = '\0';
-                if ((mime_info.body = get_body(buffer, &len, tag, *map)) < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Syntax error in type map, no end tag '%s'"
-                                  "found in %s for Body: content.",
-                                  tag, r->filename);
-                     break;
-                }
-                mime_info.bytes = len;
-                mime_info.file_name = apr_filename_of_pathname(rr->filename);
-            }
+
+        switch (CompKey) {
+        case IOCP_CONNECTION_ACCEPTED:
+            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);
+            break;
+        case IOCP_SHUTDOWN:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        default:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        }
+        break;
+    }
+    apr_atomic_dec32(&g_blocked_threads);
+
+    return context;
+}
+
+
+/*
+ * worker_main()
+ * Main entry point for the worker threads. Worker threads block in
+ * win*_get_connection() awaiting a connection to service.
+ */
+static unsigned int __stdcall worker_main(void *thread_num_val)
+{
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    int thread_num = (int)thread_num_val;
+    ap_sb_handle_t *sbh;
+
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
+
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
+

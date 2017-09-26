@@ -1,39 +1,12 @@
-                     "Parent: Could not create exit event for child process");
-        apr_pool_destroy(ptemp);
-        CloseHandle(waitlist[waitlist_ready]);
-        return -1;
-    }
-
-    if (!env) 
-    {
-        /* Build the env array, only once since it won't change 
-         * for the lifetime of this parent process.
-         */
-        int envc;
-        for (envc = 0; _environ[envc]; ++envc) {
-            ;
+        if (no > 9) {                /* Ordinary character. */
+            if (c == '\\' && (*src == '$' || *src == '&'))
+                src++;
+            len++;
         }
-        env = malloc((envc + 2) * sizeof (char*));
-        memcpy(env, _environ, envc * sizeof (char*));
-        apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
-        env[envc] = pidbuf;
-        env[envc + 1] = NULL;
+        else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
+            len += pmatch[no].rm_eo - pmatch[no].rm_so;
+        }
+
     }
 
-    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to create the child process.");
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Parent: Created child process %d", new_child.pid);
-
-    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
-                              start_mutex, ap_scoreboard_shm,
-                              new_child.hproc, new_child.in)) {
+    dest = dst = apr_pcalloc(p, len + 1);

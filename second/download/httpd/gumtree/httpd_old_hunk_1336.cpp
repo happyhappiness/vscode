@@ -1,18 +1,13 @@
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
-                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
-            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-            return 0;
-        }
-        
-        /* Presume the handle was opened with the CORRECT semantics
-         * for TransmitFile 
-         */
-        if ((rv = apr_os_file_put(&fd, &tf->hFile, 
-                                  APR_READ | APR_XTHREAD, r->pool)) 
-                != APR_SUCCESS) {
-            return 0;
-        }
-        if (tf->BytesToWrite) {
-            fsize = tf->BytesToWrite;
-        }
+                break;
+
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;

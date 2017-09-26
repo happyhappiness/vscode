@@ -1,18 +1,14 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+        return err;
+    }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    /* Throw a warning if we're in <Location> or <Files> */
+    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Useless use of AllowOverride in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    d->override = OR_NONE;
+    while (l[0]) {
+        w = ap_getword_conf(cmd->pool, &l);
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

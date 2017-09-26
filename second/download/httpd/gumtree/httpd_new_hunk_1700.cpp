@@ -1,31 +1,16 @@
 
-    /* Pass one --- direct matches */
+            dobj->tfd = NULL;
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
+            rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile,
+                                  r->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                    "disk_cache: rename tempfile to varyfile failed: %s -> %s",
+                    dobj->tempfile, dobj->hdrsfile);
+                apr_file_remove(dobj->tempfile, r->pool);
+                return rv;
+            }
 
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+            dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+            tmp = regen_key(r->pool, r->headers_in, varray, dobj->name);
+            dobj->prefix = dobj->hdrsfile;

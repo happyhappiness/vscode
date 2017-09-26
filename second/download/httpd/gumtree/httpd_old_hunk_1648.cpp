@@ -1,13 +1,18 @@
-#if defined(WIN32)
-    child_pid = spawnvp(compr[parm->method].argv[0],
-			compr[parm->method].argv);
-    return (child_pid);
-#else
-    execvp(compr[parm->method].argv[0], compr[parm->method].argv);
-    ap_log_error(APLOG_MARK, APLOG_ERR, parm->r->server,
-		MODNAME ": could not execute `%s'.",
-		compr[parm->method].argv[0]);
-    return -1;
-#endif
-}
+     * This replaces the balancers fictional name with the
+     * real hostname of the elected worker.
+     */
+    access_status = rewrite_url(r, *worker, url);
+    /* Add the session route to request notes if present */
+    if (route) {
+        apr_table_setn(r->notes, "session-sticky", (*balancer)->sticky);
+        apr_table_setn(r->notes, "session-route", route);
 
+        /* Add session info to env. */
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_STICKY", (*balancer)->sticky);
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_ROUTE", route);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: BALANCER (%s) worker (%s) rewritten to %s",
+                 (*balancer)->name, (*worker)->name, *url);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-                         "LDAP cache: error while creating a shared memory segment: %s", buf);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out built-in DH parameters for %d-bit "
+                  "authenticated connection", keylen);

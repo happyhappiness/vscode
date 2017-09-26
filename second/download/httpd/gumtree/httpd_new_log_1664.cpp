@@ -1,1 +1,2 @@
-ap_add_output_filter("FIXUP_HEADERS_ERR", NULL, r, r->connection);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Missing URI");

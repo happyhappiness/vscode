@@ -1,13 +1,13 @@
-            ap_rputs(" ", r);
-            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-                if (ar[x]->lm != -1) {
-                    char time_str[MAX_STRING_LEN];
-                    apr_time_exp_t ts;
-                    apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRING_LEN, 
-                                "%d-%b-%Y %H:%M  ", &ts);
-                    ap_rputs(time_str, r);
-                }
-                else {
-                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
-                    ap_rputs("                   ", r);
+    apr_status_t rv;
+
+    pconf = p;
+    ap_server_conf = s;
+
+    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, 
+                     NULL, "no listening sockets available, shutting down");
+	return DONE;
+    }
+
+    if ((rv = ap_mpm_pod_open(pconf, &pod))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,

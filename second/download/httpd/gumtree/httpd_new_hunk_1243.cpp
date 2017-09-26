@@ -1,13 +1,22 @@
-{
-    static int requests_this_child = 0;
-    PCOMP_CONTEXT context = NULL;
-    ap_sb_handle_t *sbh;
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
-    while (1) {
-        conn_rec *c;
-        apr_int32_t disconnected;
-
-        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
-
+                    posting = 1;
+                }
+                else if (postdata) {
+                    exit(r);
+                }
+                break;
+            case 'u':
+                if (posting != 0)
+                    err("Cannot mix PUT and HEAD\n");
+                if (0 == (r = open_postfile(optarg))) {
+                    posting = 2;
+                }
+                else if (postdata) {
+                    exit(r);
+                }
+                break;
+            case 'r':
+                recverrok = 1;
+                break;
+            case 'v':
+                verbosity = atoi(optarg);
+                break;

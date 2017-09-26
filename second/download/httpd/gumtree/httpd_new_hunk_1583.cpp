@@ -1,16 +1,61 @@
-     * waiting for free_proc_chain to cleanup in the middle of an
-     * SSI request -djg
-     */
-    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
-			 (void *) &cld, kill_after_timeout,
-			 &script_out, &script_in, &script_err)) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "couldn't spawn child process: %s", r->filename);
-	ap_table_setn(r->notes, "error-notes", "Couldn't spawn child process");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+static proxy_worker *find_best_bytraffic(proxy_balancer *balancer,
+                                         request_rec *r)
+{
+    int i;
+    apr_off_t mytraffic = 0;
+    apr_off_t curmin = 0;
+    proxy_worker *worker;
+    proxy_worker *mycandidate = NULL;
+    int cur_lbset = 0;
+    int max_lbset = 0;
+    int checking_standby;
+    int checked_standby;
 
-    /* Transfer any put/post args, CERN style...
-     * Note that if a buggy script fails to read everything we throw
-     * at it, or a buggy client sends too much, we get a SIGPIPE, so
-     * we have to ignore SIGPIPE while doing this.  CERN does the same
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bytraffic for BALANCER (%s)",
+                 balancer->name);
+
+    /* First try to see if we have available candidate */
+    do {
+        checking_standby = checked_standby = 0;
+        while (!mycandidate && !checked_standby) {
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+                if (!checking_standby) {    /* first time through */
+                    if (worker->s->lbset > max_lbset)
+                        max_lbset = worker->s->lbset;
+                }
+                if (worker->s->lbset > cur_lbset)
+                    continue;
+                if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(worker) : PROXY_WORKER_IS_STANDBY(worker)) )
+                    continue;
+                /* If the worker is in error state run
+                 * retry on that worker. It will be marked as
+                 * operational if the retry timeout is elapsed.
+                 * The worker might still be unusable, but we try
+                 * anyway.
+                 */
+                if (!PROXY_WORKER_IS_USABLE(worker))
+                    ap_proxy_retry_worker("BALANCER", worker, r->server);
+                /* Take into calculation only the workers that are
+                 * not in error state or not disabled.
+                 */
+                if (PROXY_WORKER_IS_USABLE(worker)) {
+                    mytraffic = (worker->s->transferred/worker->s->lbfactor) +
+                                (worker->s->read/worker->s->lbfactor);
+                    if (!mycandidate || mytraffic < curmin) {
+                        mycandidate = worker;
+                        curmin = mytraffic;
+                    }
+                }
+            }
+            checked_standby = checking_standby++;
+        }
+        cur_lbset++;
+    } while (cur_lbset <= max_lbset && !mycandidate);
+
+    return mycandidate;
+}
+
+/*
+ * How to add additional lbmethods:

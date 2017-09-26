@@ -1,19 +1,26 @@
-    RAISE_SIGSTOP(CGI_CHILD);
-#ifdef DEBUG_CGI
-    fprintf(dbg, "Attempting to exec %s as CGI child (argv0 = %s)\n",
-            r->filename, argv[0]);
-#endif
+    unsigned int optParam;
+    WSAPROTOCOL_INFO SecureProtoInfo;
+    int no = 1;
 
-    if (e_info->prog_type == RUN_AS_CGI) {
-        ap_add_cgi_vars(r);
-    }
-    else /* SSIs want a controlled environment and a special path. */
-    {
-        add_ssi_vars(r, e_info->next);
-    }
-    env = (const char * const *)ap_create_environment(p, r->subprocess_env);
+    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
+        apr_snprintf(addr, sizeof(addr), "address %s port %d",
+                     inet_ntoa(server->sin_addr), ntohs(server->sin_port));
+    else
+        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
 
-#ifdef DEBUG_CGI
-    fprintf(dbg, "Environment: \n");
-    for (i = 0; env[i]; ++i)
-        fprintf(dbg, "'%s'\n", env[i]);
+    /* note that because we're about to slack we don't use psocket */
+    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
+
+    SecureProtoInfo.iAddressFamily = AF_INET;
+    SecureProtoInfo.iSocketType = SOCK_STREAM;
+    SecureProtoInfo.iProtocol = IPPROTO_TCP;
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
+
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+                  (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
+
+    if (s == INVALID_SOCKET) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: failed to get a socket for %s",
+                     addr);
+        return -1;

@@ -1,25 +1,14 @@
-            }
+    proxy_worker *worker = conn->worker;
 
-            cpT = lookup_map(r, mapname, mapkey);
-            if (cpT != NULL) {
-                n = strlen(cpT);
-                if (cpO + n >= newuri + sizeof(newuri)) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-                                 r->server, "insufficient space in "
-                                 "expand_map_lookups, aborting");
-                    return;
-                }
-                memcpy(cpO, cpT, n);
-                cpO += n;
-            }
-            else {
-                n = strlen(defaultvalue);
-                if (cpO + n >= newuri + sizeof(newuri)) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 
-                                 r->server, "insufficient space in "
-                                 "expand_map_lookups, aborting");
-                    return;
-                }
-                memcpy(cpO, defaultvalue, n);
-                cpO += n;
-            }
+    /*
+     * If the connection pool is NULL the worker
+     * cleanup has been run. Just return.
+     */
+    if (!worker->cp)
+        return APR_SUCCESS;
+
+#if APR_HAS_THREADS
+    /* Sanity check: Did we already return the pooled connection? */
+    if (conn->inreslist) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool,
+                      "proxy: Pooled connection 0x%pp for worker %s has been"

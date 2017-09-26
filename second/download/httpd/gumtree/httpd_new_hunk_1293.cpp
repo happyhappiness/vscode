@@ -1,12 +1,51 @@
-        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
-        char buf[120];
-        /* Something bad happened, give up and go away. */
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "piped_log_spawn: unable to setup child process '%s': %s",
-                     pl->program, apr_strerror(status, buf, sizeof(buf)));
+    );
+
+    exit(1);
+}
+#undef NL
+
+static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
+{
+    apr_status_t status;
+    char errmsg[120];
+    pid_t mypid = getpid();
+
+    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
+                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
+                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
+                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
+        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
     }
     else {
-        char **args;
-        const char *pname;
+        if (errfile) {
+            apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename, 
+                            apr_strerror(status, errmsg, sizeof errmsg));
+        }
+        exit(1);
+    }
+}
 
-        apr_tokenize_to_argv(pl->program, &args, pl->p);
+/*
+ * main
+ */
+int main(int argc, const char * const argv[])
+{
+    apr_off_t max;
+    apr_time_t current, repeat, delay, previous;
+    apr_status_t status;
+    apr_pool_t *pool, *instance;
+    apr_getopt_t *o;
+    apr_finfo_t info;
+    apr_file_t *pidfile;
+    int retries, isdaemon, limit_found, intelligent, dowork;
+    char opt;
+    const char *arg;
+    char *proxypath, *path, *pidfilename;
+    char errmsg[1024];
+
+    interrupted = 0;
+    repeat = 0;
+    isdaemon = 0;
+    dryrun = 0;

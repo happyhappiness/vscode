@@ -1,43 +1,13 @@
-}
-
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    if (!one_process) {
-	sa.sa_handler = sig_coredump;
-#if defined(SA_ONESHOT)
-	sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-	sa.sa_flags = SA_RESETHAND;
-#endif
-	if (sigaction(SIGSEGV, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-	if (sigaction(SIGBUS, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-	if (sigaction(SIGABORT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
+        return rv;
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+
+    /* TerminateExtension() is an optional interface */
+    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
+                     "TerminateExtension");
+    SetLastError(0);
+
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s",

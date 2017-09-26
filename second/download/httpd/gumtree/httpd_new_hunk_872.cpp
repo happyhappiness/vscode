@@ -1,83 +1,39 @@
-            if (nvec_trailers) {
-                hdtr.numtrailers = nvec_trailers;
-                hdtr.trailers = vec_trailers;
-            }
+        }
+    }
 
-#if APR_HAS_SENDFILE
-            if (apr_file_flags_get(fd) & APR_SENDFILE_ENABLED) {
+    return OK;
+}
 
-                if (c->keepalive == AP_CONN_CLOSE && APR_BUCKET_IS_EOS(last_e)) {
-                    /* Prepare the socket to be reused */
-                    flags |= APR_SENDFILE_DISCONNECT_SOCKET;
-                }
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */,
+                 apr_pool_t *ptemp, server_rec *s_main)
+{
+    apr_status_t rc = APR_SUCCESS;
+    server_rec *virt, *q;
+    int replace_stderr;
+    apr_file_t *errfile = NULL;
 
-                rv = sendfile_it_all(net,      /* the network information   */
-                                     fd,       /* the file to send          */
-                                     &hdtr,    /* header and trailer iovecs */
-                                     foffset,  /* offset in the file to begin
-                                                  sending from              */
-                                     flen,     /* length of file            */
-                                     nbytes + flen, /* total length including
-                                                       headers              */
-                                     &bytes_sent,   /* how many bytes were
-                                                       sent                 */
-                                     flags);   /* apr_sendfile flags        */
+    apr_pool_cleanup_register(p, NULL, clear_handle_list,
+                              apr_pool_cleanup_null);
+    if (open_error_log(s_main, p) != OK) {
+        return DONE;
+    }
 
-                if (logio_add_bytes_out && bytes_sent > 0)
-                    logio_add_bytes_out(c, bytes_sent);
-            }
-            else
-#endif
-            {
-                rv = emulate_sendfile(net, fd, &hdtr, foffset, flen,
-                                      &bytes_sent);
-
-                if (logio_add_bytes_out && bytes_sent > 0)
-                    logio_add_bytes_out(c, bytes_sent);
-            }
-
-            fd = NULL;
+    replace_stderr = 1;
+    if (s_main->error_log) {
+        /* replace stderr with this new log */
+        apr_file_flush(s_main->error_log);
+        if ((rc = apr_file_open_stderr(&errfile, p)) == APR_SUCCESS) {
+            rc = apr_file_dup2(errfile, s_main->error_log, p);
+        }
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
+                         "unable to replace stderr with error_log");
         }
         else {
-            apr_size_t bytes_sent;
-
-            rv = writev_it_all(net->client_socket,
-                               vec, nvec,
-                               nbytes, &bytes_sent);
-
-            if (logio_add_bytes_out && bytes_sent > 0)
-                logio_add_bytes_out(c, bytes_sent);
+            replace_stderr = 0;
         }
-
-        apr_brigade_destroy(b);
-        
-        /* drive cleanups for resources which were set aside 
-         * this may occur before or after termination of the request which
-         * created the resource
-         */
-        if (ctx->deferred_write_pool) {
-            if (more && more->p == ctx->deferred_write_pool) {
-                /* "more" belongs to the deferred_write_pool,
-                 * which is about to be cleared.
-                 */
-                if (APR_BRIGADE_EMPTY(more)) {
-                    more = NULL;
-                }
-                else {
-                    /* uh oh... change more's lifetime 
-                     * to the input brigade's lifetime 
-                     */
-                    apr_bucket_brigade *tmp_more = more;
-                    more = NULL;
-                    ap_save_brigade(f, &more, &tmp_more, input_pool);
-                }
-            }
-            apr_pool_clear(ctx->deferred_write_pool);  
-        }
-
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "core_output_filter: writing data to the network");
-
-            if (more)
-                apr_brigade_destroy(more);
+    }
+    /* note that stderr may still need to be replaced with something
+     * because it points to the old error log, or back to the tty
+     * of the submitter.
+     * XXX: This is BS - /dev/null is non-portable

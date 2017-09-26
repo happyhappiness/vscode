@@ -1,13 +1,17 @@
-#endif
-#ifdef    S_IFLNK
-    case S_IFLNK:
-	/* We used stat(), the only possible reason for this is that the
-	 * symlink is broken.
-	 */
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r,
-		    MODNAME ": broken symlink (%s)", fn);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif
-#ifdef    S_IFSOCK
-#ifndef __COHERENT__
-    case S_IFSOCK:
+    if (dmsg == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination msg is null");
+        return AJP_EINVAL;
+    }
+
+    if (smsg->len > smsg->max_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination buffer too "
+                     "small %" APR_SIZE_T_FMT ", max size is %" APR_SIZE_T_FMT,
+                     smsg->len, smsg->max_size);
+        return  AJP_ETOSMALL;
+    }
+
+    memcpy(dmsg->buf, smsg->buf, smsg->len);
+    dmsg->len = smsg->len;
+    dmsg->pos = smsg->pos;

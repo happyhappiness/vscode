@@ -1,26 +1,31 @@
+    /*
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
 
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-	ap_cfg_closefile(f);
-
-	if (errmsg) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r->server, "%s: %s",
-                        filename, errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*result = dc;
+    if (backend_failed || output_failed) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: Processing of request failed backend: %i, "
+                     "output: %i", backend_failed, output_failed);
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
     }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    return HTTP_FORBIDDEN;
-	}
+    else if (!request_ended) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: Processing of request didn't terminate cleanly");
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        backend_failed = 1;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
     }
-
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+    else if (!conn_reuse) {
+        /* Our backend signalled connection close */
+        conn->close++;

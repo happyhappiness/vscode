@@ -1,13 +1,35 @@
-             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Ins/Rem</b></font></td>"
-             "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Purges</b></font></td>"
-             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg Purge Time</b></font></td>"
-             "</tr>\n", r
-            );
+#include <stdio.h>
+#include <string.h>
+#include <pcre.h>
 
-    ap_rputs(util_ald_cache_display(r->pool), r);
+/* Compile thuswise:
+  gcc -Wall pcredemo.c -I/opt/local/include -L/opt/local/lib \
+    -R/opt/local/lib -lpcre
+*/
 
-    ap_rputs("</table>\n</p>\n", r);
+#define OVECCOUNT 30    /* should be a multiple of 3 */
 
-    return OK;
-}
+int main(int argc, char **argv)
+{
+pcre *re;
+const char *error;
+int erroffset;
+int ovector[OVECCOUNT];
+int rc, i;
 
+if (argc != 3)
+  {
+  printf("Two arguments required: a regex and a subject string\n");
+  return 1;
+  }
+
+/* Compile the regular expression in the first argument */
+
+re = pcre_compile(
+  argv[1],              /* the pattern */
+  0,                    /* default options */
+  &error,               /* for error message */
+  &erroffset,           /* for error offset */
+  NULL);                /* use default character tables */
+
+/* Compilation failed: print the error message and exit */

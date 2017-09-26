@@ -1,1 +1,0 @@
-apr_err("apr_pollset_create failed", status);

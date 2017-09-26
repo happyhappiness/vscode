@@ -1,13 +1,13 @@
-{
-    register unsigned long l = m->value.l;
-    register unsigned long v;
-    int matched;
+    if (!*balancer &&
+        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
+        return DECLINED;
 
-    if ((m->value.s[0] == 'x') && (m->value.s[1] == '\0')) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-		    MODNAME ": BOINK");
-	return 1;
-    }
+    /* Step 2: find the session route */
 
-    switch (m->type) {
-    case BYTE:
+    runtime = find_session_route(*balancer, r, &route, url);
+    /* Lock the LoadBalancer
+     * XXX: perhaps we need the process lock here
+     */
+    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",

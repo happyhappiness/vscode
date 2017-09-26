@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server,
-                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error_fmt, tag_val,
+                          r->filename);

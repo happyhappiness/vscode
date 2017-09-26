@@ -1,20 +1,19 @@
-/* ------------------------------------------------------- */
-
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.116 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
+	    m = m->next;
+	}
+#if MIME_MAGIC_DEBUG
+	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		    MODNAME ": matched after %d rules", rule_counter);
+#endif
+        return 1;  /* all through */
     }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.116 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+		MODNAME ": failed after %d rules", rule_counter);
+#endif
+    return 0;  /* no match at all */
 }
 
+static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
+{
+    char *pp;
+    unsigned long v;

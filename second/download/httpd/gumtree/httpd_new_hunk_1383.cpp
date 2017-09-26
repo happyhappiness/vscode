@@ -1,14 +1,13 @@
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
+
+    if (r->proto_num < 1001) {
+        /* don't send interim response to HTTP/1.0 Client */
+        return;
+    }
+    if (!ap_is_HTTP_INFO(r->status)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Status is %d - not sending interim response", r->status);
+        return;
     }
 
-    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
-    /* set "NUL" as sysout for the child */
-    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
-    }
+    /* if we send an interim response, we're no longer in a state of
+     * expecting one.  Also, this could feasibly be in a subrequest,

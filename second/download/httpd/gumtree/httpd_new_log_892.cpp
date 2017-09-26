@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");

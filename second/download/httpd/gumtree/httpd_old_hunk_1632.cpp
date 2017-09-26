@@ -1,13 +1,13 @@
-		    frag = req_dat->tail;
-		    break;
-		}
-		else {
-		    /* should not be possible */
-		    /* abandon malfunctioning module */
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, r->server,
-				MODNAME ": bad state %d (ws)", state);
-		    return DECLINED;
-		}
-		/* NOTREACHED */
-	    }
-	    else if (state == rsl_type &&
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_read_header: ajp_msg_reuse failed");
+            return rc;
+        }
+    }
+    else {
+        rc = ajp_msg_create(r->pool, msg);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_read_header: ajp_msg_create failed");
+            return rc;
+        }
+    }

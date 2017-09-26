@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't create unix domain socket");
+ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);

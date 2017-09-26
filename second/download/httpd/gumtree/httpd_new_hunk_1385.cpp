@@ -1,12 +1,20 @@
-            && (service_to_start_success != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
-                     "%s: Unable to start the service manager.",
-                     service_name);
-        exit(APEXIT_INIT);
+    disk_cache_object_t *dobj;
+
+    if (conf->cache_root == NULL) {
+        return DECLINED;
     }
 
-    /* Win9x: disable AcceptEx */
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
-        use_acceptex = 0;
+    /* we don't support caching of range requests (yet) */
+    if (r->status == HTTP_PARTIAL_CONTENT) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s partial content response not cached",
+                     key);
+        return DECLINED;
     }
+
+    /* Allocate and initialize cache_object_t and disk_cache_object_t */
+    h->cache_obj = obj = apr_pcalloc(r->pool, sizeof(*obj));
+    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
+
+    obj->key = apr_pstrdup(r->pool, key);
 

@@ -1,35 +1,15 @@
-    else {
-        frec = apr_palloc(FILTER_POOL, sizeof(*frec));
-        node->frec = frec;
-        frec->name = normalized_name;
+        return DECLINED;
     }
-    frec->filter_func = filter_func;
-    frec->ftype = ftype;
-    
-    apr_pool_cleanup_register(FILTER_POOL, NULL, filter_cleanup, 
-                              apr_pool_cleanup_null);
-    return frec;
-}
 
-AP_DECLARE(ap_filter_rec_t *) ap_register_input_filter(const char *name,
-                                          ap_in_filter_func filter_func,
-                                          ap_filter_type ftype)
-{
-    ap_filter_func f;
-    f.in_func = filter_func;
-    return register_filter(name, f, ftype, &registered_input_filters);
-}                                                                    
+    if (!(id = apr_table_get(r->subprocess_env, "UNIQUE_ID"))) {
+        /* we make the assumption that we can't go through all the PIDs in
+           under 1 second */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "mod_log_forensic: mod_unique_id must also be active");
+	return DECLINED;
+    }
+    ap_set_module_config(r->request_config, &log_forensic_module, (char *)id);
 
-AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
-                                           ap_out_filter_func filter_func,
-                                           ap_filter_type ftype)
-{
-    ap_filter_func f;
-    f.out_func = filter_func;
-    return register_filter(name, f, ftype, &registered_output_filters);
-}
+    h.p = r->pool;
+    h.count = 0;
 
-static ap_filter_t *add_any_filter_handle(ap_filter_rec_t *frec, void *ctx, 
-                                          request_rec *r, conn_rec *c, 
-                                          ap_filter_t **r_filters,
-                                          ap_filter_t **p_filters,
