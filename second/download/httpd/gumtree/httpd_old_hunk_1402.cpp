@@ -1,13 +1,35 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
+    }
+
+    if (sick_child_detected) {
+        if (active_thread_count > 0) {
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
+             */
+            sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case.  give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
+
+    ap_max_daemons_limit = last_non_dead + 1;

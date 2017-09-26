@@ -1,21 +1,15 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+    /* Try to find existing worker */
+    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
+    if (!worker) {
+        const char *err;
+        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+    } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);
     }
+    PROXY_COPY_CONF_PARAMS(worker, conf);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;
+    for (i = 0; i < arr->nelts; i++) {

@@ -1,2 +1,1 @@
-printf("Server loaded:  APR %s, APR-UTIL %s\n",
-           apr_version_string(), apu_version_string());
+printf("Server version: %s\n", ap_get_server_description());

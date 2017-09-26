@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
-
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+            || npent[j].name[0] == '*') {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: connect to remote machine %s blocked: name %s matched", uri_addr->hostname, npent[j].name);
+            return HTTP_FORBIDDEN;
+        }
+        while (conf_addr) {
+            uri_addr = src_uri_addr;
+            while (uri_addr) {
+                char *conf_ip;
+                char *uri_ip;
+                apr_sockaddr_ip_get(&conf_ip, conf_addr);
+                apr_sockaddr_ip_get(&uri_ip, uri_addr);
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

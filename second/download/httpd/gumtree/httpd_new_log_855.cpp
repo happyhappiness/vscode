@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-		"Server built: %s", ap_get_server_built());
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: has released connection for (%s)",
+                 proxy_function, conn->worker->hostname);

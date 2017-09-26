@@ -1,25 +1,14 @@
+    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
+        /* The AJP protocol does not want body data yet */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: request is chunked");
+    } else {
+        /* Get client provided Content-Length header */
+        content_length = get_content_length(r);
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                maxsize - AJP_HEADER_SZ);
 
-    if (mc->szCryptoDevice) {
-        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to load Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
-
-        if (strEQ(mc->szCryptoDevice, "chil")) {
-            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
-        }
-
-        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to enable Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
-
-        ENGINE_free(e);
-    }
-}
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: TRACE with request body is not allowed");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",
+                     (*balancer)->name);

@@ -1,22 +1,13 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+    if (!r->assbackwards) {
+        const char *tenc;
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;

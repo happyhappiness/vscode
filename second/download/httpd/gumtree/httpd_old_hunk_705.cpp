@@ -1,12 +1,13 @@
-    sconf->sd2 = socks[1];
+    }
 
-    for (i = 0; i < num_daemons; i++) {
-        if (u == child_info_table[i].uid && g == child_info_table[i].gid) {
-            child_info_table[i].sd = sconf->sd;
-            matching++;
+    if (sbuf && *sbuf)
+        apr_file_printf(f, "%s\n", sbuf);
+
+    first = 1;
+    APR_BRIGADE_FOREACH(e, bb) {
+        if (APR_BUCKET_IS_EOS(e)) {
+            break;
         }
-    }
-
-    if (!matching) {
-        return "Unable to find process with matching uid/gid.";
-    }
+        rv = apr_bucket_read(e, &buf, &len, APR_BLOCK_READ);
+        if (rv != APR_SUCCESS || (len == 0)) {
+            break;

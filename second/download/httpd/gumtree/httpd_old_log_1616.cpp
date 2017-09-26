@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                             r->server,
-                             "cache: conditional - add cache_in filter and "
-                             "DECLINE");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Custom error page caused AP_FILTER_ERROR");

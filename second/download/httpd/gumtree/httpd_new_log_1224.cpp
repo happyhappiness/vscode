@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                            "invalid transfer log path %s.", name);
+fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);

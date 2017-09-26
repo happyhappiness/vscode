@@ -1,20 +1,25 @@
-/* ------------------------------------------------------- */
+     */
+    cookie_table = apr_table_make(r->pool, 2);
+    apr_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
 
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.12 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
-    }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
-}
+    while (1) {
 
+        int rv = (*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data);
+        if (rv == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "Premature end of script headers: %s",
+                          apr_filepath_name_get(r->filename));
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        else if (rv == -1) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "Script timed out before returning headers: %s",
+                          apr_filepath_name_get(r->filename));
+            return HTTP_GATEWAY_TIME_OUT;
+        }
+
+        /* Delete terminal (CR?)LF */
+
+        p = strlen(w);
+             /* Indeed, the host's '\n':
+                '\012' for UNIX; '\015' for MacOS; '\025' for OS/390

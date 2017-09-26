@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
-            "make_secure_socket: failed to get a socket for %s", addr);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "Limiting internal redirects to very low numbers may "
-                     "cause normal requests to fail.");
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  Check your 'Require' directive"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

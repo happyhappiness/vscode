@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid header");

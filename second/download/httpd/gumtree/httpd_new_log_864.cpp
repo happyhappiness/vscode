@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    " HARD_THREAD_LIMIT define in %s.",
-                    AP_MPM_HARD_LIMITS_FILE);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+            "ap_proxy_connect_backend disabling worker for (%s)",
+            worker->hostname);

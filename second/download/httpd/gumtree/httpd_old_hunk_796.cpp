@@ -1,17 +1,21 @@
-            destroy_and_exit_process(process, exit_status);
-        }
-    }
-
-    apr_pool_clear(plog);
-
-    /* It is assumed that if you are going to fail the open_logs phase, then
-     * you will print out your own message that explains what has gone wrong.
-     * The server doesn't need to do that for you.
+     * Make really sure that when a peer certificate
+     * is required we really got one... (be paranoid)
      */
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        destroy_and_exit_process(process, 1);
+    if ((sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE) &&
+        !sslconn->client_cert)
+    {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
+                     "No acceptable peer certificate available");
+
+        return ssl_filter_io_shutdown(filter_ctx, c, 1);
     }
 
-    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Configuration Failed\n");
+    return APR_SUCCESS;
+}
+
+static apr_status_t ssl_io_filter_input(ap_filter_t *f,
+                                        apr_bucket_brigade *bb,
+                                        ap_input_mode_t mode,
+                                        apr_read_type_e block,
+                                        apr_off_t readbytes)
+{

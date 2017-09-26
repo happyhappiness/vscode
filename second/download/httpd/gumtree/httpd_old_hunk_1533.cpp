@@ -1,13 +1,13 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
 
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r->server,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
+    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+        /* Client tried to authenticate using wrong auth scheme */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client used wrong authentication scheme: %s", r->uri);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
 
-    return HTTP_MOVED_PERMANENTLY;
+    while (*auth_line == ' ' || *auth_line == '\t') {

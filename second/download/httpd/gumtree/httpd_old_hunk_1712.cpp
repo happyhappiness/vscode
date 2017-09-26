@@ -1,22 +1,15 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+{
+    autoindex_config_rec *d;
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    d = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                      &autoindex_module);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
+    ap_rvputs(r, xhtml ? DOCTYPE_XHTML_1_0T : DOCTYPE_HTML_3_2,
+              "<html>\n <head>\n  <title>Index of ", title,
+              "</title>\n", NULL);
+    if (d->style_sheet != NULL) {
+        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
+                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
     }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    ap_rvputs(r, " </head>\n <body>\n", NULL);
+}

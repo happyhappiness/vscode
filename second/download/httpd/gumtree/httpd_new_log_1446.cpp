@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "data size too large for DBM session cache: %d >= %d",
-                 (idlen + nData), PAIRMAX);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k install|config|uninstall] [-n service_name]",
+                 pad_len, " ");

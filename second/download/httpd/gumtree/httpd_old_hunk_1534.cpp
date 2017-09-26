@@ -1,13 +1,12 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
 
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
-    }
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+/*****************************************************************************
+ * run-time vhost matching functions
+ */
+
+/* Lowercase and remove any trailing dot and/or :port from the hostname,
+ * and check that it is sane.
+ *
+ * In most configurations the exact syntax of the hostname isn't
+ * important so strict sanity checking isn't necessary. However, in
+ * mass hosting setups (using mod_vhost_alias or mod_rewrite) where

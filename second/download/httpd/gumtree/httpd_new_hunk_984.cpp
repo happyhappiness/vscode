@@ -1,28 +1,27 @@
-{
-    int file_req = (r->main && r->filename);
-    int access_status;
+    /* advance to the next generation */
+    /* XXX: we really need to make sure this new generation number isn't in
+     * use by any of the children.
+     */
+    ++ap_my_generation;
+    ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    /* Ignore embedded %2F's in path for proxy requests */
-    if (!r->proxyreq && r->parsed_uri.path) {
-        core_dir_config *d;
-        d = ap_get_module_config(r->per_dir_config, &core_module);
-        if (d->allow_encoded_slashes) {
-            access_status = ap_unescape_url_keep2f(r->parsed_uri.path);
-        }
-        else {
-            access_status = ap_unescape_url(r->parsed_uri.path);
-        }
-        if (access_status) {
-            if (access_status == HTTP_NOT_FOUND) {
-                if (! d->allow_encoded_slashes) {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                                  "found %%2f (encoded '/') in URI "
-                                  "(decoded='%s'), returning 404",
-                                  r->parsed_uri.path);
-                }
-            }
-            return access_status;
-        }
+    if (is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
+
+
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
+
     }
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, FALSE);
 
-    ap_getparents(r->uri);     /* OK --- shrinking transformations... */
+        ap_reclaim_child_processes(1);                /* Start with SIGTERM */

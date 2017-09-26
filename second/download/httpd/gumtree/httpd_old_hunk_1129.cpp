@@ -1,14 +1,14 @@
-                                  "require dn: authorisation successful", getpid());
-                    return OK;
-                }
-                default: {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                                  "[%d] auth_ldap authorise: "
-                                  "require dn: LDAP error [%s][%s]",
-                                  getpid(), ldc->reason, ldap_err2string(result));
-                }
-            }
-        }
-        else if (strcmp(w, "group") == 0) {
-            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-            int i;
+
+        rv = connection_constructor((void **)&(worker->cp->conn), worker, worker->cp->pool);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+             "proxy: initialized single connection worker %d in child %" APR_PID_T_FMT " for (%s)",
+             worker->id, getpid(), worker->hostname);
+    }
+    if (rv == APR_SUCCESS)
+        worker->s->status |= (worker->status | PROXY_WORKER_INITIALIZED);
+    return rv;
+}
+
+PROXY_DECLARE(int) ap_proxy_retry_worker(const char *proxy_function,
+                                         proxy_worker *worker,
+                                         server_rec *s)

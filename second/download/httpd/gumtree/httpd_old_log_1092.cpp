@@ -1,1 +1,3 @@
-ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter, AP_FTYPE_CONTENT_SET);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                          "Request header exceeds LimitRequestFieldSize: "
+                          "%.*s", field_name_len(field), field);

@@ -1,13 +1,13 @@
-	    const char *orig_groups, *groups;
-	    char *v;
+        apr_bucket *bucket;
 
-	    if (!(groups = get_db_grp(r, user, sec->auth_dbgrpfile))) {
-		if (!(sec->auth_dbauthoritative))
-		    return DECLINED;
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			    "user %s not in DB group file %s: %s",
-			    user, sec->auth_dbgrpfile, r->filename);
-		ap_note_basic_auth_failure(r);
-		return AUTH_REQUIRED;
-	    }
-	    orig_groups = groups;
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {

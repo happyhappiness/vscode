@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");

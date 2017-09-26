@@ -1,5 +1,1 @@
-cache_conditional_filter_handle =
-        ap_register_output_filter("CACHE_CONDITIONAL", 
-                                  cache_conditional_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET);
+fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");

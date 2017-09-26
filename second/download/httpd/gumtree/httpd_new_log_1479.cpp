@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "missing closing endif directive in parsed document"
-                          " %s", r->filename);
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);

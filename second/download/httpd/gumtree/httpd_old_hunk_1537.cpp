@@ -1,24 +1,21 @@
-		ap_proxy_send_headers(r, c->resp_line, c->hdrs);
-		ap_kill_timeout(r);
-	    }
-	    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-	    r->sent_bodyct = 1;
-	    if (!r->header_only)
-		ap_proxy_send_fb(c->fp, r, NULL, NULL);
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
+#ifndef OPENSSL_NO_SSL2
+#define SSL2_HELP_MSG "SSL2, "
+#else
+#define SSL2_HELP_MSG ""
+#endif
 
-		if (curpos == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    return OK;
-	}
+#ifdef HAVE_TLSV1_X
+#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
+#else
+#define TLS1_X_HELP_MSG ""
+#endif
+
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n"); 
+    fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+#endif
+    exit(EINVAL);
+}
+
+/* ------------------------------------------------------- */
+

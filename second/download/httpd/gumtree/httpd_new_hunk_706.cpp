@@ -1,13 +1,25 @@
-                     NULL, "no listening sockets available, shutting down");
-        return DONE;
-    }
+     * came in over the network.
+     */
+    apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    ap_escape_logitem(pool,
+#endif
+                    description
+#ifndef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    )
+#endif
+                    );
+}
 
-#if APR_O_NONBLOCK_INHERITED
-    for(lr = ap_listeners ; lr != NULL ; lr = lr->next) {
-        apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
-    }
-#endif /* APR_O_NONBLOCK_INHERITED */
-
-    if (!one_process) {
-        if ((rv = ap_mpm_pod_open(pconf, &pod))) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,
+static apr_status_t run_cgi_child(apr_file_t **script_out,
+                                  apr_file_t **script_in,
+                                  apr_file_t **script_err,
+                                  const char *command,
+                                  const char * const argv[],
+                                  request_rec *r,
+                                  apr_pool_t *p,
+                                  cgi_exec_info_t *e_info)
+{

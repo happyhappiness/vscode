@@ -1,14 +1,24 @@
+     * either masking it with a <Location > directive or alias, or stowing
+     * the file outside of the web document tree, while providing the
+     * appropriate directory blocks to allow access to it as a file.
+     */
+    rr = ap_sub_req_lookup_file(metafilename, r, NULL);
+    if (rr->status != HTTP_OK) {
+	ap_destroy_sub_req(rr);
+	return DECLINED;
     }
-    s_aHooksToSort=NULL;
-    s_phOptionalHooks=NULL;
-    s_phOptionalFunctions=NULL;
-}
+    ap_destroy_sub_req(rr);
 
-APU_DECLARE(void) apr_show_hook(const char *szName,const char * const *aszPre,
-			       const char * const *aszSucc)
-{
-    int nFirst;
+    retcode = apr_file_open(&f, metafilename, APR_READ, APR_OS_DEFAULT, r->pool);
+    if (retcode != APR_SUCCESS) {
+	if (APR_STATUS_IS_ENOENT(retcode)) {
+	    return DECLINED;
+	}
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+	      "meta file permissions deny server access: %s", metafilename);
+	return HTTP_FORBIDDEN;
+    };
 
-    printf("  Hooked %s",szName);
-    if(aszPre) {
-	fputs(" pre(",stdout);
+    /* read the headers in */
+    rv = scan_meta_file(r, f);
+    apr_file_close(f);

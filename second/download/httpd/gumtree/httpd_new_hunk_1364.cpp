@@ -1,13 +1,15 @@
-        return DECLINED;
+    p = db ? db->pool : p;
 
-    if (strcmp(r->handler, "ldap-status")) {
-        return DECLINED;
+    /* There might not be a <db> if we had problems creating it. */
+    if (db == NULL) {
+        errcode = 1;
+        errstr = "Could not open property database.";
+        if (APR_STATUS_IS_EDSOOPEN(status))
+            ap_log_error(APLOG_MARK, APLOG_CRIT, status, NULL,
+                         "The DBM driver could not be loaded");
+    }
+    else {
+        (void) apr_dbm_geterror(db->file, &errcode, errbuf, sizeof(errbuf));
+        errstr = apr_pstrdup(p, errbuf);
     }
 
-    r->content_type = "text/html; charset=ISO-8859-1";
-    if (r->header_only)
-        return OK;
-
-    ap_rputs(DOCTYPE_HTML_3_2
-             "<html><head><title>LDAP Cache Information</title></head>\n", r);
-    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);

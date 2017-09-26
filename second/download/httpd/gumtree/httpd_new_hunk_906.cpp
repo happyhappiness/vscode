@@ -1,13 +1,40 @@
+static void accept_mutex_on(void)
+{
+    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't grab the accept mutex";
 
-        /* We're cool with filtering this. */
-        ctx = f->ctx = apr_pcalloc(r->pool, sizeof(*ctx));
-        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+        if (ap_my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);
+            clean_child_exit(0);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);
+            exit(APEXIT_CHILDFATAL);
+        }
+    }
+}
 
-        zRC = deflateInit2(&ctx->stream, c->compressionlevel, Z_DEFLATED,
-                           c->windowSize, c->memlevel,
-                           Z_DEFAULT_STRATEGY);
+static void accept_mutex_off(void)
+{
+    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't release the accept mutex";
 
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+        if (ap_my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);
+            /* don't exit here... we have a connection to
+             * process, after which point we'll see that the
+             * generation changed and we'll exit cleanly
+             */
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);
+            exit(APEXIT_CHILDFATAL);
+        }
+    }
+}
+
+/* On some architectures it's safe to do unserialized accept()s in the single

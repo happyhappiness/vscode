@@ -1,1 +1,1 @@
-apr_err("apr_connect()", rv);
+ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);

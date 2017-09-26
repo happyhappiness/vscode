@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "SIGHUP received.  Attempting to restart");
+ap_rprintf(r, "<dd><tt><strong>In file: %s</strong></tt></dd>\n",
+                   thisfn);

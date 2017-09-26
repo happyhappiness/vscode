@@ -1,24 +1,13 @@
-                                  X509_INFO *info,
-                                  const char *msg)
-{
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    char name_buf[256];
-    X509_NAME *name;
-    const char *dn;
+        for (lr = ap_listeners; lr; lr = lr->next) {
+            apr_status_t status;
 
-    if (s->loglevel < APLOG_DEBUG) {
-        return;
+            status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, 1);
+            if (status != APR_SUCCESS) {
+                ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                              "ap_listen_open: unable to make socket non-blocking");
+                return -1;
+            }
+        }
     }
+#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
 
-    name = X509_get_subject_name(info->x509);
-    dn = X509_NAME_oneline(name, name_buf, sizeof(name_buf));
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 SSLPROXY_CERT_CB_LOG_FMT "%s, sending %s", 
-                 sc->vhost_id, msg, dn ? dn : "-uknown-");
-}
-
-/*
- * caller will decrement the cert and key reference
- * so we need to increment here to prevent them from
- * being freed.

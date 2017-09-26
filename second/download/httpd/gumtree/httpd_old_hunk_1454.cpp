@@ -1,13 +1,23 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
+                }
+            }
+
+            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
+
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
+        }
+
+        apr_bucket_delete(e);
     }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
+
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
 }
 
-
-static const handler_rec autoindex_handlers[] =
+/* This is the deflate input filter (inflates).  */
+static apr_status_t deflate_in_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb,
+                                      ap_input_mode_t mode,
+                                      apr_read_type_e block,
+                                      apr_off_t readbytes)

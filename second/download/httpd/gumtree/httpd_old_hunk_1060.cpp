@@ -1,13 +1,16 @@
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-                    ap_rputs(" />", r);
-                }
-                else {
-                    ap_rputs("     ", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a> ", r);
+		    printf("WARNING: Response code not 2xx (%s)\n", respcode);
+	    }
+	    else if (verbosity >= 3) {
+		printf("LOG: Response code = %s\n", respcode);
+	    }
+	    c->gotheader = 1;
+	    *s = 0;		/* terminate at end of header */
+	    if (keepalive &&
+		(strstr(c->cbuff, "Keep-Alive")
+		 || strstr(c->cbuff, "keep-alive"))) {	/* for benefit of MSIIS */
+		char *cl;
+		cl = strstr(c->cbuff, "Content-Length:");
+		/* handle NCSA, which sends Content-length: */
+		if (!cl)
+		    cl = strstr(c->cbuff, "Content-length:");
+		if (cl) {

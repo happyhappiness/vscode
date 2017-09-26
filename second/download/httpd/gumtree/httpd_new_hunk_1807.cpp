@@ -1,13 +1,22 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+        else if (c->bread != doclen) {
+            bad++;
+            err_length++;
+        }
+        /* save out time */
+        if (done < requests) {
+            struct data *s = &stats[done++];
+            c->done      = lasttime = apr_time_now();
+            s->starttime = c->start;
+            s->ctime     = ap_max(0, c->connect - c->start);
+            s->time      = ap_max(0, c->done - c->start);
+            s->waittime  = ap_max(0, c->beginread - c->endwrite);
+            if (heartbeatres && !(done % heartbeatres)) {
+                fprintf(stderr, "Completed %d requests\n", done);
+                fflush(stderr);
+            }
+        }
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    {
+        apr_pollfd_t remove_pollfd;
+        remove_pollfd.desc_type = APR_POLL_SOCKET;

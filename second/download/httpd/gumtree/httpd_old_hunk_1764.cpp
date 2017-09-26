@@ -1,12 +1,12 @@
-}
-
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        ap_rputs(ap_psignature("",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+    return OK;

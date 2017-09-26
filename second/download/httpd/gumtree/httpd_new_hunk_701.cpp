@@ -1,14 +1,14 @@
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
-#endif
+            r->filename = apr_pstrcat(r->pool, r->filename, "/", NULL);
+        }
+        return index_directory(r, d);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Directory index forbidden by "
+                      "Options directive: %s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
+}
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+static void register_hooks(apr_pool_t *p)
+{

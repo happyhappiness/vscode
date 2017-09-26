@@ -1,14 +1,44 @@
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
 
-    st->cache_bytes = atol(bytes);
+        /* cleanup */
+        if (cipher_list_old) {
+            sk_SSL_CIPHER_free(cipher_list_old);
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
-                      getpid(), st->cache_bytes);
+        /* tracing */
+        if (renegotiate) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reconfigured cipher suite will force renegotiation");
+        }
+    }
 
-    return NULL;
-}
+    /*
+     * override of SSLVerifyDepth
+     *
+     * The depth checks are handled by us manually inside the verify callback
+     * function and not by OpenSSL internally (and our function is aware of
+     * both the per-server and per-directory contexts). So we cannot ask
+     * OpenSSL about the currently verify depth. Instead we remember it in our
+     * ap_ctx attached to the SSL* of OpenSSL.  We've to force the
+     * renegotiation if the reconfigured/new verify depth is less than the
+     * currently active/remembered verify depth (because this means more
+     * restriction on the certificate chain).
+     */
+    if (dc->nVerifyDepth != UNSET) {
+        /* XXX: doesnt look like sslconn->verify_depth is actually used */
+        if (!(n = sslconn->verify_depth)) {
+            sslconn->verify_depth = n = sc->server->auth.verify_depth;
+        }
 
-static const char *util_ldap_set_cache_file(cmd_parms *cmd, void *dummy, const char *file)
-{
+        /* determine whether a renegotiation has to be forced */
+        if (dc->nVerifyDepth < n) {
+            renegotiate = TRUE;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reduced client verification depth will force "
+                         "renegotiation");
+        }
+    }
+
+    /*
+     * override of SSLVerifyClient
+     *
+     * We force a renegotiation if the reconfigured/new verify type is

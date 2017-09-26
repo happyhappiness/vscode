@@ -1,13 +1,39 @@
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
-                         "proxy: previous connection is closed, creating a new connection.");
-            new = 1;
-        }
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth, hdrs);
     }
-    if (new) {
-        int rc;
+    else {
+        snprintf_res = apr_snprintf(request,  sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "Content-length: %" APR_SIZE_T_FMT "\r\n"
+            "Content-type: %s\r\n"
+            "%s"
+            "\r\n",
+            (posting == 1) ? "POST" : "PUT",
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth,
+            postlen,
+            (content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+    if (snprintf_res >= sizeof(_request)) {
+        err("Request too long\n");
+    }
 
-        /* create a new socket */
-        backend->connection = NULL;
+    if (verbosity >= 2)
+        printf("INFO: %s header == \n---\n%s\n---\n", 
+                (posting == 2) ? "PUT" : "POST", request);
 
-        /*
-         * At this point we have a list of one or more IP addresses of
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one contineous buffer
+     */
+    if (posting >= 1) {
+        char *buff = malloc(postlen + reqlen + 1);
+        if (!buff) {
+            fprintf(stderr, "error creating request buffer: out of memory\n");
+            return;
+        }
+        strcpy(buff, request);

@@ -1,27 +1,13 @@
-        }
-
-        /*
-         * Verify the signature on this CRL
+        /* By default, AIX binds to a single processor.  This bit unbinds
+         * children which will then bind to another CPU.
          */
-        pubkey = X509_get_pubkey(cert);
-        if (X509_CRL_verify(crl, pubkey) <= 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Invalid signature on CRL");
+        int status = bindprocessor(BINDPROCESS, (int)getpid(),
+                               PROCESSOR_CLASS_ANY);
+        if (status != OK)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, 
+                         ap_server_conf,
+                         "processor unbind failed %d", status);
+#endif
+        RAISE_SIGSTOP(MAKE_CHILD);
 
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
-            X509_OBJECT_free_contents(&obj);
-            if (pubkey)
-                EVP_PKEY_free(pubkey);
-
-            return FALSE;
-        }
-
-        if (pubkey)
-            EVP_PKEY_free(pubkey);
-
-        /*
-         * Check date of CRL to make sure it's not expired
-         */
-        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
-
-        if (i == 0) {
+        apr_signal(SIGTERM, just_die);

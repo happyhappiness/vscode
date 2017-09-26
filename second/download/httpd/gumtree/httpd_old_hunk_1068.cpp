@@ -1,12 +1,20 @@
-            ap_rputs("<hr />To obtain a full report with current status "
-                     "information you need to use the "
-                     "<code>ExtendedStatus On</code> directive.\n", r);
-        }
-    }
+    /* Save a copy for the proxy */
+    fullurl = apr_pstrdup(cntxt, url);
 
-    if (!short_report) {
-        ap_rputs(ap_psignature("<hr />\n",r), r);
-        ap_rputs("</body></html>\n", r);
+    if (strlen(url) > 7 && strncmp(url, "http://", 7) == 0) {
+	url += 7;
+#ifdef USE_SSL
+	ssl = 0;
+#endif
     }
-
-    return 0;
+    else
+#ifdef USE_SSL
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+	url += 8;
+	ssl = 1;
+    }
+#else
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+	fprintf(stderr, "SSL not compiled in; no https support\n");
+	exit(1);
+    }

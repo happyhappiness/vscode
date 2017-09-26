@@ -1,13 +1,13 @@
-            /* Check the listen queue on all sockets for requests */
-            memcpy(&main_fds, &listenfds, sizeof(fd_set));
-            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
+	if (bar != NULL)
+	    printf("%s %s\n", hoststring, bar + 1);
+	else
+	    puts(hoststring);
+    }
 
-            if (srv <= 0) {
-                if (srv < 0) {
-                    ap_log_error(APLOG_MARK, APLOG_NOTICE, WSAGetLastError(), ap_server_conf,
-                        "select() failed on listen socket");
-                    apr_thread_yield();
-                }
-                continue;
-            }
+#if defined(WIN32) || (defined(NETWARE) && defined(USE_WINSOCK))
+     WSACleanup();
+#endif
 
+    if (statfile != NULL) {
+	FILE *fp;
+	fp = fopen(statfile, "w");

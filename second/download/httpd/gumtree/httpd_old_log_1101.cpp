@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: FTP: setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");

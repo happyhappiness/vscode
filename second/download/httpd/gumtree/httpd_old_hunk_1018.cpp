@@ -1,35 +1,51 @@
-    UCHAR ucaData[SSL_SESSION_MAX_DER];
-    int nData;
-    UCHAR *ucp;
-    apr_status_t rv;
 
-    /* streamline session data */
-    if ((nData = i2d_SSL_SESSION(sess, NULL)) > sizeof(ucaData))
-        return FALSE;
-    ucp = ucaData;
-    i2d_SSL_SESSION(sess, &ucp);
+    return apr_file_read(thefile, ch, &nbytes);
+}
 
-    /* be careful: do not try to store too much bytes in a DBM file! */
-#ifdef PAIRMAX
-    if ((idlen + nData) >= PAIRMAX)
-        return FALSE;
-#else
-    if ((idlen + nData) >= 950 /* at least less than approx. 1KB */)
-        return FALSE;
-#endif
+APR_DECLARE(apr_status_t) apr_file_puts(const char *str, apr_file_t *thefile)
+{
+    apr_size_t nbytes = strlen(str);
 
-    /* create DBM key */
-    dbmkey.dptr  = (char *)id;
-    dbmkey.dsize = idlen;
+    return apr_file_write(thefile, str, &nbytes);
+}
 
-    /* create DBM value */
-    dbmval.dsize = sizeof(time_t) + nData;
-    dbmval.dptr  = (char *)malloc(dbmval.dsize);
-    if (dbmval.dptr == NULL)
-        return FALSE;
-    memcpy((char *)dbmval.dptr, &expiry, sizeof(time_t));
-    memcpy((char *)dbmval.dptr+sizeof(time_t), ucaData, nData);
+apr_status_t apr_file_flush_locked(apr_file_t *thefile)
+{
+    apr_status_t rv = APR_SUCCESS;
 
-    /* and store it to the DBM file */
-    ssl_mutex_on(s);
-    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+    if (thefile->direction == 1 && thefile->bufpos) {
+        apr_ssize_t written;
+
+        do {
+            written = write(thefile->filedes, thefile->buffer, thefile->bufpos);
+        } while (written == -1 && errno == EINTR);
+        if (written == -1) {
+            rv = errno;
+        } else {
+            thefile->filePtr += written;
+            thefile->bufpos = 0;
+        }
+    }
+
+    return rv;
+}
+
+APR_DECLARE(apr_status_t) apr_file_flush(apr_file_t *thefile)
+{
+    apr_status_t rv = APR_SUCCESS;
+
+    if (thefile->buffered) {
+        file_lock(thefile);
+        rv = apr_file_flush_locked(thefile);
+        file_unlock(thefile);
+    }
+    /* There isn't anything to do if we aren't buffering the output
+     * so just return success.
+     */
+    return rv; 
+}
+
+APR_DECLARE(apr_status_t) apr_file_gets(char *str, int len, apr_file_t *thefile)
+{
+    apr_status_t rv = APR_SUCCESS; /* get rid of gcc warning */
+    apr_size_t nbytes;

@@ -1,2 +1,2 @@
-r(APLOG_MARK, APLOG_ERR, 0, cmd->server,
-                 "Platform does not support rlimit for %s", cmd->cmd->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Missing '}' on "
+                                  "variable \"%s\" in %s", p, r->filename);

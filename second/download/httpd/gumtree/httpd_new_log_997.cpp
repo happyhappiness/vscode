@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, 
-        "Done with config file %s", cfp->name);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p,
+                              "Failed to enable APR_TCP_DEFER_ACCEPT");

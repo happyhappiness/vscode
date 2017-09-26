@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Please read the documentation.");
+ap_rputs(" -D NO_LINGCLOSE\n", r);

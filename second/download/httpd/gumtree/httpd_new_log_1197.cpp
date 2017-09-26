@@ -1,1 +1,1 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.116 $");
+printf("%2d: %.*s\n", i, substring_length, substring_start);

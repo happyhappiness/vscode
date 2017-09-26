@@ -1,28 +1,34 @@
-    st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
-    st->ssl_support = 0;
+    case PCRE_ERROR_NOMATCH: printf("No match\n"); break;
+    /*
+    Handle other special cases if you like
+    */
+    default: printf("Matching error %d\n", rc); break;
+    }
+  return 1;
+  }
 
-    return st;
+/* Match succeded */
+
+printf("Match succeeded\n");
+
+/* The output vector wasn't big enough */
+
+if (rc == 0)
+  {
+  rc = OVECCOUNT/3;
+  printf("ovector only has room for %d captured substrings\n", rc - 1);
+  }
+
+/* Show substrings stored in the output vector */
+
+for (i = 0; i < rc; i++)
+  {
+  char *substring_start = argv[2] + ovector[2*i];
+  int substring_length = ovector[2*i+1] - ovector[2*i];
+  printf("%2d: %.*s\n", i, substring_length, substring_start);
+  }
+
+return 0;
 }
 
-static void util_ldap_init_module(apr_pool_t *pool, server_rec *s)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, 
-						  &ldap_module);
 
-    apr_status_t result = util_ldap_cache_init(pool, st->cache_bytes);
-    char buf[MAX_STRING_LEN];
-
-    apr_strerror(result, buf, sizeof(buf));
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                      "[%d] ldap cache init: %s", 
-                      getpid(), buf);
-}
-
-
-static apr_status_t util_ldap_cleanup_module(void *data)
-{
-    server_rec *s = data;
-
-    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
-                                          s->module_config, &ldap_module);

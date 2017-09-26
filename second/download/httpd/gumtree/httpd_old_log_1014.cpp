@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, main_s, buf);
+printf(" -D APACHE_XLATE\n");

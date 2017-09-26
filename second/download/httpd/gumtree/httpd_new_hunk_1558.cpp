@@ -1,30 +1,17 @@
-    const char *location;
+    ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes)
+{
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "File does not exist: %s", r->filename);
-	return NOT_FOUND;
-    }
+    apr_bucket *b;
+    apr_status_t ret;
+    conn_rec *c = f->c;
+    dumpio_conf_t *ptr =
+    (dumpio_conf_t *) ap_get_module_config(c->base_server->module_config,
+                                           &dumpio_module);
 
-    f = ap_pfopen(r->pool, r->filename, "r");
-
-    if (f == NULL) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "file permissions deny server access: %s", r->filename);
-	return FORBIDDEN;
-    }
-
-    scan_script_header(r, f);
-    location = ap_table_get(r->headers_out, "Location");
-
-    if (location && location[0] == '/' &&
-	((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
-
-	ap_pfclose(r->pool, f);
-
-	/* Internal redirect -- fake-up a pseudo-request */
-	r->status = HTTP_OK;
+    ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server,
+        "mod_dumpio: %s [%s-%s] %" APR_OFF_T_FMT " readbytes",
+         f->frec->name,
+         whichmode(mode),
+         ((block) == APR_BLOCK_READ) ? "blocking" : "nonblocking",
+         readbytes) ;
 

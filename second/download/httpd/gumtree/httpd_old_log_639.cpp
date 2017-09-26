@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, ap_server_conf,
-                         "select/accept error (%d)", status);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" in tag echo of %s",
+                            tag, r->filename);

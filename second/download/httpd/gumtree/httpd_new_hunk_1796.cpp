@@ -1,98 +1,25 @@
-	    }
-	}
-#endif
-	return (pid);
+
+/*
+ * NOTICE: if you tweak this you should look at is_empty_table() 
+ * and table_elts() in alloc.h
+ */
+#ifdef MAKE_TABLE_PROFILE
+static apr_table_entry_t *do_table_push(const char *func, apr_table_t *t)
+{
+    if (t->a.nelts == t->a.nalloc) {
+        fprintf(stderr, "%s: table created by %p hit limit of %u\n",
+                func ? func : "table_push", t->creator, t->a.nalloc);
     }
-#else
-    if (ap_suexec_enabled
-	&& ((r->server->server_uid != ap_user_id)
-	    || (r->server->server_gid != ap_group_id)
-	    || (!strncmp("/~", r->uri, 2)))) {
-
-	char *execuser, *grpname;
-	struct passwd *pw;
-	struct group *gr;
-
-	if (!strncmp("/~", r->uri, 2)) {
-	    gid_t user_gid;
-	    char *username = ap_pstrdup(r->pool, r->uri + 2);
-	    char *pos = strchr(username, '/');
-
-	    if (pos) {
-		*pos = '\0';
-	    }
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
-	    if ((gr = getgrgid(user_gid)) == NULL) {
-	        if ((grpname = ap_palloc(r->pool, 16)) == NULL) {
-		    return (pid);
-		}
-		else {
-		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
-		}
-	    }
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-
-	if (shellcmd) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else {
-	    execve(SUEXEC_BIN,
-		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
-			       argv0, r->args),
-		   env);
-	}
-    }
-    else {
-        if (shellcmd) {
-	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
-	}
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(r->filename, argv0, NULL, env);
-	}
-
-	else {
-	    execve(r->filename,
-		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
-		   env);
-	}
-    }
-    return (pid);
-#endif
+    return (apr_table_entry_t *) apr_array_push_noclear(&t->a);
 }
-++ apache_1.3.1/src/main/util_uri.c	1998-07-16 07:49:13.000000000 +0800
+#if defined(__GNUC__) && __GNUC__ >= 2
+#define table_push(t) do_table_push(__FUNCTION__, t)
+#else
+#define table_push(t) do_table_push(NULL, t)
+#endif
+#else /* MAKE_TABLE_PROFILE */
+#define table_push(t)	((apr_table_entry_t *) apr_array_push_noclear(&(t)->a))
+#endif /* MAKE_TABLE_PROFILE */
+
+APR_DECLARE(const apr_array_header_t *) apr_table_elts(const apr_table_t *t)
+{

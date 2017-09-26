@@ -1,13 +1,26 @@
-    lseek(fd, 0, SEEK_SET);
-    rc = _locking(fd, _LK_LOCK, 1);
-    lseek(fd, 0, SEEK_END);
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                         "ProxyReceiveBufferSize, using default");
+        }
 #endif
 
-    if (rc < 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                     "mod_rewrite: failed to lock file descriptor");
-        exit(1);
-    }
-    return;
-}
+        rv = apr_socket_opt_set(newsock, APR_TCP_NODELAY, 1);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");
+        }
 
+        /* Set a timeout on the socket */
+        if (worker->timeout_set == 1) {
+            apr_socket_timeout_set(newsock, worker->timeout);
+        }
+        else if (conf->timeout_set == 1) {
+            apr_socket_timeout_set(newsock, conf->timeout);
+        }
+        else {
+             apr_socket_timeout_set(newsock, s->timeout);
+        }
+        /* Set a keepalive option */
+        if (worker->keepalive) {
+            if ((rv = apr_socket_opt_set(newsock,

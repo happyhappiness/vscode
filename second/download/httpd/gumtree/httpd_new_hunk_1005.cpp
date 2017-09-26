@@ -1,13 +1,13 @@
-        }
-        else 
+    return res_buf;
+}
+
+AP_DECLARE(int) ap_cfg_closefile(ap_configfile_t *cfp)
+{
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+        "Done with config file %s", cfp->name);
 #endif
-            if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);
-            break;
-        }
-        else if (cld == 0) {
-            /* Exit event was signaled */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Exit event signaled. Child process is ending.", my_pid);
+    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
+}
+
+static apr_status_t cfg_close(void *param)

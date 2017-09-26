@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, NULL,
-                         "Cannot remove module %s: not found in module list",
-                         m->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);

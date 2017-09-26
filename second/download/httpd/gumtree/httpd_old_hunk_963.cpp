@@ -1,13 +1,13 @@
-	if (bar != NULL)
-	    printf("%s %s\n", hoststring, bar + 1);
-	else
-	    puts(hoststring);
-    }
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
+        }
 
-#ifdef WIN32
-     WSACleanup();
-#endif
-
-    if (statfile != NULL) {
-	FILE *fp;
-	fp = fopen(statfile, "w");
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name, 
+                                 SERVICE_START | SERVICE_QUERY_STATUS);
+        if (!schService) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to open the service.", mpm_display_name);
+            CloseServiceHandle(schSCManager);

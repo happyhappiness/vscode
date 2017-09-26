@@ -1,31 +1,49 @@
-    env = ap_create_environment(r->pool, r->subprocess_env); 
 
-    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
-        return retval;
+    arr_param->curr_idx = arr_param->array->nelts;
+
+    return 0;
+}
+
+static const char *process_command_config(server_rec *s,
+                                          apr_array_header_t *arr,
+                                          ap_directive_t **conftree,
+                                          apr_pool_t *p,
+                                          apr_pool_t *ptemp)
+{
+    const char *errmsg;
+    cmd_parms parms;
+    arr_elts_param_t arr_parms;
+
+    arr_parms.curr_idx = 0;
+    arr_parms.array = arr;
+
+    if (ap_config_hash == NULL) {
+        rebuild_conf_hash(s->process->pconf, 1);
     }
 
-    rv = send_req(sd, r, argv0, env, CGI_REQ); 
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "write to cgi daemon process");
+    parms = default_parms;
+    parms.pool = p;
+    parms.temp_pool = ptemp;
+    parms.server = s;
+    parms.override = (RSRC_CONF | OR_ALL) & ~(OR_AUTHCFG | OR_LIMIT);
+    parms.override_opts = OPT_ALL | OPT_INCNOEXEC | OPT_SYM_OWNER | OPT_MULTI;
+
+    parms.config_file = ap_pcfg_open_custom(p, "-c/-C directives",
+                                            &arr_parms, NULL,
+                                            arr_elts_getstr, arr_elts_close);
+
+    errmsg = ap_build_config(&parms, p, ptemp, conftree);
+    ap_cfg_closefile(parms.config_file);
+
+    if (errmsg) {
+        return apr_pstrcat(p, "Syntax error in -C/-c directive: ", errmsg,
+                           NULL);
     }
 
-    info = apr_palloc(r->pool, sizeof(struct cleanup_script_info));
-    info->r = r;
-    info->conn_id = r->connection->id;
-    info->conf = conf;
-    apr_pool_cleanup_register(r->pool, info,
-                              cleanup_script,
-                              apr_pool_cleanup_null);
-    /* We are putting the socket discriptor into an apr_file_t so that we can
-     * use a pipe bucket to send the data to the client.
-     * Note that this does not register a cleanup for the socket.  We did
-     * that explicitly right after we created the socket.
-     */
-    apr_os_pipe_put(&tempsock, &sd, r->pool);
+    return NULL;
+}
 
-    if ((argv0 = strrchr(r->filename, '/')) != NULL) 
-        argv0++; 
-    else 
-        argv0 = r->filename; 
+typedef struct {
+    char *fname;
+} fnames;
 

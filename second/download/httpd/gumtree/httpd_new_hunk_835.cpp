@@ -1,13 +1,37 @@
+                 "Inter-Process Session Cache (DBM) Expiry: "
+                 "old: %d, new: %d, removed: %d",
+                 nElements, nElements-nDeleted, nDeleted);
+    return;
+}
 
-    lookup = dav_lookup_uri(dest, r, 0 /* must_be_absolute */);
-    if (lookup.rnew == NULL) {
-        if (lookup.err.status == HTTP_BAD_REQUEST) {
-            /* This supplies additional information for the default message. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "%s", lookup.err.desc);
-            return HTTP_BAD_REQUEST;
-        }
-        else if (lookup.err.status == HTTP_BAD_GATEWAY) {
-            /* ### Bindings protocol draft 02 says to return 507
-             * ### (Cross Server Binding Forbidden); Apache already defines 507
-             * ### as HTTP_INSUFFICIENT_STORAGE. So, for now, we'll return
+void ssl_scache_dbm_status(request_rec *r, int flags, apr_pool_t *p)
+{
+    SSLModConfigRec *mc = myModConfig(r->server);
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
+    apr_datum_t dbmval;
+    int nElem;
+    int nSize;
+    int nAverage;
+    apr_status_t rv;
+
+    nElem = 0;
+    nSize = 0;
+    ssl_mutex_on(r->server);
+    /*
+     * XXX - Check what pool is to be used - TBD
+     */
+    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+	                       APR_DBM_RWCREATE, SSL_DBM_FILE_MODE,
+                           mc->pPool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "Cannot open SSLSessionCache DBM file `%s' for status "
+                     "retrival",
+                     mc->szSessionCacheDataFile);
+        ssl_mutex_off(r->server);
+        return;
+    }
+    /*
+     * XXX - Check the return value of apr_dbm_firstkey, apr_dbm_fetch - TBD
+     */
+    apr_dbm_firstkey(dbm, &dbmkey);

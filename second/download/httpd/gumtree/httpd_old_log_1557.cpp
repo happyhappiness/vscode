@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
-                     "make_secure_socket: failed to get a socket for %s", 
-                     addr);
+ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);

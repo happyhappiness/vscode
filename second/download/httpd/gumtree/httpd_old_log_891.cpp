@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: Require MaxClients > 0, setting to 1");
+ap_log_error(APLOG_MARK, APLOG_INFO, rc,
+                         c->base_server,
+                         "SSL handshake stopped: connection was closed");

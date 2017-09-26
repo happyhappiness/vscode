@@ -1,21 +1,19 @@
-    ap_hook_map_to_storage(ap_send_http_trace,NULL,NULL,APR_HOOK_MIDDLE);
-    ap_hook_http_method(http_method,NULL,NULL,APR_HOOK_REALLY_LAST);
-    ap_hook_default_port(http_port,NULL,NULL,APR_HOOK_REALLY_LAST);
-    ap_hook_create_request(http_create_request, NULL, NULL, APR_HOOK_REALLY_LAST);
-    ap_http_input_filter_handle =
-        ap_register_input_filter("HTTP_IN", ap_http_filter,
-                                 AP_FTYPE_PROTOCOL);
-    ap_http_header_filter_handle =
-        ap_register_output_filter("HTTP_HEADER", ap_http_header_filter, 
-                                  AP_FTYPE_PROTOCOL);
-    ap_chunk_filter_handle =
-        ap_register_output_filter("CHUNK", chunk_filter, AP_FTYPE_TRANSCODE);
-    ap_byterange_filter_handle =
-        ap_register_output_filter("BYTERANGE", ap_byterange_filter,
-                                  AP_FTYPE_PROTOCOL);
-    ap_method_registry_init(p);
+            csd_data->is_secure = 1;
+        }
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Upgradeable socket handle not found");
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Awaiting re-negotiation handshake");
+
+    return ap_pass_brigade(f->next, bb);
 }
 
-module AP_MODULE_DECLARE_DATA http_module = {
-    STANDARD20_MODULE_STUFF,
-    NULL,			/* create per-directory config structure */
+static void ssl_hook_Insert_Filter(request_rec *r)
+{
+    NWSSLSrvConfigRec *sc = get_nwssl_cfg(r->server);
+

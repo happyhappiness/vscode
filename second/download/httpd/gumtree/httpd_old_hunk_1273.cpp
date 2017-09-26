@@ -1,12 +1,12 @@
-        /* Set the alias dereferencing option */
-        ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &(ldc->deref));
-
-        /* always default to LDAP V3 */
-        ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
-
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
     }
+}
 
-
-    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
-     * returned.  Break out of the loop on Success or any other error.
-     *
+#ifndef OPENSSL_NO_TLSEXT
+/*
+ * This callback function is executed when OpenSSL encounters an extended
+ * client hello with a server name indication extension ("SNI", cf. RFC 4366).
+ */
+int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)

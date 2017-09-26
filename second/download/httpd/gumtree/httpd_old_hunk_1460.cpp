@@ -1,12 +1,12 @@
-}
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+        zRC = Z_OK;
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                           NULL, f->c->bucket_alloc);

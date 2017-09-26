@@ -1,26 +1,45 @@
+                    return;
+                }
 
-    new->expiresbytype = apr_table_overlay(p, add->expiresbytype,
-                                        base->expiresbytype);
-    return new;
-}
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool,
+                                                              last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
 
-/*
- * Handle the setting of the expiration response header fields according
- * to our criteria.
- */
+                tmp_field = value - 1; /* last character of field-name */
 
-static int set_expiration_fields(request_rec *r, const char *code,
-                                 apr_table_t *t)
-{
-    apr_time_t base;
-    apr_time_t additional;
-    apr_time_t expires;
-    int additional_sec;
-    char *timestr;
+                *value++ = '\0'; /* NUL-terminate at colon */
 
-    switch (code[0]) {
-    case 'M':
-	if (r->finfo.filetype == 0) { 
-	    /* file doesn't exist on disk, so we can't do anything based on
-	     * modification time.  Note that this does _not_ log an error.
-	     */
+                while (*value == ' ' || *value == '\t') {
+                    ++value;            /* Skip to start of value   */
+                }
+
+                /* Strip LWS after field-name: */
+                while (tmp_field > last_field
+                       && (*tmp_field == ' ' || *tmp_field == '\t')) {
+                    *tmp_field-- = '\0';
+                }
+
+                /* Strip LWS after field-value: */
+                tmp_field = last_field + last_len - 1;
+                while (tmp_field > value
+                       && (*tmp_field == ' ' || *tmp_field == '\t')) {
+                    *tmp_field-- = '\0';
+                }
+
+                apr_table_addn(r->headers_in, last_field, value);
+
+                /* reset the alloc_len so that we'll allocate a new
+                 * buffer if we have to do any more folding: we can't
+                 * use the previous buffer because its contents are
+                 * now part of r->headers_in
+                 */
+                alloc_len = 0;

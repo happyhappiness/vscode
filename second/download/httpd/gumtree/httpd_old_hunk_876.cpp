@@ -1,12 +1,13 @@
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
+{
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
 
-    destroy_and_exit_process(process, 1);
-}
+    rc = log_child(p, program, &dummy, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
+    }
 
-int main(int argc, const char * const argv[])

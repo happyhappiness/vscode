@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
+printf("Total PUT:              %" APR_INT64_T_FMT "\n", totalposted);

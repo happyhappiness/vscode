@@ -1,13 +1,13 @@
-    
-    if (is_graceful) {
-	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "Graceful restart requested, doing restart");
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-	/* kill off the idle ones */
-        ap_mpm_pod_killpg(pod, ap_max_daemons_limit);
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
 
-	/* This is mostly for debugging... so that we know what is still
-	    * gracefully dealing with existing request.  This will break
-	    * in a very nasty way if we ever have the scoreboard totally
-	    * file-based (no shared memory)
-	    */

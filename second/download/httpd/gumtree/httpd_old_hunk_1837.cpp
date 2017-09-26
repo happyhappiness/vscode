@@ -1,14 +1,12 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+AP_DECLARE(int) unixd_setup_child(void)
+{
+    if (set_group_privs()) {
+        return -1;
+    }
+#ifdef MPE
+    /* Only try to switch if we're running as MANAGER.SYS */
+    if (geteuid() == 1 && unixd_config.user_id > 1) {
+        GETPRIVMODE();
+        if (setuid(unixd_config.user_id) == -1) {
+            GETUSERMODE();

@@ -1,3 +1,3 @@
-apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Zlib error %d deflating data (%s)", zRC,
+                              ctx->stream.msg);

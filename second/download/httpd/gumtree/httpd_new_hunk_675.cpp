@@ -1,13 +1,22 @@
-        (crlf = strchr(message, '\n')) != NULL)
-        *crlf = '\0';
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy:<FTP: %3.3u %s", rc, message);
 
-    if (pmessage != NULL)
-        *pmessage = apr_pstrdup(r->pool, message);
+    case HSE_REQ_ABORTIVE_CLOSE:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
+                          " is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-    return rc;
-}
+    case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-/* Set ftp server to TYPE {A,I,E} before transfer of a directory or file */
-static int ftp_set_TYPE(char xfer_type, request_rec *r, conn_rec *ftp_ctrl,
+    case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
+    {
+        HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
+

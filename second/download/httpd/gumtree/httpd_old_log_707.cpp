@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, 0, ap_server_conf,
-			                  "long lost child came home! (pid %ld)", pid.pid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "exec used but not allowed in %s", r->filename);

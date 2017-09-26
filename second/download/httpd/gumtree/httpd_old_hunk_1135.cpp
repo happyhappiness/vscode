@@ -1,12 +1,12 @@
-        if (rv != APR_SUCCESS) {
-            break;
-        }
     }
+
+    if (d->style_sheet != NULL) {
+        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
+                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
+    }
+    ap_rvputs(r, " </head>\n <body>\n", NULL);
 }
 
-static int cgi_handler(request_rec *r)
+static void push_item(apr_array_header_t *arr, char *type, const char *to,
+                      const char *path, const char *data)
 {
-    int nph;
-    apr_size_t dbpos = 0;
-    const char *argv0;
-    const char *command;

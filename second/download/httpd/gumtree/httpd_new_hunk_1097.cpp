@@ -1,22 +1,13 @@
-}
-
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
-
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
+        return rv;
     }
 
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    /* TerminateExtension() is an optional interface */
+    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
+                     "TerminateExtension");
+    apr_set_os_error(0);
 
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s",

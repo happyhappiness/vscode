@@ -1,24 +1,29 @@
-	setuid(unixd_config.user_id) == -1)) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-		    "setuid: unable to change to uid: %ld",
-                    (long) unixd_config.user_id);
-	return -1;
+    if (changed_limit_at_restart) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
+                     "ignored during restart");
+        changed_limit_at_restart = 0;
     }
-#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE) 
-    /* this applies to Linux 2.4+ */
-#ifdef AP_MPM_WANT_SET_COREDUMPDIR
-    if (ap_coredumpdir_configured) {
-        if (prctl(PR_SET_DUMPABLE, 1)) {
-            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "set dumpable failed - this child will not coredump"
-                         " after software errors");
-        }
+
+    /* Initialize cross-process accept lock */
+    ap_lock_fname = apr_psprintf(_pconf, "%s.%" APR_PID_T_FMT,
+                                 ap_server_root_relative(_pconf, ap_lock_fname),
+                                 ap_my_pid);
+
+    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname,
+                               ap_accept_lock_mech, _pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        mpm_state = AP_MPMQ_STOPPING;
+        return 1;
     }
-#endif
-#endif
-#endif
-    return 0;
-}
 
-
-AP_DECLARE(const char *) unixd_set_user(cmd_parms *cmd, void *dummy, 
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (ap_accept_lock_mech == APR_LOCK_DEFAULT ||
+        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+#else
+    if (ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {

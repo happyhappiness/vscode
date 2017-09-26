@@ -1,14 +1,13 @@
-     */
-    if (!ok) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Certificate Verification: Error (%d): %s",
-                     errnum, X509_verify_cert_error_string(errnum));
-
-        sslconn->client_dn = NULL;
-        sslconn->client_cert = NULL;
-        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+        set_signals();
+        ap_scoreboard_image->parent[slot].pid = getpid();
+        child_main(slot);
     }
 
-    /*
-     * Finally check the depth of the certificate verification
-     */
+    if ((pid = fork()) == -1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, 
+                     "fork: Unable to fork new process");
+
+        /* fork didn't succeed. Fix the scoreboard or else
+         * it will say SERVER_STARTING forever and ever
+         */
+        ap_update_child_status_from_indexes(slot, 0, SERVER_DEAD, NULL);

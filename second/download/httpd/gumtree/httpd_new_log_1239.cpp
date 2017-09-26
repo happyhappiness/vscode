@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                 "Writing message to %d, passing sd:  %d", sconf->output, sfd);
+apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work." NL);

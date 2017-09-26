@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "Ouch!  Out of memory in add_job()!");
+printf("%3d Bra extra", (code[1] << 8) + code[2]);

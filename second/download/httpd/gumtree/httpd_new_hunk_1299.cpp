@@ -1,14 +1,13 @@
-
-    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
-                           ts, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "apr_thread_create: unable to create worker thread");
-        /* let the parent decide how bad this really is */
-        clean_child_exit(APEXIT_CHILDSICK);
-    }
-
-    mpm_state = AP_MPMQ_RUNNING;
-
-    /* If we are only running in one_process mode, we will want to
-     * still handle signals. */
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "proxy: error processing end");
+                    output_failed = 1;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                request_ended = 1;

@@ -1,3 +1,3 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s",
-                         e, err);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SNI extension for SSL Proxy request set to '%s'",
+                              hostname_note);

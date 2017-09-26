@@ -1,17 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: prefetch request body failed to %pI (%s)"
+                         " from %s (%s)",
+                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                         c->remote_ip, c->remote_host ? c->remote_host: "");
+            return HTTP_BAD_REQUEST;
+        }
 
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
-#endif
+        apr_brigade_length(temp_brigade, 1, &bytes);
+        bytes_read += bytes;
 
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+        /*

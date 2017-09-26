@@ -1,13 +1,12 @@
+{
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
 
-    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
+    if (!svr->persist) {
+        /* Return a once-only connection */
+        rv = dbd_construct(&rec, svr, s->process->pool);
+        return (rv == APR_SUCCESS) ? arec : NULL;
+    }
 
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
-
-    if (err != NULL)
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "%s", err);
-
-    r->hostname = host;
-
-    return host;		/* ought to return the port, too */
-}

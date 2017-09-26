@@ -1,1 +1,2 @@
-printf("This is ApacheBench, Version %s\n", AP_SERVER_BASEREVISION " <$Revision: 1.97 $> apache-2.0");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k stop|shutdown  : tell running Apache to shutdown");

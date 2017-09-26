@@ -1,36 +1,18 @@
-    if (conf->rewritelogfp != NULL) {
-        return; /* virtual log shared w/ main server */
+        lr->next = ap_listeners;
+        ap_listeners = lr;
     }
 
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, 
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", conf->rewritelogfile+1);
-            exit(1);
+    /* Open the pipe to the parent process to receive the inherited socket
+     * data. The sockets have been set to listening in the parent process.
+     *
+     * *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO), 
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);
         }
-        conf->rewritelogfp = ap_piped_log_write_fd(pl);
-    }
-    else if (*conf->rewritelogfile != '\0') {
-        fname = ap_server_root_relative(p, conf->rewritelogfile);
-        if (!fname) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s, 
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile);
-            exit(1);
-        }
-        if ((rc = apr_file_open(&conf->rewritelogfp, fname, 
-                                rewritelog_flags, rewritelog_mode, p))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, s, 
-                         "mod_rewrite: could not open RewriteLog "
-                         "file %s", fname);
-            exit(1);
-        }
-        apr_file_inherit_set(conf->rewritelogfp);
-    }
-    return;
-}
-
-static void rewritelog(request_rec *r, int level, const char *text, ...)
-{
+        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,

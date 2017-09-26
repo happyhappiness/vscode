@@ -1,32 +1,43 @@
+ */
+                             /* ``Real programmers confuse
+                                  Christmas and Halloween
+                                  because DEC 25 = OCT 31.''
+                                             -- Unknown     */
 
-    /* do the user search */
-    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
-                                         sec->attributes, filtbuf, sent_pw, &dn, &vals);
-    util_ldap_connection_close(ldc);
+#include "ssl_private.h"
 
-    /* sanity check - if server is down, retry it up to 5 times */
-    if (result == LDAP_SERVER_DOWN) {
-        util_ldap_connection_destroy(ldc);
-        if (failures++ <= 5) {
-            goto start_over;
-        }
+#ifdef AP_NEED_SET_MUTEX_PERMS
+#include "unixd.h"
+#endif
+
+int ssl_mutex_init(server_rec *s, apr_pool_t *p)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+
+    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
+        return TRUE;
+
+    if (mc->pMutex) {
+        return TRUE;
+    }
+    if ((rv = apr_global_mutex_create(&mc->pMutex, mc->szMutexFile,
+                                      mc->nMutexMech, s->process->pool))
+            != APR_SUCCESS) {
+        if (mc->szMutexFile)
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex with file `%s'",
+                         mc->szMutexFile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex");
+        return FALSE;
     }
 
-    /* handle bind failure */
-    if (result != LDAP_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authenticate: "
-                      "user %s authentication failed; URI %s [%s][%s]",
-		      getpid(), r->user, r->uri, ldc->reason, ldap_err2string(result));
-        if ((LDAP_INVALID_CREDENTIALS == result) || sec->auth_authoritative) {
-            ap_note_basic_auth_failure(r);
-            return HTTP_UNAUTHORIZED;
-        }
-        else {
-            return DECLINED;
-        }
-    }
-
-    /* mark the user and DN */
-    req->dn = apr_pstrdup(r->pool, dn);
-    req->user = r->user;
+#ifdef AP_NEED_SET_MUTEX_PERMS
+    rv = unixd_set_global_mutex_perms(mc->pMutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Could not set permissions on ssl_mutex; check User "
+                     "and Group directives");
+        return FALSE;

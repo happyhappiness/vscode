@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                     "Parent: Received restart signal -- Restarting the server.");
+apr_file_printf(writetty, "\n"
+                            "OK: Pass Phrase Dialog successful.\n");

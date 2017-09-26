@@ -1,77 +1,47 @@
-        int iEnvBlockLen;
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        else if (bsel) {
+            ap_rputs("<h3>Edit balancer settings for ", r);
+            ap_rvputs(r, bsel->name, "</h3>\n", NULL);
+            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
+            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
+            ap_rputs("<table><tr><td>StickySession Identifier:</td><td><input name=\"ss\" type=text ", r);
+            if (bsel->sticky)
+                ap_rvputs(r, "value=\"", bsel->sticky, "\"", NULL);
+            ap_rputs("></td><tr>\n<tr><td>Timeout:</td><td><input name=\"tm\" type=text ", r);
+            ap_rprintf(r, "value=\"%" APR_TIME_T_FMT "\"></td></tr>\n",
+                       apr_time_sec(bsel->timeout));
+            ap_rputs("<tr><td>Failover Attempts:</td><td><input name=\"fa\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n",
+                       bsel->max_attempts);
+            ap_rputs("<tr><td>LB Method:</td><td><select name=\"lm\">", r);
+            {
+                apr_array_header_t *methods;
+                ap_list_provider_names_t *method;
+                int i;
+                methods = ap_list_provider_names(r->pool, PROXY_LBMETHOD, "0");
+                method = (ap_list_provider_names_t *)methods->elts;
+                for (i = 0; i < methods->nelts; i++) {
+                    ap_rprintf(r, "<option value=\"%s\" %s>%s</option>", method->provider_name,
+                       (!strcasecmp(bsel->lbmethod->name, method->provider_name)) ? "selected" : "",
+                       method->provider_name);
+                    method++;
+                }
+            }
+            ap_rputs("</select></td></tr>\n", r);
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        ap_rputs(ap_psignature("",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+    return OK;
+}
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
-
-	interpreter[0] = 0;
-
-	exename = strrchr(r->filename, '/');
-	if (!exename)
-	    exename = strrchr(r->filename, '\\');
-	if (!exename)
-	    exename = r->filename;
-	else
-	    exename++;
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT") ||
-		!strcasecmp(dot, ".CMD") ||
-		!strcasecmp(dot, ".EXE") ||
-		!strcasecmp(dot, ".COM"))
-		is_exe = 1;
-	}
-
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r') ||
-			(interpreter[i] == '\n'))
-			break;
-		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-	    }
-	    else {
-                        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512)
-                    is_binary = 1;
-	    }
-	}
-
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
-	
-	pid = -1;      
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */

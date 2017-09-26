@@ -1,12 +1,15 @@
-static int remove_url(const char *key)
-{
-    /* XXX: Delete file from cache! */
-    return OK;
-}
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
+                      getpid());
+        return OK;
+    }
 
-/*
- * Reads headers from a buffer and returns an array of headers.
- * Returns NULL on file error
- * This routine tries to deal with too long lines and continuation lines.
- * @@@: XXX: FIXME: currently the headers are passed thru un-merged.
- * Is that okay, or should they be collapsed where possible?
+    if (!required_ldap || !sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise", getpid());
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);

@@ -1,1 +1,3 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username password\n\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -e level           : show startup errors of level "
+                 "(see LogLevel)");

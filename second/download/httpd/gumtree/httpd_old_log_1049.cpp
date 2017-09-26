@@ -1,1 +1,2 @@
-fprintf(stderr, "%s: filename too long\n", argv[0]);
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL, 
+                            "error getting data from UDP!!");

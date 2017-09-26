@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, 
-                         "getpeername failed");
+printf("%3d %s", (code[1] << 8) + code[2], OP_names[*code]);

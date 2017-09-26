@@ -1,19 +1,13 @@
-                        * the network is up again, and restart the children.
-                        * Ben Hyde noted that temporary ENETDOWN situations
-                        * occur in mobile IP.
-                        */
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
-                            "apr_accept: giving up.");
-                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, pthrd, 
-                                         bucket_alloc);
-                }
-                else {
-                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
-                        clean_child_exit(1, my_worker_num, pthrd, bucket_alloc);
-                }
-            }
+        if (rv || !(sb_shared = apr_shm_baseaddr_get(ap_scoreboard_shm))) {
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-
-        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
-        /*
+        memset(sb_shared, 0, scoreboard_size);
+        ap_init_scoreboard(sb_shared);
+    }
+    else
+#endif
+    {
+        /* A simple malloc will suffice */
+        void *sb_mem = calloc(1, scoreboard_size);
+        if (sb_mem == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,

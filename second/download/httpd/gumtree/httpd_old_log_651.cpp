@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, p,
-                     "Syntax error on line %d of %s:",
-                     parms.err_directive->line_num,
-                     parms.err_directive->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "No operator before regex of expr \"%s\" in file %s",
+                          expr, r->filename);

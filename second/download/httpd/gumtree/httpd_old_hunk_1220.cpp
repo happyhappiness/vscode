@@ -1,29 +1,21 @@
-                "be a multiple of the rotation time, so you can synchronize\n"
-                "cron scripts with it). At the end of each rotation time or "
-                "when the file size\nis reached a new log is started.\n");
-        exit(1);
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to determine list of acceptable "
+                    "CA certificates for client authentication");
+            ssl_die();
+        }
+
+        SSL_CTX_set_client_CA_list(ctx, (STACK *)ca_list);
     }
 
-    szLogRoot = argv[1];
+    /*
+     * Give a warning when no CAs were configured but client authentication
+     * should take place. This cannot work.
+     */
+    if (mctx->auth.verify_mode == SSL_CVERIFY_REQUIRE) {
+        ca_list = (STACK_OF(X509_NAME) *)SSL_CTX_get_client_CA_list(ctx);
 
-    ptr = strchr (argv[2], 'M');
-    if (ptr) {
-        if (*(ptr+1) == '\0') {
-            sRotation = atoi(argv[2]) * 1048576;
-        }
-        if (sRotation == 0) {
-            fprintf(stderr, "Invalid rotation size parameter\n");
-            exit(1);
-        }
-    }
-    else {
-        if (argc >= 4) {
-            utc_offset = atoi(argv[3]) * 60;
-        }
-        tRotation = atoi(argv[2]);
-        if (tRotation <= 0) {
-            fprintf(stderr, "Rotation time must be > 0\n");
-            exit(6);
-        }
-    }
-
+        if (sk_X509_NAME_num(ca_list) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Init: Oops, you want to request client "
+                         "authentication, but no CAs are known for "
+                         "verification!?  [Hint: SSLCACertificate*]");

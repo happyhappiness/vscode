@@ -1,31 +1,25 @@
 
-    /* Pass one --- direct matches */
+#ifdef SERVER_CONFIG_FILE
+    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
+#endif
+}
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
+#define TASK_SWITCH_SLEEP 10000
 
-            if (result != DECLINED)
-                return result;
-        }
-    }
+static void destroy_and_exit_process(process_rec *process,
+                                     int process_exit_value)
+{
+    /*
+     * Sleep for TASK_SWITCH_SLEEP micro seconds to cause a task switch on
+     * OS layer and thus give possibly started piped loggers a chance to
+     * process their input. Otherwise it is possible that they get killed
+     * by us before they can do so. In this case maybe valueable log messages
+     * might get lost.
+     */
+    apr_sleep(TASK_SWITCH_SLEEP);
+    apr_pool_destroy(process->pool); /* and destroy all descendent pools */
+    apr_terminate();
+    exit(process_exit_value);
+}
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+static process_rec *init_process(int *argc, const char * const * *argv)

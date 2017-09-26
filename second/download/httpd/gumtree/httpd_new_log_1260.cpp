@@ -1,2 +1,3 @@
-apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'\n", argv[0], *arg);
+apr_file_printf(errfile, "%s: The file %s does not appear "
+                                         "to be a valid htpasswd file." NL,
+                                argv[0], pwfilename);

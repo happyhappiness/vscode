@@ -1,33 +1,20 @@
-    util_ald_free(cache, node->username);
-    util_ald_free(cache, node->dn);
-    util_ald_free(cache, node->bindpw);
-    util_ald_free(cache, node);
-}
+         * that the client replies to a Hello Request). But because we insist
+         * on a reply (anything else is an error for us) we have to go to the
+         * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
+         * here because it resets too much of the connection.  So we set the
+         * state explicitly and continue the handshake manually.
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "Requesting connection re-negotiation");
 
-void util_ldap_search_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
-{
-    util_search_node_t *node = (util_search_node_t *)n;
-    char date_str[APR_CTIME_LEN+1];
-    char *buf;
+        if (renegotiate_quick) {
+            STACK_OF(X509) *cert_stack;
 
-    apr_ctime(date_str, node->lastbind);
+            /* perform just a manual re-verification of the peer */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                         "Performing quick renegotiation: "
+                         "just re-verifying the peer");
 
-    buf = apr_psprintf(r->pool, 
-             "<tr valign='top'>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<tr>",
-         node->username,
-         node->dn,
-         date_str);
+            cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
 
-    ap_rputs(buf, r);
-}
-
-/* ------------------------------------------------------------------ */
-
-unsigned long util_ldap_compare_node_hash(void *n)
-{
-    util_compare_node_t *node = (util_compare_node_t *)n;
-    return util_ald_hash_string(3, node->dn, node->attrib, node->value);
+            cert = SSL_get_peer_certificate(ssl);

@@ -1,23 +1,17 @@
 
-static apr_status_t ef_close_file(void *vfile)
-{
-    return apr_file_close(vfile);
-}
+    apr_pool_create(&ptrans, pchild);
+    apr_pool_tag(ptrans, "transaction");
 
-static void child_errfn(apr_pool_t *p, apr_status_t err, const char *desc)
-{
-    request_rec *r;
-    void *vr;
+    /* needs to be done before we switch UIDs so we have permissions */
+    ap_reopen_scoreboard(pchild, NULL, 0);
+    status = apr_proc_mutex_child_init(&accept_mutex, ap_lock_fname, pchild);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                     "Couldn't initialize cross-process lock in child "
+                     "(%s) (%d)", ap_lock_fname, ap_accept_lock_mech);
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, p);
-    r = vr;
-    
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
-}
-
-/* init_ext_filter_process: get the external filter process going
- * This is per-filter-instance (i.e., per-request) initialization.
- */
-static apr_status_t init_ext_filter_process(ap_filter_t *f)
-{
-    ef_ctx_t *ctx = f->ctx;
+    if (unixd_setup_child()) {
+	clean_child_exit(APEXIT_CHILDFATAL);
+    }

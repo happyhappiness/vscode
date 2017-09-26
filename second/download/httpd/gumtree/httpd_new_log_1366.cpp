@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "LDAP: SSL trusted certificate authority file type - %s", 
-                       Type);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SSL virtual host for servername %s found",
+                              servername);

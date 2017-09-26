@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "invalid transfer log path %s.", cls->fname);
+printf("error reading postfile: read only %"
+	       APR_SIZE_T_FMT " bytes",
+	       length);

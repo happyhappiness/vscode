@@ -1,3 +1,3 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s %s",
-                         e, err, annotation);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                           "proxy client certificate and "
+                           "private key do not match");

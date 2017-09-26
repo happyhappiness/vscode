@@ -1,15 +1,29 @@
-                    else {
-                        const char *buf;
-                        apr_size_t len = 0;
-                        rv = apr_bucket_read(bucket, &buf, &len,
-                                             APR_BLOCK_READ);
-                        if (rv != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                                         c->base_server, "core_output_filter:"
-                                         " Error reading from bucket.");
-                            return HTTP_INTERNAL_SERVER_ERROR;
-                        }
-                    }
-                }
-            }
-            if (!ctx->deferred_write_pool) {
+
+static int ssl_tmp_key_init_rsa(server_rec *s,
+                                int bits, int idx)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+
+    if (!(mc->pTmpKeys[idx] =
+          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit RSA private key", bits);
+        return !OK;
+    }
+
+    return OK;
+}
+
+static int ssl_tmp_key_init_dh(server_rec *s,
+                               int bits, int idx)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+
+    if (!(mc->pTmpKeys[idx] =
+          ssl_dh_GetTmpParam(bits)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit DH parameters", bits);

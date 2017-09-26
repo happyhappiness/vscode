@@ -1,19 +1,16 @@
-    char pwin[MAX_STRING_LEN];
-    char pwv[MAX_STRING_LEN];
-    unsigned int i;
-    apr_size_t len = sizeof(pwin);
+    apr_bucket *e;
+    apr_off_t cl_val = 0;
+    apr_off_t bytes;
+    apr_off_t bytes_streamed = 0;
 
-    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
-	fprintf(stderr, "password too long");
-	cleanup_tempfile_and_exit(5);
+    if (old_cl_val) {
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        if (APR_SUCCESS != (status = apr_strtoff(&cl_val, old_cl_val, NULL,
+                                                 0))) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
-    len = sizeof(pwin);
-    apr_password_get("Re-type new password: ", pwv, &len);
-    if (strcmp(pwin, pwv) != 0) {
-	fprintf(stderr, "They don't match, sorry.\n");
-        cleanup_tempfile_and_exit(1);
-    }
-    pw = pwin;
-    apr_file_printf(f, "%s:%s:", user, realm);
+    terminate_headers(bucket_alloc, header_brigade);
 
-    /* Do MD5 stuff */
+    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    {

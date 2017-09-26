@@ -1,13 +1,13 @@
-		while (groups[0]) {
-		    v = ap_getword(r->pool, &groups, ',');
-		    if (!strcmp(v, w))
-			return OK;
-		}
-	    }
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"user %s not in right group: %s", user, r->filename);
-	    ap_note_basic_auth_failure(r);
-	    return AUTH_REQUIRED;
-	}
-    }
+        apr_bucket *bucket;
 
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {

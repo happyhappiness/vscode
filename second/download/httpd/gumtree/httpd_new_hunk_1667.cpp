@@ -1,32 +1,27 @@
-        qsort((void *) candidates->elts, candidates->nelts,
-              sizeof(misspelled_file), sort_by_quality);
+/*  _________________________________________________________________
+**
+**  Module Initialization
+**  _________________________________________________________________
+*/
 
-        /*
-         * Conditions for immediate redirection: 
-         *     a) the first candidate was not found by stripping the suffix 
-         * AND b) there exists only one candidate OR the best match is not
-	 *        ambiguous
-         * then return a redirection right away.
-         */
-        if (variant[0].quality != SP_VERYDIFFERENT
-	    && (candidates->nelts == 1
-		|| variant[0].quality != variant[1].quality)) {
 
-            nuri = ap_pstrcat(r->pool, url, variant[0].name, r->path_info,
-			      r->parsed_uri.query ? "?" : "",
-			      r->parsed_uri.query ? r->parsed_uri.query : "",
-			      NULL);
+static void ssl_add_version_components(apr_pool_t *p,
+                                       server_rec *s)
+{
+    char *modver = ssl_var_lookup(p, s, NULL, NULL, "SSL_VERSION_INTERFACE");
+    char *libver = ssl_var_lookup(p, s, NULL, NULL, "SSL_VERSION_LIBRARY");
+    char *incver = ssl_var_lookup(p, s, NULL, NULL, 
+                                  "SSL_VERSION_LIBRARY_INTERFACE");
 
-            ap_table_setn(r->headers_out, "Location",
-			  ap_construct_url(r->pool, nuri, r));
+    ap_add_version_component(p, modver);
+    ap_add_version_component(p, libver);
 
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO | APLOG_INFO, r,
-			 ref ? "Fixed spelling: %s to %s from %s"
-			     : "Fixed spelling: %s to %s",
-			 r->uri, nuri, ref);
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "%s compiled against Server: %s, Library: %s",
+                 modver, AP_SERVER_BASEVERSION, incver);
+}
 
-            return HTTP_MOVED_PERMANENTLY;
-        }
-        /*
-         * Otherwise, a "[300] Multiple Choices" list with the variants is
-         * returned.
+
+/*
+ * Handle the Temporary RSA Keys and DH Params
+ */

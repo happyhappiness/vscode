@@ -1,13 +1,12 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Init: Failed to enable Crypto Device API `%s'",
+                         mc->szCryptoDevice);
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();
         }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+        ENGINE_free(e);
+    }
+}
+#endif
+

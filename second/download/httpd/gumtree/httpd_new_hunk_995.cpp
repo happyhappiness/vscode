@@ -1,16 +1,13 @@
-	{
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
-		return rcode;
-	}
+#ifdef SIGILL
+    if (sigaction(SIGILL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+#endif
 
-    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
-	WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
-                     NULL, 0, NULL, NULL, NULL);
+#else /* NO_USE_SIGACTION */
 
-    /* setup the socket for SSL */
-    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
-    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
-    sWS2Opts.options = &sNWTLSOpts;
-
-    if (numcerts) {
+    apr_signal(SIGSEGV, sig_coredump);
+#ifdef SIGBUS
+    apr_signal(SIGBUS, sig_coredump);
+#endif /* SIGBUS */
+#ifdef SIGABORT
+    apr_signal(SIGABORT, sig_coredump);

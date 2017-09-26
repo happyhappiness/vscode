@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
+                          "ISAPI: HSE_STATUS_ERROR result from "
+                          "HttpExtensionProc(): %s", r->filename);

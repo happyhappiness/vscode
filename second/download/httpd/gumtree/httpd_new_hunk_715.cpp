@@ -1,49 +1,50 @@
-                        &WSAProtocolInfo, 0, 0);
-        if (nsd == INVALID_SOCKET) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                         "Child %d: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
 
-        if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
-            HANDLE hProcess = GetCurrentProcess();
-            HANDLE dup;
-            if (DuplicateHandle(hProcess, (HANDLE) nsd, hProcess, &dup, 
-                                0, FALSE, DUPLICATE_SAME_ACCESS)) {
-                closesocket(nsd);
-                nsd = (SOCKET) dup;
+        apr_pool_clear(ptrans);
+
+        len = sizeof(unix_addr);
+        sd2 = accept(sd, (struct sockaddr *)&unix_addr, &len);
+        if (sd2 < 0) {
+#if defined(ENETDOWN)
+            if (errno == ENETDOWN) {
+                /* The network has been shut down, no need to continue. Die gracefully */
+                ++daemon_should_exit;
             }
-        }
-        else {
-            /* A different approach.  Many users report errors such as 
-             * (32538)An operation was attempted on something that is not 
-             * a socket.  : Parent: WSADuplicateSocket failed...
-             *
-             * This appears that the duplicated handle is no longer recognized
-             * as a socket handle.  SetHandleInformation should overcome that
-             * problem by not altering the handle identifier.  But this won't
-             * work on 9x - it's unsupported.
-             */
-            if (!SetHandleInformation((HANDLE)nsd, HANDLE_FLAG_INHERIT, 0)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf,
-                             "set_listeners_noninheritable: SetHandleInformation failed.");
+#endif
+            if (errno != EINTR) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, errno,
+                             (server_rec *)data,
+                             "Error accepting on cgid socket");
             }
+            continue;
         }
-        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
-    }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
-}
+        r = apr_pcalloc(ptrans, sizeof(request_rec));
+        procnew = apr_pcalloc(ptrans, sizeof(*procnew));
+        r->pool = ptrans;
+        stat = get_req(sd2, r, &argv0, &env, &cgid_req);
+        if (stat != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, stat,
+                         main_server,
+                         "Error reading request on cgid socket");
+            close(sd2);
+            continue;
+        }
 
+        if (cgid_req.ppid != parent_pid) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, main_server,
+                         "CGI request received from wrong server instance; "
+                         "see ScriptSock directive");
+            close(sd2);
+            continue;
+        }
 
-static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId, 
-                                   apr_file_t *child_in)
-{
-    apr_status_t rv;
-    int lcnt = 0;
-    ap_listen_rec *lr;
-    LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
-    DWORD BytesWritten;
+        if (cgid_req.req_type == GETPID_REQ) {
+            pid_t pid;
 
-    /* Run the chain of open sockets. For each socket, duplicate it 
+            pid = (pid_t)((long)apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id)));
+            if (write(sd2, &pid, sizeof(pid)) != sizeof(pid)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             main_server,
+                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
+            }
+            close(sd2);

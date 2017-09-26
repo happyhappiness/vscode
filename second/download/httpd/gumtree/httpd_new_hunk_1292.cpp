@@ -1,24 +1,14 @@
-                       ap_escape_html(r->pool, apr_pvsprintf(r->pool, fmt,
-                                                             args)));
+{
+    if (error) {
+    	apr_file_printf(errfile, "%s error: %s\n", shortname, error);
     }
-    va_end(args);
-}
-
-AP_DECLARE(void) ap_log_cerror(const char *file, int line, int level,
-                               apr_status_t status, const conn_rec *c,
-                               const char *fmt, ...)
-{
-    va_list args;
-
-    va_start(args, fmt);
-    log_error_core(file, line, level, status, c->base_server, c, NULL, NULL,
-                   fmt, args);
-    va_end(args);
-}
-
-AP_DECLARE(void) ap_log_pid(apr_pool_t *p, const char *filename)
-{
-    apr_file_t *pid_file = NULL;
-    apr_finfo_t finfo;
-    static pid_t saved_pid = -1;
-    pid_t mypid;
+	apr_file_printf(errfile,
+    "%s -- program for cleaning the disk cache."                             NL
+    "Usage: %s [-Dvtrn] -pPATH -lLIMIT [-PPIDFILE]"                          NL
+    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT [-PPIDFILE]"                 NL
+                                                                             NL
+    "Options:"                                                               NL
+    "  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."     NL
+    "       This option is mutually exclusive with the -D, -v and -r"        NL
+    "       options."                                                        NL
+                                                                             NL

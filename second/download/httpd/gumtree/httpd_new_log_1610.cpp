@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: no-cache or authorization forbids caching "
-                         "of %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                      "Error while reading HTTP trailer: %i%s%s",
+                      r->status, error_notes ? ": " : "",
+                      error_notes ? error_notes : "");

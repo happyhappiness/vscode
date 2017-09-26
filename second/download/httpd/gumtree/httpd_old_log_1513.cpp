@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABRT)");
+apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work." NL);

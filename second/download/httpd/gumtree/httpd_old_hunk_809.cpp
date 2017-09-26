@@ -1,15 +1,13 @@
-	    fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
-	    for (i = 0; i < requests; i++) {
-                apr_time_t diff = stats[i].time - stats[i].ctime;
+        if (ok < 0) {
+            cp = apr_psprintf(r->pool,
+                              "Failed to execute "
+                              "SSL requirement expression: %s",
+                              ssl_expr_get_error());
 
-		sttime = stats[i].starttime;
-		(void) apr_ctime(tmstring, sttime);
-		tmstring[strlen(tmstring) - 1] = '\0';	/* ctime returns a
-							 * string with a
-							 * trailing newline */
-		fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
-			tmstring,
-			sttime,
-			stats[i].ctime,
-			diff,
-			stats[i].time,
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                          "access to %s failed, reason: %s",
+                          r->filename, cp);
+
+            /* remember forbidden access for strict require option */
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
+

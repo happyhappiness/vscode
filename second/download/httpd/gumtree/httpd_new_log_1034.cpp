@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -E file            : log startup errors to file");

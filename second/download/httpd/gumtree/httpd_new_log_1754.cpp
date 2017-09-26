@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                     "apr_socket_timeout_set");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Handler for %s returned invalid result code %d",
+                          r->handler, result);

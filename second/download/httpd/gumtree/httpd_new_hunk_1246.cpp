@@ -1,36 +1,55 @@
+    return apr_dbm_delete(htdbm->dbm, key);
+}
+
+static apr_status_t htdbm_verify(htdbm_t *htdbm)
+{
+    apr_datum_t key, val;
+    char *pwd;
+    char *rec, *cmnt;
+
+    key.dptr = htdbm->username;
+    key.dsize = strlen(htdbm->username);
+    if (!apr_dbm_exists(htdbm->dbm, key))
+        return APR_ENOENT;
+    if (apr_dbm_fetch(htdbm->dbm, key, &val) != APR_SUCCESS)
+        return APR_ENOENT;
+    rec = apr_pstrndup(htdbm->pool, val.dptr, val.dsize);
+    cmnt = strchr(rec, ':');
+    if (cmnt)
+        pwd = apr_pstrndup(htdbm->pool, rec, cmnt - rec);
     else
-        st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
-
-    return(NULL);
+        pwd = apr_pstrdup(htdbm->pool, rec);
+    return apr_password_validate(htdbm->userpass, pwd);
 }
 
-static const char *util_ldap_set_connection_timeout(cmd_parms *cmd, void *dummy, const char *ttl)
+static apr_status_t htdbm_list(htdbm_t *htdbm)
 {
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    apr_status_t rv;
+    apr_datum_t key, val;
+    char *cmnt;
+    int i = 0;
 
-    if (err != NULL) {
-        return err;
+    rv = apr_dbm_firstkey(htdbm->dbm, &key);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "Empty database -- %s\n", htdbm->filename);
+        return APR_ENOENT;
     }
-
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    st->connectionTimeout = atol(ttl);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "[%d] ldap connection: Setting connection timeout to %ld seconds.", 
-                      getpid(), st->connectionTimeout);
-#else
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
-                     "LDAP: Connection timout option not supported by the LDAP SDK in use." );
-#endif
-
-    return NULL;
-}
-
-void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
-
+    fprintf(stderr, "Dumping records from database -- %s\n", htdbm->filename);
+    fprintf(stderr, "    %-32s Comment\n", "Username");
+    while (key.dptr != NULL) {
+        rv = apr_dbm_fetch(htdbm->dbm, key, &val);
+        if (rv != APR_SUCCESS) {
+            fprintf(stderr, "Failed getting data from %s\n", htdbm->filename);
+            return APR_EGENERAL;
+        }
+        /* Note: we don't store \0-terminators on our dbm data */
+        fprintf(stderr, "    %-32.*s", (int)key.dsize, key.dptr);
+        cmnt = memchr(val.dptr, ':', val.dsize);
+        if (cmnt)
+            fprintf(stderr, " %.*s", (int)(val.dptr+val.dsize - (cmnt+1)), cmnt + 1);
+        fprintf(stderr, "\n");
+        rv = apr_dbm_nextkey(htdbm->dbm, &key);
+        if (rv != APR_SUCCESS)
+            fprintf(stderr, "Failed getting NextKey\n");
+        ++i;
+    }

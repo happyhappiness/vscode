@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: fresh cache - add cache_out filter and "
-                         "handle request");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");

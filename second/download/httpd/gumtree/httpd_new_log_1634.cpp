@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache_disk: URL %s failed the size check (%lu<%lu)",
-                     h->cache_obj->key, (unsigned long)dobj->file_size, (unsigned long)conf->minfs);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id,
+                     mctx->pks->cert_files[0]);

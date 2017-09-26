@@ -1,14 +1,13 @@
-    shutdown_pending = os_check_server(tpf_server_name);
-    ap_check_signals();
-    sleep(1);
-#endif /*TPF */
-    }
 
-    mpm_state = AP_MPMQ_STOPPING;
+        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
 
-    if (shutdown_pending) {
-	/* Time to gracefully shut down:
-	 * Kill child processes, tell them to call child_exit, etc...
-	 */
-	if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGTERM");
+        /* Presume the handle was opened with the CORRECT semantics
+         * for TransmitFile
+         */

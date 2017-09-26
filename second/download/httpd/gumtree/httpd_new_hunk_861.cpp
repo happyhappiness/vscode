@@ -1,123 +1,85 @@
-        apr_size_t bytes = pos - buf;
-
-        bytes += 1;
-        value = buf + bytes;
-        length = *len - bytes;
-
-        char_buffer_write(&inctx->cbuf, value, length);
-
-        *len = bytes;
+        conf->ct_output_filters = apr_hash_make(cmd->pool);
+        old = NULL;
+    }
+    else {
+        old = (ap_filter_rec_t*) apr_hash_get(conf->ct_output_filters, arg2,
+                                              APR_HASH_KEY_STRING);
+        /* find last entry */
+        if (old) {
+            while (old->next) {
+                old = old->next;
+            }
+        }
     }
 
-    return APR_SUCCESS;
+    while (*arg &&
+           (filter_name = ap_getword(cmd->pool, &arg, ';')) &&
+           strcmp(filter_name, "")) {
+        new = apr_pcalloc(cmd->pool, sizeof(ap_filter_rec_t));
+        new->name = filter_name;
+
+        /* We found something, so let's append it.  */
+        if (old) {
+            old->next = new;
+        }
+        else {
+            apr_hash_set(conf->ct_output_filters, arg2,
+                         APR_HASH_KEY_STRING, new);
+        }
+        old = new;
+    }
+
+    if (!new) {
+        return "invalid filter name";
+    }
+
+    return NULL;
 }
-
-
-static apr_status_t ssl_filter_write(ap_filter_t *f,
-                                     const char *data,
-                                     apr_size_t len)
-{
-    ssl_filter_ctx_t *filter_ctx = f->ctx;
-    bio_filter_out_ctx_t *outctx = 
-           (bio_filter_out_ctx_t *)(filter_ctx->pbioWrite->ptr);
-    int res;
-
-    /* write SSL */
-    if (filter_ctx->pssl == NULL) {
-        return APR_EGENERAL;
-    }
-
-    res = SSL_write(filter_ctx->pssl, (unsigned char *)data, len);
-
-    if (res < 0) {
-        int ssl_err = SSL_get_error(filter_ctx->pssl, res);
-        conn_rec *c = (conn_rec*)SSL_get_app_data(outctx->filter_ctx->pssl);
-
-        if (ssl_err == SSL_ERROR_WANT_WRITE) {
-            /*
-             * If OpenSSL wants to write more, and we were nonblocking,
-             * report as an EAGAIN.  Otherwise loop, pushing more
-             * data at the network filter.
-             *
-             * (This is usually the case when the client forces an SSL
-             * renegotation which is handled implicitly by OpenSSL.)
-             */
-            outctx->rc = APR_EAGAIN;
-        }
-        else if (ssl_err == SSL_ERROR_SYSCALL) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
-                        "SSL output filter write failed.");
-        }
-        else /* if (ssl_err == SSL_ERROR_SSL) */ {
-            /*
-             * Log SSL errors
-             */
-            ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
-                         "SSL library error %d writing data", ssl_err);
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
-        }
-        if (outctx->rc == APR_SUCCESS) {
-            outctx->rc = APR_EGENERAL;
-        }
-    }
-    else if ((apr_size_t)res != len) {
-        conn_rec *c = f->c;
-        char *reason = "reason unknown";
-
-        /* XXX: probably a better way to determine this */
-        if (SSL_total_renegotiations(filter_ctx->pssl)) {
-            reason = "likely due to failed renegotiation";
-        }
-
-        ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
-                     "failed to write %d of %d bytes (%s)",
-                     len - (apr_size_t)res, len, reason);
-
-        outctx->rc = APR_EGENERAL;
-    }
-    return outctx->rc;
-}
-
-/* Just use a simple request.  Any request will work for this, because
- * we use a flag in the conn_rec->conn_vector now.  The fake request just
- * gets the request back to the Apache core so that a response can be sent.
- *
- * To avoid calling back for more data from the socket, use an HTTP/0.9
- * request, and tack on an EOS bucket.
+/*
+ * Insert filters requested by the AddOutputFilterByType
+ * configuration directive. We cannot add filters based
+ * on content-type until after the handler has started
+ * to run. Only then do we reliably know the content-type.
  */
-#define HTTP_ON_HTTPS_PORT \
-    "GET /" CRLF
-
-#define HTTP_ON_HTTPS_PORT_BUCKET(alloc) \
-    apr_bucket_immortal_create(HTTP_ON_HTTPS_PORT, \
-                               sizeof(HTTP_ON_HTTPS_PORT) - 1, \
-                               alloc)
-
-static void ssl_io_filter_disable(ap_filter_t *f)
+void ap_add_output_filters_by_type(request_rec *r)
 {
-    bio_filter_in_ctx_t *inctx = f->ctx;
-    inctx->ssl = NULL;
-    inctx->filter_ctx->pssl = NULL;
+    core_dir_config *conf;
+    const char *ctype;
+
+    conf = (core_dir_config *)ap_get_module_config(r->per_dir_config,
+                                                   &core_module);
+
+    /* We can't do anything with no content-type or if we don't have a
+     * filter configured.
+     */
+    if (!r->content_type || !conf->ct_output_filters) {
+        return;
+    }
+
+    /* remove c-t decoration */
+    ctype = ap_field_noparam(r->pool, r->content_type);
+    if (ctype) {
+        ap_filter_rec_t *ct_filter;
+        ct_filter = apr_hash_get(conf->ct_output_filters, ctype,
+                                 APR_HASH_KEY_STRING);
+        while (ct_filter) {
+            ap_add_output_filter(ct_filter->name, NULL, r, r->connection);
+            ct_filter = ct_filter->next;
+        }
+    }
+
+    return;
 }
 
-static apr_status_t ssl_io_filter_error(ap_filter_t *f,
-                                        apr_bucket_brigade *bb,
-                                        apr_status_t status)
+static const char *set_trace_enable(cmd_parms *cmd, void *dummy,
+                                    const char *arg1)
 {
-    SSLConnRec *sslconn = myConnConfig(f->c);
-    apr_bucket *bucket;
+    core_server_config *conf = ap_get_module_config(cmd->server->module_config,
+                                                    &core_module);
 
-    switch (status) {
-      case HTTP_BAD_REQUEST:
-            /* log the situation */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                         f->c->base_server,
-                         "SSL handshake failed: HTTP spoken on HTTPS port; "
-                         "trying to send HTML error page");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, f->c->base_server);
-
-            sslconn->non_ssl_request = 1;
-            ssl_io_filter_disable(f);
-
-            /* fake the request line */
-            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
+    if (strcasecmp(arg1, "on") == 0) {
+        conf->trace_enable = AP_TRACE_ENABLE;
+    }
+    else if (strcasecmp(arg1, "off") == 0) {
+        conf->trace_enable = AP_TRACE_DISABLE;
+    }

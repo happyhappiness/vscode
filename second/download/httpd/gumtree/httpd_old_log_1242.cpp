@@ -1,5 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                     "Determining if request should be passed. "
-                     "Child Num: %d, SD: %d, sd from table: %d, hostname from server: %s", child_num, 
-                     sconf->sd, child_info_table[child_num].sd, 
-                     r->server->server_hostname);
+apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);

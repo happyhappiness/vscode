@@ -1,21 +1,23 @@
-         */
-        if (rv == APR_ENOSPC && field) {
-            r->status = HTTP_BAD_REQUEST;
-            /* insure ap_escape_html will terminate correctly */
-            field[len - 1] = '\0';
-            apr_table_setn(r->notes, "error-notes",
-                           apr_psprintf(r->pool,
-                                       "Size of a request header field "
-                                       "exceeds server limit.<br />\n"
-                                        "<pre>\n%.*s\n</pre>/n",
-                                        field_name_len(field), 
-                                        ap_escape_html(r->pool, field)));
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                          "Request header exceeds LimitRequestFieldSize: "
-                          "%.*s", field_name_len(field), field);
-            return;
-        }
 
-        if (rv != APR_SUCCESS) {
-            r->status = HTTP_BAD_REQUEST;
-            return;
+        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
+        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
+        klen = strlen(key);
+
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+#ifdef OPENSSL_NO_TLSEXT
+            int level = APLOG_WARNING;
+            const char *problem = "conflict";
+#else
+            int level = APLOG_DEBUG;
+            const char *problem = "overlap";
+#endif
+            ap_log_error(APLOG_MARK, level, 0, base_server,
+                         "Init: SSL server IP/port %s: "
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         problem, ssl_util_vhostid(p, s),
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"),
+                         ps->defn_line_number);
+            conflict = TRUE;

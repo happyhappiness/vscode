@@ -1,15 +1,24 @@
-#define APLOG_MARK	__FILE__,__LINE__
+                                                APR_BLOCK_READ,
+                                                maxsize - AJP_HEADER_SZ);
+                        if (status != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
+                                         r->server,
+                                         "ap_get_brigade failed");
+                            output_failed = 1;
+                            break;
+                        }
+                        bufsiz = maxsize;
+                        status = apr_brigade_flatten(input_brigade, buff,
+                                                     &bufsiz);
+                        apr_brigade_cleanup(input_brigade);
+                        if (status != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
+                                         r->server,
+                                         "apr_brigade_flatten failed");
+                            output_failed = 1;
+                            break;
+                        }
+                    }
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
-
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
+                    ajp_msg_reset(msg);
+                    /* will go in ajp_send_data_msg */

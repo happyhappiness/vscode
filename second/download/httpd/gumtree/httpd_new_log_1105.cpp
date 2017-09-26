@@ -1,1 +1,2 @@
-ap_register_output_filter (ssl_io_filter, ssl_io_filter_Output, NULL, AP_FTYPE_CONNECTION + 5);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                "Could not resolve host name %s -- ignoring!", host);

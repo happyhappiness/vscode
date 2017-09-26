@@ -1,28 +1,14 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                "<th>Elected</th><th>To</th><th>From</th>"
+                "</tr>\n", r);
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                ap_rvputs(r, "<tr>\n<td><a href=\"",
+                          ap_escape_uri(r->pool, r->uri), "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),

@@ -1,34 +1,22 @@
-                 * to remove the object, update the size and re-add the 
-                 * object, all under protection of the lock.
-                 */
-                if (sconf->lock) {
-                    apr_thread_mutex_lock(sconf->lock);
-                }
-                if (obj->cleanup) {
-                    /* If obj->cleanup is set, the object has been prematurly 
-                     * ejected from the cache by the garbage collector. Add the
-                     * object back to the cache. If an object with the same key is 
-                     * found in the cache, eject it in favor of the completed obj.
-                     */
-                    cache_object_t *tmp_obj =
-                      (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
-                    if (tmp_obj) {
-                        cache_remove(sconf->cache_cache, tmp_obj);
-                        tmp_obj->cleanup = 1;
-                        if (!tmp_obj->refcount) {
-                            cleanup_cache_object(tmp_obj);
-                        }
-                    }
-                    obj->cleanup = 0;
-                }
-                else {
-                    cache_remove(sconf->cache_cache, obj);
-                }
-                mobj->m_len = obj->count;
-                cache_insert(sconf->cache_cache, obj);                
-                if (sconf->lock) {
-                    apr_thread_mutex_unlock(sconf->lock);
-                }
-            }
-            /* Open for business */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+static apr_status_t freetds_term(void *dummy)
+{
+    dbexit();
+    regfree(&dbd_freetds_find_arg);
+    return APR_SUCCESS;
+}
+static void dbd_freetds_init(apr_pool_t *pool)
+{
+    int rv = regcomp(&dbd_freetds_find_arg,
+                     "%(\\{[^}]*\\})?([0-9]*)[A-Za-z]", REG_EXTENDED);
+    if (rv != 0) {
+        char errmsg[256];
+        regerror(rv, &dbd_freetds_find_arg, errmsg, 256);
+        fprintf(stderr, "regcomp failed: %s\n", errmsg);
+    }
+    dbinit();
+    apr_pool_cleanup_register(pool, NULL, freetds_term, apr_pool_cleanup_null);
+}
+
+#ifdef COMPILE_STUBS
+/* get_name is the only one of these that is implemented */
+static const char *dbd_freetds_get_name(const apr_dbd_results_t *res, int n)

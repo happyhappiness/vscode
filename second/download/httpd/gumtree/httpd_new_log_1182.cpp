@@ -1,1 +1,0 @@
-strcpy(args[0], cmd);

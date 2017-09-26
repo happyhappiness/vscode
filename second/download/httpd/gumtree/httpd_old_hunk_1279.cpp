@@ -1,12 +1,12 @@
-        /* set configured max-forwards */
-        maxfwd = conf->maxfwd;
-    }
-    apr_table_set(r->headers_in, "Max-Forwards", 
-                  apr_psprintf(r->pool, "%ld", (maxfwd > 0) ? maxfwd : 0));
+                                            &ldap_module);
 
-    url = r->filename + 6;
-    p = strchr(url, ':');
-    if (p == NULL)
-        return HTTP_BAD_REQUEST;
-
-    /* If the host doesn't have a domain name, add one and redirect. */
+#if APR_HAS_SHARED_MEMORY
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
+                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
+                         "for VHOST: %s", st->cache_shm, st->cache_rmm,
+                         s_vhost->server_hostname);
+#endif
+            st_vhost->lock_file = st->lock_file;

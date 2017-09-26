@@ -1,12 +1,19 @@
-    /*
-     * Which cache module (if any) should handle this request?
-     */
-    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
-        return DECLINED;
-    }
+            if (!signal) {
+                fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
+                return;
+            }
+        }
 
-    urllen = strlen(url);
-    if (urllen > MAX_URL_LENGTH) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache: URL exceeds length threshold: %s", url);
-        return DECLINED;
+        fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+               signal ? "restarting" : "stopping");
+
+        apr_snprintf(prefix, sizeof(prefix), "ap%ld", (long)service_pid);
+        setup_signal_names(prefix);
+
+        if (!signal)
+        {
+            int ticks = 60;
+            ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+            while (--ticks)
+            {
+                if (!IsWindow(hwnd)) {

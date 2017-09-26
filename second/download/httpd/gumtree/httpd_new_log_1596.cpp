@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Encountered extra data after compressed data");

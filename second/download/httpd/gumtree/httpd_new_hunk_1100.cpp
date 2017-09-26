@@ -1,20 +1,13 @@
-#endif
-        rv = unixd_set_proc_mutex_perms(accept_mutex);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                         "Couldn't set permissions on cross-process lock; "
-                         "check User and Group directives");
-            mpm_state = AP_MPMQ_STOPPING;
             return 1;
         }
-    }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "ISAPI: ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    if (!is_graceful) {
-        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
-            mpm_state = AP_MPMQ_STOPPING;
-            return 1;
-        }
-        /* fix the generation number in the global score; we just got a new,
-         * cleared scoreboard
+    case HSE_REQ_TRANSMIT_FILE:
+    {
+        /* we do nothing with (tf->dwFlags & HSE_DISCONNECT_AFTER_SEND)
          */
-        ap_scoreboard_image->global->running_generation = ap_my_generation;

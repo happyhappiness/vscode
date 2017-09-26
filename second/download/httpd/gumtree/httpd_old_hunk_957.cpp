@@ -1,19 +1,21 @@
-                                   r);
-                }
-            }
-            break;
+        ReportStatusToSCMgr(SERVICE_STOP_PENDING, // service state
+                            NO_ERROR,             // exit code
+                            30000);               // wait hint
+}
 
-        case SATISFY_ANY:
-            if (((access_status = ap_run_access_checker(r)) != 0)
-                || !ap_auth_type(r)) {
-                if (!ap_some_auth_required(r)) {
-                    return decl_die(access_status, ap_auth_type(r)
-                                  ? "check access"
-                                  : "perform authentication. AuthType not set!",
-                                  r);
-                }
 
-                if (((access_status = ap_run_check_user_id(r)) != 0)
-                    || !ap_auth_type(r)) {
-                    return decl_die(access_status, ap_auth_type(r)
-                                  ? "check user.  No user file?"
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc, 
+                                 const char * const * argv, int reconfig)
+{
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
+    apr_status_t rv;
+    
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+		   : "Installing the %s service\n", mpm_display_name);
+
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {

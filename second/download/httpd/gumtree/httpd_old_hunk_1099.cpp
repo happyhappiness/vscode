@@ -1,12 +1,13 @@
 
-    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
-                               ap_accept_lock_mech, _pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock");
-        return 1;
-    }
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
-        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+    case HSE_APPEND_LOG_PARAMETER:
+        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
+         */
+        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);

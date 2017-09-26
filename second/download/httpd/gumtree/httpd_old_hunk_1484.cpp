@@ -1,21 +1,29 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+                backend_failed = 1;
+                break;
+        }
 
-    /* At some point, we may want to offer back-compatibility for
-     * loading modules that are for older versions of Apache. For now,
-     * though, we don't.
-     */
+        /*
+         * If connection has been aborted by client: Stop working.
+         * Nevertheless, we regard our operation so far as a success:
+         * So reset output_failed to 0 and set result to CMD_AJP13_END_RESPONSE
+         * But: Close this connection to the backend.
+         */
+        if (r->connection->aborted) {
+            conn->close++;
+            output_failed = 0;
+            result = CMD_AJP13_END_RESPONSE;
+            request_ended = 1;
+        }
 
-    if (m->version != MODULE_MAGIC_NUMBER) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the author for the correct version.\n");
-	exit(1);
-    }
+        /*
+         * We either have finished successfully or we failed.
+         * So bail out
+         */
+        if ((result == CMD_AJP13_END_RESPONSE) || backend_failed
+            || output_failed)
+            break;
 
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+        /* read the response */
+        status = ajp_read_header(conn->sock, r, maxsize,
+                                 (ajp_msg_t **)&(conn->data));
+        if (status != APR_SUCCESS) {

@@ -1,35 +1,40 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
-
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+            closesocket(qhead->accept_socket);
+            qhead = qhead->next;
+        }
+        apr_thread_mutex_unlock(qlock);
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
 
-    r->status = 200;
-    r->status_line = "200 OK";
+    /* Give busy worker threads a chance to service their connections */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Waiting for %d worker threads to exit.", my_pid, threads_created);
+    end_time = time(NULL) + 180;
+    while (threads_created) {
+        rv = wait_for_many_objects(threads_created, child_handles, (DWORD)(end_time - time(NULL)));
+        if (rv != WAIT_TIMEOUT) {
+            rv = rv - WAIT_OBJECT_0;
+            ap_assert((rv >= 0) && (rv < threads_created));
+            cleanup_thread(child_handles, &threads_created, rv);
+            continue;
+        }
+        break;
+    }
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0, ap_server_conf,
-                     "worker_stack_create() failed");
+ap_rputs("<dt><strong>Configuration Phase Participation:</strong>\n",
+                      r);

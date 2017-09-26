@@ -1,51 +1,24 @@
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
-    }
-}
+                    return;
+                }
 
-/*
- * This callback function is executed while OpenSSL processes the SSL
- * handshake and does SSL record layer stuff.  It's used to trap
- * client-initiated renegotiations, and for dumping everything to the
- * log.
- */
-void ssl_callback_Info(MODSSL_INFO_CB_ARG_TYPE ssl, int where, int rc)
-{
-    conn_rec *c;
-    server_rec *s;
-    SSLConnRec *scr;
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_psprintf(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                               "<pre>\n%.*s</pre>\n",
+                                               (int)LOG_NAME_MAX_LEN,
+                                               ap_escape_html(r->pool,
+                                                              last_field)));
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);
 
-    /* Retrieve the conn_rec and the associated SSLConnRec. */
-    if ((c = (conn_rec *)SSL_get_app_data((SSL *)ssl)) == NULL) {
-        return;
-    }
+                    return;
+                }
 
-    if ((scr = myConnConfig(c)) == NULL) {
-        return;
-    }
+                tmp_field = value - 1; /* last character of field-name */
 
-    /* If the reneg state is to reject renegotiations, check the SSL
-     * state machine and move to ABORT if a Client Hello is being
-     * read. */
-    if ((where & SSL_CB_ACCEPT_LOOP) && scr->reneg_state == RENEG_REJECT) {
-        int state = SSL_get_state((SSL *)ssl);
-        
-        if (state == SSL3_ST_SR_CLNT_HELLO_A 
-            || state == SSL23_ST_SR_CLNT_HELLO_A) {
-            scr->reneg_state = RENEG_ABORT;
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                          "rejecting client initiated renegotiation");
-        }
-    }
-    /* If the first handshake is complete, change state to reject any
-     * subsequent client-initated renegotiation. */
-    else if ((where & SSL_CB_HANDSHAKE_DONE) && scr->reneg_state == RENEG_INIT) {
-        scr->reneg_state = RENEG_REJECT;
-    }
-
-    s = c->base_server;
-    if (s && s->loglevel >= APLOG_DEBUG) {
-        log_tracing_state(ssl, c, s, where, rc);
-    }
-}
+                *value++ = '\0'; /* NUL-terminate at colon */

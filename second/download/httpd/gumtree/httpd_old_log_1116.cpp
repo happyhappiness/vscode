@@ -1,0 +1,1 @@
+fprintf(stderr, "table_set: key not in ancestor pool of t\n");

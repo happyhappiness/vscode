@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                     "caught exception in worker thread, initiating child shutdown pid=%d", getpid());
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+             "proxy: initialized single connection worker %d in child %" APR_PID_T_FMT " for (%s)",
+             worker->id, getpid(), worker->hostname);

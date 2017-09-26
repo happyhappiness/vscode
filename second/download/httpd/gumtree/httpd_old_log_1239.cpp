@@ -1,0 +1,1 @@
+apr_file_printf(errfile, " -D  Delete the specified user.\n");

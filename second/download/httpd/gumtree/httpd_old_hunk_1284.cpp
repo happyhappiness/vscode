@@ -1,12 +1,14 @@
-void ssl_io_filter_init(conn_rec *c, SSL *ssl)
-{
-    ssl_filter_ctx_t *filter_ctx;
-
-    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
-
-    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
-                                                   filter_ctx, NULL, c);
-
-    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
-    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
-
+            /* handle one potential stray CRLF */
+            rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), rp, 0, &len);
+        }
+        if (len <= 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                          "proxy: error reading status line from remote "
+                          "server %s", backend->hostname);
+            if (rc == APR_TIMEUP) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "proxy: read timeout");
+            }
+            /*
+             * If we are a reverse proxy request shutdown the connection
+             * WITHOUT ANY response to trigger a retry by the client

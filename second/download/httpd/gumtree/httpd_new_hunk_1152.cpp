@@ -1,21 +1,25 @@
-        was specified at startup) */
-    if (hold_screen_on_exit > 0) {
-        hold_screen_on_exit = 0;
+{
+    ef_ctx_t *ctx = f->ctx;
+    apr_status_t rv;
+
+    if (!ctx) {
+        if ((rv = init_filter_instance(f)) != APR_SUCCESS) {
+            ctx = f->ctx;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "can't initialise input filter %s: %s",
+                          f->frec->name,
+                          (ctx->dc->onfail == 1) ? "removing" : "aborting");
+            ap_remove_input_filter(f);
+            if (ctx->dc->onfail == 1) {
+                return ap_get_brigade(f->next, bb, mode, block, readbytes);
+            }
+            else {
+                f->r->status = HTTP_INTERNAL_SERVER_ERROR;
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        ctx = f->ctx;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-            "%s configured -- resuming normal operations",
-            ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-            "Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-            "AcceptMutex: %s (default: %s)",
-            apr_proc_mutex_name(accept_mutex),
-            apr_proc_mutex_defname());
-#endif
-    show_server_data();
-
-    mpm_state = AP_MPMQ_RUNNING;
-    while (!restart_pending && !shutdown_pending) {
-        perform_idle_server_maintenance(pconf);
+    if (ctx->noop) {
+        ap_remove_input_filter(f);

@@ -1,26 +1,13 @@
-    apr_set_os_error(0);
+    ht = apr_hash_make(pchild);
 
-    /* Run GetExtensionVersion() */
-    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
-        apr_status_t rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: failed call to GetExtensionVersion() in %s",
-                     isa->filename);
-        apr_dso_unload(isa->handle);
-        isa->handle = NULL;
-        return rv;
+    /* Initialize the child_events */
+    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!max_requests_per_child_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Failed to create a max_requests event.", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
+    child_events[0] = exit_event;
+    child_events[1] = max_requests_per_child_event;
 
-    apr_pool_cleanup_register(p, isa, cleanup_isapi,
-                              apr_pool_cleanup_null);
-
-    return APR_SUCCESS;
-}
-
-apr_status_t isapi_lookup(apr_pool_t *p, server_rec *s, request_rec *r,
-                          const char *fpath, isapi_loaded** isa)
-{
-    apr_status_t rv;
-    const char *key;
-
-    if ((rv = apr_thread_mutex_lock(loaded.lock)) != APR_SUCCESS) {
+    allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);

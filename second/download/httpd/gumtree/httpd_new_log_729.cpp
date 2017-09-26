@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             ap_server_conf,
-                             "long lost child came home! (pid %ld)",
-                             (long)pid.pid);
+ap_rprintf(r, "<dd><tt>%s%s - <i>",
+                                           ap_escape_html(r->pool, cmd->name),
+                                           cmd->name[0] == '<' ? "&gt;" : "");

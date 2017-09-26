@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: Failed to create a qwait event.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "disk_cache: URL %s didn't receive complete response, not caching",
+                             h->cache_obj->key);

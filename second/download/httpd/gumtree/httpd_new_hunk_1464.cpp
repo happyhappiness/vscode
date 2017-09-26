@@ -1,16 +1,19 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
+        }
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) { 
+            /* APLOG_ERR because the core output filter message is at error,
+             * but doesn't know it's passing CGI output 
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "Failed to flush CGI output to client");
+        }
     }
 
-    /* perform sub-request for the file name without the suffix */
+    if (nph) {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we

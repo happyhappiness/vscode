@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "%s", lookup.err.desc);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to acquire thread mutex");

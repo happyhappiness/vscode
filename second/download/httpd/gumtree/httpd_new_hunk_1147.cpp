@@ -1,13 +1,13 @@
-    if (temp_error_log) {
-        ap_replace_stderr_log(process->pool, temp_error_log);
-    }
-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Pre-configuration failed");
-        destroy_and_exit_process(process, 1);
-    }
 
-    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-    ap_fixup_virtual_hosts(pconf, server_conf);
-    ap_fini_vhost_config(pconf, server_conf);
+    if (result == DECLINED && r->handler && r->filename) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
+    if ((result != OK) && (result != DONE) && (result != DECLINED)
+        && (result != AP_FILTER_ERROR)
+        && !ap_is_HTTP_VALID_RESPONSE(result)) {
+        /* If a module is deliberately returning something else
+         * (request_rec in non-HTTP or proprietary extension?)
+         * let it set a note to allow it explicitly.
+         * Otherwise, a return code that is neither reserved nor HTTP
+         * is a bug, as in PR#31759.

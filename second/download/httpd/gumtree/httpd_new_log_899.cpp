@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "Parent: Marked listeners as not inheritable.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "TLS Upgrade handshake failed: "
+                      "Not accepted by client!?");

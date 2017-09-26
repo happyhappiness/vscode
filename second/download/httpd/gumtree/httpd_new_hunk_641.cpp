@@ -1,55 +1,49 @@
-     * They are tested here one by one to be clear and unambiguous. 
-     */
+ * 20020529 (2.0.37-dev) Standardized the names of some apr_pool_*_set funcs
+ * 20020602 (2.0.37-dev) Bucket API change (metadata buckets)
+ * 20020612 (2.0.38-dev) Changed server_rec->[keep_alive_]timeout to apr time
+ * 20020625 (2.0.40-dev) Changed conn_rec->keepalive to an enumeration
+ * 20020628 (2.0.40-dev) Added filter_init to filter registration functions
+ * 20020903 (2.0.41-dev) APR's error constants changed
+ * 20020903.1 (2.1.0-dev) allow_encoded_slashes added to core_dir_config
+ * 20020903.2 (2.0.46-dev) add ap_escape_logitem
+ * 20030213.1 (2.1.0-dev) changed log_writer optional fn's to return previous
+ *                        handler
+ * 20030821 (2.1.0-dev) bumped mod_include's entire API
+ * 20030821.1 (2.1.0-dev) added XHTML doctypes
+ * 20030821.2 (2.1.0-dev) added ap_escape_errorlog_item
+ * 20030821.3 (2.1.0-dev) added ap_get_server_revision / ap_version_t
+ * 20040425 (2.1.0-dev) removed ap_add_named_module API
+ *                      changed ap_add_module, ap_add_loaded_module,
+ *                      ap_setup_prelinked_modules, ap_process_resource_config
+ * 20040425.1 (2.1.0-dev) Added ap_module_symbol_t and ap_prelinked_module_symbols
+ * 20050101.0 (2.1.2-dev) Axed misnamed http_method for http_scheme (which it was!)
+ * 20050127.0 (2.1.3-dev) renamed regex_t->ap_regex_t, regmatch_t->ap_regmatch_t,
+ *                        REG_*->AP_REG_*, removed reg* in place of ap_reg*;
+ *                        added ap_regex.h
+ * 20050217.0 (2.1.3-dev) Axed find_child_by_pid, mpm_*_completion_context (winnt mpm)
+ *                        symbols from the public sector, and decorated real_exit_code
+ *                        with ap_ in the win32 os.h.
+ * 20050305.0 (2.1.4-dev) added pid and generation fields to worker_score
+ * 20050305.1 (2.1.5-dev) added ap_vhost_iterate_given_conn.
+ * 20050305.2 (2.1.5-dev) added AP_INIT_TAKE_ARGV.
+ * 20050305.3 (2.1.5-dev) added Protocol Framework.
+ * 20050701.0 (2.1.7-dev) Bump MODULE_MAGIC_COOKIE to "AP21"!
+ * 20050701.1 (2.1.7-dev) trace_enable member added to core server_config
+ * 20050708.0 (2.1.7-dev) Bump MODULE_MAGIC_COOKIE to "AP22"!
+ * 20050708.1 (2.1.7-dev) add proxy request_status hook (minor)
+ * 20051006.0 (2.1.8-dev) NET_TIME filter eliminated
+ * 20051115.0 (2.1.10-dev/2.2.0) add use_canonical_phys_port to core_dir_config
+ */
 
-    /* RFC2616 13.4 we are allowed to cache 200, 203, 206, 300, 301 or 410
-     * We don't cache 206, because we don't (yet) cache partial responses.
-     * We include 304 Not Modified here too as this is the origin server
-     * telling us to serve the cached copy.
-     */
-    if ((r->status != HTTP_OK && r->status != HTTP_NON_AUTHORITATIVE
-         && r->status != HTTP_MULTIPLE_CHOICES
-         && r->status != HTTP_MOVED_PERMANENTLY
-         && r->status != HTTP_NOT_MODIFIED)
-        /* if a broken Expires header is present, don't cache it */
-        || (exps != NULL && exp == APR_DATE_BAD)
-        /* if the server said 304 Not Modified but we have no cache
-         * file - pass this untouched to the user agent, it's not for us.
-         */
-        || (r->status == HTTP_NOT_MODIFIED && (NULL == cache->handle))
-        /* 200 OK response from HTTP/1.0 and up without a Last-Modified
-         * header/Etag 
-         */
-        /* XXX mod-include clears last_modified/expires/etags - this
-         * is why we have an optional function for a key-gen ;-) 
-         */
-        || (r->status == HTTP_OK && lastmods == NULL && etag == NULL 
-            && (conf->no_last_mod_ignore ==0))
-        /* HEAD requests */
-        || r->header_only
-        /* RFC2616 14.9.2 Cache-Control: no-store response indicating do not
-         * cache, or stop now if you are trying to cache it */
-        || ap_cache_liststr(cc_out, "no-store", NULL)
-        /* RFC2616 14.9.1 Cache-Control: private
-         * this object is marked for this user's eyes only. Behave
-         * as a tunnel.
-         */
-        || ap_cache_liststr(cc_out, "private", NULL)
-        /* RFC2616 14.8 Authorisation:
-         * if authorisation is included in the request, we don't cache,
-         * but we can cache if the following exceptions are true:
-         * 1) If Cache-Control: s-maxage is included
-         * 2) If Cache-Control: must-revalidate is included
-         * 3) If Cache-Control: public is included
-         */
-        || (apr_table_get(r->headers_in, "Authorization") != NULL
-            && !(ap_cache_liststr(cc_out, "s-maxage", NULL)
-                 || ap_cache_liststr(cc_out, "must-revalidate", NULL)
-                 || ap_cache_liststr(cc_out, "public", NULL)))
-        /* or we've been asked not to cache it above */
-        || r->no_cache) {
+#define MODULE_MAGIC_COOKIE 0x41503232UL /* "AP22" */
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: response is not cachable");
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20051115
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 0                     /* 0...n */
 
-        /* remove this object from the cache 
-         * BillS Asks.. Why do we need to make this call to remove_url?
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

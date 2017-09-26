@@ -1,20 +1,17 @@
-        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
-                 || (strcmp(if_range, match) != 0)) {
-            return 0;
-        }
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-    if (!ap_strchr_c(range, ',')) {
-        /* a single range */
-        num_ranges = 1;
-    }
-    else {
-        /* a multiple range */
-        num_ranges = 2;
-    }
+    if (worker && worker->s->busy)
+        worker->s->busy--;
 
-    r->status = HTTP_PARTIAL_CONTENT;
-    r->range = range + 6;
+    return OK;
 
-    return num_ranges;
 }
+
+static void recalc_factors(proxy_balancer *balancer)
+{
+    int i;
+    proxy_worker *workers;

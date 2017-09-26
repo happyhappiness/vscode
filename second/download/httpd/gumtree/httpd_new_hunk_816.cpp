@@ -1,36 +1,50 @@
-}
+#define modssl_set_cert_info(info, cert, pkey) \
+    *cert = info->x509; \
+    X509_reference_inc(*cert); \
+    *pkey = info->x_pkey->dec_pkey; \
+    EVP_PKEY_reference_inc(*pkey)
 
-static void usage(void)
+int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey)
 {
-    apr_file_printf(errfile, "Usage:\n");
-    apr_file_printf(errfile, "\thtpasswd [-cmdps] passwordfile username\n");
-    apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
-                    "password\n\n");
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
-    apr_file_printf(errfile, " -c  Create a new file.\n");
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-#if defined(WIN32) || defined(TPF) || defined(NETWARE)
-        " (default)"
-#endif
-        ".\n");
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            ".\n");
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it.\n");
-    apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default.\n");
-    apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work.\n");
-    exit(ERR_SYNTAX);
-}
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s = c->base_server;
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    X509_NAME *ca_name, *issuer;
+    X509_INFO *info;
+    STACK_OF(X509_NAME) *ca_list;
+    STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
+    int i, j;
 
-/*
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT "entered",
+                 sc->vhost_id);
+
+    if (!certs || (sk_X509_INFO_num(certs) <= 0)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     SSLPROXY_CERT_CB_LOG_FMT
+                     "downstream server wanted client certificate "
+                     "but none are configured", sc->vhost_id);
+        return FALSE;
+    }
+
+    ca_list = SSL_get_client_CA_list(ssl);
+
+    if (!ca_list || (sk_X509_NAME_num(ca_list) <= 0)) {
+        /*
+         * downstream server didn't send us a list of acceptable CA certs,
+         * so we send the first client cert in the list.
+         */
+        info = sk_X509_INFO_value(certs, 0);
+
+        modssl_proxy_info_log(s, info, "no acceptable CA list");
+
+        modssl_set_cert_info(info, x509, pkey);
+
+        return TRUE;
+    }
+
+    for (i = 0; i < sk_X509_NAME_num(ca_list); i++) {
+        ca_name = sk_X509_NAME_value(ca_list, i);
+
+        for (j = 0; j < sk_X509_INFO_num(certs); j++) {
+            info = sk_X509_INFO_value(certs, j);

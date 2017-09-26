@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     " ThreadLimit directive.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, 
+                 "leaving shmcb_status");

@@ -1,24 +1,39 @@
- */
-void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+
+    *url = apr_pstrcat(r->pool, worker->name, path, NULL);
+
+    return OK;
+}
+
+static void force_recovery(proxy_balancer *balancer, server_rec *s)
 {
-    unsigned long e;
+    int i;
+    int ok = 0;
+    proxy_worker *worker;
 
-    while ((e = ERR_get_error())) {
-        const char *annotation;
-        char err[256];
-
-        ERR_error_string_n(e, err, sizeof err);
-        annotation = ssl_log_annotation(err);
-
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s %s",
-                         e, err, annotation); 
+    worker = (proxy_worker *)balancer->workers->elts;
+    for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+        if (!(worker->s->status & PROXY_WORKER_IN_ERROR)) {
+            ok = 1;
+            break;    
         }
-        else {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s",
-                         e, err); 
+    }
+    if (!ok) {
+        /* If all workers are in error state force the recovery.
+         */
+        worker = (proxy_worker *)balancer->workers->elts;
+        for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+            ++worker->s->retries;
+            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
+                         balancer->name, worker->hostname);
         }
     }
 }
+
+static int proxy_balancer_pre_request(proxy_worker **worker,
+                                      proxy_balancer **balancer,
+                                      request_rec *r,
+                                      proxy_server_conf *conf, char **url)
+{
+    int access_status;

@@ -1,13 +1,12 @@
-	    return OK;
-	}
+        if ((val = apr_table_get(params, "dw"))) {
+            if (!strcasecmp(val, "Disable"))
+                wsel->s->status |= PROXY_WORKER_DISABLED;
+            else if (!strcasecmp(val, "Enable"))
+                wsel->s->status &= ~PROXY_WORKER_DISABLED;
+        }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
+    }
+    if (apr_table_get(params, "xml")) {
+        ap_set_content_type(r, "text/xml");
+        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
+        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);

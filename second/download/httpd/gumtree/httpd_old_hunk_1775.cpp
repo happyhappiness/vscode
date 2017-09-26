@@ -1,26 +1,21 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    exit(1);
-}
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: server %s returned Transfer-Encoding"
+                             " and Content-Length", backend->hostname);
+                backend->close += 1;
+            }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+            /* strip connection listed hop-by-hop headers from response */
+            backend->close += ap_proxy_liststr(apr_table_get(r->headers_out,
+                                                             "Connection"),
+                                              "close");
+            ap_proxy_clear_connection(p, r->headers_out);
+            if ((buf = apr_table_get(r->headers_out, "Content-Type"))) {
+                ap_set_content_type(r, apr_pstrdup(p, buf));
+            }
+            ap_proxy_pre_http_request(origin,rp);
+
+            /* Clear hop-by-hop headers */
+            for (i=0; hop_by_hop_hdrs[i]; ++i) {
+                apr_table_unset(r->headers_out, hop_by_hop_hdrs[i]);
+            }
+            /* Delete warnings with wrong date */

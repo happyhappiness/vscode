@@ -1,20 +1,13 @@
-#endif
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        timeOut.tv_sec = st->connectionTimeout;
+    }
 
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    if (st->connectionTimeout >= 0) {
+        rc = apr_ldap_set_option(ldc->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
+                                 (void *)&timeOut, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set the connection timeout");
+        }
+    }

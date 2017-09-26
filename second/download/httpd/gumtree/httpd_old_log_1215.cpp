@@ -1,4 +1,1 @@
-ap_register_output_filter("CACHE_OUT", 
-                              cache_out_filter, 
-                              NULL,
-                              AP_FTYPE_CONTENT_SET-1);
+printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");

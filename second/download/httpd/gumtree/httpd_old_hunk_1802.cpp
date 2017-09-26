@@ -1,25 +1,21 @@
-	return ap_proxyerror(r, err);	/* give up */
+        return -1;
+    if ((a->waittime) > (b->waittime))
+        return 1;
+    return 0;
+}
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
+static void output_results(void)
+{
+    apr_interval_time_t timetakenusec;
+    float timetaken;
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
-    }
-#endif
+    endtime = apr_time_now();
+    timetakenusec = endtime - start;
+    timetaken = ((float)apr_time_sec(timetakenusec)) +
+        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+    printf("\n\n");
+    printf("Server Software:        %s\n", servername);
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %hu\n", port);
+#ifdef USE_SSL

@@ -1,1 +1,1 @@
-fprintf(stdout,"posn\tleft\tright\tparent\tmaxchild\t...\n");
+BIO_printf(bio_err, "SSL write failed - closing connection\n");

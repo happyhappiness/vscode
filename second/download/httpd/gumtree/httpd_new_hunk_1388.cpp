@@ -1,13 +1,13 @@
-        return my_addr;
+    }
+    else {
+        st->cache_file = NULL;
     }
 
-    hep = gethostbyname(w);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "LDAP cache: Setting shared memory cache file to %s.",
+                 st->cache_file);
 
-    if ((!hep) || (hep->h_addrtype != AF_INET || !hep->h_addr_list[0])) {
-        /* XXX Should be echoing by h_errno the actual failure, no?
-         * ap_log_error would be good here.  Better yet - APRize.
-         */
-        fprintf(stderr, "Cannot resolve host name %s --- exiting!\n", w);
-        exit(1);
-    }
+    return NULL;
+}
 
+static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy,

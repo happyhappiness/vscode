@@ -1,15 +1,32 @@
-    /* cache filters 
-     * XXX The cache filters need to run right after the handlers and before
-     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
-     * Make them AP_FTYPE_CONTENT for now.
-     * XXX ianhH:they should run AFTER all the other content filters.
-     */
-    cache_in_filter_handle = 
-        ap_register_output_filter("CACHE_IN", 
-                                  cache_in_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET-1);
-    /* CACHE_OUT must go into the filter chain before SUBREQ_CORE to
-     * handle subrequsts. Decrementing filter type by 1 ensures this 
-     * happens.
-     */
+ * ap_hook_process_connection hook.
+ */
+static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
+{
+    conn_rec *c         = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+    SSLConnRec *sslconn = myConnConfig(c);
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+    X509 *cert;
+    int n;
+    int ssl_err;
+    long verify_result;
+
+    if (SSL_is_init_finished(filter_ctx->pssl)) {
+        return APR_SUCCESS;
+    }
+
+    if (sslconn->is_proxy) {
+        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            return HTTP_BAD_GATEWAY;
+        }
+
+        return APR_SUCCESS;
+    }
+
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                     (filter_ctx->pbioRead->ptr);

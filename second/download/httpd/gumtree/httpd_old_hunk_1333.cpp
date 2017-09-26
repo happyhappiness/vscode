@@ -1,20 +1,13 @@
-            return 0;
-        }
-        else if ((apr_size_t)ate < headlen) {
-            apr_bucket_brigade *bb;
-            apr_bucket *b;
-            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
-	    b = apr_bucket_transient_create((char*) data_type + ate, 
-                                           headlen - ate, c->bucket_alloc);
-	    APR_BRIGADE_INSERT_TAIL(bb, b);
-            b = apr_bucket_flush_create(c->bucket_alloc);
-	    APR_BRIGADE_INSERT_TAIL(bb, b);
-	    ap_pass_brigade(cid->r->output_filters, bb);
-            cid->response_sent = 1;
-        }
-        return 1;
-    }
-
-    case HSE_REQ_DONE_WITH_SESSION:
-        /* Signal to resume the thread completing this request,
-         * leave it to the pool cleanup to dispose of our mutex.
+            }
+            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
+            child_handles[i] = (HANDLE) _beginthreadex(NULL, (unsigned)ap_thread_stacksize,
+                                                       worker_main, (void *) i, 0, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.",
+                             my_pid, threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;

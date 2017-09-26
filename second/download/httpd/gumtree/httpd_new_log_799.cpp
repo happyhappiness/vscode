@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE,
-                     0, ap_server_conf,
-                     "seg fault or similar nasty error detected "
-                     "in the parent process");
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                         "mod_rewrite: Invalid RewriteLog "
+                         "path %s", conf->rewritelogfile+1);

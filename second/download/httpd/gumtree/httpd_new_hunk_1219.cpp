@@ -1,37 +1,21 @@
-    char buf[BUFSIZE], buf2[MAX_PATH], errbuf[ERRMSGSZ];
-    int tLogEnd = 0, tRotation = 0, utc_offset = 0;
-    unsigned int sRotation = 0;
-    int nMessCount = 0;
-    apr_size_t nRead, nWrite;
-    int use_strftime = 0;
-    int use_localtime = 0;
-    int now = 0;
-    const char *szLogRoot;
-    apr_file_t *f_stdin, *nLogFD = NULL, *nLogFDprev = NULL;
-    apr_pool_t *pool;
-    char *ptr = NULL;
-    int argBase = 0;
-    int argFile = 1;
-    int argIntv = 2;
-    int argOffset = 3;
-
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
-
-    apr_pool_create(&pool, NULL);
-    if ((argc > 2) && (strcmp(argv[1], "-l") == 0)) {
-        argBase++;
-        argFile += argBase;
-        argIntv += argBase;
-        argOffset += argBase;
-        use_localtime = 1;
+        apr_ctime(timestamp, apr_time_now());
+        apr_file_open_stderr(&se, dbc->pool);
+        apr_file_printf(se, "[%s] %s\n", timestamp, dbc->lastError);
     }
-    if (argc < (argBase + 3) || argc > (argBase + 4)) {
-        fprintf(stderr,
-                "Usage: %s [-l] <logfile> <rotation time in seconds> "
-                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
-                argv[0]);
-#ifdef OS2
-        fprintf(stderr,
-                "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-                argv[0]);
+}
+
+static APR_INLINE int odbc_check_rollback(apr_dbd_t *handle)
+{
+    if (handle->can_commit == APR_DBD_TRANSACTION_ROLLBACK) {
+        handle->lasterrorcode = SQL_ERROR;
+        strcpy(handle->lastError, "[dbd_odbc] Rollback pending ");
+        return 1;
+    }
+    return 0;
+}
+/*
+*   public functions per DBD driver API
+*/
+
+/** init: allow driver to perform once-only initialisation. **/
+static void odbc_init(apr_pool_t *pool)

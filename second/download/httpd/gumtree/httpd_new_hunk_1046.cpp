@@ -1,13 +1,13 @@
-                apr_bucket *tmp_buck;
+  }
 
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "unknown parameter \"%s\" to tag config in %s",
-                              tag, r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
+/* If no file name, a single regex must be given inline */
 
+else
+  {
+  if (i >= argc) return usage(2);
+  pattern_list[0] = pcre_compile(argv[i++], options, &error, &errptr, NULL);
+  if (pattern_list[0] == NULL)
+    {
+    fprintf(stderr, "pcregrep: Error in regex at offset %d: %s\n", errptr,
+      error);
+    return 2;

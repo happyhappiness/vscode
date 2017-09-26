@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: cannot create file %s\n",
-                                argv[0], pwfilename);
+apr_file_printf(errfile, "%s: unable to update file %s" NL,
+                        argv[0], pwfilename);

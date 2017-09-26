@@ -1,17 +1,17 @@
+                                               proxy_conn_rec *conn,
+                                               server_rec *s)
+{
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: has released connection for (%s)",
+                 proxy_function, conn->worker->hostname);
+    /* If there is a connection kill it's cleanup */
+    if (conn->connection) {
+        apr_pool_cleanup_kill(conn->connection->pool, conn, connection_cleanup);
+        conn->connection = NULL;
+    }
+    connection_cleanup(conn);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+    return OK;
+}
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+PROXY_DECLARE(int)

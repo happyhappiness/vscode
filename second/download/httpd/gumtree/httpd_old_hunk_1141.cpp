@@ -1,20 +1,13 @@
-     * working.  (IMHO what they really fix is a bug in the users of the code
-     * - failing to program correctly for shadow passwords).  We need,
-     * therefore, to provide a password. This password can be matched by
-     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
-     * This is just the crypted variant of the word "password" ;-)
-     */
-    apr_snprintf(buf1, sizeof(buf1), "%s:password", clientdn);
-    ssl_util_uuencode(buf2, buf1, FALSE);
+                        else {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "Ignoring flush message received before headers");
+                        }
+                    }
+                    else {
+                        e = apr_bucket_transient_create(buff, size,
+                                                    r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
 
-    apr_snprintf(buf1, sizeof(buf1), "Basic %s", buf2);
-    apr_table_set(r->headers_in, "Authorization", buf1);
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "Faking HTTP Basic Auth header: \"Authorization: %s\"", buf1);
-
-    return DECLINED;
-}
-
-/* authorization phase */
-int ssl_hook_Auth(request_rec *r)
+                        if ((conn->worker->flush_packets == flush_on) ||
+                            ((conn->worker->flush_packets == flush_auto) &&
+                            (apr_poll(conn_poll, 1, &conn_poll_fd,

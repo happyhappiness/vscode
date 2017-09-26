@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot initialize rmm");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");

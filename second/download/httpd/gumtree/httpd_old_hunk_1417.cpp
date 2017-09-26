@@ -1,17 +1,13 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    }
+    else {
+        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head><title>Balancer Manager</title></head>\n", r);
+        ap_rputs("<body><h1>Load Balancer Manager for ", r);
+        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {

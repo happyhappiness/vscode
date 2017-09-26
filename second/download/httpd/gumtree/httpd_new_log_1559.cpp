@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
+ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);

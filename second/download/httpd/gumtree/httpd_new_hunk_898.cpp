@@ -1,25 +1,31 @@
-    /* WooHoo, we have a file to put in the cache */
-    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
-    new_file->finfo = tmp.finfo;
-
-#if APR_HAS_MMAP
-    if (mmap) {
-        /* MMAPFile directive. MMAP'ing the file
-         * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
-         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
-         */
-        if ((rc = apr_mmap_create(&new_file->mm, fd, 0, 
-                                  (apr_size_t)new_file->finfo.size,
-                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) { 
-            apr_file_close(fd);
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                         "mod_file_cache: unable to mmap %s, skipping", filename);
-            return;
-        }
-        apr_file_close(fd);
-        new_file->is_mmapped = TRUE;
-    }
+                        * children, then idle-loop until it detected that
+                        * the network is up again, and restart the children.
+                        * Ben Hyde noted that temporary ENETDOWN situations
+                        * occur in mobile IP.
+                        */
+                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                            "apr_socket_accept: giving up.");
+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans,
+                                         bucket_alloc);
+                }
 #endif
-#if APR_HAS_SENDFILE
-    if (!mmap) {
-        /* CacheFile directive. Caching the file handle */
+                else {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                            "apr_socket_accept: (client socket)");
+                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
+                }
+            }
+        }
+
+        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
+        /*
+        * We now have a connection, so set it up with the appropriate
+        * socket options, file descriptors, and read/write buffers.
+        */
+        current_conn = ap_run_create_connection(ptrans, ap_server_conf, csd,
+                                                my_worker_num, sbh,
+                                                bucket_alloc);
+        if (current_conn) {
+            ap_process_connection(current_conn, csd);
+            ap_lingering_close(current_conn);
+        }

@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "The -c flag creates a new file.\n");
+printf("\n");

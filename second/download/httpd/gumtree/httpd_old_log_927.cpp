@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK,APLOG_INFO|APLOG_NOERRNO,rv,NULL,
-	    "Registry stored HKLM\\" REGKEY "\\%s value %s", key, value);
+fprintf (stderr, "Next token is %d (%s", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);

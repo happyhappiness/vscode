@@ -1,17 +1,63 @@
-                     "Child %d: Child process is exiting", my_pid);        
-        return 1;
+                        else if (*end &&        /* neither empty nor [Bb] */
+                                 ((*end != 'B' && *end != 'b') || end[1])) {
+                            rv = APR_EGENERAL;
+                        }
+                    }
+                    if (rv != APR_SUCCESS) {
+                        usage(apr_psprintf(pool, "Invalid limit: %s"
+                                                 APR_EOL_STR APR_EOL_STR, arg));
+                    }
+                } while(0);
+                break;
+
+            case 'p':
+                if (proxypath) {
+                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
+                }
+                proxypath = apr_pstrdup(pool, arg);
+                if ((status = apr_filepath_set(proxypath, pool)) != APR_SUCCESS) {
+                    usage(apr_psprintf(pool, "Could not set filepath to '%s': %s",
+                                       proxypath, apr_strerror(status, errmsg, sizeof errmsg)));
+                }
+                break;
+            } /* switch */
+        } /* else */
+    } /* while */
+
+    if (argc <= 1) {
+        usage(NULL);
     }
-    else 
-    {
-        /* A real-honest to goodness parent */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "%s configured -- resuming normal operations",
-                     ap_get_server_version());
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "Server built: %s", ap_get_server_built());
 
-        restart = master_main(ap_server_conf, shutdown_event, restart_event);
+    if (o->ind != argc) {
+         usage("Additional parameters specified on the command line, aborting");
+    }
 
-        if (!restart) 
-        {
-            /* Shutting down. Clean up... */
+    if (isdaemon && repeat <= 0) {
+         usage("Option -d must be greater than zero");
+    }
+
+    if (isdaemon && (verbose || realclean || dryrun)) {
+         usage("Option -d cannot be used with -v, -r or -D");
+    }
+
+    if (!isdaemon && intelligent) {
+         usage("Option -i cannot be used without -d");
+    }
+
+    if (!proxypath) {
+         usage("Option -p must be specified");
+    }
+
+    if (max <= 0) {
+         usage("Option -l must be greater than zero");
+    }
+
+    if (apr_filepath_get(&path, 0, pool) != APR_SUCCESS) {
+        usage(apr_psprintf(pool, "Could not get the filepath: %s",
+                           apr_strerror(status, errmsg, sizeof errmsg)));
+    }
+    baselen = strlen(path);
+
+#ifndef DEBUG
+    if (isdaemon) {
+        apr_file_close(errfile);

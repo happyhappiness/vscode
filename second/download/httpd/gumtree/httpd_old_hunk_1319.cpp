@@ -1,15 +1,12 @@
-                         p_conn->name ? p_conn->name: "",
-                         c->remote_ip, c->remote_host ? c->remote_host: "");
-            return status;
+    /* Add the server side to the poll */
+    pollfd.desc.s = sock;
+    apr_pollset_add(pollset, &pollfd);
+
+    while (1) { /* Infinite loop until error (one side closes the connection) */
+        if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled)) != APR_SUCCESS) {
+            apr_socket_close(sock);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "proxy: CONNECT: error apr_poll()");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-
-        apr_brigade_length(temp_brigade, 1, &bytes);
-        APR_BRIGADE_CONCAT(input_brigade, temp_brigade);
-        bytes_read += bytes;
-
-    /* Ensure we don't hit a wall where we have a buffer too small
-     * for ap_get_brigade's filters to fetch us another bucket,
-     * surrender once we hit 80 bytes less than MAX_MEM_SPOOL
-     * (an arbitrary value.)
-     */
-    } while ((bytes_read < MAX_MEM_SPOOL - 80) 
+#ifdef DEBUGGING
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

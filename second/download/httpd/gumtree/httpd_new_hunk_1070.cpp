@@ -1,22 +1,18 @@
-#endif
 
-    /* when `RewriteEngine off' was used in the per-server
-     * context then the rewritemap-programs were not spawned.
-     * In this case using such a map (usually in per-dir context)
-     * is useless because it is not available.
-     *
-     * newlines in the key leave bytes in the pipe and cause
-     * bad things to happen (next map lookup will use the chars
-     * after the \n instead of the new key etc etc - in other words,
-     * the Rewritemap falls out of sync with the requests).
-     */
-    if (fpin == NULL || fpout == NULL || ap_strchr(key, '\n')) {
-        return NULL;
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
+    apr_pool_create(&cntxt, NULL);
+
+#ifdef NOT_ASCII
+    status = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (status) {
+	fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", status);
+	exit(1);
     }
- 
-    /* take the lock */
-
-    if (rewrite_mapr_lock_acquire) {
-        rv = apr_global_mutex_lock(rewrite_mapr_lock_acquire);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+    status = apr_xlate_open(&from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", cntxt);
+    if (status) {
+	fprintf(stderr, "apr_xlate_open(from ASCII)->%d\n", status);
+	exit(1);
+    }
+    status = apr_base64init_ebcdic(to_ascii, from_ascii);
+    if (status) {

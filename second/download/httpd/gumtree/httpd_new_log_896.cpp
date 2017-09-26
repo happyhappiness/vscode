@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " lowering ThreadsPerChild to %d. To increase, please"
-                     " see the  HARD_THREAD_LIMIT define in %s.", 
-                     HARD_THREAD_LIMIT, AP_MPM_HARD_LIMITS_FILE);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "No acceptable peer certificate available");

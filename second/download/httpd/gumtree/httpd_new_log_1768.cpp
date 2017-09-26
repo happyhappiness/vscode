@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "ISAPI: ap_pass_brigade failed to "
-                          "complete the response: %s ", r->filename);
+r(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());

@@ -1,14 +1,18 @@
-            
+     */
+    if (s->loglevel >= APLOG_DEBUG) {
+        X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
+        char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+        char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
 
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
+                      "Certificate Verification: "
+                      "depth: %d, subject: %s, issuer: %s",
+                      errdepth,
+                      sname ? sname : "-unknown-",
+                      iname ? iname : "-unknown-");
 
-            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
-                                                   sizeof(buffer), origin);
-            if (r->headers_out == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d header "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
-                p_conn->close += 1;
+        if (sname) {
+            modssl_free(sname);
+        }
+
+        if (iname) {

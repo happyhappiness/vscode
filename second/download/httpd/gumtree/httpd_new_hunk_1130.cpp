@@ -1,13 +1,25 @@
-                     * chance to set the user field. Do so now. */
-                    req->user = r->user;
-                }
-            }
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+        }
 
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                          "[%d] auth_ldap authorise: require group: testing for group membership in \"%s\"", 
-		          getpid(), t);
+        e = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
 
-            for (i = 0; i < sec->groupattr->nelts; i++) {
-	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                              "[%d] auth_ldap authorise: require group: testing for %s: %s (%s)", getpid(),
-                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+        status = ap_pass_brigade(r->output_filters, bb);
+        if (status == APR_SUCCESS
+            || r->status != HTTP_OK
+            || c->aborted) {
+            return OK;
+        }
+        else {
+            /* no way to know what type of error occurred */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    else {              /* unusual method (not GET or POST) */
+        if (r->method_number == M_INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid method in request %s", r->the_request);
+            return HTTP_NOT_IMPLEMENTED;

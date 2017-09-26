@@ -1,12 +1,13 @@
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                         "mod_rewrite: could not init rewrite_mapr_lock_acquire"
-                         " in child");
+                node = NULL;
+                break;
+            }
+        }
+
+        if (node && node->frec) {
+            return add_any_filter_handle(node->frec, ctx, r, c, r_filters, 
+                                         p_filters, c_filters);
         }
     }
 
-    /* create the lookup cache */
-    cachep = init_cache(p);
-}
-
-
-/*
+    ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                 "an unknown filter was not added: %s", name);

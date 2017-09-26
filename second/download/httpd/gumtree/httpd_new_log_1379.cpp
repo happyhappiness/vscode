@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
+printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);

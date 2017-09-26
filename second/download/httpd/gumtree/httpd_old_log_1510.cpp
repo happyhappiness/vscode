@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGSEGV)");
+apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
+#endif
+        "." NL);

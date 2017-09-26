@@ -1,48 +1,43 @@
-}
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate);
+    apr_pool_create(&pool, NULL);
+    apr_file_open_stderr(&errfile, pool);
 
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    if (!one_process) {
-        sa.sa_handler = sig_coredump;
-#if defined(SA_ONESHOT)
-        sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-        sa.sa_flags = SA_RESETHAND;
-#endif
-        if (sigaction(SIGSEGV, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-        if (sigaction(SIGBUS, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-        if (sigaction(SIGABORT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-        if (sigaction(SIGABRT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-        if (sigaction(SIGILL, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGILL)");
-#endif
-        sa.sa_flags = 0;
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
+        exit(1);
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
+    rv = apr_SHA1InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);
+        exit(1);
+    }
+    rv = apr_MD5InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d\n", rv);
+        exit(1);
+    }
+#endif /*APR_CHARSET_EBCDIC*/
+
+    check_args(pool, argc, argv, &alg, &mask, &user, &pwfilename, &password);
+
+
+#if defined(WIN32) || defined(NETWARE)
+    if (alg == ALG_CRYPT) {
+        alg = ALG_APMD5;
+        apr_file_printf(errfile, "Automatically using MD5 format.\n");
+    }
+#endif
+
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+    if (alg == ALG_PLAIN) {
+        apr_file_printf(errfile,"Warning: storing passwords as plain text "
+                        "might just not work on this platform.\n");
+    }
+#endif
+
+    /*
+     * Only do the file checks if we're supposed to frob it.
+     */

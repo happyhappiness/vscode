@@ -1,15 +1,18 @@
+                found = 1;
+                break;
+            }
         }
-
-        pid_buffer[i] = ps_record->pid;
+        if (!found) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog,
+                          "No Listen directive found for upgradeable listener %s:%d",
+                          slu->addr, slu->port);
+        }
     }
 
-    /* up_time in seconds */
-    up_time = (apr_uint32_t) ((nowtime -
-                               ap_scoreboard_image->global->restart_time)
-                              / APR_USEC_PER_SEC);
+    build_cert_list(pconf);
 
-    if (!short_report) {
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head>\n<title>Apache Status</title>\n</head><body>\n",
-                 r);
-        ap_rputs("<h1>Apache Server Status for ", r);
+    return OK;
+}
+
+static void *nwssl_config_server_create(apr_pool_t *p, server_rec *s)
+{

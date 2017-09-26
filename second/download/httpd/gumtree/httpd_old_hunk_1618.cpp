@@ -1,13 +1,12 @@
-            expr = tag_val;
-#ifdef DEBUG_INCLUDE
-            ap_rvputs(r, "**** if expr=\"", expr, "\"\n", NULL);
-#endif
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unknown parameter \"%s\" to tag if in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
-    }
-}
+                    if (lastmod) {
+                        apr_table_set(r->headers_in, "If-Modified-Since",
+                                      lastmod);
+                    }
+                    cache->stale_handle = h;
+                }
+
+                return DECLINED;
+            }
+
+            /* Okay, this response looks okay.  Merge in our stuff and go. */
+            ap_cache_accept_headers(h, r, 0);

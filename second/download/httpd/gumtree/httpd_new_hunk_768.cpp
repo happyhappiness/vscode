@@ -1,14 +1,13 @@
-            if (ap_cache_request_is_conditional(r)) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                             r->server,
-                             "cache: conditional - add cache_in filter and "
-                             "DECLINE");
-                /* Why not add CACHE_CONDITIONAL? */
-                ap_add_output_filter_handle(cache_in_filter_handle, NULL,
-                                            r, r->connection);
 
-                return DECLINED;
-            }
-            /* else if non-conditional request */
-            else {
-                /* fudge response into a conditional */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "proxy: %s: fam %d socket created to connect to %s",
+                     proxy_function, backend_addr->family, backend_name);
+
+        /* make the connection out of the socket */
+        rv = apr_socket_connect(*newsock, backend_addr);
+
+        /* if an error occurred, loop round and try again */
+        if (rv != APR_SUCCESS) {
+            apr_socket_close(*newsock);
+            loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
+            ap_log_error(APLOG_MARK, loglevel, rv, s,

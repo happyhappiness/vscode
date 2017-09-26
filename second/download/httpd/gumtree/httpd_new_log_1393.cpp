@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "unable to start piped log program '%s': %s",
-                         pl->program, apr_strerror(status, buf, sizeof(buf)));
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EEXIST, r->server,
+                     "Could not stat a cache lock file: %s",
+                     lockname);

@@ -1,1 +1,1 @@
-printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
+printf("%s \n", ap_get_server_description());

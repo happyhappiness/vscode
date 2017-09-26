@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
-                "ISAPI: Could not determine HTTP response code; using %d",
-                cid->r->status);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());

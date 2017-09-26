@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "%s: unable to create temporary file '%s'\n", 
-                        argv[0], tn);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);

@@ -1,45 +1,52 @@
+static BOOL
+match_ref(int offset, register const uschar *eptr, int length, match_data *md,
+  unsigned long int ims)
+{
+const uschar *p = md->start_subject + md->offset_vector[offset];
 
-    /* truncate any arguments from the cmd */
-    for (ptr = cmd_only; *ptr && (*ptr != ' '); ptr++);
-    *ptr = '\0';
+#ifdef DEBUG
+if (eptr >= md->end_subject)
+  printf("matching subject <null>");
+else
+  {
+  printf("matching subject ");
+  pchars(eptr, length, TRUE, md);
+  }
+printf(" against backref ");
+pchars(p, length, FALSE, md);
+printf("\n");
+#endif
 
-    /* Figure out what the extension is so that we can matche it. */
-    ext = strrchr(apr_filename_of_pathname(cmd_only), '.');
+/* Always fail if not enough characters left */
 
-    /* If there isn't an extension then give it an empty string */
-    if (!ext) {
-        ext = "";
-    }
-    
-    /* eliminate the '.' if there is one */
-    if (*ext == '.')
-        ++ext;
+if (length > md->end_subject - eptr) return FALSE;
 
-    /* If it is an NLM then just execute it. */
-    if (stricmp(ext, "nlm")) {
-        /* check if we have a registered command for the extension*/
-        *cmd = apr_table_get(d->file_type_handlers, ext);
-        if (*cmd == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Could not find a command associated with the %s extension", ext);
-            return APR_EBADF;
-        }
+/* Separate the caselesss case for speed */
 
-        /* If we have a registered command then add the file that was passed in as a
-          parameter to the registered command. */
-        *cmd = apr_pstrcat (p, *cmd, " ", cmd_only, NULL);
+if ((ims & PCRE_CASELESS) != 0)
+  {
+  while (length-- > 0)
+    if (md->lcc[*p++] != md->lcc[*eptr++]) return FALSE;
+  }
+else
+  { while (length-- > 0) if (*p++ != *eptr++) return FALSE; }
 
-        /* Run in its own address space if specified */
-        detached = apr_table_get(d->file_handler_mode, ext);
-        if (detached) {
-		    e_info->cmd_type = APR_PROGRAM_ENV;
-        }
-		else {
-		    e_info->cmd_type = APR_PROGRAM;
-		}
-    }
+return TRUE;
+}
 
-    /* Tokenize the full command string into its arguments */
-    apr_tokenize_to_argv(*cmd, (char***)argv, p);
-    e_info->detached = 1;
 
+
+/*************************************************
+*         Match from current position            *
+*************************************************/
+
+/* On entry ecode points to the first opcode, and eptr to the first character
+in the subject string, while eptrb holds the value of eptr at the start of the
+last bracketed group - used for breaking infinite loops matching zero-length
+strings.
+
+Arguments:
+   eptr        pointer in subject
+   ecode       position in code
+   offset_top  current top pointer
+   md          pointer to "static" info for the match

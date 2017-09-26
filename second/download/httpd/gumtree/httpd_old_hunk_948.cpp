@@ -1,46 +1,50 @@
-        char **args;
-        const char *pname;
-
-        apr_tokenize_to_argv(pl->program, &args, pl->p);
-        pname = apr_pstrdup(pl->p, args[0]);
-        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
-        rc = apr_proc_create(procnew, pname, (const char * const *) args,
-                             NULL, procattr, pl->p);
-
-        if (rc == APR_SUCCESS) {
-            /* pjr - This no longer happens inside the child, */
-            /*   I am assuming that if apr_proc_create was  */
-            /*   successful that the child is running.        */
-            RAISE_SIGSTOP(PIPED_LOG_SPAWN);
-            pl->pid = procnew;
-            ap_piped_log_write_fd(pl) = procnew->in;
-            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
-                                          ap_piped_log_write_fd(pl), pl->p);
+        {
+            ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
+                 "No installed service named \"%s\".", service_name);
+            exit(APEXIT_INIT);
         }
     }
+    if (strcasecmp(signal_arg, "install") && service_set && service_set != SERVICE_UNSET) 
+    {
+        ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
+             "No installed service named \"%s\".", service_name);
+        exit(APEXIT_INIT);
+    }
+    
+    /* Track the args actually entered by the user.
+     * These will be used for the -k install parameters, as well as
+     * for the -k start service override arguments.
+     */
+    inst_argv = (const char * const *)mpm_new_argv->elts
+        + mpm_new_argv->nelts - inst_argc;
 
-    return 0;
+    process->argc = mpm_new_argv->nelts; 
+    process->argv = (const char * const *) mpm_new_argv->elts;
 }
 
 
-static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+static int winnt_pre_config(apr_pool_t *pconf_, apr_pool_t *plog, apr_pool_t *ptemp) 
 {
-    piped_log *pl = data;
-    apr_status_t stats;
+    /* Handle the following SCM aspects in this phase:
+     *
+     *   -k runservice [WinNT errors logged from rewrite_args]
+     */
 
-    switch (reason) {
-    case APR_OC_REASON_DEATH:
-        pl->pid = NULL;
-        apr_proc_other_child_unregister(pl);
-        if (pl->program == NULL) {
-            /* during a restart */
-            break;
-        }
-        break;
-    case APR_OC_REASON_LOST:
-        pl->pid = NULL;
-        apr_proc_other_child_unregister(pl);
-        if (pl->program == NULL) {
-            /* during a restart */
-            break;
-        }
+    /* Initialize shared static objects. 
+     */
+    pconf = pconf_;
+
+    if (ap_exists_config_define("ONE_PROCESS") ||
+        ap_exists_config_define("DEBUG"))
+        one_process = -1;
+
+    if (!strcasecmp(signal_arg, "runservice")
+            && (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
+
+    /* Win9x: disable AcceptEx */

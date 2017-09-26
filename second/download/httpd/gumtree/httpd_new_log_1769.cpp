@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
+fprintf(stderr, "Could not open log file '%s' (%s)\n", buf2, error);

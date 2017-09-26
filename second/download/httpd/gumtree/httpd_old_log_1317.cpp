@@ -1,6 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             c->base_server,
-                             "SSL client authentication failed, "
-                             "accepting certificate based on "
-                             "\"SSLVerifyClient optional_no_ca\" "
-                             "configuration");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "apr_global_mutex_unlock(rewrite_log_lock) failed");

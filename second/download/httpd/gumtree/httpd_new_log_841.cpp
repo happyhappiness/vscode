@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
-                     "no listening sockets available, shutting down");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: %s: found worker %s for %s",
+                           (*worker)->scheme, (*worker)->name, *url);

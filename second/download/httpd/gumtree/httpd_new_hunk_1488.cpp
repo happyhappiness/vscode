@@ -1,24 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: prefetch request body failed to %pI (%s)"
+                         " from %s (%s)",
+                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                         c->remote_ip, c->remote_host ? c->remote_host: "");
+            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
+        }
 
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-                "see the\n", HARD_SERVER_LIMIT);
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_threads_per_child < 1) {
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-	ap_threads_per_child = 1;
-    }
+        apr_brigade_length(temp_brigade, 1, &bytes);
+        bytes_read += bytes;
 
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+        /*

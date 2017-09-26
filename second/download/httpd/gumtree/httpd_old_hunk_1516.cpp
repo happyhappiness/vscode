@@ -1,16 +1,12 @@
-                --cp;
         }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
-#endif
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                            "access to %s failed for %s", r->uri,
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-                                            REMOTE_NOLOOKUP));
-            return HTTP_FORBIDDEN;
-        }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+        /* This should not fail, but if it does, we are in BIG trouble
+         * cause we just stomped all over the heap.
+         */
+        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
+    }
+    return APR_SUCCESS;
+}
+/**
+ * Configuration and start-up
+ */
+static int mem_cache_post_config(apr_pool_t *p, apr_pool_t *plog,

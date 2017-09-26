@@ -1,19 +1,15 @@
 {
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
-                 "cache: running CACHE_CONDITIONAL filter");
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
 
-    if (f->r->status == HTTP_NOT_MODIFIED) {
-        /* replace ourselves with CACHE_OUT filter */
-        ap_add_output_filter_handle(cache_out_filter_handle, NULL,
-                                    f->r, f->r->connection);
+    SSLConnRec *sslconn = ssl_init_connection_ctx(c);
+
+    if (!sc->proxy_enabled) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "SSL Proxy requested for %s but not enabled "
+                      "[Hint: SSLProxyEngine]", sc->vhost_id);
+
+        return 0;
     }
-    else {
-        /* replace ourselves with CACHE_IN filter */
-        ap_add_output_filter_handle(cache_in_filter_handle, NULL,
-                                    f->r, f->r->connection);
-    }
-    ap_remove_output_filter(f);
 
-    return ap_pass_brigade(f->next, in);
-}
-
+    sslconn->is_proxy = 1;
+    sslconn->disabled = 0;

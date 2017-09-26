@@ -1,13 +1,13 @@
-                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
-                                   ap_escape_html(r->pool,
-                                                  ws_record->client),
-                                   ap_escape_html(r->pool,
-                                                  ws_record->vhost),
-                                   ap_escape_html(r->pool,
-                                                  ws_record->request));
-                } /* no_table_report */
-            } /* for (j...) */
-        } /* for (i...) */
-
-        if (!no_table_report) {
-            ap_rputs("</table>\n \
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: ResetEvent(restart_event) failed.");
+        }
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %d failed.",
+                         event_handles[CHILD_HANDLE]);
+        }
+        /* Don't wait to verify that the child process really exits,
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);

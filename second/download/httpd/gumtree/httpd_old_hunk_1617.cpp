@@ -1,13 +1,13 @@
-        tag_val = get_tag(r->pool, in, tag, sizeof(tag), 0);
-        if (*tag == '\0') {
-            return 1;
-        }
-        else if (!strcmp(tag, "done")) {
-	    if (expr == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			    "missing expr in if statement: %s",
-			    r->filename);
-		ap_rputs(error, r);
-		return 1;
-	    }
-            *printing = *conditional_status = parse_expr(r, expr, error);
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
+                      getpid());
+        return OK;
+    }
+
+    if (!sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise", getpid());
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,

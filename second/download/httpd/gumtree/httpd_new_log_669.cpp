@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unable to get "
+                          "information about \"%s\" in parsed file %s",
+                          tag_val, r->filename);

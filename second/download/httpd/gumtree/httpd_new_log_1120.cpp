@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                         "Passing request.");
+fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");

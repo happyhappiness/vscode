@@ -1,53 +1,68 @@
+	    for (i = 0; i < requests; i++) {
+                apr_time_t diff = stats[i].time - stats[i].ctime;
+
+		sttime = stats[i].starttime;
+		(void) apr_ctime(tmstring, sttime);
+		fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
+			tmstring,
+			sttime,
+			stats[i].ctime,
+			diff,
+			stats[i].time,
+			stats[i].waittime);
+	    }
+	    fclose(out);
+	}
+    /*
+     * XXX: what is better; this hideous cast of the compradre function; or
+     * the four warnings during compile ? dirkx just does not know and
+     * hates both/
      */
-    if ((*conf->xbithack != xbithack_full)
-        || !(f->r->finfo.valid & APR_FINFO_GPROT)
-        || !(f->r->finfo.protection & APR_GEXECUTE)) {
-        f->r->no_local_copy = 1;
-    }
-    
-    return OK;
-}
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compradre);
+	if ((requests > 1) && (requests % 2))
+        mediancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
+	else
+        mediancon = stats[requests / 2].ctime;
 
-static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
-{
-    request_rec *r = f->r;
-    include_ctx_t *ctx = f->ctx;
-    request_rec *parent;
-    include_dir_config *conf = 
-                   (include_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                              &include_module);
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compri);
+	if ((requests > 1) && (requests % 2))
+        mediand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
+	    -stats[requests / 2].ctime - stats[requests / 2 + 1].ctime) / 2;
+	else
+        mediand = stats[requests / 2].time - stats[requests / 2].ctime;
 
-    include_server_config *sconf= ap_get_module_config(r->server->module_config,
-                                                              &include_module);
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compwait);
+	if ((requests > 1) && (requests % 2))
+        medianwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
+	else
+        medianwait = stats[requests / 2].waittime;
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        return ap_pass_brigade(f->next, b);
-    }
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) comprando);
+	if ((requests > 1) && (requests % 2))
+        mediantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
+	else
+        mediantot = stats[requests / 2].time;
 
-    if (!f->ctx) {
-        f->ctx = ctx = apr_pcalloc(f->c->pool, sizeof(*ctx));
-        ctx->state = PRE_HEAD;
-        ctx->flags = (FLAG_PRINTING | FLAG_COND_TRUE);
-        if (ap_allow_options(r) & OPT_INCNOEXEC) {
-            ctx->flags |= FLAG_NO_EXEC;
-        }
-        ctx->ssi_tag_brigade = apr_brigade_create(f->c->pool,
-                                                  f->c->bucket_alloc);
-        ctx->status = APR_SUCCESS;
+	printf("\nConnection Times (ms)\n");
 
-        ctx->error_str = conf->default_error_msg;
-        ctx->time_str = conf->default_time_fmt;
-        ctx->pool = f->c->pool;
-        ctx->start_seq_pat = &sconf->start_seq_pat;
-        ctx->start_seq  = sconf->default_start_tag;
-        ctx->start_seq_len = sconf->start_tag_len;
-        ctx->end_seq = sconf->default_end_tag;
-    }
-    else {
-        ctx->bytes_parsed = 0;
-    }
+	if (confidence) {
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
+	    printf("              min  mean[+/-sd] median   max\n");
+	    printf("Connect:    " CONF_FMT_STRING, 
+                   mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
+	    printf("Processing: " CONF_FMT_STRING,
+		   mind, (int) (meand + 0.5), sdd, mediand, maxd);
+	    printf("Waiting:    " CONF_FMT_STRING,
+	           minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);
+	    printf("Total:      " CONF_FMT_STRING,
+		   mintot, (int) (meantot + 0.5), sdtot, mediantot, maxtot);
+#undef CONF_FMT_STRING
 
-    if ((parent = ap_get_module_config(r->request_config, &include_module))) {
-        /* Kludge --- for nested includes, we want to keep the subprocess
-         * environment of the base document (for compatibility); that means
-         * torquing our own last_modified date as well so that the
+#define     SANE(what,mean,median,sd) \
+              { \
+                double d = (double)mean - median; \
+                if (d < 0) d = -d; \

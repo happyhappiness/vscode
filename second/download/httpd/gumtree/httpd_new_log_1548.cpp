@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);

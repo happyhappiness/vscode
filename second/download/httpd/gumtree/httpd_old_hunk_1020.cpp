@@ -1,12 +1,13 @@
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "%s", errmsg);
-        exit(1);
     }
-
-    ap_cfg_closefile(cfp);
+    return APR_SUCCESS; 
 }
 
-AP_DECLARE(void) ap_process_config_tree(server_rec *s,
-                                        ap_directive_t *conftree,
-                                        apr_pool_t *p, apr_pool_t *ptemp)
+APR_DECLARE(apr_status_t) apr_file_puts(const char *str, apr_file_t *thefile)
+{
+    DWORD len = strlen(str);
+
+    return apr_file_write(thefile, str, &len);
+}
+
+APR_DECLARE(apr_status_t) apr_file_gets(char *str, int len, apr_file_t *thefile)
 {

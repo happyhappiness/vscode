@@ -1,13 +1,13 @@
-                           | APR_READ | APR_BINARY | APR_XTHREAD | APR_FILE_NOCLEANUP);
-            rv = apr_file_open(&tmpfile, name, mobj->flags,
-                               APR_OS_DEFAULT, r->pool);
-            if (rv != APR_SUCCESS) {
-                return rv;
-            }
-            apr_file_unset_inherit(tmpfile);
-            apr_os_file_get(&(mobj->fd), tmpfile);
+    server_rec *s;
 
-            /* Open for business */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "mem_cache: Cached file: %s with key: %s", name, obj->key);
-            obj->complete = 1;
+    if ((ssl = (SSL *)BIO_get_callback_arg(bio)) == NULL)
+        return rc;
+    if ((c = (conn_rec *)SSL_get_app_data(ssl)) == NULL)
+        return rc;
+    s = c->base_server;
+
+    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
+        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
+        if (rc >= 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                    "%s: %s %ld/%d bytes %s BIO#%pp [mem: %pp] %s",

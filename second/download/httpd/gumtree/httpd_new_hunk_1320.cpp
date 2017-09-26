@@ -1,37 +1,24 @@
-    }
+        conn->worker->s->transferred += transferred;
+    status = ap_pass_brigade(origin->output_filters, bb);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: pass request body failed to %pI (%s)",
+                     conn->addr, conn->hostname);
+        if (origin->aborted) {
+            const char *ssl_note;
 
-    /*
-     * Get the SSL connection structure and perform the
-     * delayed interlinking from SSL back to request_rec
-     */
-    ssl = sslconn->ssl;
-    if (!ssl) {
-        return DECLINED;
+            if (((ssl_note = apr_table_get(origin->notes, "SSL_connect_rv"))
+                != NULL) && (strcmp(ssl_note, "err") == 0)) {
+                return ap_proxyerror(r, HTTP_INTERNAL_SERVER_ERROR,
+                                     "Error during SSL Handshake with"
+                                     " remote server");
+            }
+            return APR_STATUS_IS_TIMEUP(status) ? HTTP_GATEWAY_TIME_OUT : HTTP_BAD_GATEWAY;
+        }
+        else {
+            return HTTP_BAD_REQUEST; 
+        }
     }
-    SSL_set_app_data2(ssl, r);
-
-    /*
-     * Log information about incoming HTTPS requests
-     */
-    if (r->server->loglevel >= APLOG_INFO && ap_is_initial_req(r)) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "%s HTTPS request received for child %ld (server %s)",
-                     (r->connection->keepalives <= 0 ?
-                     "Initial (No.1)" :
-                     apr_psprintf(r->pool, "Subsequent (No.%d)",
-                                  r->connection->keepalives+1)),
-                     r->connection->id,
-                     ssl_util_vhostid(r->pool, r->server));
-    }
-
-    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
-     * so they won't change across keepalive requests
-     */
-    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
-        ssl_configure_env(r, sslconn);
-    }
-
-    return DECLINED;
+    apr_brigade_cleanup(bb);
+    return OK;
 }
-
-/*

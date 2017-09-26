@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
-    }
-    else {
+/* simple little function to write an error string and exit */
+
+static void err(char *s)
+{
+    fprintf(stderr, "%s\n", s);
+    if (done)
+        printf("Total of %ld requests completed\n" , done);
+    exit(1);
+}
+
+/* simple little function to write an APR error string and exit */
+
+static void apr_err(char *s, apr_status_t rv)

@@ -1,25 +1,30 @@
-                            const char *description)
-{
-    apr_file_t *stderr_log;
-    char errbuf[200];
+            sslconn->client_dn = NULL;
+        }
 
-    apr_file_open_stderr(&stderr_log, pool);
-    /* Escape the logged string because it may be something that
-     * came in over the network.
-     */
-    apr_file_printf(stderr_log,
-                    "(%d)%s: %s\n",
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-#ifdef AP_UNSAFE_ERROR_LOG_UNESCAPED
-                    description
-#else
-                    ap_escape_logitem(pool, description)
-#endif
-                    );
-}
+        /*
+         * Finally check for acceptable renegotiation results
+         */
+        if ((dc->nVerifyClient != SSL_CVERIFY_NONE) ||
+            (sc->server->auth.verify_mode != SSL_CVERIFY_NONE)) {
+            BOOL do_verify = ((dc->nVerifyClient == SSL_CVERIFY_REQUIRE) ||
+                              (sc->server->auth.verify_mode == SSL_CVERIFY_REQUIRE));
 
-static apr_status_t run_cgi_child(apr_file_t **script_out,
-                                  apr_file_t **script_in,
-                                  apr_file_t **script_err, 
-                                  const char *command,
+            if (do_verify && (SSL_get_verify_result(ssl) != X509_V_OK)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation handshake failed: "
+                              "Client verification failed");
+
+                return HTTP_FORBIDDEN;
+            }
+
+            if (do_verify) {
+                if ((peercert = SSL_get_peer_certificate(ssl)) == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Re-negotiation handshake failed: "
+                                  "Client certificate missing");
+
+                    return HTTP_FORBIDDEN;
+                }
+
+                X509_free(peercert);
+            }

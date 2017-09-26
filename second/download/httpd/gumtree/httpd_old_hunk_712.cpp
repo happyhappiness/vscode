@@ -1,212 +1,180 @@
-{ "ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF, TAKE1,
-  "Number of threads each child creates" },
-{ NULL }
-};
+    rr->path_info = r->path_info;       /* hard to get right; see mod_cgi.c */
+    rr->args = r->args;
 
-
-AP_DECLARE(void) mpm_recycle_completion_context(PCOMP_CONTEXT context)
-{
-    /* Recycle the completion context.
-     * - clear the ptrans pool
-     * - put the context on the queue to be consumed by the accept thread
-     * Note: 
-     * context->accept_socket may be in a disconnected but reusable 
-     * state so -don't- close it.
+    /* Force sub_req to be treated as a CGI request, even if ordinary
+     * typing rules would have called it something else.
      */
-    if (context) {
-        apr_pool_clear(context->ptrans);
-        context->next = NULL;
-        ResetEvent(context->Overlapped.hEvent);
-        apr_thread_mutex_lock(qlock);
-        if (qtail)
-            qtail->next = context;
-        else
-            qhead = context;
-        qtail = context;
-        apr_thread_mutex_unlock(qlock);
+
+    ap_set_content_type(rr, CGI_MAGIC_TYPE);
+
+    /* Run it. */
+
+    rr_status = ap_run_sub_req(rr);
+    if (ap_is_HTTP_REDIRECT(rr_status)) {
+        apr_size_t len_loc;
+        const char *location = apr_table_get(rr->headers_out, "Location");
+        conn_rec *c = r->connection;
+
+        location = ap_escape_html(rr->pool, location);
+        len_loc = strlen(location);
+
+        /* XXX: if most of this stuff is going to get copied anyway,
+         * it'd be more efficient to pstrcat it into a single pool buffer
+         * and a single pool bucket */
+
+        tmp_buck = apr_bucket_immortal_create("<A HREF=\"",
+                                              sizeof("<A HREF=\"") - 1,
+                                              c->bucket_alloc);
+        APR_BUCKET_INSERT_BEFORE(head_ptr, tmp_buck);
+        tmp2_buck = apr_bucket_heap_create(location, len_loc, NULL,
+                                           c->bucket_alloc);
+        APR_BUCKET_INSERT_BEFORE(head_ptr, tmp2_buck);
+        tmp2_buck = apr_bucket_immortal_create("\">", sizeof("\">") - 1,
+                                               c->bucket_alloc);
+        APR_BUCKET_INSERT_BEFORE(head_ptr, tmp2_buck);
+        tmp2_buck = apr_bucket_heap_create(location, len_loc, NULL,
+                                           c->bucket_alloc);
+        APR_BUCKET_INSERT_BEFORE(head_ptr, tmp2_buck);
+        tmp2_buck = apr_bucket_immortal_create("</A>", sizeof("</A>") - 1,
+                                               c->bucket_alloc);
+        APR_BUCKET_INSERT_BEFORE(head_ptr, tmp2_buck);
+
+        if (*inserted_head == NULL) {
+            *inserted_head = tmp_buck;
+        }
     }
+
+    ap_destroy_sub_req(rr);
+
+    return 0;
 }
 
-AP_DECLARE(PCOMP_CONTEXT) mpm_get_completion_context(void)
+
+static int include_cmd(include_ctx_t *ctx, apr_bucket_brigade **bb,
+                       const char *command, request_rec *r, ap_filter_t *f)
 {
+    cgi_exec_info_t  e_info;
+    const char   **argv;
+    apr_file_t    *script_out = NULL, *script_in = NULL, *script_err = NULL;
+    apr_bucket_brigade *bcgi;
+    apr_bucket *b;
     apr_status_t rv;
-    PCOMP_CONTEXT context = NULL;
 
-    /* Grab a context off the queue */
-    apr_thread_mutex_lock(qlock);
-    if (qhead) {
-        context = qhead;
-        qhead = qhead->next;
-        if (!qhead)
-            qtail = NULL;
+    add_ssi_vars(r);
+
+    e_info.process_cgi = 0;
+    e_info.cmd_type    = APR_SHELLCMD;
+    e_info.detached    = 0;
+    e_info.in_pipe     = APR_NO_PIPE;
+    e_info.out_pipe    = APR_FULL_BLOCK;
+    e_info.err_pipe    = APR_NO_PIPE;
+    e_info.prog_type   = RUN_AS_SSI;
+    e_info.bb          = bb;
+    e_info.ctx         = ctx;
+    e_info.next        = f->next;
+
+    if ((rv = cgi_build_command(&command, &argv, r, r->pool, &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "don't know how to spawn cmd child process: %s", 
+                      r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    apr_thread_mutex_unlock(qlock);
 
-    /* If we failed to grab a context off the queue, alloc one out of 
-     * the child pool. There may be up to ap_threads_per_child contexts
-     * in the system at once.
+    /* run the script in its own process */
+    if ((rv = run_cgi_child(&script_out, &script_in, &script_err,
+                            command, argv, r, r->pool,
+                            &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "couldn't spawn child process: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    bcgi = apr_brigade_create(r->pool, f->c->bucket_alloc);
+    b = apr_bucket_pipe_create(script_in, f->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bcgi, b);
+    ap_pass_brigade(f->next, bcgi);
+
+    /* We can't close the pipe here, because we may return before the
+     * full CGI has been sent to the network.  That's okay though,
+     * because we can rely on the pool to close the pipe for us.
      */
-    if (!context) {
-        if (num_completion_contexts >= ap_threads_per_child) {
-            static int reported = 0;
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                             "Server ran out of threads to serve requests. Consider "
-                             "raising the ThreadsPerChild setting");
-                reported = 1;
-            }
-            return NULL;
+
+    return 0;
+}
+
+static int handle_exec(include_ctx_t *ctx, apr_bucket_brigade **bb,
+                       request_rec *r, ap_filter_t *f, apr_bucket *head_ptr,
+                       apr_bucket **inserted_head)
+{
+    char *tag     = NULL;
+    char *tag_val = NULL;
+    char *file = r->filename;
+    apr_bucket  *tmp_buck;
+    char parsed_string[MAX_STRING_LEN];
+
+    *inserted_head = NULL;
+    if (ctx->flags & FLAG_PRINTING) {
+        if (ctx->flags & FLAG_NO_EXEC) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "exec used but not allowed in %s", r->filename);
+            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
         }
-        /* Note:
-         * Multiple failures in the next two steps will cause the pchild pool
-         * to 'leak' storage. I don't think this is worth fixing...
-         */
-        context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
+        else {
+            while (1) {
+                cgi_pfn_gtv(ctx, &tag, &tag_val, 1);
+                if (tag_val == NULL) {
+                    if (tag == NULL) {
+                        return 0;
+                    }
+                    else {
+                        return 1;
+                    }
+                }
+                if (!strcmp(tag, "cmd")) {
+                    cgi_pfn_ps(r, ctx, tag_val, parsed_string,
+                               sizeof(parsed_string), 1);
+                    if (include_cmd(ctx, bb, parsed_string, r, f) == -1) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                    "execution failure for parameter \"%s\" "
+                                    "to tag exec in file %s", tag, r->filename);
+                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
+                                            *inserted_head);
+                    }
+                }
+                else if (!strcmp(tag, "cgi")) {
+                    apr_status_t retval = APR_SUCCESS;
 
-        context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (context->Overlapped.hEvent == NULL) {
-            /* Hopefully this is a temporary condition ... */
-            ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
-                         "mpm_get_completion_context: CreateEvent failed.");
-            return NULL;
-        }
+                    cgi_pfn_ps(r, ctx, tag_val, parsed_string,
+                               sizeof(parsed_string), 0);
 
-        /* Create the tranaction pool */
-        if ((rv = apr_pool_create(&context->ptrans, pchild)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
-                         "mpm_get_completion_context: Failed to create the transaction pool.");
-            CloseHandle(context->Overlapped.hEvent);
-            return NULL;
-        }
-        apr_pool_tag(context->ptrans, "ptrans");
+                    SPLIT_AND_PASS_PRETAG_BUCKETS(*bb, ctx, f->next, retval);
+                    if (retval != APR_SUCCESS) {
+                        return retval;
+                    }
 
-        context->accept_socket = INVALID_SOCKET;
-        context->ba = apr_bucket_alloc_create(pchild);
-        apr_atomic_inc(&num_completion_contexts);
-    }
-
-    return context;
-}
-
-AP_DECLARE(apr_status_t) mpm_post_completion_context(PCOMP_CONTEXT context, 
-                                                     io_state_e state)
-{
-    LPOVERLAPPED pOverlapped;
-    if (context)
-        pOverlapped = &context->Overlapped;
-    else
-        pOverlapped = NULL;
-
-    PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, state, pOverlapped);
-    return APR_SUCCESS;
-}
-
-/* This is the helper code to resolve late bound entry points 
- * missing from one or more releases of the Win32 API...
- * but it sure would be nice if we didn't duplicate this code
- * from the APR ;-)
- */
-static const char* const lateDllName[DLL_defined] = {
-    "kernel32", "advapi32", "mswsock",  "ws2_32"  };
-static HMODULE lateDllHandle[DLL_defined] = {
-    NULL,       NULL,       NULL,       NULL      };
-
-FARPROC ap_load_dll_func(ap_dlltoken_e fnLib, char* fnName, int ordinal)
-{
-    if (!lateDllHandle[fnLib]) { 
-        lateDllHandle[fnLib] = LoadLibrary(lateDllName[fnLib]);
-        if (!lateDllHandle[fnLib])
-            return NULL;
-    }
-    if (ordinal)
-        return GetProcAddress(lateDllHandle[fnLib], (char *) ordinal);
-    else
-        return GetProcAddress(lateDllHandle[fnLib], fnName);
-}
-
-/* To share the semaphores with other processes, we need a NULL ACL
- * Code from MS KB Q106387
- */
-static PSECURITY_ATTRIBUTES GetNullACL()
-{
-    PSECURITY_DESCRIPTOR pSD;
-    PSECURITY_ATTRIBUTES sa;
-
-    sa  = (PSECURITY_ATTRIBUTES) LocalAlloc(LPTR, sizeof(SECURITY_ATTRIBUTES));
-    sa->nLength = sizeof(sizeof(SECURITY_ATTRIBUTES));
-
-    pSD = (PSECURITY_DESCRIPTOR) LocalAlloc(LPTR, SECURITY_DESCRIPTOR_MIN_LENGTH);
-    sa->lpSecurityDescriptor = pSD;
-
-    if (pSD == NULL || sa == NULL) {
-        return NULL;
-    }
-    apr_set_os_error(0);
-    if (!InitializeSecurityDescriptor(pSD, SECURITY_DESCRIPTOR_REVISION)
-	|| apr_get_os_error()) {
-        LocalFree( pSD );
-        LocalFree( sa );
-        return NULL;
-    }
-    if (!SetSecurityDescriptorDacl(pSD, TRUE, (PACL) NULL, FALSE)
-	|| apr_get_os_error()) {
-        LocalFree( pSD );
-        LocalFree( sa );
-        return NULL;
-    }
-
-    sa->bInheritHandle = TRUE;
-    return sa;
-}
-
-static void CleanNullACL( void *sa ) {
-    if( sa ) {
-        LocalFree( ((PSECURITY_ATTRIBUTES)sa)->lpSecurityDescriptor);
-        LocalFree( sa );
-    }
-}
-
-/*
- * The Win32 call WaitForMultipleObjects will only allow you to wait for 
- * a maximum of MAXIMUM_WAIT_OBJECTS (current 64).  Since the threading 
- * model in the multithreaded version of apache wants to use this call, 
- * we are restricted to a maximum of 64 threads.  This is a simplistic 
- * routine that will increase this size.
- */
-static DWORD wait_for_many_objects(DWORD nCount, CONST HANDLE *lpHandles, 
-                                   DWORD dwSeconds)
-{
-    time_t tStopTime;
-    DWORD dwRet = WAIT_TIMEOUT;
-    DWORD dwIndex=0;
-    BOOL bFirst = TRUE;
-  
-    tStopTime = time(NULL) + dwSeconds;
-  
-    do {
-        if (!bFirst)
-            Sleep(1000);
-        else
-            bFirst = FALSE;
-          
-        for (dwIndex = 0; dwIndex * MAXIMUM_WAIT_OBJECTS < nCount; dwIndex++) {
-            dwRet = WaitForMultipleObjects( 
-                min(MAXIMUM_WAIT_OBJECTS, nCount - (dwIndex * MAXIMUM_WAIT_OBJECTS)),
-                lpHandles + (dwIndex * MAXIMUM_WAIT_OBJECTS), 
-                0, 0);
-                                           
-            if (dwRet != WAIT_TIMEOUT) {                                          
-              break;
+                    if (include_cgi(parsed_string, r, f->next, head_ptr,
+                                    inserted_head) == -1) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "invalid CGI ref \"%s\" in %s",
+                                      tag_val, file);
+                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
+                                            *inserted_head);
+                    }
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "unknown parameter \"%s\" to tag exec in %s",
+                                  tag, file);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr,
+                                        *inserted_head);
+                }
             }
         }
-    } while((time(NULL) < tStopTime) && (dwRet == WAIT_TIMEOUT));
-    
-    return dwRet;
+    }
+    return 0;
 }
 
-/*
- * Signalling Apache on NT.
- *
- * Under Unix, Apache can be told to shutdown or restart by sending various
- * signals (HUP, USR, TERM). On NT we don't have easy access to signals, so
- * we use "events" instead. The parent apache process goes into a loop
+
+/*============================================================================
+ *============================================================================
+ * This is the end of the cgi filter code moved from mod_include.

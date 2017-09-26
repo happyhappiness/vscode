@@ -1,27 +1,25 @@
-            }
-            else {
-                /* We found the user we were looking for, add him to the file.
-                 */
-                apr_file_printf(errfile, "Updating ");
-                putline(ftemp, record);
-            }
-        }
-    }
-    if (!found) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
-    apr_file_close(fpw);
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-#if defined(OS2) || defined(WIN32)
-    str = apr_psprintf(pool, "copy \"%s\" \"%s\"", tn, pwfilename);
-#else
-    str = apr_psprintf(pool, "cp %s %s", tn, pwfilename);
+    if (!found) {
+        New = apr_array_push(conf->dirconn);
+        New->name = apr_pstrdup(parms->pool, arg);
+        New->hostaddr = NULL;
+
+	if (ap_proxy_is_ipaddr(New, parms->pool)) {
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Parsed addr %s", inet_ntoa(New->addr));
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Parsed mask %s", inet_ntoa(New->mask));
 #endif
-    system(str);
-    apr_file_close(ftemp);
-    return 0;
-}
+	}
+	else if (ap_proxy_is_domainname(New, parms->pool)) {
+            ap_str_tolower(New->name);
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Parsed domain %s", New->name);
+#endif
+        }
+        else if (ap_proxy_is_hostname(New, parms->pool)) {
+            ap_str_tolower(New->name);
+#if DEBUGGING
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,

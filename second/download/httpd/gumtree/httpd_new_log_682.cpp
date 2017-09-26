@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "variable must "
+                              "precede value in set directive in %s",
+                              r->filename);

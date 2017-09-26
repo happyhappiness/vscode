@@ -1,13 +1,15 @@
-        return DECLINED;
-    }
+    printf("   Listening on port(s):");
+    lr = ap_listeners;
+    do {
+       printf(" %d", lr->bind_addr->port);
+       lr = lr->next;
+    } while(lr && lr != ap_listeners);
 
-    if (sec->host) {
-        ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                       sec->binddn, sec->bindpw, sec->deref,
-                                       sec->secure);
-        apr_pool_cleanup_register(r->pool, ldc,
-                                  mod_auth_ldap_cleanup_connection_close,
-                                  apr_pool_cleanup_null);
+    /* Display dynamic modules loaded */
+    printf("\n");
+    for (m = ap_loaded_modules; *m != NULL; m++) {
+        if (((module*)*m)->dynamic_load_handle) {
+            printf("   Loaded dynamic module %s\n", ((module*)*m)->name);
+        }
     }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
+}

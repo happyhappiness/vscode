@@ -1,12 +1,21 @@
-                     "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+                usage();
+            }
+        }
+    }
+
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
+        apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).

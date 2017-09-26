@@ -1,13 +1,20 @@
-{
-    unsigned char tempasn[SSL_SESSION_MAX_DER];
-    SHMCBIndex *idx;
-    SHMCBHeader *header;
-    SSL_SESSION *pSession = NULL;
-    unsigned int curr_pos, loop, count;
-    unsigned char *ptr;
-    time_t now;
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "entering shmcb_lookup_session_id");
-
-    /* If there are entries to expire, ditch them first thing. */
+                    APR_BRIGADE_INSERT_TAIL(bb, e);
+                }
+                else {
+                    APR_BUCKET_INSERT_BEFORE(eos, e);
+                }
+                ap_pass_brigade(r->output_filters, bb);
+                /* Need to return OK to avoid sending an error message */
+                return OK;
+            }
+            else if (!c->keepalives) {
+                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "proxy: NOT Closing connection to client"
+                                   " although reading from backend server %s"
+                                   " failed.", backend->hostname);
+            }
+            return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                                 "Error reading from remote server");
+        }
+        /* XXX: Is this a real headers length send from remote? */
+        backend->worker->s->read += len;

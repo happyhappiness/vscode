@@ -1,18 +1,13 @@
-        /* Create the worker thread dispatch IOCP */
-        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                    NULL,
-                                                    0,
-                                                    0); /* CONCURRENT ACTIVE THREADS */
-        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (!qwait_event) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: Failed to create a qwait event.", my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
+             */
+            fprintf(stderr, "Apache server shutdown initiated...\n");
+            ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+            Sleep(30000);
+            return TRUE;
     }
 
-    /* 
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+    /* We should never get here, but this is (mostly) harmless */
+    return FALSE;
+}
+
+
+static void stop_console_handler(void)

@@ -1,13 +1,12 @@
-			 DWORD dwReserved) {
-    request_rec *r = ((isapi_cid *)ConnID)->r;
-    int writ;	/* written, actually, but why shouldn't I make up words? */
-
-    /* We only support synchronous writing */
-    if (dwReserved && dwReserved != HSE_IO_SYNC) {
-	ap_log_rerror(APLOG_MARK, APLOG_WARNING, r,
-		    "ISAPI asynchronous I/O not supported: %s", r->filename);
-	SetLastError(ERROR_INVALID_PARAMETER);
-	return FALSE;
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
     }
 
-    if ((writ = ap_rwrite(Buffer, *lpwdwBytes, r)) == EOF) {
+    /* Create the child_ready_event */
+    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!waitlist[waitlist_ready]) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create ready event for child process");
+        apr_pool_destroy (ptemp);

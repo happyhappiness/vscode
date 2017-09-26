@@ -1,14 +1,12 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s (default: %s)",
-		apr_proc_mutex_name(accept_mutex),
-		apr_proc_mutex_defname());
-#endif
-    restart_pending = shutdown_pending = 0;
+static const char *util_ldap_set_opcache_ttl(cmd_parms *cmd, void *dummy,
+                                             const char *ttl)
+{
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                                  &ldap_module);
 
-    server_main_loop(remaining_children_to_start);
+    st->compare_cache_ttl = atol(ttl) * 1000000;
 
-    if (shutdown_pending) {
-        /* Time to gracefully shut down:
-         * Kill child processes, tell them to call child_exit, etc...
-         * (By "gracefully" we don't mean graceful in the same sense as 
-         * "apachectl graceful" where we allow old connections to finish.)
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache TTL to %ld microseconds.",
+                 getpid(), st->compare_cache_ttl);

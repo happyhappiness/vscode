@@ -1,13 +1,24 @@
+    apr_int32_t autoindex_opts = autoindex_conf->opts;
+    char keyid;
+    char direction;
+    char *colargs;
+    char *fullpath;
+    apr_size_t dirpathlen;
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
+    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Can't open directory for index: %s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
+#if APR_HAS_UNICODE_FS
+    ap_set_content_type(r, "text/html;charset=utf-8");
+#else
+    ap_set_content_type(r, "text/html");
 #endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+    if (autoindex_opts & TRACK_MODIFIED) {
+        ap_update_mtime(r, r->finfo.mtime);
+        ap_set_last_modified(r);
+        ap_set_etag(r);
+    }
+    if (r->header_only) {

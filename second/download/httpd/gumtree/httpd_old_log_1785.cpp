@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat, NULL,
-                     "apr_pool_create() failed to create "
-                     "initial context");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to release thread mutex");

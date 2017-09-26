@@ -1,4 +1,10 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE,
-                     0, ap_server_conf,
-                     "seg fault or similar nasty error detected "
-                     "in the parent process");
+r(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+#if defined(SSL_get_secure_renegotiation_support)
+                          SSL_get_secure_renegotiation_support(ssl) ? 
+                          "client does" : "client does not"
+#else
+                          "server does not"
+#endif
+                );

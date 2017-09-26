@@ -1,46 +1,13 @@
-        strs[i] = process_item(r, orig, &items[i]);
+     * Some information about the certificate(s)
+     */
+
+    if (SSL_X509_isSGC(cert)) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "%s server certificate enables "
+                     "Server Gated Cryptography (SGC)", 
+                     ssl_asn1_keystr(type));
     }
 
-    for (i = 0; i < format->nelts; ++i) {
-        len += strl[i] = strlen(strs[i]);
-    }
-
-#ifdef BUFFERED_LOGS
-    if (len + cls->outcnt > LOG_BUFSIZE) {
-        flush_log(cls);
-    }
-    if (len >= LOG_BUFSIZE) {
-        apr_size_t w;
-
-        str = apr_palloc(r->pool, len + 1);
-        for (i = 0, s = str; i < format->nelts; ++i) {
-            memcpy(s, strs[i], strl[i]);
-            s += strl[i];
-        }
-        w = len;
-        apr_file_write(cls->log_fd, str, &w);
-    }
-    else {
-        for (i = 0, s = &cls->outbuf[cls->outcnt]; i < format->nelts; ++i) {
-            memcpy(s, strs[i], strl[i]);
-            s += strl[i];
-        }
-        cls->outcnt += len;
-    }
-#else
-    str = apr_palloc(r->pool, len + 1);
-
-    for (i = 0, s = str; i < format->nelts; ++i) {
-        memcpy(s, strs[i], strl[i]);
-        s += strl[i];
-    }
-
-    apr_file_write(cls->log_fd, str, &len);
-#endif
-
-    return OK;
-}
-
-static int multi_log_transaction(request_rec *r)
-{
-    multi_log_state *mls = ap_get_module_config(r->server->module_config,
+    if (SSL_X509_getBC(cert, &is_ca, &pathlen)) {
+        if (is_ca) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,

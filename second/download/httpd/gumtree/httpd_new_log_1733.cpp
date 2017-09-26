@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: client %s given Content-Length did not match"
-                     " number of body bytes read", r->connection->remote_ip);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                     (*balancer)->name);

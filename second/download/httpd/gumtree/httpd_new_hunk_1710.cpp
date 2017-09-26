@@ -1,21 +1,26 @@
+        /* uncomment this to see how the tree a built:
+         *
+         * DEBUG_DUMP_TREE(ctx, root);
+         */
+        CREATE_NODE(ctx, new);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+        was_unmatched = get_ptoken(ctx, &parse, &new->token,
+                         (current != NULL ? &current->token : NULL));
+        if (!parse) {
+            break;
+        }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+        DEBUG_DUMP_UNMATCHED(ctx, was_unmatched);
+        DEBUG_DUMP_TOKEN(ctx, &new->token);
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+        if (!current) {
+            switch (new->token.type) {
+            case TOKEN_STRING:
+            case TOKEN_NOT:
+            case TOKEN_ACCESS:
+            case TOKEN_LBRACE:
+                root = current = new;
+                continue;
+
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,

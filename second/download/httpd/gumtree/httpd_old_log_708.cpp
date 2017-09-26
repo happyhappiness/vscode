@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, 0, s,
-            "no listening sockets available, shutting down");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                    "invalid CGI ref \"%s\" in %s", tag_val, file);

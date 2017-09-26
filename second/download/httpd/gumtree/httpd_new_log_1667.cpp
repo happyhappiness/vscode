@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
-                         "proxy: previous connection is closed, creating a new connection.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "HTTP Request Line; Excess whitespace "
+                          "(disallowed by HttpProtocolOptions Strict");

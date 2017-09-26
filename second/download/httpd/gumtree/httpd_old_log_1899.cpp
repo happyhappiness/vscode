@@ -1,0 +1,1 @@
+fprintf(stderr, "Invalid rotation size parameter\n");

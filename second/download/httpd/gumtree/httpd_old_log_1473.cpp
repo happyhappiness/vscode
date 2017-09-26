@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "unknown directive \"%s\" in parsed doc %s",
-                              ctx->combined_tag, r->filename);
+r(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);

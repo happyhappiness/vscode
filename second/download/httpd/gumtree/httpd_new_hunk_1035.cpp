@@ -1,22 +1,54 @@
- */
-static int dav_handler(request_rec *r)
-{
-    if (strcmp(r->handler, DAV_HANDLER_NAME) != 0)
-        return DECLINED;
+  If there isn't enough space in the offset vector, treat this as if it were a
+  non-capturing bracket. Don't worry about setting the flag for the error case
+  here; that is handled in the code for KET. */
 
-    /* Reject requests with an unescaped hash character, as these may
-     * be more destructive than the user intended. */
-    if (r->parsed_uri.fragment != NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "buggy client used un-escaped hash in Request-URI");
-        return dav_error_response(r, HTTP_BAD_REQUEST, 
-                                  "The request was invalid: the URI included "
-                                  "an un-escaped hash character");
+  if (op > OP_BRA)
+    {
+    number = op - OP_BRA;
+
+    /* For extended extraction brackets (large number), we have to fish out the
+    number from a dummy opcode at the start. */
+
+    if (number > EXTRACT_BASIC_MAX)
+      number = GET2(ecode, 2+LINK_SIZE);
+    offset = number << 1;
+
+#ifdef DEBUG
+    printf("start bracket %d subject=", number);
+    pchars(eptr, 16, TRUE, md);
+    printf("\n");
+#endif
+
+    if (offset < md->offset_max)
+      {
+      save_offset1 = md->offset_vector[offset];
+      save_offset2 = md->offset_vector[offset+1];
+      save_offset3 = md->offset_vector[md->offset_end - number];
+      save_capture_last = md->capture_last;
+
+      DPRINTF(("saving %d %d %d\n", save_offset1, save_offset2, save_offset3));
+      md->offset_vector[md->offset_end - number] = eptr - md->start_subject;
+
+      do
+        {
+        RMATCH(rrc, eptr, ecode + 1 + LINK_SIZE, offset_top, md, ims, eptrb,
+          match_isgroup);
+        if (rrc != MATCH_NOMATCH) RRETURN(rrc);
+        md->capture_last = save_capture_last;
+        ecode += GET(ecode, 1);
+        }
+      while (*ecode == OP_ALT);
+
+      DPRINTF(("bracket %d failed\n", number));
+
+      md->offset_vector[offset] = save_offset1;
+      md->offset_vector[offset+1] = save_offset2;
+      md->offset_vector[md->offset_end - number] = save_offset3;
+
+      RRETURN(MATCH_NOMATCH);
+      }
+
+    /* Insufficient room for saving captured contents */
+
+    else op = OP_BRA;
     }
-
-    /* ### do we need to do anything with r->proxyreq ?? */
-
-    /*
-     * ### anything else to do here? could another module and/or
-     * ### config option "take over" the handler here? i.e. how do
-     * ### we lock down this hierarchy so that we are the ultimate

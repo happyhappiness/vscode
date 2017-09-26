@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t]", pad);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" in tag echo of %s", tag, r->filename);

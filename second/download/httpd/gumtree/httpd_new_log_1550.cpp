@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);

@@ -1,12 +1,12 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    }
-	    continue;
-	}
-#endif
+	memcpy(pHook,pSort->pData,sizeof *pHook);
+	if(apr_hook_debug_enabled)
+	    printf(" %s",pHook->szName);
+    }
+    if(apr_hook_debug_enabled)
+	fputc('\n',stdout);
+    return pNew;
+}
 
-	i = read(fd, line, 26);
+#ifndef NETWARE
+static apr_array_header_t *s_aHooksToSort;
+#endif

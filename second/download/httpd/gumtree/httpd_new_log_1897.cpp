@@ -1,0 +1,1 @@
+usage(argv[0], "Invalid rotation size parameter");

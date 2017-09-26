@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Configuration Failed");
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");

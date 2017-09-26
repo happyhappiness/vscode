@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
-                        "SSL output filter write failed.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "proxy: could not parse request Content-Length (%s)",
+                          old_cl_val);

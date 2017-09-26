@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, APR_SUCCESS, ap_server_conf,
-                     "WARNING: Attempt to change ThreadLimit ignored "
-                     "during restart");
+apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d" NL, rv);

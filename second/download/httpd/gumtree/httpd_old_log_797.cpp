@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "mod_rewrite: can't access DBM RewriteMap "
+                                  "file %s", s->checkfile);

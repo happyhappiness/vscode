@@ -1,31 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+     *
+     * The tricky bit, they aren't really a per-dir sort of
+     * config, they will always be constant across every
+     * reference to the .dll no matter what context (vhost,
+     * location, etc) they apply to.
+     */
+    isa->report_version = 0x500; /* Revision 5.0 */
+    isa->timeout = 300 * 1000000; /* microsecs, not used */
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-        int conversion_error = 0;
-
-        while (apr_isdigit(*pos) || apr_isspace(*pos)) {
-            ++pos;
-        }
-
-        if (*pos == '\0') {
-            char *endstr;
-
-            errno = 0;
-            r->remaining = strtol(lenp, &endstr, 10);
-
-            if (errno || (endstr && *endstr)) {
-                conversion_error = 1; 
-            }
-        }
-
-        if (*pos != '\0' || conversion_error) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid Content-Length");
-            return HTTP_BAD_REQUEST;
-        }
-    }
-
+    rv = apr_dso_load(&isa->handle, isa->filename, p);
+    if (rv)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,

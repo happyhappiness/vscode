@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, 0, s,
-                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
-                     "ignored during restart");
+fprintf(stderr, "Discarding token %d (%s).\n", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);

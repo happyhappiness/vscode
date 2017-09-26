@@ -1,35 +1,38 @@
-    struct accept_rec accept_info;
-    void *new_var;
-    int anymatch = 0;
+        c = ap_run_create_connection(context->ptrans, ap_server_conf,
+                                     context->sock, thread_num, sbh,
+                                     context->ba);
 
-    clean_var_rec(&mime_info);
-
-    if (r->proxyreq || !r->filename
-                    || !ap_os_is_path_absolute(neg->pool, r->filename)) {
-        return DECLINED;
+        if (c) {
+            ap_process_connection(c, context->sock);
+            apr_socket_opt_get(context->sock, APR_SO_DISCONNECTED,
+                               &disconnected);
+            if (!disconnected) {
+                context->accept_socket = INVALID_SOCKET;
+                ap_lingering_close(c);
+            }
+            else if (!use_acceptex) {
+                /* If the socket is disconnected but we are not using acceptex,
+                 * we cannot reuse the socket. Disconnected sockets are removed
+                 * from the apr_socket_t struct by apr_sendfile() to prevent the
+                 * socket descriptor from being inadvertently closed by a call
+                 * to apr_socket_close(), so close it directly.
+                 */
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+            }
+        }
+        else {
+            /* ap_run_create_connection closes the socket on failure */
+            context->accept_socket = INVALID_SOCKET;
+        }
     }
 
-    /* Only absolute paths here */
-    if (!(filp = strrchr(r->filename, '/'))) {
-        return DECLINED;
-    }
-    ++filp;
-    prefix_len = strlen(filp);
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD,
+                                        (request_rec *) NULL);
 
-    if ((status = apr_dir_open(&dirp, neg->dir_name,
-                               neg->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                    "cannot read directory for multi: %s", neg->dir_name);
-        return HTTP_FORBIDDEN;
-    }
+    return 0;
+}
 
-    while (apr_dir_read(&dirent, APR_FINFO_DIRENT, dirp) == APR_SUCCESS) {
-        apr_array_header_t *exception_list;
-        request_rec *sub_req;
 
-        /* Do we have a match? */
-#ifdef CASE_BLIND_FILESYSTEM
-        if (strncasecmp(dirent.name, filp, prefix_len)) {
-#else
-        if (strncmp(dirent.name, filp, prefix_len)) {
-#endif
+static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+{

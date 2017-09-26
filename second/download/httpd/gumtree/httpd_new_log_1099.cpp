@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-			      "apr_socket_opt_set(APR_SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                     "%s: apr_gethostname() failed to determine ServerName",
+                     ap_server_argv0);

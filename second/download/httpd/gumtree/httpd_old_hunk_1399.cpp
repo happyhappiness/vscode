@@ -1,19 +1,17 @@
-                    return;
-                }
 
-                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
-                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
-                    apr_table_setn(r->notes, "error-notes",
-                                   apr_pstrcat(r->pool,
-                                               "Request header field is "
-                                               "missing ':' separator.<br />\n"
-                                               "<pre>\n",
-                                               ap_escape_html(r->pool,
-                                                              last_field),
-                                               "</pre>\n", NULL));
-                    return;
-                }
-                
-                tmp_field = value - 1; /* last character of field-name */
+int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey)
+{
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s = mySrvFromConn(c);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    X509_NAME *ca_name, *issuer;
+    X509_INFO *info;
+    STACK_OF(X509_NAME) *ca_list;
+    STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
+    int i, j;
 
-                *value++ = '\0'; /* NUL-terminate at colon */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT "entered",
+                 sc->vhost_id);
+
+    if (!certs || (sk_X509_INFO_num(certs) <= 0)) {

@@ -1,1 +1,0 @@
-ap_register_output_filter("INCLUDES", includes_filter, AP_FTYPE_RESOURCE);

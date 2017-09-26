@@ -1,2 +1,2 @@
-printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-	       (float) (timetaken / done));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set screen name");

@@ -1,26 +1,31 @@
-            backend_addr = backend_addr->next;
-            continue;
+                          "apr_file_read(child output), len %" APR_SIZE_T_FMT,
+                          !rv ? len : -1);
         }
-
-#if !defined(TPF) && !defined(BEOS)
-        if (conf->recv_buffer_size > 0 &&
-            (rv = apr_socket_opt_set(*newsock, APR_SO_RCVBUF,
-                                     conf->recv_buffer_size))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
-                         "ProxyReceiveBufferSize, using default");
+        if (rv != APR_SUCCESS) {
+            return rv;
         }
-#endif
+        b = apr_bucket_heap_create(buf, len, NULL, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        return APR_SUCCESS;
+    }
+    /* we should never get here; if we do, a bogus error message would be
+     * the least of our problems
+     */
+    return APR_ANONYMOUS;
+}
 
-        /* Set a timeout on the socket */
-        if (conf->timeout_set == 1) {
-            apr_socket_timeout_set(*newsock, conf->timeout);
-        }
-        else {
-             apr_socket_timeout_set(*newsock, s->timeout);
-        }
+static apr_status_t pass_data_to_filter(ap_filter_t *f, const char *data,
+                                        apr_size_t len, apr_bucket_brigade *bb)
+{
+    ef_ctx_t *ctx = f->ctx;
+    ef_dir_t *dc = ctx->dc;
+    apr_status_t rv;
+    apr_size_t bytes_written = 0;
+    apr_size_t tmplen;
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "proxy: %s: fam %d socket created to connect to %s",
-                     proxy_function, backend_addr->family, backend_name);
-
+    do {
+        tmplen = len - bytes_written;
+        rv = apr_file_write(ctx->proc->in,
+                       (const char *)data + bytes_written,
+                       &tmplen);
+        bytes_written += tmplen;

@@ -1,24 +1,36 @@
-			d->icon_height,
-			d->icon_width
-		    );
-	    }
-	    ap_rputs("> ", r);
-	}
-        emit_link(r, widthify("Name", name_scratch,
-			      (name_width > 5) ? 5 : name_width, K_NOPAD),
-		  K_NAME, keyid, direction, static_columns);
-	if (name_width > 5) {
-	    memset(name_scratch, ' ', name_width);
-	    name_scratch[name_width] = '\0';
-	    ap_rputs(&name_scratch[5], r);
-	}
-	/*
-	 * Emit the guaranteed-at-least-one-space-between-columns byte.
-	 */
-	ap_rputs(" ", r);
-	if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      static_columns);
-	    ap_rputs("       ", r);
-	}
-	if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                }
+                break;
+            case CMD_AJP13_SEND_BODY_CHUNK:
+                /* AJP13_SEND_BODY_CHUNK: piece of data */
+                status = ajp_parse_data(r, conn->data, &size, &buff);
+                if (status == APR_SUCCESS) {
+                    if (size == 0) {
+                        /* AJP13_SEND_BODY_CHUNK with zero length
+                         * is explicit flush message
+                         */
+                        e = apr_bucket_flush_create(r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                    }
+                    else {
+                        e = apr_bucket_transient_create(buff, size,
+                                                    r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+
+                        if ((conn->worker->flush_packets == flush_on) ||
+                            ((conn->worker->flush_packets == flush_auto) &&
+                            (apr_poll(conn_poll, 1, &conn_poll_fd,
+                                      conn->worker->flush_wait)
+                                        == APR_TIMEUP) ) ) {
+                            e = apr_bucket_flush_create(r->connection->bucket_alloc);
+                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                        }
+                        apr_brigade_length(output_brigade, 0, &bb_len);
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
+                    }
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body");
+                        isok = 0;
+                    }

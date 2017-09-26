@@ -1,28 +1,70 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+ * It returns the substituted string, or NULL on error.
+ *
+ * Parts of this code are based on Henry Spencer's regsub(), from his
+ * AT&T V8 regexp package.
+ */
+
+AP_DECLARE(char *) ap_pregsub(apr_pool_t *p, const char *input,
+                              const char *source, size_t nmatch,
+                              ap_regmatch_t pmatch[])
+{
+    const char *src = input;
+    char *dest, *dst;
+    char c;
+    size_t no;
+    apr_size_t len;
+
+    if (!source)
+        return NULL;
+    if (!nmatch)
+        return apr_pstrdup(p, src);
+
+    /* First pass, find the size */
+
+    len = 0;
+
+    while ((c = *src++) != '\0') {
+        if (c == '&')
+            no = 0;
+        else if (c == '$' && apr_isdigit(*src))
+            no = *src++ - '0';
+        else
+            no = 10;
+
+        if (no > 9) {                /* Ordinary character. */
+            if (c == '\\' && (*src == '$' || *src == '&'))
+                src++;
+            len++;
+        }
+        else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
+            if (UTIL_SIZE_MAX - len <= pmatch[no].rm_eo - pmatch[no].rm_so) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                             "integer overflow or out of memory condition." );
+                return NULL;
+            }
+            len += pmatch[no].rm_eo - pmatch[no].rm_so;
+        }
+
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
 
-    sub_garbage_coll(r, files, cachedir, "/");
+    dest = dst = apr_pcalloc(p, len + 1);
 
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
+    /* Now actually fill in the string */
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+    src = input;
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    while ((c = *src++) != '\0') {
+        if (c == '&')
+            no = 0;
+        else if (c == '$' && apr_isdigit(*src))
+            no = *src++ - '0';
+        else
+            no = 10;
+
+        if (no > 9) {                /* Ordinary character. */
+            if (c == '\\' && (*src == '$' || *src == '&'))
+                c = *src++;
+            *dst++ = c;
+        }
+        else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
+            len = pmatch[no].rm_eo - pmatch[no].rm_so;

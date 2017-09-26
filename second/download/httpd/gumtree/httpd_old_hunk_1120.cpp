@@ -1,12 +1,12 @@
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
-            r->header_only = 0;
-            r->status = HTTP_BAD_REQUEST;
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
+        return AJP_EBAD_HEADER;
     }
+    rc = ajp_msg_get_uint16(msg, len);
+    if (rc != APR_SUCCESS) {
+        return rc;
+    }
+    *ptr = (char *)&(msg->buf[msg->pos]);
+    return APR_SUCCESS;
+}
 
+/*
+ * Allocate a msg to send data

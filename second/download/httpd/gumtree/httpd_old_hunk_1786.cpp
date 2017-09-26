@@ -1,20 +1,39 @@
-#endif
+                     "Parent: Could not create exit event for child process");
+        apr_pool_destroy(ptemp);
+        CloseHandle(waitlist[waitlist_ready]);
+        return -1;
+    }
 
-    ap_soft_timeout("send body", r);
+    if (!env)
+    {
+        /* Build the env array, only once since it won't change
+         * for the lifetime of this parent process.
+         */
+        int envc;
+        for (envc = 0; _environ[envc]; ++envc) {
+            ;
+        }
+        env = malloc((envc + 2) * sizeof (char*));
+        memcpy(env, _environ, envc * sizeof (char*));
+        apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
+        env[envc] = pidbuf;
+        env[envc + 1] = NULL;
+    }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to create the child process.");
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Parent: Created child process %d", new_child.pid);
+
+    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
+                              start_mutex, ap_scoreboard_shm,
+                              new_child.hproc, new_child.in)) {

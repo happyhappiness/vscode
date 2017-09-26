@@ -1,31 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+                    if (apr_file_name_get(&tmpfile_name, tmpfile) != APR_SUCCESS) {
+                        tmpfile_name = "(unknown)";
+                    }
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                                 "proxy: write to temporary file %s failed",
+                                 tmpfile_name);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                AP_DEBUG_ASSERT(bytes_read == bytes_written);
+                fsize += bytes_written;
+            }
+            apr_brigade_cleanup(input_brigade);
         }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

@@ -1,25 +1,13 @@
-{
-    char *host, *path, *search, sport[7];
-    const char *err;
-    const char *scheme;
-    apr_port_t port, def_port;
 
-    /* ap_port_of_scheme() */
-    if (strncasecmp(url, "http:", 5) == 0) {
-        url += 5;
-        scheme = "http";
+    /* Reject requests with an unescaped hash character, as these may
+     * be more destructive than the user intended. */
+    if (r->parsed_uri.fragment != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                     "buggy client used un-escaped hash in Request-URI");
+        return dav_error_response(r, HTTP_BAD_REQUEST,
+                                  "The request was invalid: the URI included "
+                                  "an un-escaped hash character");
     }
-    else if (strncasecmp(url, "https:", 6) == 0) {
-        url += 6;
-        scheme = "https";
-    }
-    else {
-        return DECLINED;
-    }
-    def_port = apr_uri_port_of_scheme(scheme);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-             "proxy: HTTP: canonicalising URL %s", url);
+    /* ### do we need to do anything with r->proxyreq ?? */
 
-    /* do syntatic check.
-     * We break the URL into host, port, path, search

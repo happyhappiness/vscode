@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                          "Request header exceeds LimitRequestFieldSize: "
-                          "%.*s", field_name_len(field), field);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: dialog to %pI (%s) failed",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

@@ -1,22 +1,24 @@
-            if ((buf = apr_table_get(r->headers_out, "URI")) != NULL) {
-                apr_table_set(r->headers_out, "URI",
-                              ap_proxy_location_reverse_map(r, conf, buf));
+                             " shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+                break;
             }
+            have_idle_worker = 1;
         }
+            
+        /* We've already decremented the idle worker count inside
+         * ap_queue_info_wait_for_idler. */
 
-      if ((r->status == 401) && (conf->error_override != 0)) {
-          const char *buf;
-          const char *wa = "WWW-Authenticate";
-          if ((buf = apr_table_get(r->headers_out, wa))) {
-              apr_table_set(r->err_headers_out, wa, buf);
-          } else {
-              ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                           "proxy: origin server sent 401 without w-a header");
-          }
-      }
+        if ((rv = SAFE_ACCEPT(apr_proc_mutex_lock(accept_mutex)))
+            != APR_SUCCESS) {
+            int level = APLOG_EMERG;
 
-        r->sent_bodyct = 1;
-        /* Is it an HTTP/0.9 response? If so, send the extra data */
-        if (backasswards) {
-            apr_ssize_t cntr = len;
-            e = apr_bucket_heap_create(buffer, cntr, NULL, c->bucket_alloc);
+            if (listener_may_exit) {
+                break;
+            }
+            if (ap_scoreboard_image->parent[process_slot].generation != 
+                ap_scoreboard_image->global->running_generation) {
+                level = APLOG_DEBUG; /* common to get these at restart time */
+            }
+            ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                         "apr_proc_mutex_lock failed. Attempting to shutdown "
+                         "process gracefully.");

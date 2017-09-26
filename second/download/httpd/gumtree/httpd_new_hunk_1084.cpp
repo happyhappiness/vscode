@@ -1,16 +1,13 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s (default: %s)",
-		apr_proc_mutex_name(accept_mutex),
-		apr_proc_mutex_defname());
-#endif
-    restart_pending = shutdown_pending = 0;
-    mpm_state = AP_MPMQ_RUNNING;
+    apr_file_close(f);
 
-    server_main_loop(remaining_children_to_start);
-    mpm_state = AP_MPMQ_STOPPING;
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
+                APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n",
+                        argv[0], argv[1]);
+    }
+    apr_file_close(tfp);
 
-    if (shutdown_pending) {
-        /* Time to gracefully shut down:
-         * Kill child processes, tell them to call child_exit, etc...
-         * (By "gracefully" we don't mean graceful in the same sense as 
-         * "apachectl graceful" where we allow old connections to finish.)
+    return 0;
+}

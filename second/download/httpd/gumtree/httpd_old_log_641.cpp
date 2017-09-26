@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                     "%s: module \"%s\" is not compatible with this "
-                     "version of Apache.", ap_server_argv0, m->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "unable to get information about \"%s\" "
+                        "in parsed file %s",
+                        tag_val, r->filename);

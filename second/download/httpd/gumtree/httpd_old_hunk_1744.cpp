@@ -1,13 +1,12 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+
+        apr_rfc822_date(datestr, mod_time);
+        apr_table_setn(r->headers_out, "Last-Modified", datestr);
     }
+}
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+AP_IMPLEMENT_HOOK_RUN_ALL(int,post_read_request,
+                          (request_rec *r), (r), OK, DECLINED)
+AP_IMPLEMENT_HOOK_RUN_ALL(int,log_transaction,
+                          (request_rec *r), (r), OK, DECLINED)
+AP_IMPLEMENT_HOOK_RUN_FIRST(const char *,http_scheme,
+                            (const request_rec *r), (r), NULL)

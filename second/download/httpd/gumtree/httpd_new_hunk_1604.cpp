@@ -1,13 +1,13 @@
-            case token_le:
-            case token_lt:
-                new->parent = current;
-                current = current->right = new;
-                break;
-            default:
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                            "Invalid expression \"%s\" in file %s",
-                            expr, r->filename);
-                ap_rputs(error, r);
-                goto RETURN;
-            }
-            break;
+
+static void show_server_data()
+{
+    ap_listen_rec *lr;
+    module **m;
+
+    printf("%s\n", ap_get_server_description());
+    if (ap_my_addrspace && (ap_my_addrspace[0] != 'O') && (ap_my_addrspace[1] != 'S'))
+        printf("   Running in address space %s\n", ap_my_addrspace);
+
+
+    /* Display listening ports */
+    printf("   Listening on port(s):");

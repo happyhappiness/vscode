@@ -1,13 +1,13 @@
-            output_results();
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return ap_map_http_request_error(rv, HTTP_BAD_REQUEST);
         }
 
-        /* Timeout of 30 seconds. */
-        timeout.tv_sec = 30;
-        timeout.tv_usec = 0;
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-        if (!n) {
-            printf("\nServer timed out\n\n");
-            exit(1);
-        }
-        if (n < 1)
-            err("select");
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {

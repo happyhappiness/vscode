@@ -1,19 +1,16 @@
-static void err_output(const char *fmt, va_list ap)
-{
-#ifdef LOG_EXEC
-    time_t timevar;
-    struct tm *lt;
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                maxsize - AJP_HEADER_SZ);
 
-    if (!log) {
-	if ((log = fopen(LOG_EXEC, "a")) == NULL) {
-	    fprintf(stderr, "failed to open log file\n");
-	    perror("fopen");
-	    exit(1);
-	}
-    }
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */
+            conn->close++;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                         "proxy: ap_get_brigade failed");
+            apr_brigade_destroy(input_brigade);
+            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
+        }
 
-    time(&timevar);
-    lt = localtime(&timevar);
-
-    fprintf(log, "[%d-%.2d-%.2d %.2d:%.2d:%.2d]: ",
-	    lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
+        /* have something */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: APR_BUCKET_IS_EOS");

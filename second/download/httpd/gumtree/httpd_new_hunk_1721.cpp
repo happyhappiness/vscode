@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
+    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_marshal_into_msgb");
+
+    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_marshal_into_msgb - No such method %s",
+               r->method);
+        return AJP_EBAD_METHOD;
+    }
+

@@ -1,16 +1,13 @@
-            {
-                renegotiate = TRUE;
-                /* optimization */
+     * and any initial read will fail.
+     */
+    rv = apr_socket_timeout_set(csd, c->base_server->timeout);
+    if (rv != APR_SUCCESS) {
+        /* expected cause is that the client disconnected already */
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                      "apr_socket_timeout_set");
+    }
 
-                if ((dc->nOptions & SSL_OPT_OPTRENEGOTIATE) &&
-                    (verify_old == SSL_VERIFY_NONE) &&
-                    ((cert = SSL_get_peer_certificate(ssl)) != NULL))
-                {
-                    renegotiate_quick = TRUE;
-                    X509_free(cert);
-                }
-
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                             r->server,
-                             "Changed client verification type will force "
-                             "%srenegotiation",
+    net->c = c;
+    net->in_ctx = NULL;
+    net->out_ctx = NULL;
+    net->client_socket = csd;

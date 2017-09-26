@@ -1,14 +1,38 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+                            mc->nSessionCacheDataSize,
+                            mc->szSessionCacheDataFile,
+                            mc->pPool);
+    }
+
+    if (rv != APR_SUCCESS) {
+        char buf[100];
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Cannot allocate shared memory: (%d)%s", rv,
+                     apr_strerror(rv, buf, sizeof(buf)));
+        ssl_die();
+    }
+    shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
+    shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "shmcb_init allocated %" APR_SIZE_T_FMT
+                 " bytes of shared memory",
+                 shm_segsize);
+    if (!shmcb_init_memory(s, shm_segment, shm_segsize)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Failure initialising 'shmcb' shared memory");
+        ssl_die();
+    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Shared memory session cache initialised");
+
+    /*
+     * Success ...
+     */
+    mc->tSessionCacheDataTable = shm_segment;
+    return;
+}
+
+void ssl_scache_shmcb_kill(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+

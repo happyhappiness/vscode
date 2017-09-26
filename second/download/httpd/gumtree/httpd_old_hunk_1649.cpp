@@ -1,28 +1,36 @@
-     * where we would end up with LOTS of zombies.
+
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
+{
+    apr_status_t rv;
+
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* TODO: calculate the bytes transferred
+     * This will enable to elect the worker that has
+     * the lowest load.
+     * The bytes transferred depends on the protocol
+     * used, so each protocol handler should keep the
+     * track on that.
      */
-    sub_pool = ap_make_sub_pool(r->pool);
 
-    if (!ap_bspawn_child(sub_pool, uncompress_child, &parm, kill_always,
-			 &bin, &bout, NULL)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
-	return -1;
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-    if (ap_bwrite(bin, old, n) != n) {
-	ap_destroy_pool(sub_pool);
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    MODNAME ": write failed.");
-	return -1;
-    }
-    ap_bclose(bin);
-    *newch = (unsigned char *) ap_palloc(r->pool, n);
-    if ((n = ap_bread(bout, *newch, n)) <= 0) {
-	ap_destroy_pool(sub_pool);
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-	    MODNAME ": read failed %s", r->filename);
-	return -1;
-    }
-    ap_destroy_pool(sub_pool);
-    return n;
+    return OK;
 }
+
+static void recalc_factors(proxy_balancer *balancer)
+{
+    int i;

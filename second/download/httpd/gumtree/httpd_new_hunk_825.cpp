@@ -1,14 +1,26 @@
-            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "core_output_filter: writing data to the network");
+            algoKey |= at;
 
-            if (more)
-                apr_brigade_destroy(more);
-
-            /* No need to check for SUCCESS, we did that above. */
-            if (!APR_STATUS_IS_EAGAIN(rv)) {
-                c->aborted = 1;
+            /*
+             * Log the type of reading
+             */
+            if (nPassPhraseDialogCur == 0) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ,
+                             "unencrypted %s private key - pass phrase not "
+                             "required", an);
+            }
+            else {
+                if (cpPassPhraseCur != NULL) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ,
+                                 "encrypted %s private key - pass phrase "
+                                 "requested", an);
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ,
+                                 "encrypted %s private key - pass phrase"
+                                 " reused", an);
+                }
             }
 
-            /* The client has aborted, but the request was successful. We
-             * will report success, and leave it to the access and error
-             * logs to note that the connection was aborted.
+            /*

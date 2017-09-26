@@ -1,15 +1,17 @@
-    ap_hard_timeout("send directory", r);
-
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+#endif
+
+    if (worker && worker->s->busy)
+        worker->s->busy--;
+
+    return OK;
+
+}
+
+static void recalc_factors(proxy_balancer *balancer)
+{
+    int i;
+    proxy_worker *workers;

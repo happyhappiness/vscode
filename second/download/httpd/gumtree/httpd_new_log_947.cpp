@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Please read the documentation.");
+printf("%sdebug: after reduction, shifting from state 0 to\
+ state %d\n", YYPREFIX, YYFINAL);

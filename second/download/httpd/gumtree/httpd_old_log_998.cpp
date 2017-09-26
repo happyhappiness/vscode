@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, NULL,
-               "Internal error: pcfg_openfile() called with NULL filename");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                              "ap_listen_open: unable to make socket non-blocking");

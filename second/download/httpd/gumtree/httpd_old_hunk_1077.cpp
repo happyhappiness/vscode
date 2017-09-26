@@ -1,19 +1,13 @@
+        kb[key.dsize] = '\0';
+        fprintf(stderr, "    %-32s", kb);
+        strncpy(rec, val.dptr, val.dsize);
+        rec[val.dsize] = '\0';
+        cmnt = strchr(rec, ':');
+        if (cmnt)
+            fprintf(stderr, cmnt + 1);
+        fprintf(stderr, "\n");
+        rv = apr_dbm_nextkey(htdbm->dbm, &key);
+        if (rv != APR_SUCCESS)
+            fprintf(stderr, "Failed getting NextKey\n");
+        ++i;
     }
-
-    apr_pool_clear(plog);
-
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs\n");
-        destroy_and_exit_process(process, 1);
-    }
-
-    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Configuration Failed\n");
-        destroy_and_exit_process(process, 1);
-    }
-
-    apr_pool_destroy(ptemp);
-
-    for (;;) {

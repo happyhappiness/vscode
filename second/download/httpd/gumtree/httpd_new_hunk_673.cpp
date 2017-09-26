@@ -1,13 +1,13 @@
-    if (strncasecmp(url, "ftp:", 4) == 0) {
-        url += 4;
-    }
-    else {
-        return DECLINED;
-    }
-    def_port = apr_uri_port_of_scheme("ftp");
+        int res;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: asynchronous I/O not supported: %s",
+                            r->filename);
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return 0;
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: FTP: canonicalising URL %s", url);
-
-    port = def_port;
-    err = ap_proxy_canon_netloc(p, &url, &user, &password, &host, &port);
+        if (r->remaining < *buf_size) {
+            *buf_size = (apr_size_t)r->remaining;
+        }

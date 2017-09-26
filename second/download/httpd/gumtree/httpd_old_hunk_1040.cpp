@@ -1,12 +1,19 @@
-                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
-                      getpid(), st->cache_bytes);
+if (re == NULL)
+  {
+  printf("PCRE compilation failed at offset %d: %s\n", erroffset, error);
+  return 1;
+  }
 
-    return NULL;
-}
+/* Compilation succeeded: match the subject in the second argument */
 
-static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy, const char *ttl)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
+rc = pcre_exec(
+  re,                   /* the compiled pattern */
+  NULL,                 /* no extra data - we didn't study the pattern */
+  argv[2],              /* the subject string */
+  (int)strlen(argv[2]), /* the length of the subject */
+  0,                    /* start at offset 0 in the subject */
+  0,                    /* default options */
+  ovector,              /* output vector for substring information */
+  OVECCOUNT);           /* number of elements in the output vector */
 
+/* Matching failed: handle error cases */

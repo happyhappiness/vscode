@@ -1,1 +1,2 @@
-dav_send_one_response(first, bb, r->output_filters, subpool);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                             "Operating in SSL FIPS mode");

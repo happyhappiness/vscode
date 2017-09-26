@@ -1,0 +1,1 @@
+printf("Failed requests:        %ld\n", bad);

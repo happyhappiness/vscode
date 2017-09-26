@@ -1,2 +1,2 @@
-fprintf(stderr,"Warning: storing passwords as plain text might "
-		"just not work on this platform.\n");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create worker thread count lock");

@@ -1,13 +1,12 @@
-
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+                             "Error ajp_marshal_into_msgb - "
+                             "Error appending the SSL key size");
+                return APR_EGENERAL;
+            }
+        }
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.

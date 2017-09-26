@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-		"Server built: %s", ap_get_server_built());
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for exec element in %s",
+                      r->filename);

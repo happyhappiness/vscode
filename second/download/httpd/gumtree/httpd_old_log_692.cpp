@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");

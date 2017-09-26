@@ -1,41 +1,15 @@
-    dbmkey.dsize = idlen;
+                if (pkey_mtime) {
+                    int i;
 
-    /* and fetch it from the DBM file 
-     * XXX: Should we open the dbm against r->pool so the cleanup will
-     * do the apr_dbm_close? This would make the code a bit cleaner.
-     */
-    if ((rc = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-	    APR_DBM_RWCREATE, SSL_DBM_FILE_MODE, mc->pPool)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                     "Cannot open SSLSessionCache DBM file `%s' for reading "
-                     "(fetch)",
-                     mc->szSessionCacheDataFile);
-        return NULL;
-    }
-    rc = apr_dbm_fetch(dbm, dbmkey, &dbmval);
-    if (rc != APR_SUCCESS) {
-        apr_dbm_close(dbm);
-        return NULL;
-    }
-    if (dbmval.dptr == NULL || dbmval.dsize <= sizeof(time_t)) {
-        apr_dbm_close(dbm);
-        return NULL;
-    }
-
-    /* parse resulting data */
-    nData = dbmval.dsize-sizeof(time_t);
-    ucpData = (UCHAR *)malloc(nData);
-    if (ucpData == NULL) {
-        apr_dbm_close(dbm);
-        return NULL;
-    }
-    memcpy(ucpData, (char *)dbmval.dptr+sizeof(time_t), nData);
-    memcpy(&expiry, dbmval.dptr, sizeof(time_t));
-
-    apr_dbm_close(dbm);
-
-    /* make sure the stuff is still not expired */
-    now = time(NULL);
-    if (expiry <= now) {
-        ssl_scache_dbm_remove(s, id, idlen);
-        return NULL;
+                    for (i=0; i < SSL_AIDX_MAX; i++) {
+                        const char *key_id =
+                            ssl_asn1_table_keyfmt(p, cpVHostID, i);
+                        ssl_asn1_t *asn1 = 
+                            ssl_asn1_table_get(mc->tPrivateKey, key_id);
+                    
+                        if (asn1 && (asn1->source_mtime == pkey_mtime)) {
+                            ap_log_error(APLOG_MARK, APLOG_INFO,
+                                         0, pServ,
+                                         "%s reusing existing "
+                                         "%s private key on restart",
+                                         cpVHostID, ssl_asn1_keystr(i));

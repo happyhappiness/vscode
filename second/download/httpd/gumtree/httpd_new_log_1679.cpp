@@ -1,1 +1,3 @@
-apr_atomic_dec(&obj->refcount);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "Number of request headers exceeds "
+                              "LimitRequestFields");

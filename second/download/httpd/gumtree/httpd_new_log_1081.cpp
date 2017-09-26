@@ -1,4 +1,2 @@
-ap_register_output_filter("CACHE_CONDITIONAL", 
-                              cache_conditional_filter, 
-                              NULL,
-                              AP_FTYPE_CONTENT_SET);
+fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");

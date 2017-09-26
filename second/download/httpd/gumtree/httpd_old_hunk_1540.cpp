@@ -1,13 +1,19 @@
+                    r->status = HTTP_BAD_REQUEST;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field value presented"
+                                  " bad whitespace");
+                    return;
+                }
 
-    if (err != NULL)
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
+                if (tmp_field == last_field) {
+                    r->status = HTTP_BAD_REQUEST;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field name was empty");
+                    return;
+                }
+            }
+            else /* Using strict RFC7230 parsing */
+            {
+                /* Ensure valid token chars before ':' per RFC 7230 3.2.4 */
+                value = (char *)ap_scan_http_token(last_field);
+                if ((value == last_field) || *value != ':') {

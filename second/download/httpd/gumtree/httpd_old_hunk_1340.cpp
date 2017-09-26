@@ -1,55 +1,70 @@
-                               "from HttpExtensionProc() is not supported: %s",
-                               r->filename);
-                 r->status = HTTP_INTERNAL_SERVER_ERROR;
-            }
-            break;
-
-        case HSE_STATUS_ERROR:    
-            /* end response if we have yet to do so.
-             */
-            r->status = HTTP_INTERNAL_SERVER_ERROR;
-            break;
-
-        default:
-            /* TODO: log unrecognized retval for debugging 
-             */
-             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: return code %d from HttpExtensionProc() "
-                           "was not not recognized", rv);
-            r->status = HTTP_INTERNAL_SERVER_ERROR;
-            break;
-    }
-
-    /* Flush the response now, including headers-only responses */
-    if (cid->headers_set) {
-        conn_rec *c = r->connection;
-        apr_bucket_brigade *bb;
-        apr_bucket *b;
-        apr_status_t rv;
-
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        b = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        b = apr_bucket_flush_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        cid->response_sent = 1;
-
-        return OK;  /* NOT r->status or cid->r->status, even if it has changed. */
-    }
-    
-    /* As the client returned no error, and if we did not error out
-     * ourselves, trust dwHttpStatusCode to say something relevant.
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
      */
-    if (!ap_is_HTTP_SERVER_ERROR(r->status) && cid->ecb->dwHttpStatusCode) {
-        r->status = cid->ecb->dwHttpStatusCode;
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
     }
 
-    /* For all missing-response situations simply return the status.
-     * and let the core deal respond to the client.
+    SetEvent(ready_event);
+    CloseHandle(ready_event);
+
+    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    if (!ReadFile(pipe, &os_start, sizeof(os_start),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(os_start))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *child_start_mutex = NULL;
+    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    if (!ReadFile(pipe, &hScore, sizeof(hScore),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(hScore))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *scoreboard_shm = NULL;
+    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+
+    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
+    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    /* We must 'initialize' the scoreboard to relink all the
+     * process-local pointer arrays into the shared memory block.
      */
-    return r->status;
+    ap_init_scoreboard(sb_shared);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
 }
 
-/**********************************************************
- *
+
+static int send_handles_to_child(apr_pool_t *p,
+                                 HANDLE child_ready_event,
+                                 HANDLE child_exit_event,

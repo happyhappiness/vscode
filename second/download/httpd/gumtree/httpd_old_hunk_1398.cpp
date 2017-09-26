@@ -1,19 +1,23 @@
-                if ((fold_len - 1) > r->server->limit_req_fieldsize) {
-                    r->status = HTTP_BAD_REQUEST;
-                    /* report what we have accumulated so far before the
-                     * overflow (last_field) as the field with the problem
-                     */
-                    apr_table_setn(r->notes, "error-notes",
-                                   apr_pstrcat(r->pool,
-                                               "Size of a request header field " 
-                                               "after folding "
-                                               "exceeds server limit.<br />\n"
-                                               "<pre>\n",
-                                               ap_escape_html(r->pool, last_field),
-                                               "</pre>\n", NULL));
-                    return;
-                }
+                              "insecure SSL re-negotiation required, but "
+                              "a pipelined request is present; keepalive "
+                              "disabled");
+                r->connection->keepalive = AP_CONN_CLOSE;
+            }
 
-                if (fold_len > alloc_len) {
-                    char *fold_buf;
-                    alloc_len += alloc_len;
+            /* Perform a full renegotiation. */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+#if defined(SSL_get_secure_renegotiation_support)
+                          SSL_get_secure_renegotiation_support(ssl) ? 
+                          "client does" : "client does not"
+#else
+                          "server does not"
+#endif
+                );
+
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
+
+            /* Toggle the renegotiation state to allow the new

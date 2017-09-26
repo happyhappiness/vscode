@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "ISAPI: ServerSupport function "
-                          "HSE_REQ_TRANSMIT_FILE "
-                          "ap_pass_brigade failed: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "%s configured -- resuming normal operations",
+            ap_get_server_description());

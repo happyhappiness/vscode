@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: MaxClients (%d) is not an integer multiple",
-                    max_clients);
+ap_rputs("<table cellspacing=0 cellpadding=0>\n", r);

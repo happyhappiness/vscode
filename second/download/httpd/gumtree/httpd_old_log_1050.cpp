@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: username too long (>%" APR_SIZE_T_FMT ")\n",
-	        argv[0], sizeof(user) - 1);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                  "apr_accept");

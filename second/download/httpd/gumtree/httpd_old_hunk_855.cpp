@@ -1,36 +1,180 @@
-PROXY_DECLARE(apr_table_t *)ap_proxy_read_headers(request_rec *r, request_rec *rr, char *buffer, int size, conn_rec *c)
+            /*
+             * Now recurse these... we handle errors and subdirectories
+             * via the recursion, which is nice
+             */
+            for (current = 0; current < candidates->nelts; ++current) {
+                fnew = &((fnames *) candidates->elts)[current];
+                process_resource_config_nofnmatch(s, fnew->fname, conftree, p,
+                                                  ptemp, depth);
+            }
+        }
+
+        return;
+    }
+
+    /* GCC's initialization extensions are soooo nice here... */
+    parms = default_parms;
+    parms.pool = p;
+    parms.temp_pool = ptemp;
+    parms.server = s;
+    parms.override = (RSRC_CONF | OR_ALL) & ~(OR_AUTHCFG | OR_LIMIT);
+
+    if (ap_pcfg_openfile(&cfp, p, fname) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s: could not open document config file %s",
+                     ap_server_argv0, fname);
+        exit(1);
+    }
+
+    parms.config_file = cfp;
+
+    errmsg = ap_build_config(&parms, p, ptemp, conftree);
+
+    if (errmsg != NULL) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Syntax error on line %d of %s:",
+                     parms.err_directive->line_num,
+                     parms.err_directive->filename);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s", errmsg);
+        exit(1);
+    }
+
+    ap_cfg_closefile(cfp);
+
+    return;
+}
+
+AP_DECLARE(void) ap_process_resource_config(server_rec *s, const char *fname,
+                                            ap_directive_t **conftree,
+                                            apr_pool_t *p,
+                                            apr_pool_t *ptemp)
 {
-    apr_table_t *headers_out;
-    int len;
-    char *value, *end;
-    char field[MAX_STRING_LEN];
-
-    headers_out = apr_table_make(r->pool, 20);
-
-    /*
-     * Read header lines until we get the empty separator line, a read error,
-     * the connection closes (EOF), or we timeout.
+    /* XXX: lstat() won't work on the wildcard pattern...
      */
-    while ((len = ap_getline(buffer, size, rr, 1)) > 0) {
 
-	if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
+    /* don't require conf/httpd.conf if we have a -C or -c switch */
+    if ((ap_server_pre_read_config->nelts
+        || ap_server_post_read_config->nelts)
+        && !(strcmp(fname, ap_server_root_relative(p, SERVER_CONFIG_FILE)))) {
+        apr_finfo_t finfo;
 
-	    /* Buggy MS IIS servers sometimes return invalid headers
-	     * (an extra "HTTP/1.0 200, OK" line sprinkled in between
-	     * the usual MIME headers). Try to deal with it in a sensible
-	     * way, but log the fact.
-	     * XXX: The mask check is buggy if we ever see an HTTP/1.10 */
+        if (apr_lstat(&finfo, fname, APR_FINFO_TYPE, p) != APR_SUCCESS)
+            return;
+    }
 
-	    if (!apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
-		/* Nope, it wasn't even an extra HTTP header. Give up. */
-		return NULL;
-	    }
+    if (!apr_fnmatch_test(fname)) {
+        process_resource_config_nofnmatch(s, fname, conftree, p, ptemp, 0);
+    }
+    else {
+        apr_dir_t *dirp;
+        apr_finfo_t dirent;
+        int current;
+        apr_array_header_t *candidates = NULL;
+        fnames *fnew;
+        apr_status_t rv;
+        char errmsg[120], *path = apr_pstrdup(p, fname), *pattern = NULL;
 
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-			 "proxy: Ignoring duplicate HTTP header "
-			 "returned by %s (%s)", r->uri, r->method);
-	    continue;
-	}
+        pattern = ap_strrchr(path, '/');
 
-        *value = '\0';
-        ++value;
+        AP_DEBUG_ASSERT(pattern != NULL); /* path must be absolute. */
+
+        *pattern++ = '\0';
+
+        if (apr_fnmatch_test(path)) {
+            fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                    "%s\n", ap_server_argv0, fname);
+            exit(1);
+        }
+
+        if (!ap_is_directory(p, path)){ 
+            fprintf(stderr, "%s: Include directory '%s' not found",
+                    ap_server_argv0, path);
+            exit(1);
+        }
+
+        if (!apr_fnmatch_test(pattern)) {
+            fprintf(stderr, "%s: must include a wildcard pattern "
+                    "for Include %s\n", ap_server_argv0, fname);
+            exit(1);
+        }
+
+        /*
+         * first course of business is to grok all the directory
+         * entries here and store 'em away. Recall we need full pathnames
+         * for this.
+         */
+        rv = apr_dir_open(&dirp, path, p);
+        if (rv != APR_SUCCESS) {
+            fprintf(stderr, "%s: could not open config directory %s: %s\n",
+                    ap_server_argv0, path,
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+            exit(1);
+        }
+
+        candidates = apr_array_make(p, 1, sizeof(fnames));
+        while (apr_dir_read(&dirent, APR_FINFO_DIRENT, dirp) == APR_SUCCESS) {
+            /* strip out '.' and '..' */
+            if (strcmp(dirent.name, ".")
+                && strcmp(dirent.name, "..")
+                && (apr_fnmatch(pattern, dirent.name,
+                                FNM_PERIOD) == APR_SUCCESS)) {
+                fnew = (fnames *) apr_array_push(candidates);
+                fnew->fname = ap_make_full_path(p, path, dirent.name);
+            }
+        }
+
+        apr_dir_close(dirp);
+        if (candidates->nelts != 0) {
+            qsort((void *) candidates->elts, candidates->nelts,
+                  sizeof(fnames), fname_alphasort);
+
+            /*
+             * Now recurse these... we handle errors and subdirectories
+             * via the recursion, which is nice
+             */
+            for (current = 0; current < candidates->nelts; ++current) {
+                fnew = &((fnames *) candidates->elts)[current];
+                process_resource_config_nofnmatch(s, fnew->fname, conftree, p,
+                                                  ptemp, 0);
+            }
+        }
+    }
+
+    return;
+}
+
+AP_DECLARE(void) ap_process_config_tree(server_rec *s,
+                                        ap_directive_t *conftree,
+                                        apr_pool_t *p, apr_pool_t *ptemp)
+{
+    const char *errmsg;
+    cmd_parms parms;
+
+    parms = default_parms;
+    parms.pool = p;
+    parms.temp_pool = ptemp;
+    parms.server = s;
+    parms.override = (RSRC_CONF | OR_ALL) & ~(OR_AUTHCFG | OR_LIMIT);
+    parms.limited = -1;
+
+    errmsg = ap_walk_config(conftree, &parms, s->lookup_defaults);
+    if (errmsg) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, p,
+                     "Syntax error on line %d of %s:",
+                     parms.err_directive->line_num,
+                     parms.err_directive->filename);
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, p,
+                     "%s", errmsg);
+        exit(1);
+    }
+}
+
+AP_CORE_DECLARE(int) ap_parse_htaccess(ap_conf_vector_t **result,
+                                       request_rec *r, int override,
+                                       const char *d, const char *access_name)
+{
+    ap_configfile_t *f = NULL;
+    cmd_parms parms;
+    char *filename = NULL;
+    const struct htaccess_result *cache;

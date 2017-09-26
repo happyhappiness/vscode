@@ -1,15 +1,46 @@
-     * waiting for free_proc_chain to cleanup in the middle of an
-     * SSI request -djg
-     */
-    if (!ap_bspawn_child(r->main ? r->main->pool : r->pool, cgi_child,
-			 (void *) &cld, kill_after_timeout,
-			 &script_out, &script_in, &script_err)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "couldn't spawn child process: %s", r->filename);
-	return SERVER_ERROR;
+static proxy_worker *find_best_bytraffic(proxy_balancer *balancer,
+                                         request_rec *r)
+{
+    int i;
+    apr_off_t mytraffic = 0;
+    apr_off_t curmin = 0;
+    proxy_worker *worker = (proxy_worker *)balancer->workers->elts;
+    proxy_worker *mycandidate = NULL;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bytraffic for BALANCER (%s)",
+                 balancer->name);
+
+    /* First try to see if we have available candidate */
+    for (i = 0; i < balancer->workers->nelts; i++) {
+        /* If the worker is in error state run
+         * retry on that worker. It will be marked as
+         * operational if the retry timeout is elapsed.
+         * The worker might still be unusable, but we try
+         * anyway.
+         */
+        if (!PROXY_WORKER_IS_USABLE(worker))
+            ap_proxy_retry_worker("BALANCER", worker, r->server);
+        /* Take into calculation only the workers that are
+         * not in error state or not disabled.
+         */
+        if (PROXY_WORKER_IS_USABLE(worker)) {
+            mytraffic = (worker->s->transferred/worker->s->lbfactor) +
+                        (worker->s->read/worker->s->lbfactor);
+            if (!mycandidate || mytraffic < curmin) {
+                mycandidate = worker;
+                curmin = mytraffic;
+            }
+        }
+        worker++;
     }
 
-    /* Transfer any put/post args, CERN style...
-     * Note that if a buggy script fails to read everything we throw
-     * at it, or a buggy client sends too much, we get a SIGPIPE, so
-     * we have to ignore SIGPIPE while doing this.  CERN does the same
+    if (mycandidate) {
+        mycandidate->s->elected++;
+    }
+
+    return mycandidate;
+}
+
+/*
+ * How to add additional lbmethods:

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
-            "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "proxy: %s: disabled connection for (%s)",
+                         proxy_function, worker->hostname);

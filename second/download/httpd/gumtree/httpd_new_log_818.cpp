@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " large as ThreadsPerChild (%d). Automatically",
-                    ap_threads_per_child);
+ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);

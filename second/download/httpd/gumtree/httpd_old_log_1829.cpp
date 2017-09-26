@@ -1,0 +1,1 @@
+printf("Server Port:            %hd\n", port);

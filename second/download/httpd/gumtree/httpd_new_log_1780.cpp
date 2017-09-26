@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not split line from buffered SSL brigade");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                     "DBD: failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));

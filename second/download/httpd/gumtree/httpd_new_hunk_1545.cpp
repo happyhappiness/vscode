@@ -1,55 +1,25 @@
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+            b = apr_bucket_transient_create((char*) data_type + ate,
+                                           headlen - ate, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
     }
 
-/* set request; "path" holds last path component */
-    len = decodeenc(path);
-
-    /* TM - if len == 0 then it must be a directory (you can't RETR nothing) */
-
-    if (len == 0) {
-	parms = "d";
-    }
-    else {
-	ap_bvputs(f, "SIZE ", path, CRLF, NULL);
-	ap_bflush(f);
-	Explain1("FTP: SIZE %s", path);
-	i = ftp_getrc_msg(f, resp, sizeof resp);
-	Explain2("FTP: returned status %d with response %s", i, resp);
-	if (i != 500) {		/* Size command not recognized */
-	    if (i == 550) {	/* Not a regular file */
-		Explain0("FTP: SIZE shows this is a directory");
-		parms = "d";
-		ap_bvputs(f, "CWD ", path, CRLF, NULL);
-		ap_bflush(f);
-		Explain1("FTP: CWD %s", path);
-		i = ftp_getrc(f);
-		/* possible results: 250, 421, 500, 501, 502, 530, 550 */
-		/* 250 Requested file action okay, completed. */
-		/* 421 Service not available, closing control connection. */
-		/* 500 Syntax error, command unrecognized. */
-		/* 501 Syntax error in parameters or arguments. */
-		/* 502 Command not implemented. */
-		/* 530 Not logged in. */
-		/* 550 Requested action not taken. */
-		Explain1("FTP: returned status %d", i);
-		if (i == -1) {
-		    ap_kill_timeout(r);
-		    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ "Error reading from remote server");
-		}
-		if (i == 550) {
-		    ap_kill_timeout(r);
-		    return HTTP_NOT_FOUND;
-		}
-		if (i != 250) {
+    case HSE_REQ_DONE_WITH_SESSION:
+        /* Signal to resume the thread completing this request,
+         * leave it to the pool cleanup to dispose of our mutex.

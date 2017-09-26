@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-		      "[%d] auth_ldap authenticate: no user specified", getpid());
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Access to %s denied for %s "
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->connection->remote_ip);

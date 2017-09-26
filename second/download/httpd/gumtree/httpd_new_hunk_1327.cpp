@@ -1,20 +1,25 @@
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.12 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
-    }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
-}
-
-/* display usage information */
-static void usage(const char *progname)
+                 */
+                ++err_count;
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "Child %lu: Encountered too many errors accepting client connections. "
+                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                continue;
+            }
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ++err_count;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                 "Child %lu: Encountered too many errors accepting client connections. "
+                                 "Possible causes: Unknown. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;

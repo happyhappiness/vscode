@@ -1,13 +1,13 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);
+                ap_rvputs(r, "</td><td>",
+                          ap_escape_html(r->pool, worker->s->redirect), NULL);

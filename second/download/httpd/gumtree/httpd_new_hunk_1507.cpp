@@ -1,24 +1,17 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
-        }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
+    mod_filter_ctx *ctx = apr_pcalloc(r->pool, sizeof(mod_filter_ctx));
+    ap_set_module_config(r->request_config, &filter_module, ctx);
 #endif
 
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
-
+    for (p = cfg->chain; p; p = p->next) {
+        filter = apr_hash_get(cfg->live_filters, p->fname, APR_HASH_KEY_STRING);
+        if (filter == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unknown filter %s not added", p->fname);
+            continue;
+        }
+        ap_add_output_filter_handle(filter, NULL, r, r->connection);
+#ifndef NO_PROTOCOL
+        if (ranges && (filter->proto_flags
+                       & (AP_FILTER_PROTO_NO_BYTERANGE
+                          | AP_FILTER_PROTO_CHANGE_LENGTH))) {
+            ctx->range = apr_table_get(r->headers_in, "Range");

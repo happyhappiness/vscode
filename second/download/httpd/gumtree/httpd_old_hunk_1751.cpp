@@ -1,13 +1,14 @@
-    if (!method_restricted)
-	return OK;
+        }
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    if (ret == HTTP_FORBIDDEN
+        && (ap_satisfies(r) != SATISFY_ANY || !ap_some_auth_required(r))) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "client denied by server configuration: %s",
+            r->filename);
+    }
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    return ret;
 }
 
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+static void register_hooks(apr_pool_t *p)

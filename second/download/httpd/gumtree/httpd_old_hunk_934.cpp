@@ -1,29 +1,47 @@
+AP_DECLARE(apr_array_header_t *) ap_get_status_table(apr_pool_t *p)
+{
+    /* NOP */
+    return NULL;
+}
 
-            /* check if the proxy module is enabled, so
-             * we can actually use it!
-             */
-            if (!proxy_available) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                             "attempt to make remote request from mod_rewrite "
-                             "without proxy enabled: %s", r->filename);
-                return HTTP_FORBIDDEN;
-            }
+/* 
+ * Command processors 
+ */
 
-            /* make sure the QUERY_STRING and
-             * PATH_INFO parts get incorporated
-             */
-            if (r->path_info != NULL) {
-                r->filename = apr_pstrcat(r->pool, r->filename,
-                                         r->path_info, NULL);
-            }
-            if (r->args != NULL &&
-                r->uri == r->unparsed_uri) {
-                /* see proxy_http:proxy_http_canon() */
-                r->filename = apr_pstrcat(r->pool, r->filename,
-                                         "?", r->args, NULL);
-            }
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-            /* now make sure the request gets handled by the proxy handler */
-            r->proxyreq = PROXYREQ_REVERSE;
-            r->handler  = "proxy-server";
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d threads,", ap_threads_per_child, 
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     " ThreadLimit directive.");
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+	ap_threads_per_child = 1;
+    }
+    return NULL;
+}
+static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg) 
+{
+    int tmp_thread_limit;
+    
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
+    tmp_thread_limit = atoi(arg);

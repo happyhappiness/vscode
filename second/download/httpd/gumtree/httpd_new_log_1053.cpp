@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Automatically using MD5 format.\n");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                             ap_server_conf, "apr_pollset_poll: (listen)");

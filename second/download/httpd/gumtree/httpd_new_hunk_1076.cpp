@@ -1,52 +1,62 @@
-
-
-static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
-{
-    piped_log *pl = data;
-    apr_status_t stats;
-    int mpm_state;
-
-    switch (reason) {
-    case APR_OC_REASON_DEATH:
-    case APR_OC_REASON_LOST:
-        pl->pid = NULL; /* in case we don't get it going again, this
-                         * tells other logic not to try to kill it
-                         */
-        apr_proc_other_child_unregister(pl);
-        stats = ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state);
-        if (stats != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "can't query MPM state; not restarting "
-                         "piped log program '%s'",
-                         pl->program);
-        }
-        else if (mpm_state != AP_MPMQ_STOPPING) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "piped log program '%s' failed unexpectedly",
-                         pl->program);
-            if ((stats = piped_log_spawn(pl)) != APR_SUCCESS) {
-                /* what can we do?  This could be the error log we're having
-                 * problems opening up... */
-                char buf[120];
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                             "piped_log_maintenance: unable to respawn '%s': %s",
-                             pl->program, apr_strerror(stats, buf, sizeof(buf)));
-            }
-        }
-        break;
-
-    case APR_OC_REASON_UNWRITABLE:
-        /* We should not kill off the pipe here, since it may only be full.
-         * If it really is locked, we should kill it off manually. */
-    break;
-
-    case APR_OC_REASON_RESTART:
-        if (pl->pid != NULL) {
-            apr_proc_kill(pl->pid, SIGTERM);
-            pl->pid = NULL;
-        }
-        break;
-
-    case APR_OC_REASON_UNREGISTER:
-        break;
+                               htdbm->comment, NULL);
+        val.dsize += (strlen(htdbm->comment) + 1);
     }
+    return apr_dbm_store(htdbm->dbm, key, val);
+}
+
+static apr_status_t htdbm_del(htdbm_t *htdbm)
+{
+    apr_datum_t key;
+
+    key.dptr = htdbm->username;
+    key.dsize = strlen(htdbm->username);
+    if (!apr_dbm_exists(htdbm->dbm, key))
+        return APR_ENOENT;
+
+    return apr_dbm_delete(htdbm->dbm, key);
+}
+
+static apr_status_t htdbm_verify(htdbm_t *htdbm)
+{
+    apr_datum_t key, val;
+    char pwd[MAX_STRING_LEN] = {0};
+    char *rec, *cmnt;
+
+    key.dptr = htdbm->username;
+    key.dsize = strlen(htdbm->username);
+    if (!apr_dbm_exists(htdbm->dbm, key))
+        return APR_ENOENT;
+    if (apr_dbm_fetch(htdbm->dbm, key, &val) != APR_SUCCESS)
+        return APR_ENOENT;
+    rec = apr_pstrndup(htdbm->pool, val.dptr, val.dsize);
+    cmnt = strchr(rec, ':');
+    if (cmnt)
+        strncpy(pwd, rec, cmnt - rec);
+    else
+        strcpy(pwd, rec);
+    return apr_password_validate(htdbm->userpass, pwd);
+}
+
+static apr_status_t htdbm_list(htdbm_t *htdbm)
+{
+    apr_status_t rv;
+    apr_datum_t key, val;
+    char *rec, *cmnt;
+    char kb[MAX_STRING_LEN];
+    int i = 0;
+
+    rv = apr_dbm_firstkey(htdbm->dbm, &key);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "Empty database -- %s\n", htdbm->filename);
+        return APR_ENOENT;
+    }
+    rec = apr_pcalloc(htdbm->pool, HUGE_STRING_LEN);
+
+    fprintf(stderr, "Dumping records from database -- %s\n", htdbm->filename);
+    fprintf(stderr, "    %-32sComment\n", "Username");
+    while (key.dptr != NULL) {
+        rv = apr_dbm_fetch(htdbm->dbm, key, &val);
+        if (rv != APR_SUCCESS) {
+            fprintf(stderr, "Failed getting data from %s\n", htdbm->filename);
+            return APR_EGENERAL;
+        }

@@ -1,1 +1,1 @@
-(errfile;
+fprintf(stderr, "pcregrep: malloc failed\n");

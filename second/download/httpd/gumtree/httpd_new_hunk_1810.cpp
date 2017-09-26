@@ -1,37 +1,44 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return HTTP_NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return HTTP_BAD_GATEWAY;
-	}
-
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+        }
+        else if (c->bread != doclen) {
+            bad++;
+            err_length++;
+        }
+        if (done < requests) {
+            struct data *s = &stats[done++];
+            doneka++;
+            c->done      = apr_time_now();
+            s->starttime = c->start;
+            s->ctime     = ap_max(0, c->connect - c->start);
+            s->time      = ap_max(0, c->done - c->start);
+            s->waittime  = ap_max(0, c->beginread - c->endwrite);
+            if (heartbeatres && !(done % heartbeatres)) {
+                fprintf(stderr, "Completed %d requests\n", done);
+                fflush(stderr);
+            }
+        }
+        c->keepalive = 0;
+        c->length = 0;
+        c->gotheader = 0;
+        c->cbx = 0;
+        c->read = c->bread = 0;
+        /* zero connect time with keep-alive */
+        c->start = c->connect = lasttime = apr_time_now();
+        write_request(c);
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return HTTP_BAD_GATEWAY;
+}
 
-    r->status = 200;
-    r->status_line = "200 OK";
+/* --------------------------------------------------------- */
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    c->hdrs = resp_hdrs;
+/* run the tests */
 
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+static void test(void)
+{
+    apr_time_t stoptime;
+    apr_int16_t rv;
+    int i;
+    apr_status_t status;
+    int snprintf_res = 0;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
+

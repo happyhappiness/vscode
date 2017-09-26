@@ -1,19 +1,13 @@
-         != APR_SUCCESS) {
-        apr_err("socket nonblock", rv);
-    }
-    c->start = apr_time_now();
-    if ((rv = apr_connect(c->aprsock, destsa)) != APR_SUCCESS) {
-	if (APR_STATUS_IS_EINPROGRESS(rv)) {
-	    c->state = STATE_CONNECTING;
-	    c->rwrite = 0;
-	    apr_poll_socket_add(readbits, c->aprsock, APR_POLLOUT);
-	    return;
-	}
-	else {
-	    apr_poll_socket_remove(readbits, c->aprsock);
-	    apr_socket_close(c->aprsock);
-	    err_conn++;
-	    if (bad++ > 10) {
-		fprintf(stderr,
-			"\nTest aborted after 10 failures\n\n");
-		apr_err("apr_connect()", rv);
+                         "(requirement expression not fulfilled)",
+                         r->filename, r->connection->remote_ip);
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled "
+                          "(see SSL logfile for more details)");
+
+            /* remember forbidden access for strict require option */

@@ -1,0 +1,1 @@
+printf("0x%02x", *tables++);

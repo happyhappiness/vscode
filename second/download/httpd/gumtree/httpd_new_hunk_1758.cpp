@@ -1,14 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+    apr_interval_time_t org;
+    apr_byte_t result;
 
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_handle_cping_cpong");
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+    rc = ajp_msg_create(r->pool, AJP_PING_PONG_SZ, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_msg_create failed");
+        return rc;
+    }
+

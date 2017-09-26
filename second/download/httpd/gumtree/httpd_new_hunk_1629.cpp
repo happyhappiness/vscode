@@ -1,13 +1,17 @@
-    configfile_t *fp;
-    info_cfg_lines *new, *ret, *prev;
-    const char *t;
-
-    fp = ap_pcfg_openfile(p, filename);
-    if (!fp) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, r, 
-		    "mod_info: couldn't open config file %s",
-		    filename);
-        return NULL;
+        return rc;
     }
-    ret = NULL;
-    prev = NULL;
+    r->status = status;
+
+    rc = ajp_msg_get_string(msg, &ptr);
+    if (rc == APR_SUCCESS) {
+#if defined(AS400) || defined(_OSD_POSIX) /* EBCDIC platforms */
+        ptr = apr_pstrdup(r->pool, ptr);
+        ap_xlate_proto_from_ascii(ptr, strlen(ptr));
+#endif
+        r->status_line =  apr_psprintf(r->pool, "%d %s", status, ptr);
+    } else {
+        r->status_line = NULL;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+           "ajp_unmarshal_response: status = %d", status);

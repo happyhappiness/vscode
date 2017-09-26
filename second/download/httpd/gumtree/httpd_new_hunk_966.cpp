@@ -1,36 +1,31 @@
-	{
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
-		return rcode;
-	}
+        if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
+            fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
+            CloseServiceHandle(schService);
+            CloseServiceHandle(schSCManager);
+            return;
+        }
 
-    /* setup the socket for SSL */
-    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
-    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
-    sWS2Opts.options = &sNWTLSOpts;
+        fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+               signal ? "restarting" : "stopping");
 
-    if (numcerts) {
-	sNWTLSOpts.walletProvider 		= WAL_PROV_DER;	//the wallet provider defined in wdefs.h
-	sNWTLSOpts.TrustedRootList 		= certarray;	//array of certs in UNICODE format
-	sNWTLSOpts.numElementsInTRList 	= numcerts;     //number of certs in TRList
+        if (!signal)
+            success = signal_service_transition(schService,
+                                                SERVICE_CONTROL_STOP,
+                                                SERVICE_STOP_PENDING,
+                                                SERVICE_STOPPED);
+        else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
+            mpm_service_start(ptemp, 0, NULL);
+            CloseServiceHandle(schService);
+            CloseServiceHandle(schSCManager);
+            return;
+        }
+        else
+            success = signal_service_transition(schService,
+                                                SERVICE_APACHE_RESTART,
+                                                SERVICE_START_PENDING,
+                                                SERVICE_RUNNING);
+
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
     }
-    else {
-        /* setup the socket for SSL */
-    	unicpy(keyFileName, L"SSL CertificateIP");
-    	sWS2Opts.wallet = keyFileName;    /* no client certificate */
-    	sWS2Opts.walletlen = unilen(keyFileName);
-    
-    	sNWTLSOpts.walletProvider 		= WAL_PROV_KMO;	//the wallet provider defined in wdefs.h
-    }
-
-    /* make the IOCTL call */
-    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
-                     sizeof(struct tlsclientopts), NULL, 0, NULL,
-                     NULL, NULL);
-
-    /* make sure that it was successfull */
-	if(SOCKET_ERROR == rcode ){
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
-	}		
-	return rcode;
+    else /* !isWindowsNT() */

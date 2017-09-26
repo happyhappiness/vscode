@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Inter-Process Session Cache (SHMHT) Expiry: "
-                 "old: %d, new: %d, removed: %d",
-                 nElements, nElements-nDeleted, nDeleted);
+ap_register_output_filter("INFLATE", inflate_out_filter, NULL,
+                              AP_FTYPE_RESOURCE-1);

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                     0, main_s, "_default_ VirtualHost "
-                                     "overlap on port %u, the first has "
-                                     "precedence", sar->host_port);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -R directory       : specify an alternate location for "
+                 "shared object files");

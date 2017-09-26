@@ -1,20 +1,32 @@
-/* ------------------------------------------------------- */
-
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.10 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
+                             "Error ajp_marshal_into_msgb - "
+                             "Error appending the SSL key size");
+                return APR_EGENERAL;
+            }
+        }
     }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.10 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.
+     */
+    {
+        const char *key = SC_A_REQ_REMOTE_PORT;
+        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
+        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+            ajp_msg_append_string(msg, key)   ||
+            ajp_msg_append_string(msg, val)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);
+            return AJP_EOVERFLOW;
+        }
     }
-}
-
+    /* Use the environment vars prefixed with AJP_
+     * and pass it to the header striping that prefix.
+     */
+    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+        if (!strncmp(elts[i].key, "AJP_", 4)) {
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||

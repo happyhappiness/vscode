@@ -1,16 +1,68 @@
-            apr_table_unset(f->r->headers_out, "Content-Length");
+
+
+/*
+ * Authorization header verification code
+ */
+
+static authn_status get_hash(request_rec *r, const char *user,
+                             digest_config_rec *conf)
+{
+    authn_status auth_result;
+    char *password;
+    authn_provider_list *current_provider;
+
+    current_provider = conf->providers;
+    do {
+        const authn_provider *provider;
+
+        /* For now, if a provider isn't set, we'll be nice and use the file
+         * provider.
+         */
+        if (!current_provider) {
+            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
+                                          AUTHN_DEFAULT_PROVIDER, "0");
+
+            if (!provider || !provider->get_realm_hash) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "No Authn provider configured");
+                auth_result = AUTH_GENERAL_ERROR;
+                break;
+            }
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
         }
+        else {
+            provider = current_provider->provider;
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
+        }
+
+
+        /* We expect the password to be md5 hash of user:realm:password */
+        auth_result = provider->get_realm_hash(r, user, conf->realm,
+                                               &password);
+
+        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
+
+        /* Something occured.  Stop checking. */
+        if (auth_result != AUTH_USER_NOT_FOUND) {
+            break;
+        }
+
+        /* If we're not really configured for providers, stop now. */
+        if (!conf->providers) {
+           break;
+        }
+
+        current_provider = current_provider->next;
+    } while (current_provider);
+
+    if (auth_result == AUTH_USER_FOUND) {
+        conf->ha1 = password;
     }
 
-    if (dc->debug >= DBGLVL_SHOWOPTIONS) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                      "%sfiltering `%s' of type `%s' through `%s', cfg %s",
-                      ctx->noop ? "NOT " : "",
-                      f->r->uri ? f->r->uri : f->r->filename,
-                      f->r->content_type ? f->r->content_type : "(unspecified)",
-                      ctx->filter->command,
-                      get_cfg_string(dc, ctx->filter, f->r->pool));
-    }
-
-    return APR_SUCCESS;
+    return auth_result;
 }
+
+static int check_nc(const request_rec *r, const digest_header_rec *resp,
+                    const digest_config_rec *conf)
+{
+    unsigned long nc;

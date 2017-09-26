@@ -1,16 +1,17 @@
-                         "proxy: HTTPS: declining URL %s"
-                         " (mod_ssl not configured?)", url);
-            return DECLINED;
-        }
-        is_ssl = 1;
+                       ap_escape_shell_cmd(f->r->pool, arg_copy));
     }
-    else if (!(strncasecmp(url, "http:", 5)==0 || (strncasecmp(url, "ftp:", 4)==0 && proxyname))) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: HTTP: declining URL %s", url);
-        return DECLINED; /* only interested in HTTP, or FTP via proxy */
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-             "proxy: HTTP: serving URL %s", url);
-    
-    
-    /* only use stored info for top-level pages. Sub requests don't share 
+
+    env = (const char * const *) ap_create_environment(ctx->p,
+                                                       f->r->subprocess_env);
+
+    rc = apr_proc_create(ctx->proc,
+                            ctx->filter->command,
+                            (const char * const *)ctx->filter->args,
+                            env, /* environment */
+                            ctx->procattr,
+                            ctx->p);
+    if (rc != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, f->r,
+                      "couldn't create child process to run `%s'",
+                      ctx->filter->command);
+        return rc;

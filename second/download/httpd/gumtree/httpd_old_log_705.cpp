@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, NULL,
-                 "worker_thread %ld exiting", find_thread(NULL));
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                             "couldn't create child process: %d: %s", rc, 
+                             apr_filename_of_pathname(r->filename));

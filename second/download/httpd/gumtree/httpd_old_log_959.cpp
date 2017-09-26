@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                     "value of %d", ap_threads_per_child,
-                     thread_limit);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot open SSLSessionCache DBM file `%s' for status "
+                     "retrival",
+                     mc->szSessionCacheDataFile);

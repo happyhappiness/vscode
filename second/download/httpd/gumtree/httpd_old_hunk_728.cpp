@@ -1,34 +1,32 @@
-        
-        CloseServiceHandle(schService);        
-        CloseServiceHandle(schSCManager);
-    }
-    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
-    {
-        fprintf(stderr,"Removing the %s service\n", mpm_display_name);
-
-        /* TODO: assure the service is stopped before continuing */
-
-        if (ap_registry_delete_value(SERVICECONFIG9X, mpm_service_name)) {
-            rv = apr_get_os_error();
-	    ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "%s: Failed to remove the RunServices registry "
-                         "entry.", mpm_display_name);
-            return (rv);
-        }
-        
-        /* we blast Services/us, not just the Services/us/Parameters branch */
-        apr_snprintf(key_name, sizeof(key_name), SERVICECONFIG, mpm_service_name);
-        if (ap_registry_delete_key(key_name)) 
-        {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "%s: Failed to remove the service config from the "
-                         "registry.", mpm_display_name);
-            return (rv);
-        }
-    }
-    fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);
-    return APR_SUCCESS;
-}
-
-
+                    ap_rputs(")\n", r);
+                    ap_rprintf(r,
+                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
+                               ap_escape_html(r->pool,
+                                              ws_record->client),
+                               ap_escape_html(r->pool,
+                                              ap_escape_logitem(r->pool,
+                                                                ws_record->request)),
+                               ap_escape_html(r->pool,
+                                              ws_record->vhost));
+                }
+                else { /* !no_table_report */
+                    if (ws_record->status == SERVER_DEAD)
+                        ap_rprintf(r,
+                                   "<tr><td><b>%d-%d</b></td><td>-</td><td>%d/%lu/%lu",
+                                   i, (int)ps_record->generation,
+                                   (int)conn_lres, my_lres, lres);
+                    else
+                        ap_rprintf(r,
+                                   "<tr><td><b>%d-%d</b></td><td>%"
+                                   APR_PID_T_FMT
+                                   "</td><td>%d/%lu/%lu",
+                                   i, (int)ps_record->generation,
+                                   ps_record->pid, (int)conn_lres,
+                                   my_lres, lres);
+                    
+                    switch (ws_record->status) {
+                    case SERVER_READY:
+                        ap_rputs("</td><td>_", r);
+                        break;
+                    case SERVER_STARTING:
+                        ap_rputs("</td><td><b>S</b>", r);

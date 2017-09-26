@@ -1,13 +1,18 @@
-    case HSE_REQ_REFRESH_ISAPI_ACL:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_REFRESH_ISAPI_ACL "
-                          "is not supported: %s", r->filename);
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
+                                                       &authn_file_module);
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    apr_status_t status;
+    char *file_hash = NULL;
 
-    case HSE_REQ_IS_KEEP_CONN:
-        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
-        return 1;
+    if (!conf->pwfile) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "AuthUserFile not specified in the configuration");
+        return AUTH_GENERAL_ERROR;
+    }
 
+    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);
+        return AUTH_GENERAL_ERROR;

@@ -1,1 +1,1 @@
-fprintf(stderr, "Processing config directory: %s\n", fname);
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");

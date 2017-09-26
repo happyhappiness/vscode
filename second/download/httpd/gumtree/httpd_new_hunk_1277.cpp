@@ -1,15 +1,11 @@
-                                      conf->limit_nproc)) != APR_SUCCESS) ||
-#endif
-        ((rc = apr_procattr_cmdtype_set(procattr,
-                                        e_info->cmd_type)) != APR_SUCCESS) ||
+     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
+     * resource in the cache under a key where it is never found by the quick
+     * handler during following requests.
+     */
+    cache->key = apr_pstrdup(r->pool, *key);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "cache: Key for entity %s?%s is %s", r->uri,
+                 r->parsed_uri.query, *key);
 
-        ((rc = apr_procattr_detach_set(procattr,
-                                        e_info->detached & AP_PROC_DETACHED)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_addrspace_set(procattr,
-                                        (e_info->detached & AP_PROC_NEWADDRSPACE) ? 1 : 0)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                      "couldn't set child process attributes: %s", r->filename);
-    }
-    else {
+    return APR_SUCCESS;
+}

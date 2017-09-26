@@ -1,14 +1,13 @@
-    return res;
-}
+        if (strEQ(mctx->pks->cert_files[i], chain)) {
+            skip_first = TRUE;
+            break;
+        }
+    }
 
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-        "Done with config file %s", cfp->name);
-#endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-}
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {
+    ERR_clear_error();
+    n = SSL_CTX_use_certificate_chain(mctx->ssl_ctx,
+                                      (char *)chain,
+                                      skip_first, NULL);
+    if (n < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Failed to configure CA certificate chain!");

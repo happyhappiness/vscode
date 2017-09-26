@@ -1,14 +1,13 @@
-             */
-            rv = drain_available_output(f);
-            if (APR_STATUS_IS_EAGAIN(rv)) {
-#if APR_FILES_AS_SOCKETS
-                int num_events;
-                
-                rv = apr_poll(ctx->pollset, 2,
-                              &num_events, f->r->server->timeout);
-                if (rv || dc->debug >= DBGLVL_GORY) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                                  rv, f->r, "apr_poll()");
-                }
-                if (rv != APR_SUCCESS && !APR_STATUS_IS_EINTR(rv)) { 
-                    /* some error such as APR_TIMEUP */
+    }
+
+    if (conf->nonce_lifetime > 0) {
+        if (dt > conf->nonce_lifetime) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0,r,
+                          "Digest: user %s: nonce expired (%.2f seconds old "
+                          "- max lifetime %.2f) - sending new nonce",
+                          r->user, (double)apr_time_sec(dt),
+                          (double)apr_time_sec(conf->nonce_lifetime));
+            note_digest_auth_failure(r, conf, resp, 1);
+            return HTTP_UNAUTHORIZED;
+        }
+    }

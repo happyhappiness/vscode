@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                         ap_server_conf, "caught SIGTERM, shutting down");
+apr_file_printf(out, " %s (shared)\n", modi->name);

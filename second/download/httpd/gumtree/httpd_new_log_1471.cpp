@@ -1,7 +1,2 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
-                    time_str,
-                    r->connection->remote_ip,
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-                    description);
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %lu: Acquired the start mutex.", my_pid);

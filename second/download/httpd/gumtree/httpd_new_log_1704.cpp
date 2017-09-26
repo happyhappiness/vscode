@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "%s configured -- resuming normal operations",
-                     ap_get_server_version());
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
+                          "ISAPI: unrecognized result code %d "
+                          "from HttpExtensionProc(): %s ", 
+                          rv, r->filename);

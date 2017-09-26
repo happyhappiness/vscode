@@ -1,18 +1,28 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+                }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+                /* Detect chunksize error (such as overflow) */
+                if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
+                                  (ctx->remaining < 0) ? "(overflow)" : "");
+                    ctx->remaining = 0; /* Reset it in case we have to
+                                         * come back here later */
+                    if (APR_STATUS_IS_TIMEUP(rv)) { 
+                        http_error = HTTP_REQUEST_TIME_OUT;
+                    }
+                    return bail_out_on_error(ctx, f, http_error);
+                }
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
+                if (!ctx->remaining) {
+                    /* Handle trailers by calling ap_get_mime_headers again! */
+                    ctx->state = BODY_NONE;
+                    ap_get_mime_headers(f->r);
+                    e = apr_bucket_eos_create(f->c->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(b, e);
+                    ctx->eos_sent = 1;
+                    return APR_SUCCESS;
+                }
+            }
+            break;
+        }
+    }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

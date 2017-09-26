@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: MaxClients of %d exceeds ServerLimit value "
-                    "of %d servers,", ap_daemons_limit, server_limit);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, c->base_server));

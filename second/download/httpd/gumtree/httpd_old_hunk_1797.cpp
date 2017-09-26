@@ -1,40 +1,21 @@
-	return;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
+#if !defined(MPE) && !defined(OS2) && !defined(TPF) && !defined(BEOS)
+    /* Don't detach for MPE because child processes can't survive the death of
+     * the parent. */
+    if (daemonize) {
+	    if ((x = fork()) > 0) {
+	        exit(0);
+        }
+	    else if (x == -1) {
+	        perror("fork");
+	        fprintf(stderr, "unable to fork new process\n");
+	        exit(1);  /* we can't do anything here, so just exit. */
+	    }
+	    /* RAISE_SIGSTOP(DETACH); */
+    }
+#endif
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+#ifdef HAVE_SETSID
+    /* A setsid() failure is not fatal if we didn't just fork().
+     * The calling process may be the process group leader, in

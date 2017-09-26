@@ -1,13 +1,15 @@
-    }
-
-    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
-                                        (request_rec *) NULL);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %d exiting.", my_pid, thread_num);
 }
 
-
-static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+/*
+ * usage info
+ */
+#define NL APR_EOL_STR
+static void usage(void)
 {
-    int i;
+    apr_file_printf(errfile,
+    "%s -- program for cleaning the disk cache."                             NL
+    "Usage: %s [-Dvtrn] -pPATH -lLIMIT"                                      NL
+    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT"                             NL
+                                                                             NL
+    "Options:"                                                               NL
+    "  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."     NL

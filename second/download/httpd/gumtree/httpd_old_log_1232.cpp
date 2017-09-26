@@ -1,1 +1,1 @@
-fprintf(stderr, " Processing config file: %s\n", fnew->fname);
+apr_file_printf(errfile, " -c  Create a new file.\n");

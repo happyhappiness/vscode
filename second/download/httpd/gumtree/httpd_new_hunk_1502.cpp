@@ -1,13 +1,22 @@
-#define STANDALONE_MAIN standalone_main
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+    }
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        char exe_path[MAX_PATH];
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
+        if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+        {
+            apr_status_t rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "GetModuleFileName failed");
+            return rv;
+        }
 
-    ap_standalone = 1;
-
-    is_graceful = 0;
+        /* Store the launch command in the registry */
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -n %s -k runservice",
+                                 exe_path, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X,
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv == APR_SUCCESS) {

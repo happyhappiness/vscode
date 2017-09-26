@@ -1,13 +1,19 @@
-        }
-#endif
-        APR_BRIGADE_INSERT_TAIL(bb, e);
-        e = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, e);
+                     NULL);
+    cp[strlen(cp)-2] = NUL;
 
-        return ap_pass_brigade(r->output_filters, bb);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Creating new SSL context (protocols: %s)", cp);
+
+    if (protocol == SSL_PROTOCOL_SSLV2) {
+        method = mctx->pkp ?
+            SSLv2_client_method() : /* proxy */
+            SSLv2_server_method();  /* server */
+        ctx = SSL_CTX_new(method);  /* only SSLv2 is left */
     }
-    else {              /* unusual method (not GET or POST) */
-        if (r->method_number == M_INVALID) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid method in request %s", r->the_request);
-            return HTTP_NOT_IMPLEMENTED;
+    else {
+        method = mctx->pkp ?
+            SSLv23_client_method() : /* proxy */
+            SSLv23_server_method();  /* server */
+        ctx = SSL_CTX_new(method); /* be more flexible */
+    }
+

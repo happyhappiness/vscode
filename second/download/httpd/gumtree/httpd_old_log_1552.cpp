@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: URI too long");
+ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);

@@ -1,13 +1,14 @@
-{
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Init: Initializing %s library", SSL_LIBRARY_NAME);
-
-    SSL_load_error_strings();
-    SSL_library_init();
-    OpenSSL_add_all_algorithms(); /* Required for eg SHA256 client certs */
-}
-
-/*
- * Handle the Temporary RSA Keys and DH Params
- */
-
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: ajp_msg_get_byte failed");
+        return rc;
+    }
+    if (result != CMD_AJP13_SEND_BODY_CHUNK) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: wrong type 0x%02x expecting 0x%02x",
+               result, CMD_AJP13_SEND_BODY_CHUNK);
+        return AJP_EBAD_HEADER;
+    }
+    rc = ajp_msg_get_uint16(msg, len);
+    if (rc != APR_SUCCESS) {
+        return rc;
+    }

@@ -1,13 +1,12 @@
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                         "mod_rewrite: could not init rewrite_mapr_lock_acquire"
+                         " in child");
+        }
+    }
 
-            total_read += len;
-            if (limit_xml_body && total_read > limit_xml_body) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "XML request body is larger than the configured "
-                              "limit of %lu", (unsigned long)limit_xml_body);
-                result = HTTP_REQUEST_ENTITY_TOO_LARGE;
-                goto read_error;
-            }
-
-            status = apr_xml_parser_feed(parser, data, len);
-            if (status) {
-                goto parser_error;
+    /* create the lookup cache */
+    if (!init_cache(p)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: could not init map cache in child");
+    }
+}

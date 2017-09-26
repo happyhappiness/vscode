@@ -1,19 +1,23 @@
-    char pwv[MAX_STRING_LEN];
-    unsigned int i;
-    apr_size_t len = sizeof(pwin);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager.");
+            return (rv);
+        }
 
-    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
-	fprintf(stderr, "password too long");
-	cleanup_tempfile_and_exit(5);
-    }
-    len = sizeof(pwin);
-    apr_password_get("Re-type new password: ", pwv, &len);
-    if (strcmp(pwin, pwv) != 0) {
-	fprintf(stderr, "They don't match, sorry.\n");
-        cleanup_tempfile_and_exit(1);
-    }
-    pw = pwin;
-    apr_file_printf(f, "%s:%s:", user, realm);
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name, DELETE);
 
-    /* Do MD5 stuff */
-    sprintf(string, "%s:%s:%s", user, realm, pw);
+        if (!schService) {
+           rv = apr_get_os_error();
+           ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+			"%s: OpenService failed", mpm_display_name);
+           return (rv);
+        }
+
+        /* assure the service is stopped before continuing
+         *
+         * This may be out of order... we might not be able to be
+         * granted all access if the service is running anyway.
+         *
+         * And do we want to make it *this easy* for them

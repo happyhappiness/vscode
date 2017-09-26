@@ -1,13 +1,13 @@
-        apr_pool_create(&ptemp, pconf);
-        apr_pool_tag(ptemp, "ptemp");
-        ap_server_root = def_server_root;
-        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Pre-configuration failed\n");
-            destroy_and_exit_process(process, 1);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                         "process_socket: apr_pollset_add failure");
+            AP_DEBUG_ASSERT(rc == APR_SUCCESS);
         }
+    }
+    return 0;
+}
 
-        ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
+/* requests_this_child has gone to zero or below.  See if the admin coded
+   "MaxRequestsPerChild 0", and keep going in that case.  Doing it this way
+   simplifies the hot path in worker_thread */
+static void check_infinite_requests(void)

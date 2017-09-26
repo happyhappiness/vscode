@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);

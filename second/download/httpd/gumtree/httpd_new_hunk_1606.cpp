@@ -1,13 +1,13 @@
-                case token_lt:
-                    current = current->parent;
-                    continue;
-                case token_lbrace:
-                    break;
-                default:
-                    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                                "Invalid expression \"%s\" in file %s",
-                                expr, r->filename);
-                    ap_rputs(error, r);
-                    goto RETURN;
-                }
-                break;
+            instance of the nlm, then handle it. */
+        if (!strnicmp("RESTART",&szcommandLine[iCommandLen],3)) {
+            printf("Restart Requested...\n");
+            restart();
+        }
+        else if (!strnicmp("VERSION",&szcommandLine[iCommandLen],3)) {
+            printf("Server version: %s\n", ap_get_server_description());
+            printf("Server built:   %s\n", ap_get_server_built());
+        }
+        else if (!strnicmp("MODULES",&szcommandLine[iCommandLen],3)) {
+            ap_show_modules();
+        }
+        else if (!strnicmp("DIRECTIVES",&szcommandLine[iCommandLen],3)) {

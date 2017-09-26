@@ -1,1 +1,2 @@
-ap_fatal_signal_setup(ap_server_conf, pconf);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges not smaller than file, ignoring.");

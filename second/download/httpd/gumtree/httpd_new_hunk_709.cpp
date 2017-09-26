@@ -1,19 +1,13 @@
+        return DECLINED;
 
-static void display_settings ()
-{
-    int status_array[SERVER_NUM_STATUS];
-    int i, status, total=0;
-    int reqs = request_count;
-#ifdef DBINFO_ON
-    int wblock = would_block;
-    
-    would_block = 0;
-#endif    
+    is_included = !strcmp(r->protocol, "INCLUDED");
 
-    request_count = 0;
+    p = r->main ? r->main->pool : r->pool;
 
-    ClearScreen (getscreenhandle());
-    printf("%s \n", ap_get_server_version());
+    argv0 = apr_filepath_name_get(r->filename);
+    nph = !(strncmp(argv0, "nph-", 4));
+    conf = ap_get_module_config(r->server->module_config, &cgi_module);
 
-    for (i=0;i<SERVER_NUM_STATUS;i++) {
-        status_array[i] = 0;
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "Options ExecCGI is off in this directory");

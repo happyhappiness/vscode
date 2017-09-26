@@ -1,52 +1,57 @@
-	    if ((rv & APR_POLLERR) || (rv & APR_POLLNVAL)) {
-		bad++;
-		err_except++;
-		start_connect(c);
-		continue;
-	    }
-	    if (rv & APR_POLLOUT) {
-                if (c->state == STATE_CONNECTING) {
-                    apr_pollfd_t remove_pollfd;
-                    rv = apr_connect(c->aprsock, destsa);
-                    remove_pollfd.desc_type = APR_POLL_SOCKET;
-                    remove_pollfd.desc.s = c->aprsock;
-                    apr_pollset_remove(readbits, &remove_pollfd);
-                    if (rv != APR_SUCCESS) {
-                        apr_socket_close(c->aprsock);
-                        err_conn++;
-                        if (bad++ > 10) {
-                            fprintf(stderr,
-                                    "\nTest aborted after 10 failures\n\n");
-                            apr_err("apr_connect()", rv);
-                        }
-                        c->state = STATE_UNCONNECTED;
-                        start_connect(c);
-                        continue;
-                    }
-                    else {
-                        c->state = STATE_CONNECTED;
-                        write_request(c);
-                    }
-                }
-                else {
-                    write_request(c);
-                }
-            }
+            break;
+        }
+        result = ajp_parse_type(r, conn->data);
+    }
+    apr_brigade_destroy(input_brigade);
 
-	    /*
-	     * When using a select based poll every time we check the bits
-	     * are reset. In 1.3's ab we copied the FD_SET's each time
-	     * through, but here we're going to check the state and if the
-	     * connection is in STATE_READ or STATE_CONNECTING we'll add the
-	     * socket back in as APR_POLLIN.
-	     */
-#ifdef USE_SSL
-            if (ssl != 1)
-#endif
-                if (c->state == STATE_READ) {
-                    apr_pollfd_t new_pollfd;
-                    new_pollfd.desc_type = APR_POLL_SOCKET;
-                    new_pollfd.reqevents = APR_POLLIN;
-                    new_pollfd.desc.s = c->aprsock;
-                    new_pollfd.client_data = c;
-                    apr_pollset_add(readbits, &new_pollfd);
+    /*
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
+
+    if (status != APR_SUCCESS) {
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: send body failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        /*
+         * If we already send data, signal a broken backend connection
+         * upwards in the chain.
+         */
+        if (data_sent) {
+            ap_proxy_backend_broke(r, output_brigade);
+            /* Return DONE to avoid error messages being added to the stream */
+            rv = DONE;
+        } else
+            rv = HTTP_SERVICE_UNAVAILABLE;
+    }
+
+    /*
+     * Ensure that we sent an EOS bucket thru the filter chain, if we already
+     * have sent some data. Maybe ap_proxy_backend_broke was called and added
+     * one to the brigade already (no longer making it empty). So we should
+     * not do this in this case.
+     */
+    if (data_sent && !r->eos_sent && APR_BRIGADE_EMPTY(output_brigade)) {
+        e = apr_bucket_eos_create(r->connection->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+    }
+
+    /* If we have added something to the brigade above, sent it */
+    if (!APR_BRIGADE_EMPTY(output_brigade))
+        ap_pass_brigade(r->output_filters, output_brigade);
+
+    apr_brigade_destroy(output_brigade);
+
+    if (rv)
+        return rv;
+
+    /* Nice we have answer to send to the client */
+    if (result == CMD_AJP13_END_RESPONSE && isok) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

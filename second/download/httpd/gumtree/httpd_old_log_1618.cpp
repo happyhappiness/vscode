@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - fudge conditional "
-                                 "by lastmod");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: ap_get_brigade failed");

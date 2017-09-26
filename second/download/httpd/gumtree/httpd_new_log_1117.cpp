@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, ptrans,
-                 "trying to receive request from other child");
+fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");

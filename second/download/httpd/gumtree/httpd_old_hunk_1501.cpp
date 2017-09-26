@@ -1,12 +1,92 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-}
 
 
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
+                                 const char * const * argv, int reconfig)
+{
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
+    apr_status_t rv;
+
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);
+
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "GetModuleFileName failed");
+        return rv;
+    }
+
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        SC_HANDLE   schService;
+        SC_HANDLE   schSCManager;
+
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_CREATE_SERVICE);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
+        }
+
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
+
+        if (reconfig) {
+            /* ###: utf-ize */
+            schService = OpenService(schSCManager, mpm_service_name,
+                                     SERVICE_CHANGE_CONFIG);
+            if (!schService) {
+                ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                             apr_get_os_error(), NULL,
+                             "OpenService failed");
+            }
+            /* ###: utf-ize */
+            else if (!ChangeServiceConfig(schService,
+                                          SERVICE_WIN32_OWN_PROCESS,
+                                          SERVICE_AUTO_START,
+                                          SERVICE_ERROR_NORMAL,
+                                          launch_cmd, NULL, NULL,
+                                          "Tcpip\0Afd\0", NULL, NULL,
+                                          mpm_display_name)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                             apr_get_os_error(), NULL,
+                             "ChangeServiceConfig failed");
+                /* !schService aborts configuration below */
+                CloseServiceHandle(schService);
+                schService = NULL;
+            }
+        }
+        else {
+            /* RPCSS is the Remote Procedure Call (RPC) Locator required
+             * for DCOM communication pipes.  I am far from convinced we
+             * should add this to the default service dependencies, but
+             * be warned that future apache modules or ISAPI dll's may
+             * depend on it.
+             */
+            /* ###: utf-ize */
+            schService = CreateService(schSCManager,         // SCManager database
+                                   mpm_service_name,     // name of service
+                                   mpm_display_name,     // name to display
+                                   SERVICE_ALL_ACCESS,   // access required
+                                   SERVICE_WIN32_OWN_PROCESS,  // service type
+                                   SERVICE_AUTO_START,   // start type
+                                   SERVICE_ERROR_NORMAL, // error control type
+                                   launch_cmd,           // service's binary
+                                   NULL,                 // no load svc group
+                                   NULL,                 // no tag identifier
+                                   "Tcpip\0Afd\0",       // dependencies
+                                   NULL,                 // use SYSTEM account
+                                   NULL);                // no password
+
+            if (!schService)
+            {
+                rv = apr_get_os_error();
+                ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                             "Failed to create WinNT Service Profile");
+                CloseServiceHandle(schSCManager);

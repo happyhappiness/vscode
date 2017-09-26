@@ -1,13 +1,21 @@
-    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Can't open directory for index: %s", r->filename);
-        return HTTP_FORBIDDEN;
+    if (err != NULL) {
+        return err;
     }
 
-#if APR_HAS_UNICODE_FS 
-    ap_set_content_type(r, "text/html;charset=utf-8");
-#else
-    ap_set_content_type(r, "text/html");
-#endif
-    if (autoindex_opts & TRACK_MODIFIED) {
-        ap_update_mtime(r, r->finfo.mtime);
+    ap_daemons_min_free = atoi(arg);
+    if (ap_daemons_min_free <= 0) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: detected MinSpareServers set to non-positive.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Resetting to 1 to avoid almost certain Apache failure.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Please read the documentation.");
+       ap_daemons_min_free = 1;
+    }
+       
+    return NULL;
+}
+
+static const char *set_max_free_servers(cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

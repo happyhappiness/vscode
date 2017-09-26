@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                 "LDAP cache: Setting shared memory cache file to %s bytes.", 
-                 st->cache_file);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "Child %lu: Encountered too many errors accepting client connections. "
+                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);

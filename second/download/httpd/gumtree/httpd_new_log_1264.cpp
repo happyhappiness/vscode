@@ -1,0 +1,1 @@
+fprintf(stderr, "suexec failure: could not open log file\n");

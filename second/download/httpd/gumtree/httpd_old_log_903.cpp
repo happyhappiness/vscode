@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP | APLOG_NOERRNO, 0, NULL, 
-                     "Ouch!  Out of memory in add_job()!");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                  "read from buffered SSL brigade, mode %d, "
+                  "%" APR_OFF_T_FMT " bytes",
+                  mode, bytes);

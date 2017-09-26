@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "They don't match, sorry.\n");

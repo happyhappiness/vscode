@@ -1,28 +1,14 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
-}
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+    if (!short_report) {
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head>\n<title>Apache Status</title>\n</head><body>\n",
+                 r);
+        ap_rputs("<h1>Apache Server Status for ", r);
+        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl><hr /><dl>\n", NULL);
+        ap_rvputs(r, "<dt>Current Time: ",
+                  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),

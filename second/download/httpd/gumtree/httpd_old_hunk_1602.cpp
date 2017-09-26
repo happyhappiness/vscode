@@ -1,60 +1,13 @@
-            }
-        }
-        else if (!strcmp(tag, "done")) {
-            return 0;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unknown parameter \"%s\" to tag config in %s",
-                        tag, r->filename);
-            ap_rputs(error, r);
-        }
+        ap_init_scoreboard(sb_mem);
     }
-}
 
-
-static int find_file(request_rec *r, const char *directive, const char *tag,
-                     char *tag_val, struct stat *finfo, const char *error)
-{
-    char *to_send;
-
-    if (!strcmp(tag, "file")) {
-        ap_getparents(tag_val);    /* get rid of any nasties */
-        to_send = ap_make_full_path(r->pool, "./", tag_val);
-        if (stat(to_send, finfo) == -1) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                        "unable to get information about \"%s\" "
-                        "in parsed file %s",
-                        to_send, r->filename);
-            ap_rputs(error, r);
-            return -1;
-        }
-        return 0;
-    }
-    else if (!strcmp(tag, "virtual")) {
-        request_rec *rr = ap_sub_req_lookup_uri(tag_val, r);
-
-        if (rr->status == HTTP_OK && rr->finfo.st_mode != 0) {
-            memcpy((char *) finfo, (const char *) &rr->finfo,
-                   sizeof(struct stat));
-            ap_destroy_sub_req(rr);
-            return 0;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "unable to get information about \"%s\" "
-                        "in parsed file %s",
-                        tag_val, r->filename);
-            ap_rputs(error, r);
-            ap_destroy_sub_req(rr);
-            return -1;
-        }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "unknown parameter \"%s\" to tag %s in %s",
-                    tag, directive, r->filename);
-        ap_rputs(error, r);
-        return -1;
-    }
-}
+    ap_scoreboard_image->global->restart_time = apr_time_now();
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "AcceptMutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),

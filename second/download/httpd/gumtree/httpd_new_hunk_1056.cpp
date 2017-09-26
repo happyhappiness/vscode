@@ -1,17 +1,32 @@
-                if (d->icon_width) {
-                    ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                }
-                if (d->icon_height) {
-                    ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                }
+            remove_pollfd.desc.s = c->aprsock;
+	    apr_pollset_remove(readbits, &remove_pollfd);
+	    apr_socket_close(c->aprsock);
+	    err_conn++;
+	    if (bad++ > 10) {
+		fprintf(stderr,
+                   "\nTest aborted after 10 failures\n\n");
+                apr_err("apr_socket_connect()", rv);
+	    }
+	    c->state = STATE_UNCONNECTED;
+	    start_connect(c);
+	    return;
+	}
+    }
 
-                if (autoindex_opts & EMIT_XHTML) {
-                    ap_rputs(" /", r);
-                }
-                ap_rputs("> ", r);
-            }
-            else {
-                ap_rputs("      ", r);
-            }
-        }
-        emit_link(r, "Name", K_NAME, keyid, direction,
+    /* connected first time */
+    c->state = STATE_CONNECTED;
+    started++;
+#ifdef USE_SSL
+    if (c->ssl) {
+        ssl_proceed_handshake(c);
+    } else
+#endif
+    {
+        write_request(c);
+    }
+}
+
+/* --------------------------------------------------------- */
+
+/* close down connection and save stats */
+

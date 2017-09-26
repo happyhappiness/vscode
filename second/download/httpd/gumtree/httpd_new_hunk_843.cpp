@@ -1,26 +1,13 @@
+                             "shmcb_remove_session_id, internal error");
+                goto end;
+            }
+            session_id_length = SSL_SESSION_get_session_id_length(pSession);
+            session_id = SSL_SESSION_get_session_id(pSession);
 
-    /* Look up entity keyed to 'url' */
-    if (strcasecmp(type, "disk")) {
-	return DECLINED;
-    }
-
-    if (conf->cache_root == NULL) {
-        if (!error_logged) {
-            error_logged = 1;
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "disk_cache: Cannot cache files to disk without a CacheRoot specified.");
-        }
-        return DECLINED;
-    }
-
-    data = data_file(r->pool, conf->dirlevels, conf->dirlength, 
-                     conf->cache_root, key);
-    headers = header_file(r->pool, conf->dirlevels, conf->dirlength, 
-                          conf->cache_root, key);
-
-    /* Open the data file */
-    rc = apr_file_open(&fd, data, APR_READ|APR_BINARY, 0, r->pool);
-    if (rc != APR_SUCCESS) {
-        /* XXX: Log message */
-        return DECLINED;
-    }
+            if ((session_id_length == idlen)
+                 && (memcmp(id, session_id, idlen) == 0)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                            "a match!");
+                /* Scrub out this session "quietly" */
+                idx->removed = (unsigned char) 1;
+                SSL_SESSION_free(pSession);

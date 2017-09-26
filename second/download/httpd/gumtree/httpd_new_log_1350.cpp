@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Cannot find peer certificate chain");

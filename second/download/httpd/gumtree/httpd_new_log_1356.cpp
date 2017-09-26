@@ -1,2 +1,3 @@
-apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], tn);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation handshake failed: "
+                              "Not accepted by client!?");

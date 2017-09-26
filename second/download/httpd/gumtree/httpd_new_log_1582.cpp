@@ -1,2 +1,3 @@
-fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
-                argv[0], MAX_CONCURRENCY);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);

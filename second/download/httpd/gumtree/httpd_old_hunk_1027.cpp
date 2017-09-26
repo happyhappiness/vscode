@@ -1,13 +1,20 @@
-            /* listener not dead yet */
-            apr_sleep(apr_time_make(0, 500000));
-            wakeup_listener();
-            ++iter;
-        }
-        if (iter >= 10) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "the listener thread didn't exit");
-        }
-        else {
-            rv = apr_thread_join(&thread_rv, listener);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+{
+    apr_table_entry_t *next_elt;
+    apr_table_entry_t *end_elt;
+    apr_uint32_t checksum;
+    int hash;
+
+#ifdef POOL_DEBUG
+    {
+	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
+
+    COMPUTE_KEY_CHECKSUM(key, checksum);

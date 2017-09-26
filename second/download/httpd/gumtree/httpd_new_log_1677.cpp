@@ -1,1 +1,3 @@
-fprintf(stderr, "error creating request buffer: out of memory\n");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Line folding encountered before first"
+                              " header line");

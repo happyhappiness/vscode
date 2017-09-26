@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                         "apr_queue_info_wait failed. Attempting to shutdown "
-                         "process gracefully.");
+fprintf (stderr, " -> %s\n", ssl_expr_yytname[ssl_expr_yyr1[ssl_expr_yyn]]);

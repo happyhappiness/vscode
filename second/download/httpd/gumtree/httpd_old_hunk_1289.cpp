@@ -1,14 +1,12 @@
-                }
-            }
-            apr_pool_clear(ctx->deferred_write_pool);  
-        }
+     * Seed the Pseudo Random Number Generator (PRNG)
+     * only need ptemp here; nothing inside allocated from the pool
+     * needs to live once we return from ssl_rand_seed().
+     */
+    ssl_rand_seed(base_server, ptemp, SSL_RSCTX_STARTUP, "Init: ");
 
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "core_output_filter: writing data to the network");
-
-            if (more)
-                apr_brigade_destroy(more);
-
-            /* No need to check for SUCCESS, we did that above. */
-            if (!APR_STATUS_IS_EAGAIN(rv)) {
+    /*
+     * read server private keys/public certs into memory.
+     * decrypting any encrypted keys via configured SSLPassPhraseDialogs
+     * anything that needs to live longer than ptemp needs to also survive
+     * restarts, in which case they'll live inside s->process->pool.
+     */

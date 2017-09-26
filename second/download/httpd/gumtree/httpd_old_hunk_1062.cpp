@@ -1,19 +1,59 @@
+	connecthost = apr_pstrdup(cntxt, hostname);
+	connectport = port;
     }
-}
 
-static void cgi_child_errfn(apr_pool_t *pool, apr_status_t err,
-                            const char *description)
-{
-    request_rec *r;
-    void *vr;
+    if (!use_html) {
+	printf("Benchmarking %s ", hostname);
+	if (isproxy)
+	    printf("[through %s:%d] ", proxyhost, proxyport);
+	printf("(be patient)%s",
+	       (heartbeatres ? "\n" : "..."));
+	fflush(stdout);
+    }
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
-    r = vr;
+    now = apr_time_now();
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", description);
-}
+    con = calloc(concurrency * sizeof(struct connection), 1);
+    
+    stats = calloc(requests * sizeof(struct data), 1);
 
-static apr_status_t run_cgi_child(apr_file_t **script_out,
-                                  apr_file_t **script_in,
-                                  apr_file_t **script_err, 
-                                  const char *command,
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
+    }
+
+    /* setup request */
+    if (posting <= 0) {
+	sprintf(request, "%s %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"%s" "\r\n",
+		(posting == 0) ? "GET" : "HEAD",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth, host_field, colonhost, hdrs);
+    }
+    else {
+	sprintf(request, "POST %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"
+		"Host: %s%s\r\n"
+		"Accept: */*\r\n"
+		"Content-length: %" APR_SIZE_T_FMT "\r\n"
+		"Content-type: %s\r\n"
+		"%s"
+		"\r\n",
+		(isproxy) ? fullurl : path,
+		AP_AB_BASEREVISION,
+		keepalive ? "Connection: Keep-Alive\r\n" : "",
+		cookie, auth,
+		host_field, colonhost, postlen,
+		(content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+
+    if (verbosity >= 2)
+	printf("INFO: POST header == \n---\n%s\n---\n", request);
+
+    reqlen = strlen(request);

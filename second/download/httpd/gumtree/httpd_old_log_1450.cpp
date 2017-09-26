@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: Include directory '%s' not found",
-                        ap_server_argv0, path);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);

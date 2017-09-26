@@ -1,24 +1,42 @@
+        }
         else {
-            /*
-             * Dumb user has given us a bad url to redirect to --- fake up
-             * dying with a recursive server error...
-             */
-            recursive_error = SERVER_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid error redirection directive: %s",
-                        custom_response);
+            conn->hostname = apr_pstrdup(conn->pool, uri->hostname);
+            conn->port = uri->port;
+        }
+        socket_cleanup(conn);
+        err = apr_sockaddr_info_get(&(conn->addr),
+                                    conn->hostname, APR_UNSPEC,
+                                    conn->port, 0,
+                                    conn->pool);
+    }
+    else if (!worker->cp->addr) {
+        if ((err = PROXY_THREAD_LOCK(worker)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
+                         "proxy: lock");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        /*
+         * Worker can have the single constant backend adress.
+         * The single DNS lookup is used once per worker.
+         * If dynamic change is needed then set the addr to NULL
+         * inside dynamic config to force the lookup.
+         */
+        err = apr_sockaddr_info_get(&(worker->cp->addr),
+                                    conn->hostname, APR_UNSPEC,
+                                    conn->port, 0,
+                                    worker->cp->pool);
+        conn->addr = worker->cp->addr;
+        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
+                         "proxy: unlock");
         }
     }
-    ap_send_error_response(r, recursive_error);
-}
-
-static void decl_die(int status, char *phase, request_rec *r)
-{
-    if (status == DECLINED) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r->server,
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-        ap_die(SERVER_ERROR, r);
+    else {
+        conn->addr = worker->cp->addr;
     }
-    else
-        ap_die(status, r);
-}
+    /* Close a possible existing socket if we are told to do so */
+    if (conn->close) {
+        socket_cleanup(conn);
+        conn->close = 0;
+    }

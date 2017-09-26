@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                     ap_server_conf, "SIGHUP received.  Attempting to restart");
+ap_rputs("<a href=\"?config\">Configuration Files</a>, "
+                     "<a href=\"?server\">Server Settings</a>, "
+                     "<a href=\"?list\">Module List</a>,  "
+                     "<a href=\"?hooks\">Active Hooks</a>", r);

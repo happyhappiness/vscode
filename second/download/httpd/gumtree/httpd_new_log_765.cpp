@@ -1,5 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                         ap_server_conf,
-                         "server reached MaxThreadsPerChild setting, "
-                         "consider raising the MaxThreadsPerChild or "
-                         "NumServers settings");
+ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);

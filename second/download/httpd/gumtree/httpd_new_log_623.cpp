@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_remove_session_id");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);

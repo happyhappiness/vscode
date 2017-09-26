@@ -1,19 +1,22 @@
-    char pwin[MAX_STRING_LEN];
-    char pwv[MAX_STRING_LEN];
-    unsigned int i;
-    apr_size_t len = sizeof(pwin);
+    apr_bucket *e;
+    apr_off_t cl_val = 0;
+    apr_off_t bytes;
+    apr_off_t bytes_streamed = 0;
 
-    if (apr_password_get("New password: ", pwin, &len) != APR_SUCCESS) {
-        apr_file_printf(errfile, "password too long");
-	cleanup_tempfile_and_exit(5);
-    }
-    len = sizeof(pwin);
-    apr_password_get("Re-type new password: ", pwv, &len);
-    if (strcmp(pwin, pwv) != 0) {
-        apr_file_printf(errfile, "They don't match, sorry.\n");
-        cleanup_tempfile_and_exit(1);
-    }
-    pw = pwin;
-    apr_file_printf(f, "%s:%s:", user, realm);
+    if (old_cl_val) {
+        char *endstr;
 
-    /* Do MD5 stuff */
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
+        
+        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "proxy: could not parse request Content-Length (%s)",
+                          old_cl_val);
+            return HTTP_BAD_REQUEST;
+        }
+    }
+    terminate_headers(bucket_alloc, header_brigade);
+
+    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    {

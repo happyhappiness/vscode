@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.8 $");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
+               r->method);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
-                         "unable to replace stderr with error_log");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to acquire thread mutex");

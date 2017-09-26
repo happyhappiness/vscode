@@ -1,12 +1,12 @@
-     */
-    cache_out_filter_handle = 
-        ap_register_output_filter("CACHE_OUT", 
-                                  cache_out_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET-1);
-    ap_hook_post_config(cache_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
-}
-
-module AP_MODULE_DECLARE_DATA cache_module =
-{
-    STANDARD20_MODULE_STUFF,
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-attribute") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require ldap-attribute: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;

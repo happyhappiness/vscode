@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -l                : list compiled in modules");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "execution failure "
+                              "for parameter \"%s\" to tag exec in file %s",
+                              tag, r->filename);

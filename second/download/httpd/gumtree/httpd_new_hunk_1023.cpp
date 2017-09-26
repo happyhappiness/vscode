@@ -1,13 +1,22 @@
-            /* listener not dead yet */
-            apr_sleep(APR_USEC_PER_SEC / 2);
-            wakeup_listener();
-            ++iter;
-        }
-        if (iter >= 10) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                         "the listener thread didn't exit");
-        }
-        else {
-            rv = apr_thread_join(&thread_rv, listener);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+     */
+    if ((rv = apr_atomic_init(global_pool)) != APR_SUCCESS) {
+        return rv;
+    }
+
+#if (APR_POOL_DEBUG & APR_POOL_DEBUG_VERBOSE_ALL)
+    rv = apr_env_get(&logpath, "APR_POOL_DEBUG_LOG", global_pool);
+
+    if (rv == APR_SUCCESS) {
+        apr_file_open(&file_stderr, logpath, APR_APPEND|APR_WRITE|APR_CREATE,
+                      APR_OS_DEFAULT, global_pool);
+    }
+    else {
+        apr_file_open_stderr(&file_stderr, global_pool);
+    }
+
+    if (file_stderr) {
+        apr_file_printf(file_stderr,
+            "POOL DEBUG: [PID"
+#if APR_HAS_THREADS
+            "/TID"
+#endif /* APR_HAS_THREADS */

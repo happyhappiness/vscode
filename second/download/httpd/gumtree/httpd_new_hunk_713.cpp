@@ -1,85 +1,21 @@
-	CloseHandle(e);
-	return;
+            break;
+        case APR_OC_REASON_UNREGISTER:
+            /* we get here when pcgi is cleaned up; pcgi gets cleaned
+             * up when pconf gets cleaned up
+             */
+            kill(proc->pid, SIGHUP); /* send signal to daemon telling it to die */
+
+            /* Remove the cgi socket, we must do it here in order to try and
+             * guarantee the same permissions as when the socket was created.
+             */
+            if (unlink(sockname) < 0 && errno != ENOENT) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, errno, NULL,
+                             "Couldn't unlink unix domain socket %s",
+                             sockname);
+            }
+            break;
     }
-    CloseHandle(e);
 }
+#endif
 
-
-/*
- * Passed the following handles [in sync with send_handles_to_child()]
- *
- *   ready event [signal the parent immediately, then close]
- *   exit event  [save to poll later]
- *   start mutex [signal from the parent to begin accept()]
- *   scoreboard shm handle [to recreate the ap_scoreboard]
- */
-void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
-                             apr_proc_mutex_t **child_start_mutex,
-                             apr_shm_t **scoreboard_shm)
-{
-    HANDLE pipe;
-    HANDLE hScore;
-    HANDLE ready_event;
-    HANDLE os_start;
-    DWORD BytesRead;
-    void *sb_shared;
-    apr_status_t rv;
-    
-    pipe = GetStdHandle(STD_INPUT_HANDLE);
-    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-
-    SetEvent(ready_event);
-    CloseHandle(ready_event);
-
-    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the exit event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-
-    if (!ReadFile(pipe, &os_start, sizeof(os_start),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(os_start))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    *child_start_mutex = NULL;
-    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the start_mutex from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-
-    if (!ReadFile(pipe, &hScore, sizeof(hScore),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(hScore))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    *scoreboard_shm = NULL;
-    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool)) 
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-
-    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
-    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
-	ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, 
-                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    /* We must 'initialize' the scoreboard to relink all the
-     * process-local pointer arrays into the shared memory block.
+/* deal with incomplete reads and signals

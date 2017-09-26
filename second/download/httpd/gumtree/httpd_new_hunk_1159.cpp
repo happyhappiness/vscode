@@ -1,24 +1,13 @@
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                "Cannot resolve host name %s --- ignoring!", host);
-            return NULL;
-        }
+    apr_file_t *out = NULL;
+
+    if (!ap_exists_config_define("DUMP_MODULES")) {
+        return;
     }
 
-    /* Remember all addresses for the host */
+    apr_file_open_stdout(&out, p);
 
-    do {
-        sar = apr_pcalloc(p, sizeof(server_addr_rec));
-        **paddr = sar;
-        *paddr = &sar->next;
-        sar->host_addr = my_addr;
-        sar->host_port = port;
-        sar->virthost = host;
-        my_addr = my_addr->next;
-    } while (my_addr);
+    apr_file_printf(out, "Loaded Modules:\n");
 
-    return NULL;
-}
-
-
-/* parse the <VirtualHost> addresses */
-const char *ap_parse_vhost_addrs(apr_pool_t *p,
+    sconf = (so_server_conf *)ap_get_module_config(s->module_config,
+                                                   &so_module);
+    for (i = 0; ; i++) {

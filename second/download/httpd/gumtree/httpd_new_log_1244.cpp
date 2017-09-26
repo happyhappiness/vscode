@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                     "value of %d threads,", ap_threads_per_child, 
-                     thread_limit);
+apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);

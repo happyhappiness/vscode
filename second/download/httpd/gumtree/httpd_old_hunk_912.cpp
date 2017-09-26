@@ -1,33 +1,19 @@
-                }
-                ap_rputs(" /></th>", r);
+		    "spawning %d children, there are %d idle, and "
+		    "%d total children", idle_spawn_rate,
+		    idle_count, total_non_dead);
+	    }
+	    for (i = 0; i < free_length; ++i) {
+#ifdef TPF
+        if (make_child(ap_server_conf, free_slots[i]) == -1) {
+            if(free_length == 1) {
+                shutdown_pending = 1;
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, ap_server_conf,
+                "No active child processes: shutting down");
             }
-            else {
-                ap_rputs("&nbsp;</th>", r);
-            }
-            
-            ++cols;
         }
-        ap_rputs("<th>", r);
-        emit_link(r, "Name", K_NAME, keyid, direction, 
-                  colargs, static_columns);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction, 
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Size", K_SIZE, keyid, direction, 
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Description", K_DESC, keyid, direction, 
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "<tr><th colspan=\"%d\">"
+#else
+		make_child(ap_server_conf, free_slots[i]);
+#endif /* TPF */
+	    }
+	    /* the next time around we want to spawn twice as many if this
+	     * wasn't good enough, but not if we've just done a graceful

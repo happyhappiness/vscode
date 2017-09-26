@@ -1,13 +1,19 @@
-    {
-        /* The child process or in one_process (debug) mode 
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Child process is running", my_pid);
-
-        child_main();
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %d: Child process is exiting", my_pid);        
-        return 1;
-    }
-    else 
+                if (sliding_timer < apr_time_from_sec(2)) {
+                    sliding_timer *= 2;
+                }
+            }
+            else {
+                close(sd);
+                return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno, 
+                                       "unable to connect to cgi daemon after multiple tries");
+            }
+        }
+        else {
+            apr_pool_cleanup_register(r->pool, (void *)sd, close_unix_socket,
+                                      apr_pool_cleanup_null);
+            break; /* we got connected! */
+        }
+        /* gotta try again, but make sure the cgid daemon is still around */
+        if (kill(daemon_pid, 0) != 0) {
+            return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
+                                   "cgid daemon is gone; is Apache terminating?");

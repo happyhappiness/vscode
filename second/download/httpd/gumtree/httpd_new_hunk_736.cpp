@@ -1,13 +1,17 @@
-    /* on some platforms (e.g., FreeBSD), the kernel won't accept many
-     * queued connections before it starts blocking local connects...
-     * we need to keep from blocking too long and instead return an error,
-     * because the MPM won't want to hold up a graceful restart for a
-     * long time
-     */
-    rv = apr_socket_timeout_set(sock, apr_time_from_sec(3));
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "set timeout on socket to connect to listener");
-        apr_socket_close(sock);
-        return rv;
-    }
+         * was a local redirect and the requested resource failed
+         * for any reason, the custom_response will still hold the
+         * redirect URL. We don't really want to output this URL
+         * as a text message, so first check the custom response
+         * string to ensure that it is a text-string (using the
+         * same test used in ap_die(), i.e. does it start with a ").
+         *
+         * If it's not a text string, we've got a recursive error or
+         * an external redirect.  If it's a recursive error, ap_die passes
+         * us the second error code so we can write both, and has already
+         * backed up to the original error.  If it's an external redirect,
+         * it hasn't happened yet; we may never know if it fails.
+         */
+        if (custom_response[0] == '\"') {
+            ap_rputs(custom_response + 1, r);
+            ap_finalize_request_protocol(r);
+            return;

@@ -1,9 +1,15 @@
-/*
- *  compat.h -- backward compatibility header for ap_compat.h
- */
+            }
+        }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_compat.h instead"
-#endif
+        do {
+            clen = sizeof(sa_client);
+            csd = accept(nsd, (struct sockaddr *) &sa_client, &clen);
+        } while (csd == INVALID_SOCKET && APR_STATUS_IS_EINTR(apr_get_netos_error()));
 
-#include "ap_compat.h"
+        if (csd == INVALID_SOCKET) {
+            if (APR_STATUS_IS_ECONNABORTED(apr_get_netos_error())) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                            "accept: (client socket)");
+            }
+        }
+        else {

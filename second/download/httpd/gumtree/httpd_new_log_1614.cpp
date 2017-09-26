@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "cache: error returned while trying to return %s "
-                     "cached data", 
-                     cache->provider_name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                          "Unexpected body state (%i)", (int)ctx->state);

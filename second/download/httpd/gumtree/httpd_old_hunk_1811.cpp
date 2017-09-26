@@ -1,14 +1,14 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+        printf("[through %s:%d] ", proxyhost, proxyport);
+    printf("(be patient)%s",
+           (heartbeatres ? "\n" : "..."));
+    fflush(stdout);
     }
-    cache = c->fp;
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    now = apr_time_now();
+
+    con = calloc(concurrency, sizeof(struct connection));
+
+    stats = calloc(requests, sizeof(struct data));
+
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);

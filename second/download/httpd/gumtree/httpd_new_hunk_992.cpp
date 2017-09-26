@@ -1,23 +1,30 @@
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    if (!(mask & APHTP_DELUSER)) {
-        i = mkrecord(user, record, sizeof(record) - 1,
-                     password, alg);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-            exit(i);
         }
-        if (mask & APHTP_NOFILE) {
-            printf("%s\n", record);
-            exit(0);
-        }
+
+        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+                     "connect to listener on %pI", ap_listeners->bind_addr);
     }
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
+    /* Create the request string. We include a User-Agent so that
+     * adminstrators can track down the cause of the odd-looking
+     * requests in their logs.
      */
+    srequest = apr_pstrcat(p, "GET / HTTP/1.0\r\nUser-Agent: ",
+                           ap_get_server_version(),
+                           " (internal dummy connection)\r\n\r\n", NULL);
+
+    /* Since some operating systems support buffering of data or entire
+     * requests in the kernel, we send a simple request, to make sure
+     * the server pops out of a blocking accept().
+     */
+    /* XXX: This is HTTP specific. We should look at the Protocol for each
+     * listener, and send the correct type of request to trigger any Accept
+     * Filters.
+     */
+    len = strlen(srequest);
+    apr_socket_send(sock, srequest, &len);
+    apr_socket_close(sock);
+    apr_pool_destroy(p);
+
+    return rv;
+}
+

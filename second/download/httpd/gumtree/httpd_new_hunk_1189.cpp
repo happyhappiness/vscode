@@ -1,13 +1,19 @@
-        return OK;
+            if (cipher_list_old) {
+                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
+            }
+        }
 
-    ap_rputs(DOCTYPE_HTML_3_2
-             "<html><head><title>LDAP Cache Information</title></head>\n", r);
-    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);
+        /* configure new state */
+        if ((dc->szCipherSuite || sc->server->auth.cipher_suite) &&
+            !modssl_set_cipher_list(ssl, dc->szCipherSuite ?
+                                         dc->szCipherSuite :
+                                         sc->server->auth.cipher_suite)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unable to reconfigure (per-directory) "
+                          "permitted SSL ciphers");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
-    util_ald_cache_display(r, st);
-
-    return OK;
-}
-
-/* ------------------------------------------------------------------ */
+            if (cipher_list_old) {
+                sk_SSL_CIPHER_free(cipher_list_old);
+            }
 

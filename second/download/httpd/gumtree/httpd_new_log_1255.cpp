@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.120 $");
+apr_file_printf(errfile,
+                        "%s: cannot modify file %s; use '-c' to create it" NL,
+                        argv[0], pwfilename);

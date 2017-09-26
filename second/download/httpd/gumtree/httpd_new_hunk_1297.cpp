@@ -1,14 +1,13 @@
-    my_info->sd = 0;
-    rv = apr_thread_create(&ts->listener, thread_attr, listener_thread,
-                           my_info, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "apr_thread_create: unable to create listener thread");
-        /* let the parent decide how bad this really is */
-        clean_child_exit(APEXIT_CHILDSICK);
+        if (APR_STATUS_IS_ENOENT(retcode)) {
+            return DECLINED;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "meta file permissions deny server access: %s", metafilename);
+        return HTTP_FORBIDDEN;
     }
-    apr_os_thread_get(&listener_os_thread, ts->listener);
-}
 
-/* XXX under some circumstances not understood, children can get stuck
- *     in start_threads forever trying to take over slots which will
+    /* read the headers in */
+    rv = scan_meta_file(r, f);
+    apr_file_close(f);
+
+    return rv;

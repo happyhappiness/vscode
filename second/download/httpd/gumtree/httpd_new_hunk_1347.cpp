@@ -1,17 +1,20 @@
-            r->status_line = apr_pstrdup(p, &buffer[9]);
-            
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
-
-            /* First, tuck away all already existing cookies */
-            save_table = apr_table_make(r->pool, 2);
-            apr_table_do(addit_dammit, save_table, r->headers_out,
-                         "Set-Cookie", NULL);
-
-            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
-                                                   sizeof(buffer), origin);
-            if (r->headers_out == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d header "
-                             "returned by %s (%s)", major, minor, r->uri,
+            exitcode = APEXIT_CHILDFATAL;
+        }
+        if (   exitcode == APEXIT_CHILDFATAL
+            || exitcode == APEXIT_CHILDINIT
+            || exitcode == APEXIT_INIT) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Aborting.", exitcode);
+            shutdown_pending = 1;
+        }
+        else {
+            int i;
+            restart_pending = 1;
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Restarting.", exitcode);
+            for (i = 0; i < ap_threads_per_child; i++) {
+                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
+            }
+        }
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;

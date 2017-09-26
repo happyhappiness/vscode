@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR,
-                     0, ap_server_conf,
-                     "child process %" APR_PID_T_FMT
-                     " still did not exit, "
-                     "sending a SIGKILL",
-                     pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Zlib: %d bytes of garbage at the end of "
+                              "compressed stream.", ctx->stream.avail_in);

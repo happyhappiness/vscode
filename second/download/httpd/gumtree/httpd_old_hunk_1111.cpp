@@ -1,48 +1,36 @@
-}
-
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    if (!one_process) {
-        sa.sa_handler = sig_coredump;
-#if defined(SA_ONESHOT)
-        sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-        sa.sa_flags = SA_RESETHAND;
-#endif
-        if (sigaction(SIGSEGV, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-        if (sigaction(SIGBUS, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-        if (sigaction(SIGABORT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-        if (sigaction(SIGABRT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-        if (sigaction(SIGILL, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGILL)");
-#endif
-        sa.sa_flags = 0;
+        /* Return a once-only connection */
+        rv = dbd_construct(&rec, svr, s->process->pool);
+        return (rv == APR_SUCCESS) ? arec : NULL;
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
+
+    if (!svr->dbpool) {
+        if (dbd_setup(s->process->pool, s) != APR_SUCCESS) {
+            return NULL;
+        }
+    }
+    if (apr_reslist_acquire(svr->dbpool, &rec) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                      "Failed to acquire DBD connection from pool!");
+        return NULL;
+    }
+    rv = apr_dbd_check_conn(arec->driver, pool, arec->handle);
+    if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+        errmsg = apr_dbd_error(arec->driver, arec->handle, rv);
+        if (!errmsg) {
+            errmsg = "(unknown)";
+        }
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );
+        apr_reslist_invalidate(svr->dbpool, rec);
+        return NULL;
+    }
+    return arec;
+}
+#else
+AP_DECLARE(ap_dbd_t*) ap_dbd_open(apr_pool_t *pool, server_rec *s)
+{
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
+

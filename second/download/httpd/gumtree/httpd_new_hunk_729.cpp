@@ -1,22 +1,13 @@
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
-    {
-        char **start_argv;
-        SC_HANDLE   schService;
-        SC_HANDLE   schSCManager;
+                        ap_rputs("</td><td>I", r);
+                        break;
+                    default:
+                        ap_rputs("</td><td>?", r);
+                        break;
+                    }
 
-        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
-                                     SC_MANAGER_CONNECT);
-        if (!schSCManager) {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "Failed to open the WinNT service manager");
-            return (rv);
-        }
-
-        /* ###: utf-ize */
-        schService = OpenService(schSCManager, mpm_service_name, 
-                                 SERVICE_START | SERVICE_QUERY_STATUS);
-        if (!schService) {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "%s: Failed to open the service.", mpm_display_name);
+                    ap_rprintf(r,
+                               "\n</td>"
+#ifdef HAVE_TIMES
+                               "<td>%.2f</td>"
+#endif
+                               "<td>%ld</td><td>%ld",

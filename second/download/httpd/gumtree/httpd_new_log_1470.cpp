@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
+                     "Child %lu: Failed to acquire the start_mutex. Process will exit.", my_pid);

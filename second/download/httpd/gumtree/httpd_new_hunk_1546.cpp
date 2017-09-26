@@ -1,26 +1,39 @@
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;
+        apr_uint32_t len;
+        subreq = ap_sub_req_lookup_uri(
+                     apr_pstrndup(cid->r->pool, file, *buf_size), r, NULL);
+
+        if (!subreq->filename) {
+            ap_destroy_sub_req(subreq);
+            return 0;
+        }
+
+        len = (apr_uint32_t)strlen(r->filename);
+
+        if ((subreq->finfo.filetype == APR_DIR)
+              && (!subreq->path_info)
+              && (file[len - 1] != '/'))
+            file = apr_pstrcat(cid->r->pool, subreq->filename, "/", NULL);
+        else
+            file = apr_pstrcat(cid->r->pool, subreq->filename, 
+                                              subreq->path_info, NULL);
+
+        ap_destroy_sub_req(subreq);
+
+#ifdef WIN32
+        /* We need to make this a real Windows path name */
+        apr_filepath_merge(&file, "", file, APR_FILEPATH_NATIVE, r->pool);
+#endif
+
+        *buf_size = apr_cpystrn(buf_data, file, *buf_size) - buf_data;
+
+        return 1;
     }
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
-	if (csd == -1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    if (c != NULL)
-		c = ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,

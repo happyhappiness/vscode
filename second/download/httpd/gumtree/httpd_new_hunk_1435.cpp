@@ -1,15 +1,16 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
+	memcpy(pHook,pSort->pData,sizeof *pHook);
+	if(apr_hook_debug_enabled)
+	    printf(" %s",pHook->szName);
+    }
+    if(apr_hook_debug_enabled)
+	fputc('\n',stdout);
 
-	i = read(fd, line, 26);
+    /* destroy the pool - the sorted hooks were already copied */
+    apr_pool_destroy(p);
+
+    return pNew;
+}
+
+#ifndef NETWARE
+static apr_array_header_t *s_aHooksToSort;
+#endif

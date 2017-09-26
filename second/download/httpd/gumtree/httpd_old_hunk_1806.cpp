@@ -1,18 +1,24 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+    c->bread = 0;
+    c->keepalive = 0;
+    c->cbx = 0;
+    c->gotheader = 0;
+    c->rwrite = 0;
+    if (c->ctx)
+        apr_pool_destroy(c->ctx);
+    apr_pool_create(&c->ctx, cntxt);
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
+    apr_err("socket", rv);
+    }
+    if ((rv = apr_socket_opt_set(c->aprsock, APR_SO_NONBLOCK, 1))
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
+    }
+    c->start = apr_time_now();
+#ifdef USE_SSL
+    if (is_ssl) {
+        BIO *bio;
+        apr_os_sock_t fd;
+
+        if ((c->ssl = SSL_new(ssl_ctx)) == NULL) {

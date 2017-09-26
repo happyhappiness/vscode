@@ -1,13 +1,22 @@
-    /* Set the status (for logging) */
-    if (ecb->dwHttpStatusCode)
-	r->status = ecb->dwHttpStatusCode;
+ *   scoreboard shm handle [to recreate the ap_scoreboard]
+ */
+void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
+                             apr_proc_mutex_t **child_start_mutex,
+                             apr_shm_t **scoreboard_shm)
+{
+    HANDLE hScore;
+    HANDLE ready_event;
+    HANDLE os_start;
+    DWORD BytesRead;
+    void *sb_shared;
+    apr_status_t rv;
 
-    /* Check for a log message - and log it */
-    if (ecb->lpszLogData && strcmp(ecb->lpszLogData, ""))
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		    "%s: %s", ecb->lpszLogData, r->filename);
-
-    /* All done with the DLL... get rid of it */
-    if (isapi_term) (*isapi_term)(HSE_TERM_MUST_UNLOAD);
-    FreeLibrary(isapi_handle);
-
+    /* *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);

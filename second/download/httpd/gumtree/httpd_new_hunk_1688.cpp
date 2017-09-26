@@ -1,23 +1,23 @@
 
-    if (!c->gotheader) {
-        char *s;
-        int l = 4;
-        int space = CBUFFSIZE - c->cbx - 1;     /* -1 to allow for 0 terminator */
-        int tocopy = (space < r) ? space : r;
-#ifndef CHARSET_EBCDIC
-        memcpy(c->cbuff + c->cbx, buffer, space);
-#else /*CHARSET_EBCDIC*/
-        ascii2ebcdic(c->cbuff + c->cbx, buffer, space);
-#endif /*CHARSET_EBCDIC*/
-        c->cbx += tocopy;
-        space -= tocopy;
-        c->cbuff[c->cbx] = 0;   /* terminate for benefit of strstr */
-	if (verbosity >= 4) {
-	    printf("LOG: header received:\n%s\n", c->cbuff);
-	}
-        s = strstr(c->cbuff, "\r\n\r\n");
-        /* this next line is so that we talk to NCSA 1.5 which blatantly breaks 
-           the http specifaction */
-        if (!s) {
-            s = strstr(c->cbuff, "\n\n");
-            l = 2;
+      if (*code == OP_XCLASS)
+        {
+        int ch;
+        while ((ch = *ccode++) != XCL_END)
+          {
+#ifdef SUPPORT_UCP
+          if (ch == XCL_PROP)
+            {
+            fprintf(f, "\\p{%s}", get_ucpname(*ccode++));
+            }
+          else if (ch == XCL_NOTPROP)
+            {
+            fprintf(f, "\\P{%s}", get_ucpname(*ccode++));
+            }
+          else
+#endif
+            {
+            ccode += 1 + print_char(f, ccode, TRUE);
+            if (ch == XCL_RANGE)
+              {
+              fprintf(f, "-");
+              ccode += 1 + print_char(f, ccode, TRUE);

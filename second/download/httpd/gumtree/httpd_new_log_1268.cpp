@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                         "cache: not caching streamed response for "
-                                         "%s because length %s", url,
-                                          "> CacheMaxStreamingBuffer");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: can't find driver for %s", svr->name);

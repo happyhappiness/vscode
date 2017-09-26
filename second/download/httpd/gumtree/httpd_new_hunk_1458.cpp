@@ -1,13 +1,14 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Zlib: Checksum of inflated stream invalid");
+                    return APR_EGENERAL;
+                }
+                ctx->validation_buffer += VALIDATION_SIZE / 2;
+                compLen = getLong(ctx->validation_buffer);
+                /* gzip stores original size only as 4 byte value */
+                if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Zlib: Length of inflated stream invalid");
+                    return APR_EGENERAL;
+                }
+            }
+            else {

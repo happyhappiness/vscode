@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "Graceful restart requested, doing restart");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);

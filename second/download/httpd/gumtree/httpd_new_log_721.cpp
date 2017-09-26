@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " HARD_THREAD_LIMIT define in server/mpm/beos/mpm_default.h.");
+ap_rputs("<body><h1 style=\"text-align: center\">"
+             "Apache Server Information</h1>\n", r);

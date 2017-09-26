@@ -1,2 +1,0 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");

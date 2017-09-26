@@ -1,5 +1,3 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-	    " (default)"
-#endif
-	    ".\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -L                 : list available configuration "
+                 "directives");

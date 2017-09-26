@@ -1,5 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING,
-                             0, ap_server_conf,
-                             "child process %ld still did not exit, "
-                             "sending a SIGTERM",
-                             (long)pid);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s: module \"%s\" is not compatible with this "
+                     "version of Apache (found %d, need %d).",
+                     ap_server_argv0, m->name, m->version,
+                     MODULE_MAGIC_NUMBER_MAJOR);

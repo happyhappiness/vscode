@@ -1,34 +1,21 @@
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
+        ap_mpm_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;
     }
-    
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    if (st->connectionTimeout > 0) {
-        timeOut.tv_sec = st->connectionTimeout;
-    }
+    else if (idle_thread_count < min_spare_threads) {
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* only report this condition once */
+            static int reported = 0;
 
-    if (st->connectionTimeout >= 0) {
-        rc = ldap_set_option(NULL, LDAP_OPT_NETWORK_TIMEOUT, (void *)&timeOut);
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "LDAP: Could not set the connection timeout" );
+            if (!reported) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             ap_server_conf,
+                             "server reached MaxClients setting, consider"
+                             " raising the MaxClients setting");
+                reported = 1;
+            }
+            idle_spawn_rate = 1;
         }
-    }
-#endif
-
-    return(OK);
-}
-
-static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
-{
-    apr_status_t sts;
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
-
-    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
-    if (sts != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
-                     "Failed to initialise global mutex %s in child process %"
-                     APR_PID_T_FMT
+        else {
+            if (free_length > idle_spawn_rate) {
+                free_length = idle_spawn_rate;

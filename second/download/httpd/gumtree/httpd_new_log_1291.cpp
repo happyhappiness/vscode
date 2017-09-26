@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "disk_cache: Could not cache URL %s [%d]", key, rv);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);

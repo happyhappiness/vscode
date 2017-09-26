@@ -1,14 +1,26 @@
-                }
-            }
-            else if (s->type == MAPTYPE_DBM) {
-                if ((rv = apr_stat(&st, s->checkfile,
-                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "mod_rewrite: can't access DBM RewriteMap "
-                                  "file %s", s->checkfile);
-                    rewritelog(r, 1, "can't open DBM RewriteMap file, "
-                               "see error log");
-                    return NULL;
-                }
-                value = get_cache_string(cachep, s->name, CACHEMODE_TS,
-                                         st.mtime, key);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+}
+
+
+static int send_handles_to_child(apr_pool_t *p,
+                                 HANDLE child_ready_event,
+                                 HANDLE child_exit_event,
+                                 apr_proc_mutex_t *child_start_mutex,
+                                 apr_shm_t *scoreboard_shm,
+                                 HANDLE hProcess,
+                                 apr_file_t *child_in)
+{
+    apr_status_t rv;
+    HANDLE hCurrentProcess = GetCurrentProcess();
+    HANDLE hDup;
+    HANDLE os_start;
+    HANDLE hScore;
+    apr_size_t BytesWritten;
+
+    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
+        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the ready event handle for the child");
+        return -1;

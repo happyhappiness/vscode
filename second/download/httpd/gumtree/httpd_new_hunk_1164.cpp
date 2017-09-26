@@ -1,13 +1,13 @@
-    int  changed;
-    int  cmd = HTDBM_MAKE;
-    int  i;
-    int args_left = 2;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing end");
+                    output_failed = 1;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                request_ended = 1;
+                break;
+            default:
+                backend_failed = 1;
+                break;
+        }
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-
-    if ((rv = htdbm_init(&pool, &h)) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
-        apr_strerror(rv, errbuf, sizeof(errbuf));
-        exit(1);
-    }

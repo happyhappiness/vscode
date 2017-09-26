@@ -1,17 +1,19 @@
-                if (error_fmt) {
-                    ap_log_rerror(APLOG_MARK, loglevel,
-                                  0, r, error_fmt, tag_val, r->filename);
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
-                                        *inserted_head);
-                }
-                
-                /* Do *not* destroy the subrequest here; it may have allocated
-                 * variables in this r->subprocess_env in the subrequest's
-                 * r->pool, so that pool must survive as long as this request.
-                 * Yes, this is a memory leak. */
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                            "unknown parameter \"%s\" to tag include in %s",
-                            tag, r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+{
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
+
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+        return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);

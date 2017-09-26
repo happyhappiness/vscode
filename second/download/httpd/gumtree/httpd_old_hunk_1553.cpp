@@ -1,16 +1,31 @@
-	else
-	    y[i] = ch + '0';
+         */
+        if (!r->filename) {
+            return DECLINED;
+        }
     }
-    y[8] = '\0';
-}
 
-BUFF *
-     ap_proxy_cache_error(struct cache_req *c)
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, c->req->server,
-		 "proxy: error writing to cache file %s", c->tempfile);
-    ap_pclosef(c->req->pool, c->fp->fd);
-    c->fp = NULL;
-    unlink(c->tempfile);
-    return NULL;
-}
+    /* Allocate and initialize cache_object_t */
+    obj = calloc(1, sizeof(*obj));
+    if (!obj) {
+        return DECLINED;
+    }
+    key_len = strlen(key) + 1;
+    obj->key = malloc(key_len);
+    if (!obj->key) {
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+    memcpy((void*)obj->key, key, key_len);
+
+    /* Allocate and init mem_cache_object_t */
+    mobj = calloc(1, sizeof(*mobj));
+    if (!mobj) {
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+
+    /* Finish initing the cache object */
+    apr_atomic_set32(&obj->refcount, 1);
+    mobj->total_refs = 1;
+    obj->complete = 0;
+    obj->vobj = mobj;

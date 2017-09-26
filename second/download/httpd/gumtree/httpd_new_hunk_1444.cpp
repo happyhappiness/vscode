@@ -1,13 +1,39 @@
+        }
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
+        lenp = apr_table_get(f->r->headers_in, "Content-Length");
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+        if (tenc) {
+            if (strcasecmp(tenc, "chunked") == 0 /* fast path */
+                    || ap_find_last_token(f->r->pool, tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+            else if (f->r->proxyreq == PROXYREQ_RESPONSE) {
+                /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+                 * Section 3.3.3.3: "If a Transfer-Encoding header field is
+                 * present in a response and the chunked transfer coding is not
+                 * the final encoding, the message body length is determined by
+                 * reading the connection until it is closed by the server."
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s; "
+                              "using read-until-close", tenc);
+                tenc = NULL;
+            }
+            else {
+                /* Something that isn't a HTTP request, unless some future
+                 * edition defines new transfer encodings, is unsupported.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
+            }
+            lenp = NULL;
+        }
+        if (lenp) {
+            char *endstr;
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+            ctx->state = BODY_LENGTH;
+            errno = 0;
+
+            /* Protects against over/underflow, non-digit chars in the

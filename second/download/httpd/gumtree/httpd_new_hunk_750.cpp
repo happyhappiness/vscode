@@ -1,27 +1,22 @@
-{
-    apr_pool_t *p;
-    TSort *pSort;
-    apr_array_header_t *pNew;
-    int n;
-
-    apr_pool_create(&p, apr_hook_global_pool);
-    pSort=prepare(p,(TSortData *)pHooks->elts,pHooks->nelts);
-    pSort=tsort(pSort,pHooks->nelts);
-    pNew=apr_array_make(apr_hook_global_pool,pHooks->nelts,sizeof(TSortData));
-    if(apr_hook_debug_enabled)
-	printf("Sorting %s:",szName);
-    for(n=0 ; pSort ; pSort=pSort->pNext,++n) {
-	TSortData *pHook;
-	assert(n < pHooks->nelts);
-	pHook=apr_array_push(pNew);
-	memcpy(pHook,pSort->pData,sizeof *pHook);
-	if(apr_hook_debug_enabled)
-	    printf(" %s",pHook->szName);
+	real_file++;
+	*last_slash = '\0';
     }
-    if(apr_hook_debug_enabled)
-	fputc('\n',stdout);
-    return pNew;
-}
+    else {
+	/* no last slash, buh?! */
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "internal error in mod_cern_meta: %s", r->filename);
+	/* should really barf, but hey, let's be friends... */
+	return DECLINED;
+    };
 
-static apr_array_header_t *s_aHooksToSort;
-typedef struct
+    metafilename = apr_pstrcat(r->pool, scrap_book, "/",
+               dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
+               "/", real_file,
+         dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
+               NULL);
+
+    /* It sucks to require this subrequest to complete, because this
+     * means people must leave their meta files accessible to the world.
+     * A better solution might be a "safe open" feature of pfopen to avoid
+     * pipes, symlinks, and crap like that.
+     *

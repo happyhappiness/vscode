@@ -1,4 +1,2 @@
-apr_file_printf(errfile, "%s: cannot open file %s for read access\n"
-                    "%s: existing auth data would be lost on "
-                    "password mismatch",
-                    argv[0], pwfilename, argv[0]);
+apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], pwfilename);

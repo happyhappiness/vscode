@@ -1,13 +1,16 @@
-    /*
-     * Process CA certificate path files
-     */
-    if (ca_path) {
-        apr_dir_t *dir;
-        apr_finfo_t direntry;
-        apr_int32_t finfo_flags = APR_FINFO_TYPE|APR_FINFO_NAME;
-        apr_status_t rv;
+    const char *err = ap_check_cmd_context(cmd,
+                                           NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
+    }
 
-        if ((rv = apr_dir_open(&dir, ca_path, ptemp)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                    "Failed to open SSLCACertificatePath `%s'",
-                    ca_path);
+    /* Make it absolute, relative to ServerRoot */
+    arg = ap_server_root_relative(cmd->pool, arg);
+
+    /* TODO: ap_configtestonly && ap_docrootcheck && */
+    if (apr_filepath_merge((char**)&conf->ap_document_root, NULL, arg,
+                           APR_FILEPATH_TRUENAME, cmd->pool) != APR_SUCCESS
+        || !ap_is_directory(cmd->pool, arg)) {
+        if (cmd->server->is_virtual) {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool,

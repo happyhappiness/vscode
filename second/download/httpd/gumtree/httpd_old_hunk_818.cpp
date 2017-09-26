@@ -1,61 +1,61 @@
-        apr_file_printf(errfile, "Automatically using MD5 format.\n");
-    }
-#endif
+    ssl_session_log(s, "REM", id, idlen,
+                    "OK", "dead", 0);
 
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    if (alg == ALG_PLAIN) {
-        apr_file_printf(errfile,"Warning: storing passwords as plain text might "
-                "just not work on this platform.\n");
+    return;
+}
+
+/* Dump debugginfo trace to the log file. */
+static void log_tracing_state(MODSSL_INFO_CB_ARG_TYPE ssl, conn_rec *c,
+                              server_rec *s, int where, int rc)
+{
+    /*
+     * create the various trace messages
+     */
+    if (where & SSL_CB_HANDSHAKE_START) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Handshake: start", SSL_LIBRARY_NAME);
     }
-#endif
-    if (! mask & APHTP_NOFILE) {
-        /*
-         * Only do the file checks if we're supposed to frob it.
-         *
-         * Verify that the file exists if -c was omitted.  We give a special
-         * message if it doesn't.
-         */
-        if ((! mask & APHTP_NEWFILE) && (! exists(pwfilename, pool))) {
-            apr_file_printf(errfile,
-                    "%s: cannot modify file %s; use '-c' to create it\n",
-                    argv[0], pwfilename);
-            perror("apr_file_open");
-            exit(ERR_FILEPERM);
+    else if (where & SSL_CB_HANDSHAKE_DONE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Handshake: done", SSL_LIBRARY_NAME);
+    }
+    else if (where & SSL_CB_LOOP) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Loop: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_READ) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Read: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_WRITE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Write: %s",
+                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+    }
+    else if (where & SSL_CB_ALERT) {
+        char *str = (where & SSL_CB_READ) ? "read" : "write";
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "%s: Alert: %s:%s:%s",
+                     SSL_LIBRARY_NAME, str,
+                     SSL_alert_type_string_long(rc),
+                     SSL_alert_desc_string_long(rc));
+    }
+    else if (where & SSL_CB_EXIT) {
+        if (rc == 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Exit: failed in %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
         }
-        /*
-         * Verify that we can read the existing file in the case of an update
-         * to it (rather than creation of a new one).
-         */
-        if ((! mask & APHTP_NEWFILE) && (! readable(pool, pwfilename))) {
-            apr_file_printf(errfile, "%s: cannot open file %s for read access\n",
-                    argv[0], pwfilename);
-            perror("apr_file_open");
-            exit(ERR_FILEPERM);
-        }
-        /*
-         * Now check to see if we can preserve an existing file in case
-         * of password verification errors on a -c operation.
-         */
-        if ((mask & APHTP_NEWFILE) && exists(pwfilename, pool) && 
-            (! readable(pool, pwfilename))) {
-            apr_file_printf(errfile, "%s: cannot open file %s for read access\n"
-                    "%s: existing auth data would be lost on "
-                    "password mismatch",
-                    argv[0], pwfilename, argv[0]);
-            perror("apr_file_open");
-            exit(ERR_FILEPERM);
-        }
-        /*
-         * Now verify that the file is writable!
-         */
-        if (! writable(pool, pwfilename)) {
-            apr_file_printf(errfile, "%s: cannot open file %s for write access\n",
-                    argv[0], pwfilename);
-            perror("apr_file_open");
-            exit(ERR_FILEPERM);
+        else if (rc < 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Exit: error in %s",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
         }
     }
 
     /*
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
+     * Because SSL renegotations can happen at any time (not only after
+     * SSL_accept()), the best way to log the current connection details is
+     * right after a finished handshake.

@@ -1,13 +1,12 @@
+#define ERRMSGSZ        128
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+#ifndef MAX_PATH
+#define MAX_PATH        1024
+#endif
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+int main (int argc, const char * const argv[])
+{
+    char buf[BUFSIZE], buf2[MAX_PATH], errbuf[ERRMSGSZ];
+    int tLogEnd = 0, tRotation = 0, utc_offset = 0;
+    unsigned int sRotation = 0;
+    int nMessCount = 0;

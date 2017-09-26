@@ -1,20 +1,36 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+static apr_status_t ssl_io_filter_error(ap_filter_t *f,
+                                        apr_bucket_brigade *bb,
+                                        apr_status_t status)
+{
+    SSLConnRec *sslconn = myConnConfig(f->c);
+    apr_bucket *bucket;
+
+    switch (status) {
+      case HTTP_BAD_REQUEST:
+            /* log the situation */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, sslconn->server);
+
+            sslconn->non_ssl_request = 1;
+            ssl_io_filter_disable(sslconn, f);
+
+            /* fake the request line */
+            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
+            break;
+
+      default:
+        return status;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    APR_BRIGADE_INSERT_TAIL(bb, bucket);
+    bucket = apr_bucket_eos_create(f->c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, bucket);
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    return APR_SUCCESS;
+}
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+static const char ssl_io_filter[] = "SSL/TLS Filter";
+static const char ssl_io_buffer[] = "SSL/TLS Buffer";
+

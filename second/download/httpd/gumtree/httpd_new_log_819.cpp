@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " increasing MaxClients to %d.",
-                    ap_threads_per_child);
+ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
+                 "</tr>\n<tr>", r);

@@ -1,1 +1,1 @@
-COMPUTE_KEY_CHECKSUM(key, checksum);
+printf("Named substrings\n");

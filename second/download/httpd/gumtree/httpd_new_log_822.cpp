@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " for a maximum of %d child processes,",
-                    ap_daemons_limit);
+ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>Sch</th><th>Host</th><th>Stat</th>"
+                 "<th>Route</th><th>Redir</th>"
+                 "<th>F</th><th>Acc</th><th>Wr</th><th>Rd</th>"
+                 "</tr>\n", r);

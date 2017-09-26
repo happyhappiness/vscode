@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.10 $");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s; "
+                              "using read-until-close", tenc);

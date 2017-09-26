@@ -1,14 +1,27 @@
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "File does not exist: %s",
-                          apr_pstrcat(r->pool, r->filename, r->path_info, NULL));
-            return HTTP_NOT_FOUND;
+        }
+    }
+
+    return rc;
+}
+
+/* Open the error log for the given server_rec.  If IS_MAIN is
+ * non-zero, s is the main server. */
+static int open_error_log(server_rec *s, int is_main, apr_pool_t *p)
+{
+    const char *fname;
+    int rc;
+
+    if (*s->error_fname == '|') {
+        apr_file_t *dummy = NULL;
+
+        /* Spawn a new child logger.  If this is the main server_rec,
+         * the new child must use a dummy stderr since the current
+         * stderr might be a pipe to the old logger.  Otherwise, the
+         * child inherits the parents stderr. */
+        rc = log_child(p, s->error_fname + 1, &dummy, is_main);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "Couldn't start ErrorLog process");
+            return DONE;
         }
 
-        if ((status = apr_file_open(&fd, r->filename, APR_READ | APR_BINARY, 0,
-                                    r->pool)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                          "file permissions deny server access: %s", r->filename);
-            return HTTP_FORBIDDEN;
-        }
-
-        ap_update_mtime(r, r->finfo.mtime);

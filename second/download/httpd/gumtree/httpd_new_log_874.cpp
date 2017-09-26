@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, ap_server_conf,
-                "No active child processes: shutting down");
+ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);

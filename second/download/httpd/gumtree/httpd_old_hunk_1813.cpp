@@ -1,13 +1,32 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+        apr_snprintf(buf, sizeof(buf),
+                 "apr_sockaddr_info_get() for %s", connecthost);
+        apr_err(buf, rv);
     }
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+    /* ok - lets start */
+    start = apr_time_now();
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+        con[i].socknum = i;
+        start_connect(&con[i]);
+    }
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    while (done < requests) {
+        apr_int32_t n;
+        apr_int32_t timed;
+            const apr_pollfd_t *pollresults;
+
+        /* check for time limit expiry */
+        now = apr_time_now();
+        timed = (apr_int32_t)apr_time_sec(now - start);
+        if (tlimit && timed >= tlimit) {
+            requests = done;    /* so stats are correct */
+            break;      /* no need to do another round */
+        }
+
+        n = concurrency;
+        status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        if (status != APR_SUCCESS)
+            apr_err("apr_poll", status);
+

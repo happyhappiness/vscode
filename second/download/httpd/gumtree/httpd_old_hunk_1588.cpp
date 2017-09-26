@@ -1,13 +1,13 @@
-        additional = atoi(&code[1]);
-        break;
-    default:
-        /* expecting the add_* routines to be case-hardened this 
-         * is just a reminder that module is beta
+                         r->status);
+        }
+        /* Moved the fixups of Date headers and those affected by
+         * ProxyPassReverse/etc from here to ap_proxy_read_headers
          */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "internal error: bad expires code: %s", r->filename);
-        return SERVER_ERROR;
-    };
 
-    expires = base + additional;
-    ap_snprintf(age, sizeof(age), "max-age=%d", (int) expires - (int) r->request_time);
+        if ((r->status == 401) && (conf->error_override != 0)) {
+            const char *buf;
+            const char *wa = "WWW-Authenticate";
+            if ((buf = apr_table_get(r->headers_out, wa))) {
+                apr_table_set(r->err_headers_out, wa, buf);
+            } else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

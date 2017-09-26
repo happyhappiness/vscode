@@ -1,12 +1,13 @@
-                                      "authorisation failed [%s][%s]",
-                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                                      getpid(), ldc->reason, ldap_err2string(result));
                     }
                 }
             }
         }
-    }
-
-    if (!method_restricted) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
-                      getpid());
+        else if (strcmp(w, "ldap-dn") == 0) {
+            required_ldap = 1;
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require dn: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;

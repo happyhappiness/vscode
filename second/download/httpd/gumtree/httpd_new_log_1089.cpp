@@ -1,2 +1,2 @@
-ap_register_output_filter("INCLUDES", includes_filter, includes_setup,
-                              AP_FTYPE_RESOURCE);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Remove it before continuing if it is corrupted.");

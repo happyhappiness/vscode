@@ -1,23 +1,13 @@
-        /* XXX log message */
-	return rv;
-    }
+                                  modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = NULL;
+    SSL_METHOD *method = NULL;
+    char *cp;
+    int protocol = mctx->protocol;
+    SSLSrvConfigRec *sc = mySrvConfig(s);
 
-    r->status = atoi(urlbuff);                           /* Save status line into request rec  */
-
-    rv = apr_file_gets(&urlbuff[0], urllen, dobj->hfd);               /* Read status line */
-    if (rv != APR_SUCCESS) {
-        /* XXX log message */
-	return rv;
-    }
-
-    if ((temp = strchr(&urlbuff[0], '\n')) != NULL)       /* trim off new line character */
-	*temp = '\0';              /* overlay it with the null terminator */
-
-    r->status_line = apr_pstrdup(r->pool, urlbuff);            /* Save status line into request rec  */
-
-    apr_file_close(dobj->hfd);
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "disk_cache: Served headers for URL %s",  dobj->name);
-    return APR_SUCCESS;
-}
+    /*
+     *  Create the new per-server SSL context
+     */
+    if (protocol == SSL_PROTOCOL_NONE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,

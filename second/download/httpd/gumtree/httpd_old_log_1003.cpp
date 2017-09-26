@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, NULL, "Read config: %s", buf);
+printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);

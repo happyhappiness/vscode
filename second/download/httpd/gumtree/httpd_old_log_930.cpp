@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE,
-                     0, ap_server_conf,
-                     "seg fault or similar nasty error detected "
-                     "in the parent process");
+fprintf (stderr, "Reducing via rule %d (line %d), ",
+	       ssl_expr_yyn, ssl_expr_yyrline[ssl_expr_yyn]);

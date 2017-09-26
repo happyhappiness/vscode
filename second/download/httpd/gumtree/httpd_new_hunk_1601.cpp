@@ -1,13 +1,13 @@
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    ap_listen_rec *lr;
+    parent_info_t *parent_info;
+    char *listener_shm_name;
+    int listener_num, num_listeners, slot;
+    ULONG rc;
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "httpd: #perl SSI disallowed by IncludesNoExec in %s",
-                    r->filename);
-        return DECLINED;
-    }
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
+    printf("%s \n", ap_get_server_description());
+    set_signals();
+
+    if (ap_setup_listeners(ap_server_conf) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+                     "no listening sockets available, shutting down");
+        return FALSE;

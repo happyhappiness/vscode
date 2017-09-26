@@ -1,13 +1,16 @@
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = apr_tolower(*cp);
-    }
+                }
+            }
+            if (context->accept_socket == INVALID_SOCKET) {
+                continue;
+            }
+        }
 
-    if (!*cp) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Syntax error in type map, no ':' in %s for header %s", 
-                      r->filename, header);
-        return NULL;
-    }
-
-    do {
-        ++cp;
+        err_count = 0;
+        /* Inherit the listen socket settings. Required for 
+         * shutdown() to work 
+         */
+        if (setsockopt(context->accept_socket, SOL_SOCKET,
+                       SO_UPDATE_ACCEPT_CONTEXT, (char *)&nlsd,
+                       sizeof(nlsd))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                         "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");

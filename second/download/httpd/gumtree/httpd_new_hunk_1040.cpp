@@ -1,32 +1,24 @@
-                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
-                      getpid(), st->cache_bytes);
+if (re == NULL)
+  {
+  printf("PCRE compilation failed at offset %d: %s\n", erroffset, error);
+  return 1;
+  }
 
-    return NULL;
-}
 
-static const char *util_ldap_set_cache_file(cmd_parms *cmd, void *dummy, const char *file)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-                                                  &ldap_module);
+/*************************************************************************
+* If the compilation succeeded, we call PCRE again, in order to do a     *
+* pattern match against the subject string. This does just ONE match. If *
+* further matching is needed, it will be done below.                     *
+*************************************************************************/
 
-    if (file) {
-        st->cache_file = ap_server_root_relative(st->pool, file);
-    }
-    else {
-        st->cache_file = NULL;
-    }
+rc = pcre_exec(
+  re,                   /* the compiled pattern */
+  NULL,                 /* no extra data - we didn't study the pattern */
+  subject,              /* the subject string */
+  subject_length,       /* the length of the subject */
+  0,                    /* start at offset 0 in the subject */
+  0,                    /* default options */
+  ovector,              /* output vector for substring information */
+  OVECCOUNT);           /* number of elements in the output vector */
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                 "LDAP cache: Setting shared memory cache file to %s bytes.", 
-                 st->cache_file);
-
-    return NULL;
-}
-
-static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy, const char *ttl)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-
+/* Matching failed: handle error cases */

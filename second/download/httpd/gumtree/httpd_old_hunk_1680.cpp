@@ -1,13 +1,12 @@
+        if (reclaim_one_pid(cur_extra->pid, DO_NOTHING)) {
+            AP_DEBUG_ASSERT(1 == ap_unregister_extra_mpm_process(cur_extra->pid));
+        }
+        cur_extra = next;
+    }
+}
+#endif /* AP_MPM_WANT_RECLAIM_CHILD_PROCESSES */
 
-#ifdef RELAX_HEADER_RULE
-	    if (lf)
-		*lf = '\0';
-#else
-	    if (!lf) { /* Huh? Invalid data, I think */
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers: %s", r->filename);
-		SetLastError(ERROR);	/* XXX: Find right error */
-		return FALSE;
-	    }
+#ifdef AP_MPM_WANT_WAIT_OR_TIMEOUT
 
-	    /* Get rid of \n and \r */
+/* number of calls to wait_or_timeout between writable probes */
+#ifndef INTERVAL_OF_WRITABLE_PROBES

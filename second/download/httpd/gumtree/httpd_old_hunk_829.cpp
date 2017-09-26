@@ -1,24 +1,13 @@
-	    b = apr_bucket_transient_create((char*) data_type + ate, 
-                                           headlen - ate, c->bucket_alloc);
-	    APR_BRIGADE_INSERT_TAIL(bb, b);
-            b = apr_bucket_flush_create(c->bucket_alloc);
-	    APR_BRIGADE_INSERT_TAIL(bb, b);
-	    ap_pass_brigade(cid->r->output_filters, bb);
-        }
-        return 1;
-    }
-
-    case HSE_REQ_DONE_WITH_SESSION:
-        /* Signal to resume the thread completing this request,
-         * leave it to the pool cleanup to dispose of our mutex.
+         * something...
          */
-        if (cid->completed) {
-            apr_thread_mutex_unlock(cid->completed);
+        if (*pnPassPhraseDialog == 1) {
+            apr_file_printf(writetty, "%s mod_ssl/%s (Pass Phrase Dialog)\n",
+                            AP_SERVER_BASEVERSION, MOD_SSL_VERSION);
+            apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
+            apr_file_printf(writetty, "In order to read them you have to provide us with the pass phrases.\n");
         }
-        return 1;
-
-    case HSE_REQ_MAP_URL_TO_PATH:
-    {
-        /* Map a URL to a filename */
-        char *file = (char *)buf_data;
-        apr_uint32_t len;
+        if (*pbPassPhraseDialogOnce) {
+            *pbPassPhraseDialogOnce = FALSE;
+            apr_file_printf(writetty, "\n");
+            apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
+        }

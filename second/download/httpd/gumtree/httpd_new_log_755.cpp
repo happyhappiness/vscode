@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "threads, lowering ThreadsPerChild to %d. To increase, please"
-                     " see the", thread_limit);
+ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
