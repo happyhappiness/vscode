@@ -1,16 +1,20 @@
-         apr_bucket *bucket;
  
-         rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
-                             APR_BLOCK_READ, HUGE_STRING_LEN);
-        
-         if (rv != APR_SUCCESS) {
--            return rv;
-+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-+                          "Error reading request entity data");
-+            return HTTP_INTERNAL_SERVER_ERROR;
+         /* cleanup */
+         if (cipher_list_old) {
+             sk_SSL_CIPHER_free(cipher_list_old);
          }
  
-         APR_BRIGADE_FOREACH(bucket, bb) {
-             const char *data;
-             apr_size_t len;
+-        /* tracing */
+         if (renegotiate) {
++#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
++            if (sc->cipher_server_pref == TRUE) {
++                SSL_set_options(ssl, SSL_OP_CIPHER_SERVER_PREFERENCE);
++            }
++#endif
++            /* tracing */
+             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                          "Reconfigured cipher suite will force renegotiation");
+         }
+     }
  
+     /*

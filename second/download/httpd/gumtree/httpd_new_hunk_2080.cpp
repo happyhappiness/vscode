@@ -1,65 +1,29 @@
-
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
-
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
-
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
+        conn->addr = worker->cp->addr;
+        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
+                         "proxy: unlock");
+        }
     }
     else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
+        conn->addr = worker->cp->addr;
     }
 
-    /* Add extra strings to array. */
-    n = n + 2;
+    if (err != APR_SUCCESS) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             apr_pstrcat(p, "DNS lookup failure for: ",
+                                         conn->hostname, NULL));
+    }
 
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+    /* Get the server port for the Via headers */
+    {
+        server_port = ap_get_server_port(r);
+        if (ap_is_default_port(server_port, r)) {
+            strcpy(server_portstr,"");
+        }
+        else {
+            apr_snprintf(server_portstr, server_portstr_size, ":%d",
+                         server_port);
+        }
+    }
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {

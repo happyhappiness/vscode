@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Node hard reset, now I'm %.40s", myself->name);

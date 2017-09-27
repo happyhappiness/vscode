@@ -1,15 +1,13 @@
-    ap_hard_timeout("send directory", r);
-
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
-    }
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+                rv = ap_queue_push(worker_queue, csd, ptrans);
+                if (rv) {
+                    /* trash the connection; we couldn't queue the connected
+                     * socket to a worker
+                     */
+                    apr_socket_close(csd);
+                    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(03138)
+                                 "ap_queue_push failed");
+                }
+                else {
+                    have_idle_worker = 0;
+                }
+            }

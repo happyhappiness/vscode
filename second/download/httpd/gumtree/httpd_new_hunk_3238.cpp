@@ -1,12 +1,13 @@
+    rlim_t max = 0;
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
+    *plimit = (struct rlimit *)apr_pcalloc(cmd->pool, sizeof(**plimit));
+    limit = *plimit;
+    if ((getrlimit(type, limit)) != 0)  {
+        *plimit = NULL;
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, cmd->server, APLOGNO(02172)
+                     "%s: getrlimit failed", cmd->cmd->name);
+        return;
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
 
-/*****************************************************************
+    if ((str = ap_getword_conf(cmd->pool, &arg))) {
+        if (!strcasecmp(str, "max")) {

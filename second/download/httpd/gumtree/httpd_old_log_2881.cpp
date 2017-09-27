@@ -1,0 +1,1 @@
+printf("Total POSTed:           %ld\n", totalposted);

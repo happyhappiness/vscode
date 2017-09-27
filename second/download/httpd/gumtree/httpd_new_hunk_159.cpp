@@ -1,21 +1,32 @@
-                                      conf->limit_nproc)) != APR_SUCCESS) ||
-#endif
-        ((rc = apr_procattr_cmdtype_set(procattr,
-                                        e_info->cmd_type)) != APR_SUCCESS) ||
+                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
+                      getpid(), st->cache_bytes);
 
-        ((rc = apr_procattr_detach_set(procattr,
-                                        e_info->detached)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                      "couldn't set child process attributes: %s", r->filename);
+    return NULL;
+}
+
+static const char *util_ldap_set_cache_file(cmd_parms *cmd, void *dummy, const char *file)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+                                                  &ldap_module);
+
+    if (file) {
+        st->cache_file = ap_server_root_relative(st->pool, file);
     }
     else {
-        apr_pool_userdata_set(r, ERRFN_USERDATA_KEY, apr_pool_cleanup_null, p);
+        st->cache_file = NULL;
+    }
 
-        procnew = apr_pcalloc(p, sizeof(*procnew));
-        if (e_info->prog_type == RUN_AS_SSI) {
-            SPLIT_AND_PASS_PRETAG_BUCKETS(*(e_info->bb), e_info->ctx,
-                                          e_info->next, rc);
-            if (rc != APR_SUCCESS) {
-                return rc;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                 "LDAP cache: Setting shared memory cache file to %s bytes.", 
+                 st->cache_file);
+
+    return NULL;
+}
+
+static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy, const char *ttl)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
+

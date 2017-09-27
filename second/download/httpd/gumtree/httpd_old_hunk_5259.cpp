@@ -1,16 +1,24 @@
-	else
-	    y[i] = ch + '0';
+        return apr_pstrcat(cmd->pool, "Invalid ScriptSock path",
+                           arg, NULL);
     }
-    y[8] = '\0';
-}
 
-BUFF *
-     ap_proxy_cache_error(struct cache_req *c)
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, c->req->server,
-		 "proxy: error writing to cache file %s", c->tempfile);
-    ap_pclosef(c->req->pool, c->fp->fd);
-    c->fp = NULL;
-    unlink(c->tempfile);
     return NULL;
 }
+
+static const command_rec cgid_cmds[] =
+{
+    AP_INIT_TAKE1("ScriptLog", set_scriptlog, NULL, RSRC_CONF,
+                  "the name of a log for script debugging info"),
+    AP_INIT_TAKE1("ScriptLogLength", set_scriptlog_length, NULL, RSRC_CONF,
+                  "the maximum length (in bytes) of the script debug log"),
+    AP_INIT_TAKE1("ScriptLogBuffer", set_scriptlog_buffer, NULL, RSRC_CONF,
+                  "the maximum size (in bytes) to record of a POST request"),
+    AP_INIT_TAKE1("ScriptSock", set_script_socket, NULL, RSRC_CONF,
+                  "the name of the socket to use for communication with "
+                  "the cgi daemon."),
+    {NULL}
+};
+
+static int log_scripterror(request_rec *r, cgid_server_conf * conf, int ret,
+                           apr_status_t rv, char *error)
+{

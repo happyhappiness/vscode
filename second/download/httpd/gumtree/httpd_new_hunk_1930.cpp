@@ -1,49 +1,28 @@
-	    return cond_status;
-	}
+    printf("Write errors:           %d\n", epipe);
+    if (err_response)
+        printf("Non-2xx responses:      %d\n", err_response);
+    if (keepalive)
+        printf("Keep-Alive requests:    %d\n", doneka);
+    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
+    if (send_body)
+        printf("Total body sent:        %" APR_INT64_T_FMT "\n",
+               totalposted);
+    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    /* avoid divide by zero */
+    if (timetaken && done) {
+        printf("Requests per second:    %.2f [#/sec] (mean)\n",
+               (double) done / timetaken);
+        printf("Time per request:       %.3f [ms] (mean)\n",
+               (double) concurrency * timetaken * 1000 / done);
+        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
+               (double) timetaken * 1000 / done);
+        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
+               (double) totalread / 1024 / timetaken);
+        if (send_body) {
+            printf("                        %.2f kb/s sent\n",
+               (double) totalposted / timetaken / 1024);
+            printf("                        %.2f kb/s total\n",
+               (double) (totalread + totalposted) / timetaken / 1024);
+        }
+    }

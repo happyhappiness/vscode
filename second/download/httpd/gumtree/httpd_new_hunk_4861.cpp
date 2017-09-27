@@ -1,13 +1,13 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
+        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
+                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
     }
+    if (d->head_insert != NULL) {
+        ap_rputs(d->head_insert, r);
+    }
+    ap_rputs(" </head>\n <body>\n", r);
+}
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+static void push_item(apr_array_header_t *arr, char *type, const char *to,
+                      const char *path, const char *data)
+{
+    struct item *p = (struct item *) apr_array_push(arr);

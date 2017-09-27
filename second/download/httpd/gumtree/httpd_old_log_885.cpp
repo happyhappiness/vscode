@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
-                         "SSL library error %d writing data", ssl_err);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                         c->base_server,
+                         "SSL client authentication failed: %s",
+                         error ? error : "unknown");

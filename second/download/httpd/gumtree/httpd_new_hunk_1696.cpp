@@ -1,39 +1,13 @@
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Error looking up %s in database", user);
-            return AUTH_GENERAL_ERROR;
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: prefetch request body failed to %pI (%s)"
+                         " from %s (%s)",
+                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                         c->remote_ip, c->remote_host ? c->remote_host: "");
+            return HTTP_BAD_REQUEST;
         }
-        if (dbd_password == NULL) {
-            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
 
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
-                 name = apr_dbd_get_name(dbd->driver, res, i)) {
+        apr_brigade_length(temp_brigade, 1, &bytes);
+        bytes_read += bytes;
 
-                char *str = apr_pstrcat(r->pool, AUTHN_PREFIX,
-                                        name,
-                                        NULL);
-                int j = sizeof(AUTHN_PREFIX)-1; /* string length of "AUTHENTICATE_", excluding the trailing NIL */
-                while (str[j]) {
-                    if (!apr_isalnum(str[j])) {
-                        str[j] = '_';
-                    }
-                    else {
-                        str[j] = apr_toupper(str[j]);
-                    }
-                    j++;
-                }
-                apr_table_set(r->subprocess_env, str,
-                              apr_dbd_get_entry(dbd->driver, row, i));
-                i++;
-            }
-#endif
-        }
-        /* we can't break out here or row won't get cleaned up */
-    }
-
-    if (!dbd_password) {
-        return AUTH_USER_NOT_FOUND;
+        /*

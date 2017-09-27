@@ -1,9 +1,23 @@
-/* Automatically generated file - do not edit */
+    case DO_NOTHING:
+        break;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    case SEND_SIGTERM:
+        /* ok, now it's being annoying */
+        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);
+        kill(pid, SIGTERM);
+        break;
+
+    case SEND_SIGKILL:
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGKILL",
+                     pid);
+        kill(pid, SIGKILL);
+        break;

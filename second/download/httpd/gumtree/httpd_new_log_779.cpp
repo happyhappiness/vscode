@@ -1,1 +1,0 @@
-ap_rputs("<dl><dt><tt>Loaded Modules: <br />", r);

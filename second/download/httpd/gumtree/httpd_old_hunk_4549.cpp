@@ -1,15 +1,14 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+    nghttp2_submit_shutdown_notice(session->ngh2);
+    session->local.accepting = 0;
+    status = nghttp2_session_send(session->ngh2);
+    if (status == APR_SUCCESS) {
+        status = h2_conn_io_flush(&session->io);
     }
-#endif
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03457)
+                  "session(%ld): sent shutdown notice", session->id);
+    return status;
+}
 
-    va_start(args, fmt);
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-    va_end(args);
-
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+static apr_status_t h2_session_shutdown(h2_session *session, int error, 
+                                        const char *msg, int force_close)
+{

@@ -1,12 +1,12 @@
+     * we're in better shape.
      */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+    if (!ctx) {
+        char *token;
+        const char *encoding;
 
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+        /* We have checked above that bb is not empty */
+        e = APR_BRIGADE_LAST(bb);
+        if (APR_BUCKET_IS_EOS(e)) {
+            /*
+             * If we already know the size of the response, we can skip
+             * compression on responses smaller than the compression overhead.

@@ -1,1 +1,0 @@
-addReplyError(c,"hash value is not an integer");

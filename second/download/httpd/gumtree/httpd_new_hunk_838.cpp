@@ -1,17 +1,21 @@
-}
+        foreground = ap_exists_config_define("FOREGROUND");
+    }
 
-BOOL ssl_scache_shmcb_store(server_rec *s, UCHAR *id, int idlen,
-                           time_t timeout, SSL_SESSION * pSession)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-    BOOL to_return = FALSE;
+    /* sigh, want this only the second time around */
+    if (restart_num++ == 1) {
+        is_graceful = 0;
 
-    ssl_mutex_on(s);
-    if (!shmcb_store_session(s, mc->tSessionCacheDataTable, id, idlen,
-                             pSession, timeout))
-        /* in this cache engine, "stores" should never fail. */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "'shmcb' code was unable to store a "
-                     "session in the cache.");
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+        if (!one_process && !foreground) {
+            rv = apr_proc_detach(no_detach ? APR_PROC_DETACH_FOREGROUND
+                                           : APR_PROC_DETACH_DAEMONIZE);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                             "apr_proc_detach failed");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+
+        server_pid = getpid();
+    }
+
+    beosd_pre_config();

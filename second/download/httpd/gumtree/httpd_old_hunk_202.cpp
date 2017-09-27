@@ -1,13 +1,12 @@
-	if (bar != NULL)
-	    printf("%s %s\n", hoststring, bar + 1);
-	else
-	    puts(hoststring);
+         */
+        new->real = r;
     }
+    new->fake = f;
+    new->handler = cmd->info;
 
-#ifdef WIN32
-     WSACleanup();
-#endif
+    return NULL;
+}
 
-    if (statfile != NULL) {
-	FILE *fp;
-	fp = fopen(statfile, "w");
+static const char *add_alias(cmd_parms *cmd, void *dummy, const char *f,
+                             const char *r)
+{

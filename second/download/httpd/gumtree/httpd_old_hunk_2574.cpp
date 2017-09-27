@@ -1,104 +1,30 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-		ap_send_size(ar[x]->size, r);
-		ap_rputs("  ", r);
-	    }
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-		if (ar[x]->desc) {
-		    ap_rputs(terminate_description(d, ar[x]->desc, autoindex_opts), r);
-		}
-	    }
-	}
-	else
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-	ap_rputc('\n', r);
-    }
-    if (autoindex_opts & FANCY_INDEXING) {
-	ap_rputs("</PRE>", r);
-    }
-    else {
-	ap_rputs("</UL>", r);
-    }
-}
 
 
-static int dsortf(struct ent **e1, struct ent **e2)
-{
-    char *s1;
-    char *s2;
-    char *s3;
-    int result;
+    /* TODO: Update stats file (!) */
+    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, pool);
 
-    /*
-     * Choose the right values for the sort keys.
-     */
-    switch ((*e1)->key) {
-    case K_LAST_MOD:
-	s1 = (*e1)->lm_cmp;
-	s2 = (*e2)->lm_cmp;
-	break;
-    case K_SIZE:
-	s1 = (*e1)->size_cmp;
-	s2 = (*e2)->size_cmp;
-	break;
-    case K_DESC:
-	s1 = (*e1)->desc;
-	s2 = (*e2)->desc;
-	break;
-    case K_NAME:
-    default:
-	s1 = (*e1)->name;
-	s2 = (*e2)->name;
-	break;
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to open tmp file: %s", path);
+        return rv;
     }
-    /*
-     * If we're supposed to sort in DEscending order, reverse the arguments.
-     */
-    if (!(*e1)->ascending) {
-	s3 = s1;
-	s1 = s2;
-	s2 = s3;
-    }
+    rv = apr_file_open(&fpin, ctx->storage_path, APR_READ|APR_BINARY|APR_BUFFERED,
+                       APR_OS_DEFAULT, pool);
 
-    /*
-     * Take some care, here, in case one string or the other (or both) is
-     * NULL.
-     */
+    now = apr_time_now();
+    if (rv == APR_SUCCESS) {
+        char *t;
+        apr_table_t *hbt = apr_table_make(pool, 10);
+        apr_bucket_alloc_t *ba = apr_bucket_alloc_create(pool);
+        apr_bucket_brigade *bb = apr_brigade_create(pool, ba);
+        apr_bucket_brigade *tmpbb = apr_brigade_create(pool, ba);
+        rv = apr_file_info_get(&fi, APR_FINFO_SIZE | APR_FINFO_MTIME, fpin);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                         "Heartmonitor: Unable to read file: %s", ctx->storage_path);
+            return rv;
+        }
 
-    /*
-     * Two valid strings, compare normally.
-     */
-    if ((s1 != NULL) && (s2 != NULL)) {
-	result = strcmp(s1, s2);
-    }
-    /*
-     * Two NULL strings - primary keys are equal (fake it).
-     */
-    else if ((s1 == NULL) && (s2 == NULL)) {
-	result = 0;
-    }
-    /*
-     * s1 is NULL, but s2 is a string - so s2 wins.
-     */
-    else if (s1 == NULL) {
-	result = -1;
-    }
-    /*
-     * Last case: s1 is a string and s2 is NULL, so s1 wins.
-     */
-    else {
-	result = 1;
-    }
-    /*
-     * If the keys were equal, the file name is *always* the secondary key -
-     * in ascending order.
-     */
-    if (!result) {
-	result = strcmp((*e1)->name, (*e2)->name);
-    }
-    return result;
-}
-
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
-{
-    char *title_name = ap_escape_html(r->pool, r->uri);
+        /* Read the file and update the line corresponding to the node */
+        ba = apr_bucket_alloc_create(pool);
+        bb = apr_brigade_create(pool, ba);

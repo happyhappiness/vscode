@@ -1,30 +1,20 @@
-
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-	ap_cfg_closefile(f);
-
-	if (errmsg) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r, "%s: %s",
-                        filename, errmsg);
-	    ap_table_setn(r->notes, "error-notes", errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*result = dc;
-    }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    ap_table_setn(r->notes, "error-notes",
-			  "Server unable to read htaccess file, denying "
-			  "access to be safe");
-	    return HTTP_FORBIDDEN;
-	}
+             * Transfer-Encoding overrides the Content-Length. ... A sender
+             * MUST remove the received Content-Length field".
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+        }
     }
 
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+    apr_brigade_destroy(tmp_bb);
+
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
+     */
+    ap_update_vhost_from_headers(r);
+    access_status = r->status;
+
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);

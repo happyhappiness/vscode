@@ -1,25 +1,14 @@
-                     APR_BRIGADE_INSERT_TAIL(bb, e);
-                 }
-                 else {
-                     APR_BUCKET_INSERT_BEFORE(eos, e);
-                 }
-                 ap_pass_brigade(r->output_filters, bb);
-+                /* Mark the backend connection for closing */
-+                backend->close = 1;
-                 /* Need to return OK to avoid sending an error message */
-                 return OK;
-             }
-             else if (!c->keepalives) {
-                      ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                    "proxy: NOT Closing connection to client"
--                                   " although reading from backend server %s"
--                                   " failed.", backend->hostname);
-+                                   " although reading from backend server %s:%d"
-+                                   " failed.", backend->hostname,
-+                                   backend->port);
-             }
-             return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                                  "Error reading from remote server");
-         }
-         /* XXX: Is this a real headers length send from remote? */
-         backend->worker->s->read += len;
+         ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      "WARNING: Require ThreadLimit > 0, setting to 1");
+         thread_limit = 1;
+     }
+     return NULL;
+ }
+-static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy, char *arg)
++static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy)
+ {
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+     if (err != NULL) {
+         return err;
+     }
+     if (use_acceptex) {

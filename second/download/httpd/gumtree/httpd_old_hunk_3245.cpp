@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+         * let it set a note to allow it explicitly.
+         * Otherwise, a return code that is neither reserved nor HTTP
+         * is a bug, as in PR#31759.
+         */
+        ignore = apr_table_get(r->notes, "HTTP_IGNORE_RANGE");
+        if (!ignore) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Handler for %s returned invalid result code %d",
+                          r->handler, result);
+            result = HTTP_INTERNAL_SERVER_ERROR;
         }
-
-        r->read_chunked = 1;
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }

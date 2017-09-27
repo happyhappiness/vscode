@@ -1,2 +1,2 @@
-fprintf(stderr,
-                "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv[0]);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges larger than file, ignoring.");

@@ -1,13 +1,27 @@
+        }
+        else if (content_length > 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: read zero bytes, expecting"
+                         " %" APR_OFF_T_FMT " bytes",
+                         content_length);
+            status = ajp_send_data_msg(conn->sock, msg, 0);
+            if (status != APR_SUCCESS) {
+                /* We had a failure: Close connection to backend */
+                conn->close++;
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                            "proxy: send failed to %pI (%s)",
+                            conn->worker->cp->addr,
+                            conn->worker->hostname);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            else {
+                /* Client send zero bytes with C-L > 0
+                 */
+                return HTTP_BAD_REQUEST;
+            }
+        }
     }
 
-    /* Was this the final bucket? If yes, close the temp file and perform
-     * sanity checks.
-     */
-    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-        if (r->connection->aborted) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "disk_cache: Discarding body for URL %s "
-                         "because connection has been aborted.",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
+    /* read the response */
+    conn->data = NULL;
+    status = ajp_read_header(conn->sock, r, maxsize,

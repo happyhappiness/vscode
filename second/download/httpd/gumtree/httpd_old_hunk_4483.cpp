@@ -1,16 +1,14 @@
-#define APLOG_MARK	__FILE__,__LINE__
-
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
-
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+                     *    because the client disconnected)
+                     * 2) there is VPN or Firewall software installed with
+                     *    buggy WSAAccept or WSADuplicateSocket implementation
+                     * 3) the dynamic address / adapter has changed
+                     * Give five chances, then fall back on AcceptFilter 'none'
+                     */
+                    if (accf == 2)
+                        apr_bucket_free(buf);
+                    closesocket(context->accept_socket);
+                    context->accept_socket = INVALID_SOCKET;
+                    ++err_count;
+                    if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00337)
+                                     "Child: Encountered too many AcceptEx "

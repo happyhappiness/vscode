@@ -1,13 +1,32 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+} rl_state_e;
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+typedef struct rl_ctx_t
+{
+    int speed;
+    int chunk_size;
+    int burst;
+    rl_state_e state;
+    apr_bucket_brigade *tmpbb;
+    apr_bucket_brigade *holdingbb;
+} rl_ctx_t;
+
+#if defined(RLFDEBUG)
+static void brigade_dump(request_rec *r, apr_bucket_brigade *bb)
+{
+    apr_bucket *e;
+    int i = 0;
+
+    for (e = APR_BRIGADE_FIRST(bb);
+         e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e), i++) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03193)
+                      "brigade: [%d] %s", i, e->type->name);
+
+    }
+}
+#endif /* RLFDEBUG */
+
+static apr_status_t
+rate_limit_filter(ap_filter_t *f, apr_bucket_brigade *input_bb)
+{
+    apr_status_t rv = APR_SUCCESS;
+    rl_ctx_t *ctx = f->ctx;

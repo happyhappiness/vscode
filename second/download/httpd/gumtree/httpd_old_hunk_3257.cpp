@@ -1,40 +1,73 @@
-	return;
+}
+
+static const char *set_access_name(cmd_parms *cmd, void *dummy,
+                                   const char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    conf->access_name = apr_pstrdup(cmd->pool, arg);
+    return NULL;
 }
 
 
-static void help_proxy_garbage_coll(request_rec *r)
+static const char *set_define(cmd_parms *cmd, void *dummy,
+                              const char *optarg)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+    if (!ap_exists_config_define(optarg)) {
+        char **newv = (char **)apr_array_push(ap_server_config_defines);
+        *newv = apr_pstrdup(cmd->pool, optarg);
+    }
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
+    return NULL;
+}
 
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+static const char *unset_define(cmd_parms *cmd, void *dummy,
+                                const char *optarg)
+{
+    int i;
+    char **defines;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    defines = (char **)ap_server_config_defines->elts;
+    for (i = 0; i < ap_server_config_defines->nelts; i++) {
+        if (strcmp(defines[i], optarg) == 0) {
+            defines[i] = apr_array_pop(ap_server_config_defines);
+            break;
+        }
+    }
+
+    return NULL;
+}
+
+#ifdef GPROF
+static const char *set_gprof_dir(cmd_parms *cmd, void *dummy, const char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
+    }
+
+    conf->gprof_dir = apr_pstrdup(cmd->pool, arg);
+    return NULL;
+}
+#endif /*GPROF*/
+
+static const char *set_add_default_charset(cmd_parms *cmd,
+                                           void *d_, const char *arg)

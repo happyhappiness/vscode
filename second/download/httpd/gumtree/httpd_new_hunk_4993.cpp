@@ -1,13 +1,25 @@
+        s = s->next;
+    }
+}
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
+/*
+ * This routine is called before the server processes the configuration
+ * files.
+ */
+static int proxy_pre_config(apr_pool_t *pconf, apr_pool_t *plog,
+                            apr_pool_t *ptemp)
+{
+    apr_status_t rv = ap_mutex_register(pconf, proxy_id, NULL,
+            APR_LOCK_DEFAULT, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02480)
+                "failed to register %s mutex", proxy_id);
+        return 500; /* An HTTP status would be a misnomer! */
+    }
 
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+    APR_OPTIONAL_HOOK(ap, status_hook, proxy_status_hook, NULL, NULL,
+                      APR_HOOK_MIDDLE);
+    /* Reset workers count on gracefull restart */
+    proxy_lb_workers = 0;
+    return OK;
+}

@@ -1,17 +1,15 @@
+             /* The status out of the front is the same as the status coming in
+              * from the back, until further notice.
+              */
+             r->status = proxy_status;
+             r->status_line = proxy_status_line;
  
-             dobj->tfd = NULL;
++            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
++                          "Status from backend: %d", proxy_status);
++
+             /* read the headers. */
+             /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+             /* Also, take care with headers with multiple occurences. */
  
-             rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile,
-                                   r->pool);
-             if (rv != APR_SUCCESS) {
--                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-+                ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-                     "disk_cache: rename tempfile to varyfile failed: %s -> %s",
-                     dobj->tempfile, dobj->hdrsfile);
-+                apr_file_remove(dobj->tempfile, r->pool);
-                 return rv;
-             }
- 
-             dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
-             tmp = regen_key(r->pool, r->headers_in, varray, dobj->name);
-             dobj->prefix = dobj->hdrsfile;
+             /* First, tuck away all already existing cookies */
+             save_table = apr_table_make(r->pool, 2);

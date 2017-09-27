@@ -1,18 +1,24 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+        retained = ap_retained_data_create(userdata_key, sizeof(*retained));
+        retained->max_daemons_limit = -1;
+        retained->idle_spawn_rate = 1;
+    }
+    ++retained->module_loads;
+    if (retained->module_loads == 2) {
+        int i;
+        static apr_uint32_t foo = 0;
 
-	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
-	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
-	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
-
-	pid = (*func) (data, &info);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
-++ apache_1.3.2/src/main/buff.c	1998-09-05 00:47:46.000000000 +0800
+        apr_atomic_inc32(&foo);
+        apr_atomic_dec32(&foo);
+        apr_atomic_dec32(&foo);
+        i = apr_atomic_dec32(&foo);
+        if (i >= 0) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        rv = apr_pollset_create(&event_pollset, 1, plog,
+                                APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)
+                         "Couldn't create a Thread Safe Pollset. "
+                         "Is it supported on your platform?"

@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+    debug(fprintf(stderr, "macro_section: location=%s\n", macro->location));
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+    where =
+        apr_psprintf(pool, "macro '%s' (%s)", macro->name, macro->location);
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+    if (looks_like_an_argument(name)) {
+        ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                     "%s better prefix a macro name with any of '%s'",
+                     where, ARG_PREFIX);
+    }
+
+    /* get macro parameters */
+    macro->arguments = get_arguments(pool, arg);

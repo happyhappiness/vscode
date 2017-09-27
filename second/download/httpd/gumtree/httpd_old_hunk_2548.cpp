@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+    /*
+     * make sure the expired records are omitted
+     */
+    now = apr_time_now();
+    if ((rv = apr_dbm_open(&dbm, ctx->data_file, APR_DBM_RWCREATE,
+                           DBM_FILE_MODE, ctx->pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot open socache DBM file `%s' for "
+                     "iterating", ctx->data_file);
+        return rv;
     }
-    else {
+    rv = apr_dbm_firstkey(dbm, &dbmkey);
+    while (rv == APR_SUCCESS && dbmkey.dptr != NULL) {

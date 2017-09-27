@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		"%s configured -- resuming normal operations",
+		ap_get_server_version());

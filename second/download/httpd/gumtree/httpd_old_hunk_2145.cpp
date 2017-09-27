@@ -1,22 +1,33 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                 * which may be confusing.
+                 */
+                if (found && strcmp(found, ent[i].real)) {
+                    found = apr_pstrcat(r->pool, "proxy:", found, NULL);
+                }
+                else {
+                    found = apr_pstrcat(r->pool, "proxy:", ent[i].real, r->uri,
+                                        NULL);
+                }
+            }
+        }
+        else {
+            len = alias_match(r->uri, ent[i].fake);
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+            if (len > 0) {
+                if ((ent[i].real[0] == '!') && (ent[i].real[1] == '\0')) {
+                    return DECLINED;
+                }
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
+                found = apr_pstrcat(r->pool, "proxy:", ent[i].real,
+                                    r->uri + len, NULL);
+            }
+        }
+        if (found) {
+            r->filename = found;
+            r->handler = "proxy-server";
+            r->proxyreq = PROXYREQ_REVERSE;
+            return OK;
+        }
     }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    return DECLINED;
+}
+

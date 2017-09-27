@@ -1,13 +1,13 @@
+            return 1;
+        }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "ISAPI: ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
-                                        (request_rec *) NULL);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
-    return 0;
-}
-
-
-static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
-{
-    int i;
+    case HSE_REQ_TRANSMIT_FILE:
+    {
+        /* we do nothing with (tf->dwFlags & HSE_DISCONNECT_AFTER_SEND)
+         */

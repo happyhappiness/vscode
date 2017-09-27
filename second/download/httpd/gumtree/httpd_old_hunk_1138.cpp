@@ -1,13 +1,19 @@
+                    ((peercert = SSL_get_peer_certificate(ssl)) != NULL))
+                {
+                    renegotiate_quick = TRUE;
+                    X509_free(peercert);
+                }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-           "ajp_unmarshal_response: status = %d", status);
-
-    rc = ajp_msg_get_uint16(msg, &num_headers);
-    if (rc == APR_SUCCESS) {
-        r->headers_out = apr_table_make(r->pool, num_headers);
-    } else {
-        r->headers_out = NULL;
-        num_headers = 0;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "Changed client verification type will force "
+                             "%srenegotiation",
+                             renegotiate_quick ? "quick " : "");
+             }
+        }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+    /*
+     * override SSLCACertificateFile & SSLCACertificatePath
+     * This is only enabled if the SSL_set_cert_store() function
+     * is available in the ssl library.  the 1.x based mod_ssl

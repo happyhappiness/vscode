@@ -1,50 +1,82 @@
-        return errstatus;
+            r->server = s;
+            return;
+        }
+    }
+}
+
+static APR_INLINE const char *construct_host_header(request_rec *r,
+                                                    int is_v6literal)
+{
+    struct iovec iov[5];
+    apr_size_t nvec = 0;
+    /*
+     * We cannot use ap_get_server_name/port here, because we must
+     * ignore UseCanonicalName/Port.
+     */
+    if (is_v6literal) {
+        iov[nvec].iov_base = "[";
+        iov[nvec].iov_len = 1;
+        nvec++;
+    }
+    iov[nvec].iov_base = (void *)r->hostname;
+    iov[nvec].iov_len = strlen(r->hostname);
+    nvec++;
+    if (is_v6literal) {
+        iov[nvec].iov_base = "]";
+        iov[nvec].iov_len = 1;
+        nvec++;
+    }
+    if (r->parsed_uri.port_str) {
+        iov[nvec].iov_base = ":";
+        iov[nvec].iov_len = 1;
+        nvec++;
+        iov[nvec].iov_base = r->parsed_uri.port_str;
+        iov[nvec].iov_len = strlen(r->parsed_uri.port_str);
+        nvec++;
+    }
+    return apr_pstrcatv(r->pool, iov, nvec, NULL);
+}
+
+AP_DECLARE(void) ap_update_vhost_from_headers(request_rec *r)
+{
+    core_server_config *conf = ap_get_core_module_config(r->server->module_config);
+    const char *host_header = apr_table_get(r->headers_in, "Host");
+    int is_v6literal = 0;
+    int have_hostname_from_url = 0;
+
+    if (r->hostname) {
+        /*
+         * If there was a host part in the Request-URI, ignore the 'Host'
+         * header.
+         */
+        have_hostname_from_url = 1;
+        is_v6literal = fix_hostname(r, NULL, conf->http_conformance);
+    }
+    else if (host_header != NULL) {
+        is_v6literal = fix_hostname(r, host_header, conf->http_conformance);
+    }
+    if (r->status != HTTP_OK)
+        return;
+
+    if (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE) {
+        /*
+         * If we have both hostname from an absoluteURI and a Host header,
+         * we must ignore the Host header (RFC 2616 5.2).
+         * To enforce this, we reset the Host header to the value from the
+         * request line.
+         */
+        if (have_hostname_from_url && host_header != NULL) {
+            const char *repl = construct_host_header(r, is_v6literal);
+            apr_table_set(r->headers_in, "Host", repl);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02417)
+                          "Replacing host header '%s' with host '%s' given "
+                          "in the request uri", host_header, repl);
+        }
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-    if (r->method_number == M_INVALID) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	char *emsg;
-
-	emsg = "File does not exist: ";
-	if (r->path_info == NULL) {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, NULL);
-	}
-	else {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
-	ap_table_setn(r->notes, "error-notes", emsg);
-	return HTTP_NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(OS2) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
-
-    if (f == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+    /* check if we tucked away a name_chain */
+    if (r->connection->vhost_lookup_data) {
+        if (r->hostname)
+            check_hostalias(r);
+        else
+            check_serverpath(r);

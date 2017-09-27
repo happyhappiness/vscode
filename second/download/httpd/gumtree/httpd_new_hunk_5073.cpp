@@ -1,13 +1,13 @@
-            if (!res) {
-                res = file_walk(rnew);
-            }
-        }
-        else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+    apr_int32_t pollcnt, pi;
+    apr_int16_t pollevent;
+    apr_sockaddr_t *nexthop;
+
+    apr_uri_t uri;
+    const char *connectname;
+    apr_port_t connectport = 0;
+
+    /* is this for us? */
+    if (r->method_number != M_CONNECT) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "declining URL %s", url);
+        return DECLINED;
+    }

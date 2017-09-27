@@ -1,12 +1,41 @@
-        /* Set the alias dereferencing option */
-        ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &(ldc->deref));
 
-        /* always default to LDAP V3 */
-        ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+            if (rc == 0)
+                thefile->bufpos = 0;
+        }
 
+        return rc;
+    } else {
+        FlushFileBuffers(thefile->filehand);
+        return APR_SUCCESS;
     }
+}
+
+static int printf_flush(apr_vformatter_buff_t *vbuff)
+{
+    /* I would love to print this stuff out to the file, but I will
+     * get that working later.  :)  For now, just return.
+     */
+    return -1;
+}
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    int cc;
+    va_list ap;
+    char *buf;
+    int len;
+
+    buf = malloc(HUGE_STRING_LEN);
+    if (buf == NULL) {
+        return 0;
+    }
+    va_start(ap, format);
+    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
+    cc = apr_file_puts(buf, fptr);
+    va_end(ap);
+    free(buf);
+    return (cc == APR_SUCCESS) ? len : -1;
+}
 
 
-    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
-     * returned.  Break out of the loop on Success or any other error.
-     *

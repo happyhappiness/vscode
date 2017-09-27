@@ -1,17 +1,18 @@
+     reqlen = strlen(request);
  
-     if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
- 	fprintf(stderr, "%s: invalid URL\n", argv[0]);
- 	usage(argv[0]);
+     /*
+      * Combine headers and (optional) post file into one contineous buffer
+      */
+     if (posting == 1) {
+-	char *buff = (char *) malloc(postlen + reqlen + 1);
++	char *buff = malloc(postlen + reqlen + 1);
++        if (!buff) {
++            fprintf(stderr, "error creating request buffer: out of memory\n");
++            return;
++        }
+ 	strcpy(buff, request);
+ 	strcpy(buff + reqlen, postdata);
+ 	request = buff;
      }
  
-+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
-+       fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
-+                argv[0], MAX_CONCURRENCY);
-+        usage(argv[0]);
-+    }
- 
-     if ((heartbeatres) && (requests > 150)) {
- 	heartbeatres = requests / 10;	/* Print line every 10% of requests */
- 	if (heartbeatres < 100)
- 	    heartbeatres = 100;	/* but never more often than once every 100
- 				 * connections. */
+ #ifdef NOT_ASCII

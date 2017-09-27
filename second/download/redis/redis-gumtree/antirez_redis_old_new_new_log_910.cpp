@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Short read or OOM loading DB. Unrecoverable error, aborting now.");

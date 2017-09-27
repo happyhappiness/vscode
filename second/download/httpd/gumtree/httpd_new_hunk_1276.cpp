@@ -1,19 +1,13 @@
-{
-    struct termios attr;
-    static char password[MAX_STRING_LEN];
-    int n=0;
-    fputs(prompt, stderr);
-    fflush(stderr);
+        }
+        rc = GetQueuedCompletionStatus(ThreadDispatchIOCP, &BytesRead, &CompKey,
+                                       &pol, INFINITE);
+        if (!rc) {
+            rc = apr_get_os_error();
+            ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
+                             "Child %lu: GetQueuedComplationStatus returned %d", my_pid, rc);
+            continue;
+        }
 
-    if (tcgetattr(STDIN_FILENO, &attr) != 0)
-        return NULL;
-    attr.c_lflag &= ~(ECHO);
-
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
-        return NULL;
-    while ((password[n] = getchar()) != '\n') {
-        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
-            n++;
-        } else {
-            fprintf(stderr,"\n");
-            fputs(prompt, stderr);
+        switch (CompKey) {
+        case IOCP_CONNECTION_ACCEPTED:
+            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);

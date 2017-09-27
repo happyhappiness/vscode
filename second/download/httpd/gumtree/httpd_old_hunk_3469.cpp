@@ -1,26 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+        if (status == APEXIT_CHILDSICK) {
+            return status;
         }
-    }
 
-    /* Pass two --- wildcard matches */
+        if (status == APEXIT_CHILDFATAL) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT,
+                         0, ap_server_conf,
+                         "Child %" APR_PID_T_FMT
+                         " returned a Fatal error... Apache is exiting!",
+                         pid->pid);
+            return APEXIT_CHILDFATAL;
+        }
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd [-cmdps] passwordfile username\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Invalid mod_include state during file %s", r->filename);

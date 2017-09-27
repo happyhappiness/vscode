@@ -1,0 +1,1 @@
+fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);

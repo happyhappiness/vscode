@@ -1,26 +1,21 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+        s->error_log = NULL;
+    }
+#endif
+    else {
+        fname = ap_server_root_relative(p, s->error_fname);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
+                         "%s: Invalid error log path %s.",
+                         ap_server_argv0, s->error_fname);
+            return DONE;
+        }
+        if ((rc = apr_file_open(&s->error_log, fname,
+                               APR_APPEND | APR_WRITE | APR_CREATE | APR_LARGEFILE,
+                               APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "%s: could not open error log file %s.",
+                         ap_server_argv0, fname);
+            return DONE;
+        }
+    }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

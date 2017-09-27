@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.8 $");
+apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
+                    "password\n\n");

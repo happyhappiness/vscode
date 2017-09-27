@@ -1,0 +1,1 @@
+ap_rputs("\"<b><code>.</code></b>\" Open slot with no current process</p>\n", r);

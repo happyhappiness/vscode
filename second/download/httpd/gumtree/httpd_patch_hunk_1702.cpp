@@ -1,14 +1,14 @@
- {
-     r->status = status;
+             if (te && !apr_table_get(rp->headers_in, "Transfer-Encoding")) {
+                 apr_table_add(rp->headers_in, "Transfer-Encoding", te);
+             }
  
-     /* ### I really don't think this is needed; gotta test */
-     r->status_line = ap_get_status_line(status);
+             apr_table_unset(r->headers_out,"Transfer-Encoding");
  
--    ap_set_content_type(r, "text/html");
-+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++            ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                          "proxy: start body send");
  
-     /* begin the response now... */
-     ap_rvputs(r,
-               DAV_RESPONSE_BODY_1,
-               r->status_line,
-               DAV_RESPONSE_BODY_2,
+             /*
+              * if we are overriding the errors, we can't put the content
+              * of the page into the brigade
+              */

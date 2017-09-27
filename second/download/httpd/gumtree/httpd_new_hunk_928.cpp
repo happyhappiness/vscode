@@ -1,38 +1,53 @@
-        c = ap_run_create_connection(context->ptrans, ap_server_conf,
-                                     context->sock, thread_num, sbh,
-                                     context->ba);
-
-        if (c) {
-            ap_process_connection(c, context->sock);
-            apr_socket_opt_get(context->sock, APR_SO_DISCONNECTED,
-                               &disconnected);
-            if (!disconnected) {
-                context->accept_socket = INVALID_SOCKET;
-                ap_lingering_close(c);
-            }
-            else if (!use_acceptex) {
-                /* If the socket is disconnected but we are not using acceptex,
-                 * we cannot reuse the socket. Disconnected sockets are removed
-                 * from the apr_socket_t struct by apr_sendfile() to prevent the
-                 * socket descriptor from being inadvertently closed by a call
-                 * to apr_socket_close(), so close it directly.
-                 */
-                closesocket(context->accept_socket);
-                context->accept_socket = INVALID_SOCKET;
-            }
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
+             */
+            sick_child_detected = 0;
         }
         else {
-            /* ap_run_create_connection closes the socket on failure */
-            context->accept_socket = INVALID_SOCKET;
+            /* looks like a basket case.  give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
         }
     }
 
-    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD,
-                                        (request_rec *) NULL);
+    ap_max_daemons_limit = last_non_dead + 1;
 
-    return 0;
-}
+    if (idle_thread_count > max_spare_threads) {
+        /* Kill off one child */
+        ap_mpm_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;
+    }
+    else if (idle_thread_count < min_spare_threads) {
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* only report this condition once */
+            static int reported = 0;
 
-
-static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
-{
+            if (!reported) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             ap_server_conf,
+                             "server reached MaxClients setting, consider"
+                             " raising the MaxClients setting");
+                reported = 1;
+            }
+            idle_spawn_rate = 1;
+        }
+        else {
+            if (free_length > idle_spawn_rate) {
+                free_length = idle_spawn_rate;
+            }
+            if (idle_spawn_rate >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,

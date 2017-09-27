@@ -1,1 +1,1 @@
-ap_rputs(" -D BIG_SECURITY_HOLE\n", r);
+ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);

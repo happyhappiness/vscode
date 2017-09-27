@@ -1,17 +1,20 @@
+                /* this cannot happen if end_token contains '>' */
+                if (endp == NULL) {
+                  return "end directive missing closing '>'";
+                }
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
+                warn_if_non_blank(
+                    APLOGNO(02794) "non blank chars found after directive closing",
+                    endp+1, config_file);
 
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+                macro_nesting--;
+                if (!macro_nesting) {
+                    if (any_nesting) {
+                        ap_log_error(APLOG_MARK,
+                                     APLOG_WARNING, 0, NULL, APLOGNO(02795)
+                                     "bad cumulated nesting (%+d) in %s",
+                                     any_nesting, where);
+                    }
+                    *plines = lines;
+                    return NULL;
+                }

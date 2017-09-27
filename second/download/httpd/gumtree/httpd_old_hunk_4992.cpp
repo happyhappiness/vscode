@@ -1,13 +1,12 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
-    }
-#elif defined(__EMX__)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+}
+
+static void child_init(apr_pool_t *p, server_rec *s)
+{
+    proxy_worker *reverse = NULL;
+
+    /* TODO */
+    while (s) {
+        void *sconf = s->module_config;
+        proxy_server_conf *conf;
+        proxy_worker *worker;
+        int i;

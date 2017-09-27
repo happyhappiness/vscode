@@ -1,13 +1,42 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+                            APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "%s: could not open error log file %s.",
+                     ap_server_argv0, fname);
+        return rc;
     }
+    if (!stderr_pool) {
+        /* This is safe provided we revert it when we are finished.
+         * We don't manager the callers pool!
+         */
+        stderr_pool = p;
+    }
+    if ((rc = apr_file_open_stderr(&stderr_log, stderr_pool)) 
+            == APR_SUCCESS) {
+        apr_file_flush(stderr_log);
+        if ((rc = apr_file_dup2(stderr_log, stderr_file, stderr_pool)) 
+                == APR_SUCCESS) {
+            apr_file_close(stderr_file);
+            /*
+             * You might ponder why stderr_pool should survive?
+             * The trouble is, stderr_pool may have s_main->error_log,
+             * so we aren't in a position to destory stderr_pool until
+             * the next recycle.  There's also an apparent bug which 
+             * is not; if some folk decided to call this function before 
+             * the core open error logs hook, this pool won't survive.
+             * Neither does the stderr logger, so this isn't a problem.
+             */
+        }
+    }
+    /* Revert, see above */
+    if (stderr_pool == p)
+        stderr_pool = NULL;
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error log file");
+    }
+    return rc;
+}
+
+static void log_child_errfn(apr_pool_t *pool, apr_status_t err,
+                            const char *description)

@@ -1,12 +1,13 @@
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
-    }
-}
+                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");
+        return 1;
+   }
+#endif
 
-#ifndef OPENSSL_NO_TLSEXT
-/*
- * This callback function is executed when OpenSSL encounters an extended
- * client hello with a server name indication extension ("SNI", cf. RFC 4366).
- */
-int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
+    while (!shutdown_in_progress) {
+        if (!context) {
+            context = mpm_get_completion_context();
+            if (!context) {
+                /* Temporary resource constraint? */
+                Sleep(0);

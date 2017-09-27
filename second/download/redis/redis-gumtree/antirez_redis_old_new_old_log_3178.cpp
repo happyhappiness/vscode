@@ -1,1 +1,0 @@
-printf("Not found: %p\n", (void*)o);

@@ -1,15 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
+    client_list->table[bucket] = entry;
+    client_list->num_created++;
+    client_list->num_entries++;
 
-	i = read(fd, line, 26);
+    apr_global_mutex_unlock(client_lock);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01768)
+                 "allocated new client %lu", key);
+
+    return entry;
+}
+
+

@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation create empty logs:  %12s\n", config->create_empty ? "yes" : "no");

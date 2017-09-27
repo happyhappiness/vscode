@@ -1,13 +1,14 @@
-         (dhparams = ssl_dh_GetParamFromFile(mctx->pks->cert_files[0]))) {
-         SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
-         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                      "Custom DH parameters (%d bits) for %s loaded from %s",
-                      BN_num_bits(dhparams->p), vhost_id,
-                      mctx->pks->cert_files[0]);
-+        DH_free(dhparams);
+             }
+         }
+     }
+     if (!interpreter) {
+         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                       "%s is not executable; ensure interpreted scripts have "
+-                      "\"#!\" or \"'!\" first line", *cmd);
++                      "\"#!\" first line", *cmd);
+         return APR_EBADF;
      }
  
- #ifndef OPENSSL_NO_EC
-     /*
-      * Similarly, try to read the ECDH curve name from SSLCertificateFile...
-      */
+     *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                        args)->elts);
+     *cmd = (*argv)[0];

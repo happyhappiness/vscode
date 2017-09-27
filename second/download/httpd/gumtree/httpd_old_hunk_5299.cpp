@@ -1,13 +1,35 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
+                 proxy_function, worker->s->hostname);
+
+    (*conn)->worker = worker;
+    (*conn)->close  = 0;
+    (*conn)->inreslist = 0;
+
+    if (*worker->s->uds_path) {
+        if ((*conn)->uds_path == NULL) {
+            /* use (*conn)->pool instead of worker->cp->pool to match lifetime */
+            (*conn)->uds_path = apr_pstrdup((*conn)->pool, worker->s->uds_path);
+        }
+        if ((*conn)->uds_path) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02545)
+                         "%s: has determined UDS as %s",
+                         proxy_function, (*conn)->uds_path);
+        }
+        else {
+            /* should never happen */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02546)
+                         "%s: cannot determine UDS (%s)",
+                         proxy_function, worker->s->uds_path);
+
+        }
     }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
+    else {
+        (*conn)->uds_path = NULL;
+    }
+
+
+    return OK;
 }
+
+PROXY_DECLARE(int) ap_proxy_release_connection(const char *proxy_function,
+                                               proxy_conn_rec *conn,
+                                               server_rec *s)

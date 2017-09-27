@@ -1,1 +1,0 @@
-clusterSaveConfigOrDie(fsync);

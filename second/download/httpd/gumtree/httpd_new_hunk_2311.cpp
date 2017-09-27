@@ -1,65 +1,25 @@
-
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
-
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
-
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    }
-    else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
+     */
+    AP_PROCESS_REQUEST_ENTRY((uintptr_t)r, r->uri);
+    if (ap_extended_status) {
+        ap_time_process_request(r->connection->sbh, START_PREQUEST);
     }
 
-    /* Add extra strings to array. */
-    n = n + 2;
+    if (APLOGrtrace4(r)) {
+        int i;
+        const apr_array_header_t *t_h = apr_table_elts(r->headers_in);
+        const apr_table_entry_t *t_elt = (apr_table_entry_t *)t_h->elts;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "Headers received from client:");
+        for (i = 0; i < t_h->nelts; i++, t_elt++) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "  %s: %s",
+                          ap_escape_logitem(r->pool, t_elt->key),
+                          ap_escape_logitem(r->pool, t_elt->val));
+        }
+    }
 
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+#if APR_HAS_THREADS
+    apr_thread_mutex_create(&r->invoke_mtx, APR_THREAD_MUTEX_DEFAULT, r->pool);
+    apr_thread_mutex_lock(r->invoke_mtx);
+#endif
+    access_status = ap_run_quick_handler(r, 0);  /* Not a look-up request */
+    if (access_status == DECLINED) {

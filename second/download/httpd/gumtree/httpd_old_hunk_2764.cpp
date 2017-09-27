@@ -1,13 +1,14 @@
+                        } else
+                            ap_rputs(",", r);
+                    }
+                }
+            }
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+            ap_rputs("\n", r);
+            ap_rputs("</pre>\n", r);
+        }
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
 
-/*****************************************************************
+    if (ap_extended_status && !short_report) {
+        if (no_table_report)
+            ap_rputs("<hr /><h2>Server Details</h2>\n\n", r);

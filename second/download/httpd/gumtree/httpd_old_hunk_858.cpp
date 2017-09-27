@@ -1,53 +1,42 @@
-AP_DECLARE(apr_port_t) ap_get_server_port(const request_rec *r)
-{
-    apr_port_t port;
-    core_dir_config *d =
-      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
+	 * it will say SERVER_STARTING forever and ever
+	 */
+	(void) ap_update_child_status_from_indexes(slot, 0, SERVER_DEAD,
+                                                   (request_rec *) NULL);
 
-    if (d->use_canonical_name == USE_CANONICAL_NAME_OFF
-        || d->use_canonical_name == USE_CANONICAL_NAME_DNS) {
+	/* In case system resources are maxxed out, we don't want
+	   Apache running away with the CPU trying to fork over and
+	   over and over again. */
+	sleep(10);
 
-        /* With UseCanonicalName off Apache will form self-referential
-         * URLs using the hostname and port supplied by the client if
-         * any are supplied (otherwise it will use the canonical name).
+	return -1;
+    }
+
+    if (!pid) {
+#ifdef HAVE_BINDPROCESSOR
+        /* by default AIX binds to a single processor
+         * this bit unbinds children which will then bind to another cpu
          */
-        port = r->parsed_uri.port_str ? r->parsed_uri.port :
-               r->server->port ? r->server->port :
-               ap_default_port(r);
-    }
-    else { /* d->use_canonical_name == USE_CANONICAL_NAME_ON */
-
-        /* With UseCanonicalName on (and in all versions prior to 1.3)
-         * Apache will use the hostname and port specified in the
-         * ServerName directive to construct a canonical name for the
-         * server. (If no port was specified in the ServerName
-         * directive, Apache uses the port supplied by the client if
-         * any is supplied, and finally the default port for the protocol
-         * used.
+	int status = bindprocessor(BINDPROCESS, (int)getpid(), 
+				   PROCESSOR_CLASS_ANY);
+	if (status != OK) {
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, 
+                         ap_server_conf, "processor unbind failed %d", status);
+	}
+#endif
+	RAISE_SIGSTOP(MAKE_CHILD);
+        AP_MONCONTROL(1);
+        /* Disable the parent's signal handlers and set up proper handling in
+         * the child.
+	 */
+	apr_signal(SIGHUP, just_die);
+	apr_signal(SIGTERM, just_die);
+        /* The child process doesn't do anything for AP_SIG_GRACEFUL.  
+         * Instead, the pod is used for signalling graceful restart.
          */
-        port = r->server->port ? r->server->port :
-               r->connection->local_addr->port ? r->connection->local_addr->port :
-               ap_default_port(r);
+        apr_signal(AP_SIG_GRACEFUL, SIG_IGN);
+	child_main(slot);
     }
 
-    /* default */
-    return port;
-}
+    ap_scoreboard_image->parent[slot].pid = pid;
 
-AP_DECLARE(char *) ap_construct_url(apr_pool_t *p, const char *uri,
-                                    request_rec *r)
-{
-    unsigned port = ap_get_server_port(r);
-    const char *host = get_server_name_for_url(r);
-
-    if (ap_is_default_port(port, r)) {
-        return apr_pstrcat(p, ap_http_method(r), "://", host, uri, NULL);
-    }
-
-    return apr_psprintf(p, "%s://%s:%u%s", ap_http_method(r), host, port, uri);
-}
-
-AP_DECLARE(apr_off_t) ap_get_limit_req_body(const request_rec *r)
-{
-    core_dir_config *d =
-      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
+    return 0;

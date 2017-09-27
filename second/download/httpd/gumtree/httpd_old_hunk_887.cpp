@@ -1,39 +1,18 @@
-                    child_slot = i;
-                    break;
-                }
-            }
-            if (child_slot >= 0) {
-                ap_scoreboard_image->servers[0][child_slot].tid = 0;
-                (void) ap_update_child_status_from_indexes(0, child_slot, 
-                                                           SERVER_DEAD, 
-                                                           (request_rec*)NULL);
-                
-                if (remaining_threads_to_start
-		            && child_slot < ap_thread_limit) {
-                    /* we're still doing a 1-for-1 replacement of dead
-                     * children with new children
-                     */
-                    make_worker(child_slot);
-                    --remaining_threads_to_start;
-		        }
-#if APR_HAS_OTHER_CHILD
-            }
-            else if (apr_proc_other_child_read(&pid, status) == 0) {
-    		/* handled */
-#endif
-            }
-            else if (is_graceful) {
-                /* Great, we've probably just lost a slot in the
-                 * scoreboard.  Somehow we don't know about this
-                 * child.
-                 */
-                 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-			                  "long lost child came home! (pid %ld)", pid.pid);
-            }
-	    
-            /* Don't perform idle maintenance when a child dies,
-             * only do it when there's a timeout.  Remember only a
-             * finite number of children can die, and it's pretty
-             * pathological for a lot to die suddenly.
-             */
-             continue;
+        lr->next = ap_listeners;
+        ap_listeners = lr;
+    }
+
+    /* Open the pipe to the parent process to receive the inherited socket
+     * data. The sockets have been set to listening in the parent process.
+     *
+     * *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO), 
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);
+        }
+        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,

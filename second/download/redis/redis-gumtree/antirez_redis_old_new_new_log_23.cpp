@@ -1,1 +1,0 @@
-fprintf(stderr, "TYPE returned an error: %s\n", reply->str);

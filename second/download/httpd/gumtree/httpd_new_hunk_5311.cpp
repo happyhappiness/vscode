@@ -1,121 +1,35 @@
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
 
-	interpreter[0] = 0;
-	pid = -1;
+    /*
+     * Filter program
+     */
+    else if (sc->server->pphrase_dialog_type == SSL_PPTYPE_FILTER) {
+        const char *cmd = sc->server->pphrase_dialog_path;
+        const char **argv = apr_palloc(ppcb_arg->p, sizeof(char *) * 4);
+        const char *idx = ap_strrchr_c(ppcb_arg->key_id, ':') + 1;
+        char *result;
+        int i;
 
-        quoted_filename = ap_pstrcat(r->pool, "\"", r->filename, "\"", NULL);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s, APLOGNO(01969)
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);
 
-        if (!shellcmd) {
-            exename = strrchr(r->filename, '/');
-            if (!exename) {
-                exename = strrchr(r->filename, '\\');
-	    }
-            if (!exename) {
-                exename = r->filename;
-	    }
-            else {
-                exename++;
-            }
-            dot = strrchr(exename, '.');
-            if (dot) {
-                if (!strcasecmp(dot, ".BAT")
-                    || !strcasecmp(dot, ".CMD")
-                    || !strcasecmp(dot, ".EXE")
-                    ||  !strcasecmp(dot, ".COM")) {
-                    is_exe = 1;
-		}
-	    }
-
-            if (!is_exe) {
-                program = fopen(r->filename, "rb");
-                if (!program) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                                 "fopen(%s) failed", r->filename);
-                    return (pid);
-                }
-                sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-                if (sz < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                                 "fread of %s failed", r->filename);
-                    fclose(program);
-                    return (pid);
-                }
-                interpreter[sz] = 0;
-                fclose(program);
-                if (!strncmp(interpreter, "#!", 2)) {
-                    is_script = 1;
-                    for (i = 2; i < sizeof(interpreter); i++) {
-                        if ((interpreter[i] == '\r')
-                            || (interpreter[i] == '\n')) {
-                            break;
-                        }
-                    }
-                    interpreter[i] = 0;
-                    for (i = 2; interpreter[i] == ' '; ++i)
-                        ;
-                    memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-                }
-                else {
-                    /* Check to see if it's a executable */
-                    IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                    if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-                        is_binary = 1;
-                    }
-		}
-	    }
-            /* Bail out if we haven't figured out what kind of
-             * file this is by now..
-             */
-            if (!is_exe && !is_script && !is_binary) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-                             "%s is not executable; ensure interpreted scripts have "
-                             "\"#!\" first line", 
-                             r->filename);
-                return (pid);
-            }
-	}
-
-        if (shellcmd) {
-            char *shell_cmd = "CMD.EXE /C ";
-            OSVERSIONINFO osver;
-            osver.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-         
+        argv[0] = cmd;
+        argv[1] = apr_pstrndup(ppcb_arg->p, ppcb_arg->key_id,
+                               idx-1 - ppcb_arg->key_id);
+        if ((i = atoi(idx)) < CERTKEYS_IDX_MAX+1) {
             /*
-             * Use CMD.EXE for NT, COMMAND.COM for WIN95
+             * For compatibility with existing 2.4.x configurations, use
+             * "RSA", "DSA" and "ECC" strings for the first two/three keys
              */
-            if (GetVersionEx(&osver)) {
-                if (osver.dwPlatformId != VER_PLATFORM_WIN32_NT) {
-                    shell_cmd = "COMMAND.COM /C ";
-                }
-            }       
-            pCommand = ap_pstrcat(r->pool, shell_cmd, argv0, NULL);
+            argv[2] = key_types[i];
+        } else {
+            /* Four and above: use the integer index */
+            argv[2] = apr_pstrdup(ppcb_arg->p, idx);
         }
- 	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
-	        pCommand = quoted_filename;
-	    }
-	    else if (is_script) {
-                /* When an interpreter is needed, we need to create 
-                 * a command line that has the interpreter name
-                 * followed by the CGI script name.  
-		 */
-	        pCommand = ap_pstrcat(r->pool, interpreter + 2, " ", 
-				      quoted_filename, NULL);
-	    }
-	    else {
-	        /* If not an executable or script, just execute it
-                 * from a command prompt.  
-                 */
-	        pCommand = ap_pstrcat(r->pool, SHELL_PATH, " /C ", 
-				      quoted_filename, NULL);
-	    }
-	}
-	else {
+        argv[3] = NULL;
 
-            /* If we are in this leg, there are some other arguments
-             * that we must include in the execution of the CGI.
+        result = ssl_util_readfilter(ppcb_arg->s, ppcb_arg->p, cmd, argv);
+        apr_cpystrn(buf, result, bufsize);
+        len = strlen(buf);
+    }
+

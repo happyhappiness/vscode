@@ -1,13 +1,13 @@
-            if (!res) {
-                res = file_walk(rnew);
-            }
-        }
-        else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+    }
+    else {
+        st->cache_file = NULL;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01298)
+                 "LDAP cache: Setting shared memory cache file to %s.",
+                 st->cache_file);
+
+    return NULL;
+}
+
+static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy,

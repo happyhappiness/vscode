@@ -1,1 +1,1 @@
-ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+ap_rputs("</th><th>", r);

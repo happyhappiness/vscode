@@ -1,13 +1,29 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+        apr_snprintf(buf, sizeof(buf),
+                 "apr_sockaddr_info_get() for %s", connecthost);
+        apr_err(buf, rv);
+    }
+
+    /* ok - lets start */
+    start = lasttime = apr_time_now();
+    stoptime = tlimit ? (start + apr_time_from_sec(tlimit)) : AB_MAX;
+
+#ifdef SIGINT 
+    /* Output the results if the user terminates the run early. */
+    apr_signal(SIGINT, output_results);
 #endif
-		return 0;
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+        con[i].socknum = i;
+        start_connect(&con[i]);
+    }
+
+    do {
+        apr_int32_t n;
+        const apr_pollfd_t *pollresults;
+
+        n = concurrency;
+        status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        if (status != APR_SUCCESS)
+            apr_err("apr_poll", status);
+

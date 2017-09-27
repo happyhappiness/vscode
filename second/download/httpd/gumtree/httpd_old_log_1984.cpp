@@ -1,5 +1,3 @@
-printf("<tr %s><th %s>Connect:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mincon, tdstring, totalcon / requests, tdstring, maxcon);
+ap_log_error(APLOG_MARK, level, status, r->server,
+                     "dialog with client %pI failed",
+                     r->connection->remote_addr);

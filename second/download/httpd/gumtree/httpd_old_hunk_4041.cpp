@@ -1,26 +1,34 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+ * once we have all the response headers. The response body will be
+ * read by the session using the callback we supply.
+ */
+static apr_status_t submit_response(h2_session *session, h2_stream *stream)
+{
+    apr_status_t status = APR_SUCCESS;
+    int rv = 0;
+    AP_DEBUG_ASSERT(session);
+    AP_DEBUG_ASSERT(stream);
+    AP_DEBUG_ASSERT(stream->response || stream->rst_error);
+    
+    if (stream->submitted) {
+        rv = NGHTTP2_PROTOCOL_ERROR;
     }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    else if (stream->response && stream->response->headers) {
+        nghttp2_data_provider provider;
+        h2_response *response = stream->response;
+        h2_ngheader *ngh;
+        const h2_priority *prio;
+        
+        memset(&provider, 0, sizeof(provider));
+        provider.source.fd = stream->id;
+        provider.read_callback = stream_data_cb;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submit response %d",
+                      session->id, stream->id, response->http_status);
+        
+        /* If this stream is not a pushed one itself,
+         * and HTTP/2 server push is enabled here,
+         * and the response is in the range 200-299 *),
+         * and the remote side has pushing enabled,
+         * -> find and perform any pushes on this stream
+         *    *before* we submit the stream response itself.

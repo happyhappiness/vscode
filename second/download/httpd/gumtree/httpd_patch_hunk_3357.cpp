@@ -1,0 +1,14 @@
+ static int setup_listeners(server_rec *s)
+ {
+     ap_listen_rec *lr;
+     int sockdes;
+ 
+     if (ap_setup_listeners(s) < 1 ) {
+-        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
++        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00222)
+             "no listening sockets available, shutting down");
+         return -1;
+     }
+ 
+     listenmaxfd = -1;
+     FD_ZERO(&listenfds);

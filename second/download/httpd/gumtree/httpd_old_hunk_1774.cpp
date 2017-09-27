@@ -1,12 +1,18 @@
-            rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), rp, 0, &len);
-        }
-        if (len <= 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
-            return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                                 "Error reading from remote server");
-        }
-        /* XXX: Is this a real headers length send from remote? */
-        backend->worker->s->read += len;
 
+        sslconn->verify_info = "GENEROUS";
+        ok = TRUE;
+    }
+
+    /*
+     * Additionally perform CRL-based revocation checks
+     */
+    if (ok) {
+        if (!(ok = ssl_callback_SSLVerify_CRL(ok, ctx, conn))) {
+            errnum = X509_STORE_CTX_get_error(ctx);
+        }
+    }
+
+    /*
+     * If we already know it's not ok, log the real reason
+     */
+    if (!ok) {

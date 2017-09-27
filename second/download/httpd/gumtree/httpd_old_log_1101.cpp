@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                     "apr_xlate_open() failed");
+fprintf(stderr,
+                "apr_hash_overlay: overlay's pool is not an ancestor of p\n");

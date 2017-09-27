@@ -1,17 +1,25 @@
-     sigemptyset(&sa.sa_mask);
-     sa.sa_flags = 0;
+         if (!schSCManager) {
+             rv = apr_get_os_error();
+             ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                          "Failed to open the WinNT service manager.");
+             return (rv);
+         }
+-        
++
+         /* ###: utf-ize */
+         schService = OpenService(schSCManager, mpm_service_name, DELETE);
  
-     sa.sa_handler = sig_term;
-     if (sigaction(SIGTERM, &sa, NULL) < 0)
- 	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-+#ifdef AP_SIG_GRACEFUL_STOP
-+    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
-+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
-+#endif
- #ifdef SIGINT
-     if (sigaction(SIGINT, &sa, NULL) < 0)
-         ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
- #endif
- #ifdef SIGXCPU
-     sa.sa_handler = SIG_DFL;
+         if (!schService) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+ 			"%s: OpenService failed", mpm_display_name);
+            return (rv);
+         }
+-        
++
+         /* assure the service is stopped before continuing
+          *
+          * This may be out of order... we might not be able to be
+          * granted all access if the service is running anyway.
+          *
+          * And do we want to make it *this easy* for them

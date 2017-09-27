@@ -1,10 +1,25 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+        /* gave it our best shot, but alas...  If this really
+         * is a child we are trying to kill and it really hasn't
+         * exited, we will likely fail to bind to the port
+         * after the restart.
+         */
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf, APLOGNO(00047)
+                     "could not make child process %" APR_PID_T_FMT
+                     " exit, "
+                     "attempting to continue anyway",
+                     pid);
+        break;
+    }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    return 0;
+}
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+void ap_reclaim_child_processes(int terminate,
+                                ap_reclaim_callback_fn_t *mpm_callback)
+{
+    apr_time_t waittime = 1024 * 16;
+    int i;
+    extra_process_t *cur_extra;
+    int not_dead_yet;
+    int max_daemons;

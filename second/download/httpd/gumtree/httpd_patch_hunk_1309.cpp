@@ -1,18 +1,13 @@
-                                                        &authn_file_module);
-     ap_configfile_t *f;
-     char l[MAX_STRING_LEN];
-     apr_status_t status;
-     char *file_hash = NULL;
+         apr_pool_tag(ptemp, "ptemp");
+         ap_server_root = def_server_root;
+         server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+         if (!server_conf) {
+             destroy_and_exit_process(process, 1);
+         }
++        apr_hook_sort_all();
  
-+    if (!conf->pwfile) {
-+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-+                      "AuthUserFile not specified in the configuration");
-+        return AUTH_GENERAL_ERROR;
-+    }
-+
-     status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
- 
-     if (status != APR_SUCCESS) {
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                       "Could not open password file: %s", conf->pwfile);
-         return AUTH_GENERAL_ERROR;
+         if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+             ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                          0, NULL, "Pre-configuration failed");
+             destroy_and_exit_process(process, 1);
+         }

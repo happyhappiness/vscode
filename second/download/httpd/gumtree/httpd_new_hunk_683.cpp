@@ -1,13 +1,17 @@
-{
-    r->status = status;
-
-    /* ### I really don't think this is needed; gotta test */
-    r->status_line = ap_get_status_line(status);
-
-    ap_set_content_type(r, "text/html");
-
-    /* begin the response now... */
-    ap_rvputs(r,
-              DAV_RESPONSE_BODY_1,
-              r->status_line,
-              DAV_RESPONSE_BODY_2,
+         * was a local redirect and the requested resource failed
+         * for any reason, the custom_response will still hold the
+         * redirect URL. We don't really want to output this URL
+         * as a text message, so first check the custom response
+         * string to ensure that it is a text-string (using the
+         * same test used in ap_die(), i.e. does it start with a ").
+         *
+         * If it's not a text string, we've got a recursive error or
+         * an external redirect.  If it's a recursive error, ap_die passes
+         * us the second error code so we can write both, and has already
+         * backed up to the original error.  If it's an external redirect,
+         * it hasn't happened yet; we may never know if it fails.
+         */
+        if (custom_response[0] == '\"') {
+            ap_rputs(custom_response + 1, r);
+            ap_finalize_request_protocol(r);
+            return;

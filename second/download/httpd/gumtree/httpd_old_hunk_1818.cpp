@@ -1,12 +1,13 @@
-    while (--n >= 0) {
-        *s++ = itoa64[v&0x3f];
-        v >>= 6;
+                     "could not create %s", fname);
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "%s: could not log pid to file %s",
+                     ap_server_argv0, fname);
+        exit(1);
     }
+    apr_file_printf(pid_file, "%ld" APR_EOL_STR, (long)mypid);
+    apr_file_close(pid_file);
+    saved_pid = mypid;
 }
 
-static void putline(apr_file_t *f, const char *l)
-{
-    apr_file_puts(l, f);
-}
-
-/*
+AP_DECLARE(apr_status_t) ap_read_pid(apr_pool_t *p, const char *filename,
+                                     pid_t *mypid)

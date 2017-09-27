@@ -1,22 +1,13 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
-    }
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
-}
-
-
-static int check_symlinks(char *d, int opts)
-{
-#if defined(__EMX__) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+        if (query == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01646)
+                          "authz_dbd: no redirect query!");
+            /* OK, this is non-critical; we can just not-redirect */
+        }
+        else if ((rv = apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle,
+                                        &res, query, 0, r->user, NULL) == 0)) {
+            for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+                 rv != -1;
+                 rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+                if (rv != 0) {
+                    message = apr_dbd_error(dbd->driver, dbd->handle, rv);
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01647)

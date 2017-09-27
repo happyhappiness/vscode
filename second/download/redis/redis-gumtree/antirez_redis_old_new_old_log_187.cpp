@@ -1,1 +1,0 @@
-buflen = snprintf(buf,sizeof(buf),"+CONTINUE\r\n");

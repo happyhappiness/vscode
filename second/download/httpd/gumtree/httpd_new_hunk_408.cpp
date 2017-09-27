@@ -1,29 +1,14 @@
-	getword(x, l, ':');
-	if (strcmp(user, w) || strcmp(realm, x)) {
-	    putline(tfp, line);
-	    continue;
-	}
-	else {
-            apr_file_printf(errfile, "Changing password for user %s in realm %s\n", 
-                    user, realm);
-	    add_password(user, realm, tfp);
-	    found = 1;
-	}
+        return ap_pass_brigade(f->next, bb);
     }
-    if (!found) {
-        apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
-	add_password(user, realm, tfp);
-    }
-    apr_file_close(f);
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
-                APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], argv[1]);
-    }
-    apr_file_close(tfp);
+    apr_table_unset(r->headers_out, "Upgrade");
 
-    return 0;
-}
+    if (r) {
+        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
+        csd = csd_data->csd;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
+    }

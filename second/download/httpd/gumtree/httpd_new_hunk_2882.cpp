@@ -1,13 +1,18 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+        /* ignore late headers in early calls */
+        else if (early && (envar != condition_early)) {
+            continue;
+        }
+        /* Do we have an expression to evaluate? */
+        else if (hdr->expr != NULL) {
+            const char *err = NULL;
+            int eval = ap_expr_exec(r, hdr->expr, &err);
+            if (err) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01501)
+                              "Failed to evaluate expression (%s) - ignoring",
+                              err);
+            }
+            else if (!eval) {
+                continue;
+            }
+        }
+        /* Have any conditional envar-controlled Header processing to do? */

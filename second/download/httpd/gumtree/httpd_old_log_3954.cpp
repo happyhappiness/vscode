@@ -1,0 +1,1 @@
+ap_rputs("<p>Scoreboard Key:<br />\n", r);

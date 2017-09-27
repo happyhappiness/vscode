@@ -1,14 +1,30 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02231)
+                "No SSL protocols available [hint: SSLProtocol]");
+        return ssl_die(s);
+    }
+
+    cp = apr_pstrcat(p,
+                     (protocol & SSL_PROTOCOL_SSLV3 ? "SSLv3, " : ""),
+                     (protocol & SSL_PROTOCOL_TLSV1 ? "TLSv1, " : ""),
+#ifdef HAVE_TLSV1_X
+                     (protocol & SSL_PROTOCOL_TLSV1_1 ? "TLSv1.1, " : ""),
+                     (protocol & SSL_PROTOCOL_TLSV1_2 ? "TLSv1.2, " : ""),
+#endif
+                     NULL);
+    cp[strlen(cp)-2] = NUL;
+
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "Creating new SSL context (protocols: %s)", cp);
+
+    if (protocol == SSL_PROTOCOL_SSLV3) {
+        method = mctx->pkp ?
+            SSLv3_client_method() : /* proxy */
+            SSLv3_server_method();  /* server */
+    }
+    else if (protocol == SSL_PROTOCOL_TLSV1) {
+        method = mctx->pkp ?
+            TLSv1_client_method() : /* proxy */
+            TLSv1_server_method();  /* server */
+    }
+#ifdef HAVE_TLSV1_X
+    else if (protocol == SSL_PROTOCOL_TLSV1_1) {

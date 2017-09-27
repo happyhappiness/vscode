@@ -1,1 +1,0 @@
-printf("ERROR: not \"hello\"\n");

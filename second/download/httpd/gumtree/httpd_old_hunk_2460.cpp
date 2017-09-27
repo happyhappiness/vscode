@@ -1,14 +1,49 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
+    }
+
+    if (!r->filename) {
+        reason = "no filename available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    status = apr_stat(&finfo, r->filename, APR_FINFO_USER, r->pool);
+    if (status != APR_SUCCESS) {
+        reason = apr_pstrcat(r->pool, "could not stat file ",
+                                r->filename, NULL);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    if (!(finfo.valid & APR_FINFO_USER)) {
+        reason = "no file owner information available";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    status = apr_uid_name_get(&owner, finfo.user, r->pool);
+    if (status != APR_SUCCESS || !owner) {
+        reason = "could not get name of file owner";
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    if (strcmp(owner, r->user)) {
+        reason = apr_psprintf(r->pool, "file owner %s does not match.",
+                                owner);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");
+        return AUTHZ_DENIED;
+    }
+
+    /* this user is authorized */

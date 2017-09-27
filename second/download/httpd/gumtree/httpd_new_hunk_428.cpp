@@ -1,13 +1,27 @@
-        return OK;
+                    return HTTP_FORBIDDEN;
+                }
 
-    ap_rputs(DOCTYPE_HTML_3_2
-             "<html><head><title>LDAP Cache Information</title></head>\n", r);
-    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information</h1>\n", r);
+                X509_free(peercert);
+            }
+        }
+        
+        /*
+         * Also check that SSLCipherSuite has been enforced as expected.
+         */
+        if (cipher_list) {
+            cipher = SSL_get_current_cipher(ssl);
+            if (sk_SSL_CIPHER_find(cipher_list, cipher) < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                             "SSL cipher suite not renegotiated: "
+                             "access to %s denied using cipher %s",
+                              r->filename,
+                              SSL_CIPHER_get_name(cipher));
+                return HTTP_FORBIDDEN;
+            }
+        }
+    }
 
-    util_ald_cache_display(r, st);
-
-    return OK;
-}
-
-/* ------------------------------------------------------------------ */
-
+    /*
+     * Check SSLRequire boolean expressions
+     */
+    requires = dc->aRequirement;

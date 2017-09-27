@@ -1,1 +1,0 @@
-printf("# in order to reduce server load (usually not needed).\n\n");

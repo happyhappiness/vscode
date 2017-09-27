@@ -1,28 +1,14 @@
- static apr_status_t freetds_term(void *dummy)
- {
-     dbexit();
-     regfree(&dbd_freetds_find_arg);
-     return APR_SUCCESS;
- }
-+static int freetds_err_handler(DBPROCESS *dbproc, int severity, int dberr,
-+                               int oserr, char *dberrstr, char *oserrstr)
-+{
-+    return INT_CANCEL; /* never exit */
-+}
- static void dbd_freetds_init(apr_pool_t *pool)
- {
-     int rv = regcomp(&dbd_freetds_find_arg,
-                      "%(\\{[^}]*\\})?([0-9]*)[A-Za-z]", REG_EXTENDED);
-     if (rv != 0) {
-         char errmsg[256];
-         regerror(rv, &dbd_freetds_find_arg, errmsg, 256);
-         fprintf(stderr, "regcomp failed: %s\n", errmsg);
-     }
-     dbinit();
-+    dberrhandle(freetds_err_handler);
-     apr_pool_cleanup_register(pool, NULL, freetds_term, apr_pool_cleanup_null);
- }
+              * However, this causes failures in perl-framework currently,
+              * perhaps pre-test if we have already negotiated?
+              */
+             SSL_set_state(ssl, SSL_ST_ACCEPT);
+             SSL_do_handshake(ssl);
  
- #ifdef COMPILE_STUBS
- /* get_name is the only one of these that is implemented */
- static const char *dbd_freetds_get_name(const apr_dbd_results_t *res, int n)
++            sslconn->reneg_state = RENEG_REJECT;
++
+             if (SSL_get_state(ssl) != SSL_ST_OK) {
+                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                               "Re-negotiation handshake failed: "
+                               "Not accepted by client!?");
+ 
+                 r->connection->aborted = 1;

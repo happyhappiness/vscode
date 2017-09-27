@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(), "setsockopt(SO_SNDTIMEO): %s", strerror(errno));

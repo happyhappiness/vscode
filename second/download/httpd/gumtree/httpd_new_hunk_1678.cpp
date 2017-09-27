@@ -1,16 +1,14 @@
-        lr->next = ap_listeners;
-        ap_listeners = lr;
+        return ap_proxyerror(r, HTTP_BAD_REQUEST,
+                             apr_pstrcat(p, "URI cannot be parsed: ", url,
+                                         NULL));
     }
 
-    /* Open the pipe to the parent process to receive the inherited socket
-     * data. The sockets have been set to listening in the parent process.
-     *
-     * *** We now do this was back in winnt_rewrite_args
-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
-     */
-    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
-        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO),
-                      &BytesRead, (LPOVERLAPPED) NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "setup_inherited_listeners: Unable to read socket data from parent");
-            exit(APEXIT_CHILDINIT);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: CONNECT: connecting %s to %s:%d", url, uri.hostname,
+                 uri.port);
+
+    /* do a DNS lookup for the destination host */
+    err = apr_sockaddr_info_get(&uri_addr, uri.hostname, APR_UNSPEC, uri.port,
+                                0, p);
+    if (APR_SUCCESS != err) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,

@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
+            strcpy(malformed, MALFORMED_MESSAGE);
+            strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+            if (!buffer) {
+                /* Soak up all the script output - may save an outright kill */
+                while ((*getsfunc)(w, MAX_STRING_LEN - 1, getsfunc_data) > 0) {
+                    continue;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "%s: %s", malformed,

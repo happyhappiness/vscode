@@ -1,13 +1,19 @@
+    case OP_TYPEQUERY:
+    case OP_TYPEMINQUERY:
+    fprintf(f, "    ");
+    if (*code >= OP_TYPESTAR)
+      {
+      fprintf(f, "%s", OP_names[code[1]]);
+#ifdef SUPPORT_UCP
+      if (code[1] == OP_PROP || code[1] == OP_NOTPROP)
+        {
+        fprintf(f, " %s ", get_ucpname(code[2]));
+        extra = 1;
+        }
+#endif
+      }
+    else extra = print_char(f, code+1, utf8);
+    fprintf(f, "%s", OP_names[*code]);
+    break;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    case OP_EXACT:

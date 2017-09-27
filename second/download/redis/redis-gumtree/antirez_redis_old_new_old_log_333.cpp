@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset[0], "Unexpected EOF");

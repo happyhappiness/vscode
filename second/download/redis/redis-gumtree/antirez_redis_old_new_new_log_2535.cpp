@@ -1,1 +1,0 @@
-fprintf(stderr, "Invalid argument: %s\n", argv[0]);

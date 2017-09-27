@@ -1,23 +1,26 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
 
-    /* cleanup pid file on normal shutdown */
-    {
-	const char *pidfile = NULL;
-	pidfile = ap_server_root_relative (pparent, ap_pid_fname);
-	if ( pidfile != NULL && unlink(pidfile) == 0)
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			 server_conf,
-			 "httpd: removed PID file %s (pid=%ld)",
-			 pidfile, (long)getpid());
-    }
+                    if (script_error_status == HTTP_OK) {
+                        b = apr_bucket_eos_create(c->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(ob, b);
+                        rv = ap_pass_brigade(r->output_filters, ob);
+                        if (rv != APR_SUCCESS) {
+                            *err = "passing brigade to output filters";
+                            break;
+                        }
+                    }
 
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
+                    /* XXX Why don't we cleanup here?  (logic from AJP) */
+                }
+                break;
 
-    ap_destroy_mutex(start_mutex);
-    return (0);
+            case AP_FCGI_STDERR:
+                /* TODO: Should probably clean up this logging a bit... */
+                if (clen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", iobuf);
+                }
+
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }

@@ -1,18 +1,12 @@
-	exit(0);
-    }
-    else if (argc != 3)
-	usage();
-
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
+        for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
+          dumpit(f, b, ptr);
+        }
+    } else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
+                      "mod_dumpio: %s - %d", f->frec->name, ret) ;
     }
 
-    if (!(f = fopen(argv[1], "r"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+    return APR_SUCCESS ;
+}
+
+static int dumpio_output_filter (ap_filter_t *f, apr_bucket_brigade *bb)

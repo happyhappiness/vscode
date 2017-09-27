@@ -1,14 +1,16 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+    buffer = "";
+    if (maxage) {
+        buffer = apr_pstrcat(r->pool, "Max-Age=", apr_ltoa(r->pool, maxage), ";", NULL);
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+    /* create RFC2965 compliant cookie */
+    rfc2965 = apr_pstrcat(r->pool, name2, "=", val, ";",
+                          buffer,
+                          attrs2 && strlen(attrs2) > 0 ?
+                          attrs2 : DEFAULT_ATTRS, NULL);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+                  "user '%s' set cookie2: '%s'", r->user, rfc2965);
+
+    /* write the cookie to the header table(s) provided */
+    va_start(vp, maxage);
+    while ((t = va_arg(vp, apr_table_t *))) {

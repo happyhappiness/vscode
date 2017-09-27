@@ -1,13 +1,17 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    if (st->connectionTimeout > 0) {
+        connectionTimeout.tv_sec = st->connectionTimeout;
     }
 
-    Explain0("FTP: connected.");
+    if (st->connectionTimeout >= 0) {
+        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
+                                 (void *)&connectionTimeout, &(result));
+        if (APR_SUCCESS != rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set the connection timeout");
+        }
+    }
+#endif
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+#ifdef LDAP_OPT_TIMEOUT

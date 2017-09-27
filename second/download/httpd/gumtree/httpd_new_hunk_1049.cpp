@@ -1,34 +1,13 @@
-	    printf("Send request timed out!\n");
-	    close_connection(c);
-	    return;
-	}
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-#ifdef USE_SSL
-        if (c->ssl) {
-            apr_size_t e_ssl;
-            e_ssl = SSL_write(c->ssl,request + c->rwrote, l);
-            if (e_ssl != l) {
-                BIO_printf(bio_err, "SSL write failed - closing connection\n");
-                ERR_print_errors(bio_err);
-                close_connection (c);
-                return;
-            }
-            l = e_ssl;
-            e = APR_SUCCESS;
-        }
-        else
-#endif
-            e = apr_socket_send(c->aprsock, request + c->rwrote, &l);
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
 
-	/*
-	 * Bail early on the most common case
-	 */
-	if (l == c->rwrite)
-	    break;
-
-	if (e != APR_SUCCESS) {
-	    /*
-	     * Let's hope this traps EWOULDBLOCK too !
-	     */
-	    if (!APR_STATUS_IS_EAGAIN(e)) {
-		epipe++;

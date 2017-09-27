@@ -1,14 +1,12 @@
-        return my_addr;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "cannot redirect '%s' to '%s'; "
+                              "target is not a valid absoluteURI or abs_path",
+                              r->uri, ret);
+            }
+            else {
+                apr_table_setn(r->headers_out, "Location", ret);
+            }
+        }
+        return status;
     }
 
-    hep = gethostbyname(w);
-
-    if ((!hep) || (hep->h_addrtype != AF_INET || !hep->h_addr_list[0])) {
-        /* XXX Should be echoing by r_errno the actual failure, no? 
-         * ap_log_error would be good here.
-         */
-        fprintf(stderr, "Cannot resolve host name %s --- exiting!\n", w);
-        exit(1);
-    }
-
-    if (hep->h_addr_list[1]) {

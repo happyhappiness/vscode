@@ -1,1 +1,0 @@
-fprintf(stderr,"       ./redis-server --port 7777\n");

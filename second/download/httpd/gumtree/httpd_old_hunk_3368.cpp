@@ -1,26 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    (void) ap_update_child_status(sbh, SERVER_READY, (request_rec *) NULL);
 
-	if (!strcasecmp(w, "Content-type")) {
+    /* Set up the pollfd array */
+    status = apr_pollset_create(&pollset, num_listensocks, pchild, 0);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                     "Couldn't create pollset in child; check system or user limits");
+        clean_child_exit(APEXIT_CHILDSICK); /* assume temporary resource issue */
+    }
 
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    for (lr = ap_listeners, i = num_listensocks; i--; lr = lr->next) {
+        apr_pollfd_t pfd = { 0 };

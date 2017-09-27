@@ -1,3 +1,3 @@
-fprintf(stderr, "%s: could not open config directory %s: %s\n",
-                    ap_server_argv0, path,
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv,
+                                          c, "core_output_filter:"
+                                          " Error reading from bucket.");

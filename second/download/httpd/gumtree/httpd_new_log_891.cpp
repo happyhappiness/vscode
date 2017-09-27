@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                         "SSL handshake stopped: connection was closed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer");

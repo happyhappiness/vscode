@@ -1,14 +1,15 @@
-     cache_handle_t *h;
- 
-     list = cache->providers;
- 
-     /* Remove the stale cache entry if present. If not, we're
-      * being called from outside of a request; remove the
--     * non-stalle handle.
-+     * non-stale handle.
+      * the PROXY_WORKER_IGNORE_ERRORS flag is not set.
+      * Altrough some connections may be alive
+      * no further connections to the worker could be made
       */
-     h = cache->stale_handle ? cache->stale_handle : cache->handle;
-     if (!h) {
-        return OK;
+     if (!connected && PROXY_WORKER_IS_USABLE(worker) &&
+         !(worker->s->status & PROXY_WORKER_IGNORE_ERRORS)) {
+-        worker->s->status |= PROXY_WORKER_IN_ERROR;
+         worker->s->error_time = apr_time_now();
++        worker->s->status |= PROXY_WORKER_IN_ERROR;
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+             "ap_proxy_connect_backend disabling worker for (%s)",
+             worker->hostname);
      }
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+     else {
+         worker->s->error_time = 0;

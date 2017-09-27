@@ -1,13 +1,22 @@
+        if (seed_rand()) {
+            break;
+        }
+        to64(&salt[0], rand(), 8);
+        salt[8] = '\0';
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+        cbuf = crypt(pw, salt);
+        if (cbuf == NULL) {
+            char errbuf[128];
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+            apr_snprintf(record, rlen-1, "crypt() failed: %s", 
+                         apr_strerror(errno, errbuf, sizeof errbuf));
+            return ERR_PWMISMATCH;
+        }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+        apr_cpystrn(cpw, cbuf, sizeof(cpw) - 1);
+        if (strlen(pw) > 8) {
+            char *truncpw = strdup(pw);
+            truncpw[8] = '\0';
+            if (!strcmp(cpw, crypt(truncpw, salt))) {
+                apr_file_printf(errfile, "Warning: Password truncated to 8 characters "
+                                "by CRYPT algorithm." NL);

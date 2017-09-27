@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Waiting for end of BGSAVE for SYNC");

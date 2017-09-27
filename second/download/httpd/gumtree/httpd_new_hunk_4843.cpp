@@ -1,14 +1,13 @@
-                --cp;
-        }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
-#endif
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-                            "access to %s failed", r->uri);
-            return HTTP_FORBIDDEN;
-        }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01665)
+                        "Could not open group file: %s",
+                        conf->groupfile);
+        return AUTHZ_DENIED;
+    }
+
+    if (apr_is_empty_table(grpstatus)) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01666)
+                      "Authorization of user %s to access %s failed, reason: "
+                      "user doesn't appear in group file (%s).",
+                      r->user, r->uri, conf->groupfile);
+        return AUTHZ_DENIED;

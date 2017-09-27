@@ -1,28 +1,13 @@
-
-    rc = connect_to_daemon(&sd, info->r, info->conf);
-    if (rc != OK) {
-        return APR_EGENERAL;
     }
 
-    req.req_type = GETPID_REQ;
-    req.conn_id = info->r->connection->id;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring permitted SSL ciphers [%s]", 
+                 suite);
 
-    stat = sock_write(sd, &req, sizeof(req));
-    if (stat != APR_SUCCESS) {
-        close(sd);
-        return stat;
+    if (!SSL_CTX_set_cipher_list(ctx, suite)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure permitted SSL ciphers");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
     }
-
-    /* wait for pid of script */
-    stat = sock_read(sd, &pid, sizeof(pid));
-    if (stat != APR_SUCCESS) {
-        close(sd);
-        return stat;
-    }
-    close(sd);
-
-    if (pid == 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, info->r,
-                      "daemon couldn't find CGI process for connection %lu",
-                      info->conn_id);
-        return APR_EGENERAL;
+}

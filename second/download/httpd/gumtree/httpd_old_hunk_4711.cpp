@@ -1,17 +1,12 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+            /* ??? */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
+                         "post_config: mpm type unknown");
+            break;
     }
-
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
+    
+    status = h2_h2_init(p, s);
+    if (status == APR_SUCCESS) {
+        status = h2_switch_init(p, s);
     }
-#endif
-
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+    if (status == APR_SUCCESS) {
+        status = h2_task_init(p, s);

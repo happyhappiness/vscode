@@ -1,14 +1,12 @@
-    ap_hard_timeout("send directory", r);
+        }
+        return next->frec->filter_func.out_func(next, bb);
+    }
+    return AP_NOBODY_WROTE;
+}
 
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+AP_DECLARE(apr_status_t) ap_save_brigade(ap_filter_t *f,
+                                         apr_bucket_brigade **saveto,
+                                         apr_bucket_brigade **b, apr_pool_t *p)
+{
+    apr_bucket *e;
+    apr_status_t rv, srv = APR_SUCCESS;

@@ -1,26 +1,13 @@
 
-    /* Pass one --- direct matches */
+APLOG_USE_MODULE(core);
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
+apr_status_t ap_init_ebcdic(apr_pool_t *pool)
+{
+    apr_status_t rv;
+    char buf[80];
 
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    rv = apr_xlate_open(&ap_hdrs_to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "apr_xlate_open() failed");
+        return rv;

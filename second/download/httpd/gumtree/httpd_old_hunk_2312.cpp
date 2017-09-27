@@ -1,50 +1,35 @@
-     * this on Win32, though, since we haven't fork()'d.
-     */
-    r->server->error_log = stderr;
-#endif
-
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL)
-	if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set CPU usage limit");
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL)
-	if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set process limit");
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_AS): failed to set memory usage limit");
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_DATA): failed to set memory usage limit");
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_VMEM): failed to set memory usage limit");
-#endif
-
-#ifdef __EMX__
     {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope this is large enough for the interpreter path */
-	FILE *program;
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+        rc = uldap_simple_bind(ldc, (char *)ldc->binddn, (char *)ldc->bindpw,
+                               st->opTimeout);
+        if ((AP_LDAP_IS_SERVER_DOWN(rc) && failures == 5) ||
+            (rc == LDAP_TIMEOUT && failures == 0))
+        {
+           if (rc == LDAP_TIMEOUT && !new_connection) {
+               ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                             "ldap_simple_bind() timed out on reused "
+                             "connection, dropped by firewall?");
+           }
+           /* attempt to init the connection once again */
+           uldap_connection_unbind( ldc );
+           rc = uldap_connection_init( r, ldc );
+           if (LDAP_SUCCESS != rc)
+           {
+               break;
+           }
+        }
+        else if (!AP_LDAP_IS_SERVER_DOWN(rc)) {
+            break;
+        }
+    }
+
+    /* free the handle if there was an error
+    */
+    if (LDAP_SUCCESS != rc)
+    {
+       uldap_connection_unbind(ldc);
+        ldc->reason = "LDAP: ldap_simple_bind() failed";
+    }
+    else {
+        ldc->bound = 1;
+        ldc->reason = "LDAP: connection open successful";
+    }

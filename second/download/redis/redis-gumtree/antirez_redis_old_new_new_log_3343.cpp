@@ -1,1 +1,0 @@
-printf("  \x1b[90m-\x1b[0m %s\n", commandGroups[i]);

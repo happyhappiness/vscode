@@ -1,12 +1,20 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-}
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
+     */
+    if (!(mask & APHTP_DELUSER)) {
+        i = mkrecord(user, record, sizeof(record) - 1,
+                     password, alg);
+        if (i != 0) {
+            apr_file_printf(errfile, "%s: %s" NL, argv[0], record);
+            exit(i);
+        }
+        if (mask & APHTP_NOFILE) {
+            printf("%s" NL, record);
+            exit(0);
+        }
+    }
 
-
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+    /*
+     * We can access the files the right way, and we have a record

@@ -1,27 +1,27 @@
-     *
-     * XXX: other_child - we need the process handles to the other children
-     *      in order to map them to apr_proc_other_child_read (which is not
-     *      named well, it's more like a_p_o_c_died.)
-     *
-     * XXX: however - if we get a_p_o_c handle inheritance working, and
-     *      the parent process creates other children and passes the pipes 
-     *      to our worker processes, then we have no business doing such 
-     *      things in the child_main loop, but should happen in master_main.
+    /* advance to the next generation */
+    /* XXX: we really need to make sure this new generation number isn't in
+     * use by any of the children.
      */
-    while (1) {
-#if !APR_HAS_OTHER_CHILD
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, INFINITE);
-        cld = rv - WAIT_OBJECT_0;
-#else
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
-        cld = rv - WAIT_OBJECT_0;
-        if (rv == WAIT_TIMEOUT) {
-            apr_proc_other_child_check();
-        }
-        else 
-#endif
-            if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server", my_pid);
-            break;
+    ++ap_my_generation;
+    ap_scoreboard_image->global->running_generation = ap_my_generation;
+    
+    if (is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
+    
+
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
+        
+    }
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM 
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit, FALSE);
+
+        ap_reclaim_child_processes(1);                /* Start with SIGTERM */

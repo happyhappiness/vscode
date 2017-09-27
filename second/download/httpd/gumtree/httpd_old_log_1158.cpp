@@ -1,1 +1,1 @@
-(*code == OP_MINUPTO;
+(isprint(c = code[3]);

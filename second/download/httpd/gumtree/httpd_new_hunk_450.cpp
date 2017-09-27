@@ -1,14 +1,13 @@
-    }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: All worker threads have exited.", my_pid);
 
-    CloseHandle(allowed_globals.jobsemaphore);
-    apr_thread_mutex_destroy(allowed_globals.jobmutex);
-    apr_thread_mutex_destroy(child_lock);
-
-    if (use_acceptex) {
-        apr_thread_mutex_destroy(qlock);
-        CloseHandle(qwait_event);
+    if (apr_file_mktemp(&tfp, dirname, 0, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
+        exit(1);
     }
 
-    apr_pool_destroy(pchild);
+    if (apr_file_open(&f, argv[1], APR_READ, APR_OS_DEFAULT, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile,
+                "Could not open passwd file %s for reading.\n", argv[1]);
+        apr_file_printf(errfile, "Use -c option to create new one.\n");
+        cleanup_tempfile_and_exit(1);
+    }
+    apr_cpystrn(user, argv[3], sizeof(user));

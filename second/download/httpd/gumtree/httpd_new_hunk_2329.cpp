@@ -1,17 +1,13 @@
+                           perdir ? perdir : "",
+                           perdir ? "] ": "",
+                           text);
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
+    AP_REWRITE_LOG((uintptr_t)r, level, r->main ? 0 : 1, (char *)ap_get_server_name(r), logline);
 
-    cache = c->fp;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG + level, 0, r, "%s", logline);
 
-    c->hdrs = resp_hdrs;
+    return;
+}
+#endif /* !REWRITELOG_DISABLED */
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+

@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(),":%lu\r\n",dictGetHashTableUsed(c->dict));

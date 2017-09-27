@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't create unix domain socket");
+printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");

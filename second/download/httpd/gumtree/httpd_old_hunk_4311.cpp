@@ -1,20 +1,12 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    if (s == NULL) {
+        return s;
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    init_config_globals(p);
 
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    /* All server-wide config files now have the SAME syntax... */
+    error = process_command_config(s, ap_server_pre_read_config, conftree,
+                                   p, ptemp);
+    if (error) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);

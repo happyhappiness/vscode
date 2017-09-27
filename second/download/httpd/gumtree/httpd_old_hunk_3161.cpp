@@ -1,20 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
+            "+-------------------------------------------------------------------------+");
+    return;
+}
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+long ssl_io_data_cb(BIO *bio, int cmd,
+                    MODSSL_BIO_CB_ARG_TYPE *argp,
+                    int argi, long argl, long rc)
+{
+    SSL *ssl;
+    conn_rec *c;
+    server_rec *s;
 
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);

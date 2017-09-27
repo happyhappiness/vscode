@@ -1,31 +1,13 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
+static int authn_cache_precfg(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptmp)
+{
+    apr_status_t rv = ap_mutex_register(pconf, authn_cache_id,
+                                        NULL, APR_LOCK_DEFAULT, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
+                      "failed to register %s mutex", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);
+    socache_provider = ap_lookup_provider(AP_SOCACHE_PROVIDER_GROUP,
+                                          AP_SOCACHE_DEFAULT_PROVIDER,
+                                          AP_SOCACHE_PROVIDER_VERSION);

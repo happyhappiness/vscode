@@ -1,1 +1,0 @@
-addReplySds(c,sdsnew("-IOERR error or timeout connecting to the client\r\n"));

@@ -1,13 +1,15 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
+    if (rv == APR_SUCCESS) {
+        rv = apr_dir_remove(dir, pool);
+        if (APR_ENOTEMPTY == rv) {
+            rv = APR_SUCCESS;
+        }
+        if (rv != APR_SUCCESS) {
+            char errmsg[120];
+            apr_file_printf(errfile, "Could not remove directory %s: %s" APR_EOL_STR,
+                    dir, apr_strerror(rv, errmsg, sizeof errmsg));
+        }
     }
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+    return rv;
+}
+

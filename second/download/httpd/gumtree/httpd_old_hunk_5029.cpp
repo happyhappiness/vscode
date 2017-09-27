@@ -1,60 +1,39 @@
-	if (cfd != -1) {
-	    ap_note_cleanups_for_fd(r->pool, cfd);
-	    cachefp = ap_bcreate(r->pool, B_RD | B_WR);
-	    ap_bpushfd(cachefp, cfd, cfd);
-	}
-	else if (errno != ENOENT)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error opening cache file %s",
-			 c->filename);
-#ifdef EXPLAIN
-	else
-	    Explain1("File %s not found", c->filename);
-#endif
+     * All the file access checks (if any) have been made.  Time to go to work;
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
+     */
+    if (!(mask & APHTP_DELUSER)) {
+        i = mkrecord(&ctx, user);
+        if (i != 0) {
+            apr_file_printf(errfile, "%s: %s" NL, argv[0], errstr);
+            exit(i);
+        }
+        if (mask & APHTP_NOFILE) {
+            printf("%s" NL, ctx.out);
+            exit(0);
+        }
     }
 
-    if (cachefp != NULL) {
-	i = rdcache(r->pool, cachefp, c);
-	if (i == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error reading cache file %s", 
-			 c->filename);
-	else if (i == 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-			 "proxy: bad (short?) cache file: %s", c->filename);
-	if (i != 1) {
-	    ap_pclosef(r->pool, cachefp->fd);
-	    cachefp = NULL;
-	}
+    /*
+     * We can access the files the right way, and we have a record
+     * to add or update.  Let's do it..
+     */
+    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: could not determine temp dir" NL,
+                        argv[0]);
+        exit(ERR_FILEPERM);
     }
-/* fixed?  in this case, we want to get the headers from the remote server
-   it will be handled later if we don't do this (I hope ;-)
-    if (cachefp == NULL)
-	c->hdrs = ap_make_array(r->pool, 2, sizeof(struct hdr_entry));
-*/
-    /* FIXME: Shouldn't we check the URL somewhere? */
-    now = time(NULL);
-/* Ok, have we got some un-expired data? */
-    if (cachefp != NULL && c->expire != BAD_DATE && now < c->expire) {
-	Explain0("Unexpired data available");
-/* check IMS */
-	if (c->lmod != BAD_DATE && c->ims != BAD_DATE && c->ims >= c->lmod) {
-/* has the cached file changed since this request? */
-	    if (c->date == BAD_DATE || c->date > c->ims) {
-/* No, but these header values may have changed, so we send them with the
- * 304 response
- */
-		/* CHECKME: surely this was wrong? (Ben)
-		   p = table_get(r->headers_in, "Expires");
-		 */
-		struct hdr_entry *q;
+    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
 
-		q = ap_proxy_get_header(c->hdrs, "Expires");
-		if (q != NULL && q->value != NULL)
-		    ap_table_set(r->headers_out, "Expires", q->value);
-	    }
-	    ap_pclosef(r->pool, cachefp->fd);
-	    Explain0("Use local copy, cached file hasn't changed");
-	    return HTTP_NOT_MODIFIED;
-	}
+    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
+                        argv[0], dirname);
+        exit(ERR_FILEPERM);
+    }
 
+    /*
+     * If we're not creating a new file, copy records from the existing
+     * one to the temporary file until we find the specified user.
+     */

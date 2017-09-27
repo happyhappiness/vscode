@@ -1,1 +1,0 @@
-fprintf(stderr,"\nI/O error\n");

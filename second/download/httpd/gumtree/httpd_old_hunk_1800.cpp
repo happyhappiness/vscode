@@ -1,24 +1,28 @@
+             */
+            ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                         "apr_socket_accept: giving up.");
+            return APR_EGENERAL;
+#endif /*ENETDOWN*/
 
-#endif /* USE_SSL */
+#ifdef TPF
+        case EINACT:
+            ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                         "offload device inactive");
+            return APR_EGENERAL;
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
+                         "select/accept error (%d)", status);
+            return APR_EGENERAL;
+#else
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_socket_accept: (client socket)");
+            return APR_EGENERAL;
+#endif
+    }
+    return status;
+}
 
-static void write_request(struct connection * c)
-{
-    do {
-        apr_time_t tnow = apr_time_now();
-        apr_size_t l = c->rwrite;
-        apr_status_t e = APR_SUCCESS; /* prevent gcc warning */
 
-        /*
-         * First time round ?
-         */
-        if (c->rwrite == 0) {
-            apr_socket_timeout_set(c->aprsock, 0);
-            c->connect = tnow;
-            c->rwrite = reqlen;
-            c->rwrote = 0;
-            if (posting)
-                c->rwrite += postlen;
-        }
-        else if (tnow > c->connect + aprtimeout) {
-            printf("Send request timed out!\n");
-            close_connection(c);
+#ifdef _OSD_POSIX

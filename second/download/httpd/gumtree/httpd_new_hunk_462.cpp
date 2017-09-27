@@ -1,15 +1,17 @@
-    if (csd && key) {
-        int sockdes;
-        apr_os_sock_get(&sockdes, csd);
-
-
-        ret = SSLize_Socket(sockdes, key, r);
-        if (!ret) {
-            csd_data->is_secure = 1;
-        }
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Upgradeable socket handle not found");
-        return ap_pass_brigade(f->next, bb);
-    }
+                if (error_fmt) {
+                    ap_log_rerror(APLOG_MARK, loglevel,
+                                  0, r, error_fmt, tag_val, r->filename);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
+                                        *inserted_head);
+                }
+                
+                /* Do *not* destroy the subrequest here; it may have allocated
+                 * variables in this r->subprocess_env in the subrequest's
+                 * r->pool, so that pool must survive as long as this request.
+                 * Yes, this is a memory leak. */
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" to tag include in %s",
+                            tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);

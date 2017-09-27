@@ -1,23 +1,36 @@
-                 "Set to off to disable auth_ldap, even if it's been enabled in a higher tree"),
- 
-    AP_INIT_FLAG("AuthLDAPFrontPageHack", ap_set_flag_slot,
-                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, frontpage_hack), OR_AUTHCFG,
-                 "Set to 'on' to support Microsoft FrontPage"),
+    /* WooHoo, we have a file to put in the cache */
+    new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
+    new_file->finfo = tmp.finfo;
 
-#ifdef APU_HAS_LDAP_STARTTLS
-    AP_INIT_FLAG("AuthLDAPStartTLS", ap_set_flag_slot,
-                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, starttls), OR_AUTHCFG,
-                 "Set to 'on' to start TLS after connecting to the LDAP server."),
-#endif /* APU_HAS_LDAP_STARTTLS */
+#if APR_HAS_MMAP
+    if (mmap) {
+        apr_mmap_t *mm;
 
-    {NULL}
-};
-
-static void mod_auth_ldap_register_hooks(apr_pool_t *p)
-{
-    ap_hook_check_user_id(mod_auth_ldap_check_user_id, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_auth_checker(mod_auth_ldap_auth_checker, NULL, NULL, APR_HOOK_MIDDLE);
-}
-
-module auth_ldap_module = {
-   STANDARD20_MODULE_STUFF,
+        /* MMAPFile directive. MMAP'ing the file
+         * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
+         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
+         */
+        if ((rc = apr_mmap_create(&mm, fd, 0, 
+                                  (apr_size_t)new_file->finfo.size,
+                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) { 
+            apr_file_close(fd);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                         "mod_file_cache: unable to mmap %s, skipping", filename);
+            return;
+        }
+        apr_file_close(fd);
+        /* We want to cache an apr_mmap_t that's marked as "non-owner"
+         * to pass to each request so that mmap_setaside()'s call to
+         * apr_mmap_dup() will never try to move the apr_mmap_t to a
+         * different pool.  This apr_mmap_t is already going to live
+         * longer than any request, but mmap_setaside() has no way to
+         * know that because it's allocated out of cmd->pool,
+         * which is disjoint from r->pool.
+         */
+        apr_mmap_dup(&new_file->mm, mm, cmd->pool, 0);
+        new_file->is_mmapped = TRUE;
+    }
+#endif
+#if APR_HAS_SENDFILE
+    if (!mmap) {
+        /* CacheFile directive. Caching the file handle */

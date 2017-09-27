@@ -1,21 +1,12 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+        return 1;
+   }
+#endif
 
-    /* At some point, we may want to offer back-compatibility for
-     * loading modules that are for older versions of Apache. For now,
-     * though, we don't.
-     */
-
-    if (m->version != MODULE_MAGIC_NUMBER) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the author for the correct version.\n");
-	exit(1);
+    if (accf > 0) /* 'data' or 'connect' */
+    {
+        /* first, high priority event is an already accepted connection */
+        events[1] = exit_event;
+        events[2] = max_requests_per_child_event;
     }
-
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+    else /* accf == 0, 'none' */
+    {

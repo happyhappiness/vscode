@@ -1,20 +1,20 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+    if (!cache) {
+        /* user likely configured CACHE_REMOVE_URL manually; they should really
+         * use mod_cache configuration to do that. So:
+         * 1. Remove ourselves
+         * 2. Do nothing and bail out
+         */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: CACHE_REMOVE_URL enabled unexpectedly");
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, in);
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    /* Now remove this cache entry from the cache */
+    cache_remove_url(cache, r->pool);
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    /* remove ourselves */
+    ap_remove_output_filter(f);
+    return ap_pass_brigade(f->next, in);
+}
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

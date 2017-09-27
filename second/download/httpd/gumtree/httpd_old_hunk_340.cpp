@@ -1,12 +1,13 @@
-    shutdown_pending = os_check_server(tpf_server_name);
-    ap_check_signals();
-    sleep(1);
-#endif /*TPF */
-    }
 
-    if (shutdown_pending) {
-	/* Time to gracefully shut down:
-	 * Kill child processes, tell them to call child_exit, etc...
-	 */
-	if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGTERM");
+    now = apr_time_now();
+
+    con = calloc(concurrency * sizeof(struct connection), 1);
+    
+    stats = calloc(requests * sizeof(struct data), 1);
+    apr_pollset_create(&readbits, concurrency, cntxt, 0);
+
+    /* setup request */
+    if (posting <= 0) {
+	sprintf(request, "%s %s HTTP/1.0\r\n"
+		"User-Agent: ApacheBench/%s\r\n"
+		"%s" "%s" "%s"

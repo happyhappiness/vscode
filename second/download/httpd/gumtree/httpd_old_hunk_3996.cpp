@@ -1,13 +1,19 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+        r->path_info && *r->path_info)
+    {
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01266)
+                               "AcceptPathInfo off disallows user's path");
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01267)
+                                   "file permissions deny server execution");
+    }
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    env = ap_create_environment(r->pool, r->subprocess_env);
+
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;

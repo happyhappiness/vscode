@@ -1,35 +1,14 @@
-
-        /*
-         * If next != NULL then we left the while above because of
-         * next->frec == ap_http_header_filter
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
          */
-        if (next) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Custom error page caused AP_FILTER_ERROR");
-            type = HTTP_INTERNAL_SERVER_ERROR;
-        }
-        else {
-            return;
-        }
-    }
-
-    if (type == DONE) {
-        ap_finalize_request_protocol(r);
-        return;
+        r->status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
     }
 
     /*
-     * The following takes care of Apache redirects to custom response URLs
-     * Note that if we are already dealing with the response to some other
-     * error condition, we just report on the original error, and give up on
-     * any attempt to handle the other thing "intelligently"...
-     */
-    if (r->status != HTTP_OK) {
-        recursive_error = type;
-
-        while (r_1st_err->prev && (r_1st_err->prev->status != HTTP_OK))
-            r_1st_err = r_1st_err->prev;  /* Get back to original error */
-
-        if (r_1st_err != r) {
-            /* The recursive error was caused by an ErrorDocument specifying
-             * an internal redirect to a bad URI.  ap_internal_redirect has
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body

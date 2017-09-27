@@ -1,13 +1,17 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+            count = AJP_MAX_BUFFER_SZ;
+        }
+        rc = ajp_msg_dump(r->pool, msg, err, count, &buf);
+        if (rc == APR_SUCCESS) {
+            while ((next = ap_strchr(buf, '\n'))) {
+                *next = '\0';
+                /* Intentional no APLOGNO */
+                ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);
+                buf = next + 1;
+            }
+            /* Intentional no APLOGNO */
+            ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);
+        }
     }
+    return rc;
+}
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);

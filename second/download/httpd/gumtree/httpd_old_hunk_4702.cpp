@@ -1,34 +1,13 @@
-		    }   
-		}
-	    }
-	    break;
-	}
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+        rv = conf->provider->socache_provider->init(
+                conf->provider->socache_instance, cache_socache_id,
+                &socache_hints, s, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02393)
+            "failed to initialise %s cache", cache_socache_id);
+            return 500; /* An HTTP status would be a misnomer! */
+        }
+        apr_pool_cleanup_register(pconf, (void *) s, destroy_cache,
+                apr_pool_cleanup_null);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+    }

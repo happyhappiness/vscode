@@ -1,1 +1,0 @@
-printf("All data transferred. Waiting for the last reply...\n");

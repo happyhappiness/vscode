@@ -1,20 +1,32 @@
-    }
-    else if (r->prev && (r->prev->per_dir_config == r->per_dir_config)) {
-        r->user = r->prev->user;
-        r->ap_auth_type = r->prev->ap_auth_type;
-    }
-    else {
-        /* A module using a confusing API (ap_get_basic_auth_pw) caused
-        ** r->user to be filled out prior to check_authn hook. We treat
-        ** it is inadvertent.
-        */
-        if (r->user && apr_table_get(r->notes, AP_GET_BASIC_AUTH_PW_NOTE)) { 
-            r->user = NULL;
+    {
+        const char *str;
+        apr_size_t length, written;
+        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "disk_cache: Error when reading bucket for URL %s",
+                         h->cache_obj->key);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return rv;
         }
-
-        switch (ap_satisfies(r)) {
-        case SATISFY_ALL:
-        case SATISFY_NOSPEC:
-            if ((access_status = ap_run_access_checker(r)) != 0) {
-                return decl_die(access_status, "check access", r);
-            }
+        rv = apr_file_write_full(dobj->tfd, str, length, &written);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "disk_cache: Error when writing cache file for URL %s",
+                         h->cache_obj->key);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return rv;
+        }
+        dobj->file_size += written;
+        if (dobj->file_size > conf->maxfs) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "disk_cache: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT ">%" APR_OFF_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->maxfs);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
+        }
+    }

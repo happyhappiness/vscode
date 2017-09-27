@@ -1,1 +1,0 @@
-printf("Could not truncate AOF to size %ld\n", pos);

@@ -1,13 +1,19 @@
-{
-    static int requests_this_child = 0;
-    PCOMP_CONTEXT context = NULL;
-    ap_sb_handle_t *sbh;
+                }
+            }
+        }
+        else {
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                != APR_SUCCESS) {
+                int level = APLOG_EMERG;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld starting.", my_pid, thread_num);
-    while (1) {
-        conn_rec *c;
-        apr_int32_t disconnected;
-
-        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
-
+                if (ap_scoreboard_image->parent[process_slot].generation != 
+                    ap_scoreboard_image->global->running_generation) {
+                    level = APLOG_DEBUG; /* common to get these at restart time */
+                }
+                ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+            }
+            break;
+        }

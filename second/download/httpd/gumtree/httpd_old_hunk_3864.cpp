@@ -1,18 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+     * handler.  Leave INFO notes here for module debugging.
+     */
+    if (r->filename == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00029)
+                      "Module bug?  Request filename is missing for URI %s",
+                      r->uri);
+       return OK;
+    }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    /* Canonicalize the file path without resolving filename case or aliases
+     * so we can begin by checking the cache for a recent directory walk.
+     * This call will ensure we have an absolute path in the same pass.
+     */

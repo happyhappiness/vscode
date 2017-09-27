@@ -1,1 +1,0 @@
-printf("\n(Lua debugging session terminated)\n\n");

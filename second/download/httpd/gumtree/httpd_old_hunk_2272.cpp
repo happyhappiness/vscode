@@ -1,13 +1,15 @@
-    rr->content_type = CGI_MAGIC_TYPE;
 
-    /* Run it. */
+    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    if (sec->group_attrib_is_dn) {
+        if (req->dn == NULL || strlen(req->dn) == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                          "user's DN has not been defined; failing authorization for user %s",
+                          getpid(), r->user);
+            return AUTHZ_DENIED;
+        }
     }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    else {
+        if (req->user == NULL || strlen(req->user) == 0) {
+            /* We weren't called in the authentication phase, so we didn't have a

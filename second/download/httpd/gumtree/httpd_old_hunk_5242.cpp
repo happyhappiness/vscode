@@ -1,71 +1,24 @@
-	    n = strlen(buf);
-	}
-
-	o = 0;
-	total_bytes_sent += n;
-
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
-
-	while (n && !r->connection->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0)
-		break;
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-	    n -= w;
-	    o += w;
-	}
-    }
-    site = "</PRE><HR>\n";
-    ap_bputs(site, con->client);
-    if (f2 != NULL)
-	ap_bputs(site, f2);
-    total_bytes_sent += strlen(site);
-
-    sig = ap_psignature("", r);
-    ap_bputs(sig, con->client);
-    if (f2 != NULL)
-	ap_bputs(sig, f2);
-    total_bytes_sent += strlen(sig);
-
-    site = "</BODY></HTML>\n";
-    ap_bputs(site, con->client);
-    if (f2 != NULL)
-	ap_bputs(site, f2);
-    total_bytes_sent += strlen(site);
-    ap_bflush(con->client);
-
-    return total_bytes_sent;
 }
-
-/*
- * Handles direct access of ftp:// URLs
- * Original (Non-PASV) version from
- * Troy Morrison <spiffnet@zoom.com>
- * PASV added by Chuck
- */
-int ap_proxy_ftp_handler(request_rec *r, struct cache_req *c, char *url)
+static int authn_cache_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                                   apr_pool_t *ptmp, server_rec *s)
 {
-    char *host, *path, *strp, *user, *password, *parms;
-    const char *err;
-    int port, userlen, i, j, len, sock, dsock, rc, nocache;
-    int passlen = 0;
-    int csd = 0;
-    struct sockaddr_in server;
-    struct hostent server_hp;
-    struct hdr_entry *hdr;
-    struct in_addr destaddr;
-    array_header *resp_hdrs;
-    BUFF *f, *cache;
-    BUFF *data = NULL;
-    pool *p = r->pool;
-    int one = 1;
-    const long int zero = 0L;
-    NET_SIZE_T clen;
+    apr_status_t rv;
+    static struct ap_socache_hints authn_cache_hints = {64, 32, 60000000};
 
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
+    if (!configured) {
+        return OK;    /* don't waste the overhead of creating mutex & cache */
+    }
+    if (socache_provider == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(01674)
+                      "Please select a socache provider with AuthnCacheSOCache "
+                      "(no default found on this platform). Maybe you need to "
+                      "load mod_socache_shmcb or another socache module first");
+        return 500; /* An HTTP status would be a misnomer! */
+    }
+
+    rv = ap_global_mutex_create(&authn_cache_mutex, NULL,
+                                authn_cache_id, NULL, s, pconf, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01675)
+                      "failed to create %s mutex", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */

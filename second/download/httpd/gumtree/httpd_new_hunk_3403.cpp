@@ -1,18 +1,19 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+
+    e = OpenEvent(EVENT_MODIFY_STATE, FALSE, signal_name);
+    if (!e) {
+        /* Um, problem, can't signal the parent, which means we can't
+         * signal ourselves to die. Ignore for now...
+         */
+        ap_log_error(APLOG_MARK, APLOG_EMERG, apr_get_os_error(), ap_server_conf, APLOGNO(00382)
+                     "OpenEvent on %s event", signal_name);
+        return;
+    }
+    if (SetEvent(e) == 0) {
+        /* Same problem as above */
+        ap_log_error(APLOG_MARK, APLOG_EMERG, apr_get_os_error(), ap_server_conf, APLOGNO(00383)
+                     "SetEvent on %s event", signal_name);
+        CloseHandle(e);
+        return;
+    }
+    CloseHandle(e);
 }
-
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

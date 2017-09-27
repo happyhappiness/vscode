@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Parent agreed to stop sending diffs. Finalizing AOF...");

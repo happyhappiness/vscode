@@ -1,18 +1,13 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
-
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+            break;
+        case NGHTTP2_RST_STREAM:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
+                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
+                          session->id, (int)frame->hd.stream_id,
+                          (int)frame->rst_stream.error_code);
+            stream = h2_session_get_stream(session, frame->hd.stream_id);
+            if (stream && stream->request && stream->request->initiated_on) {
+                ++session->pushes_reset;
+            }
+            else {
+                ++session->streams_reset;
+            }

@@ -1,0 +1,1 @@
+fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");

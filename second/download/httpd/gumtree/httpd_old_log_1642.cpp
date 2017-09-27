@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                  "handing out temporary 256 bit ECC key");
+printf("Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/\n");

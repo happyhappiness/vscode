@@ -1,13 +1,13 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
+        apr_status_t rv;
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+        /* Replace existing stderr with new log. */
+        apr_file_flush(s_main->error_log);
+        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main, APLOGNO(00092)
+                         "unable to replace stderr with error_log");
+        }
+        else {
+            /* We are done with stderr_pool, close it, killing
+             * the previous generation's stderr logger
+             */

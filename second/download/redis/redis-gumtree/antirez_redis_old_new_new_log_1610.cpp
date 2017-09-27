@@ -1,1 +1,0 @@
-zremrangeGenericCommand(c,ZRANGE_LEX);

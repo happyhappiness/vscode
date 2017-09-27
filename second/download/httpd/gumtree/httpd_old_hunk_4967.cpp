@@ -1,22 +1,13 @@
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
 
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
--- apache_1.3.1/src/modules/example/mod_example.c	1998-06-15 05:10:25.000000000 +0800
+                apr_brigade_length(bb, 1, &len);
+
+                rv = apr_brigade_partition(bb, ctx->chunk_size, &stop_point);
+                if (rv != APR_SUCCESS && rv != APR_INCOMPLETE) {
+                    ctx->state = RATE_ERROR;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");
+                    break;
+                }
+
+                if (stop_point != APR_BRIGADE_SENTINEL(bb)) {
+                    apr_bucket *f;

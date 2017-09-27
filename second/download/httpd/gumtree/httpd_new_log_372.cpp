@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Pre-configuration failed");
+apr_file_printf(errfile,
+		"Could not open passwd file %s for reading.\n", argv[1]);

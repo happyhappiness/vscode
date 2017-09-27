@@ -1,13 +1,18 @@
+        if ((val = apr_table_get(params, "dw"))) {
+            if (!strcasecmp(val, "Disable"))
+                wsel->s->status |= PROXY_WORKER_DISABLED;
+            else if (!strcasecmp(val, "Enable"))
+                wsel->s->status &= ~PROXY_WORKER_DISABLED;
+        }
+        if ((val = apr_table_get(params, "ls"))) {
+            int ival = atoi(val);
+            if (ival >= 0 && ival <= 99) {
+                wsel->s->lbset = ival;
+             }
+        }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    }
+    if (apr_table_get(params, "xml")) {
+        ap_set_content_type(r, "text/xml");
+        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
+        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);

@@ -1,27 +1,12 @@
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
-        return HTTP_BAD_REQUEST;
-    }
-    /* now parse path/search args, according to rfc1738 */
-    /* N.B. if this isn't a true proxy request, then the URL _path_
-     * has already been decoded.  True proxy requests have r->uri
-     * == r->unparsed_uri, and no others have that property.
-     */
-    if (r->uri == r->unparsed_uri) {
-        search = strchr(url, '?');
-        if (search != NULL)
-            *(search++) = '\0';
-    }
-    else
-        search = r->args;
 
-    /* process path */
-    path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0, r->proxyreq);
-    if (path == NULL)
-        return HTTP_BAD_REQUEST;
+static void ssl_configure_env(request_rec *r, SSLConnRec *sslconn);
+#ifndef OPENSSL_NO_TLSEXT
+static int ssl_find_vhost(void *servername, conn_rec *c, server_rec *s);
+#endif
 
-    r->filename = apr_pstrcat(r->pool, "proxy:balancer://", host,
-            "/", path, (search) ? "?" : "", (search) ? search : "", NULL);
-    return OK;
+/* Perform a speculative (and non-blocking) read from the connection
+ * filters for the given request, to determine whether there is any
+ * pending data to read.  Return non-zero if there is, else zero. */
+static int has_buffered_data(request_rec *r) 
+{
+    apr_bucket_brigade *bb;

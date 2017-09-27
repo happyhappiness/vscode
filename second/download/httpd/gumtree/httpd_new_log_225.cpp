@@ -1,1 +1,1 @@
-apr_pool_create(&subpool, r->pool);
+ap_rputs(">", r);

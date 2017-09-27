@@ -1,1 +1,1 @@
-ap_rputs("disabled)\n", r);
+ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);

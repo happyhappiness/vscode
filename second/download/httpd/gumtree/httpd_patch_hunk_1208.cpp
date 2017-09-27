@@ -1,141 +1,94 @@
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
-                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
-     }
- }
+  * Insert an item into the cache.
+  * *** Does not catch duplicates!!! ***
+  */
+ void *util_ald_cache_insert(util_ald_cache_t *cache, void *payload)
+ {
+     unsigned long hashval;
++    void *tmp_payload;
+     util_cache_node_t *node;
  
-+#ifndef OPENSSL_NO_TLSEXT
-+/*
-+ * This callback function is executed when OpenSSL encounters an extended
-+ * client hello with a server name indication extension ("SNI", cf. RFC 4366).
-+ */
-+int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)
-+{
-+    const char *servername =
-+                SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-+
-+    if (servername) {
-+        conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-+        if (c) {
-+            if (ap_vhost_iterate_given_conn(c, ssl_find_vhost,
-+                                            (void *)servername)) {
-+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-+                              "SSL virtual host for servername %s found",
-+                              servername);
-+                return SSL_TLSEXT_ERR_OK;
-+            }
-+            else {
-+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-+                              "No matching SSL virtual host for servername "
-+                              "%s found (using default/first virtual host)",
-+                              servername);
-+                return SSL_TLSEXT_ERR_ALERT_WARNING;
-+            }
-+        }
-+    }
-+
-+    return SSL_TLSEXT_ERR_NOACK;
-+}
-+
-+/*
-+ * Find a (name-based) SSL virtual host where either the ServerName
-+ * or one of the ServerAliases matches the supplied name (to be used
-+ * with ap_vhost_iterate_given_conn())
-+ */
-+static int ssl_find_vhost(void *servername, conn_rec *c, server_rec *s) 
-+{
-+    SSLSrvConfigRec *sc;
-+    SSL *ssl;
-+    BOOL found = FALSE;
-+    apr_array_header_t *names;
-+    int i;
-+    SSLConnRec *sslcon;
-+
-+    /* check ServerName */
-+    if (!strcasecmp(servername, s->server_hostname)) {
-+        found = TRUE;
-+    }
-+
-+    /* 
-+     * if not matched yet, check ServerAlias entries
-+     * (adapted from vhost.c:matches_aliases())
-+     */
-+    if (!found) {
-+        names = s->names;
-+        if (names) {
-+            char **name = (char **)names->elts;
-+            for (i = 0; i < names->nelts; ++i) {
-+                if (!name[i])
-+                    continue;
-+                if (!strcasecmp(servername, name[i])) {
-+                    found = TRUE;
-+                    break;
-+                }
-+            }
-+        }
-+    }
-+
-+    /* if still no match, check ServerAlias entries with wildcards */
-+    if (!found) {
-+        names = s->wild_names;
-+        if (names) {
-+            char **name = (char **)names->elts;
-+            for (i = 0; i < names->nelts; ++i) {
-+                if (!name[i])
-+                    continue;
-+                if (!ap_strcasecmp_match(servername, name[i])) {
-+                    found = TRUE;
-+                    break;
-+                }
-+            }
-+        }
-+    }
-+
-+    /* set SSL_CTX (if matched) */
-+    sslcon = myConnConfig(c);
-+    if (found && (ssl = sslcon->ssl) &&
-+        (sc = mySrvConfig(s))) {
-+        SSL_set_SSL_CTX(ssl, sc->server->ssl_ctx);
+     /* sanity check */
+     if (cache == NULL || payload == NULL) {
+         return NULL;
+     }
+ 
+     /* check if we are full - if so, try purge */
+     if (cache->numentries >= cache->maxentries) {
+         util_ald_cache_purge(cache);
+         if (cache->numentries >= cache->maxentries) {
+             /* if the purge was not effective, we leave now to avoid an overflow */
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
++                         "Purge of LDAP cache failed");
+             return NULL;
+         }
+     }
+ 
+-    /* should be safe to add an entry */
+-    if ((node = (util_cache_node_t *)util_ald_alloc(cache, sizeof(util_cache_node_t))) == NULL) {
+-        return NULL;
++    node = (util_cache_node_t *)util_ald_alloc(cache,
++                                               sizeof(util_cache_node_t));
++    if (node == NULL) {
 +        /*
-+         * SSL_set_SSL_CTX() only deals with the server cert,
-+         * so we need to duplicate a few additional settings
-+         * from the ctx by hand
++         * XXX: The cache management should be rewritten to work
++         * properly when LDAPSharedCacheSize is too small.
 +         */
-+        SSL_set_options(ssl, SSL_CTX_get_options(ssl->ctx));
-+        if ((SSL_get_verify_mode(ssl) == SSL_VERIFY_NONE) ||
-+            (SSL_num_renegotiations(ssl) == 0)) {
-+           /*
-+            * Only initialize the verification settings from the ctx
-+            * if they are not yet set, or if we're called when a new
-+            * SSL connection is set up (num_renegotiations == 0).
-+            * Otherwise, we would possibly reset a per-directory
-+            * configuration which was put into effect by ssl_hook_Access.
-+            */
-+            SSL_set_verify(ssl, SSL_CTX_get_verify_mode(ssl->ctx),
-+                           SSL_CTX_get_verify_callback(ssl->ctx));
++        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
++                     "LDAPSharedCacheSize is too small. Increase it or "
++                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
++        if (cache->numentries < cache->fullmark) {
++            /*
++             * We have not even reached fullmark, trigger a complete purge.
++             * This is still better than not being able to add new entries
++             * at all.
++             */
++            cache->marktime = apr_time_now();
 +        }
-+
-+        /*
-+         * Save the found server into our SSLConnRec for later
-+         * retrieval
-+         */
-+        sslcon->server = s;
-+
-+        /*
-+         * There is one special filter callback, which is set
-+         * very early depending on the base_server's log level.
-+         * If this is not the first vhost we're now selecting
-+         * (and the first vhost doesn't use APLOG_DEBUG), then
-+         * we need to set that callback here.
-+         */
-+        if (s->loglevel >= APLOG_DEBUG) {
-+            BIO_set_callback(SSL_get_rbio(ssl), ssl_io_data_cb);
-+            BIO_set_callback_arg(SSL_get_rbio(ssl), (void *)ssl);
++        util_ald_cache_purge(cache);
++        node = (util_cache_node_t *)util_ald_alloc(cache,
++                                                   sizeof(util_cache_node_t));
++        if (node == NULL) {
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
++                         "Could not allocate memory for LDAP cache entry");
++            return NULL;
 +        }
-+
-+        return 1;
-+    }
-+
-+    return 0;
-+}
-+#endif
+     }
+ 
+     /* Take a copy of the payload before proceeeding. */
+-    payload = (*cache->copy)(cache, payload);
+-    if (!payload) {
+-        util_ald_free(cache, node);
+-        return NULL;
++    tmp_payload = (*cache->copy)(cache, payload);
++    if (tmp_payload == NULL) {
++        /*
++         * XXX: The cache management should be rewritten to work
++         * properly when LDAPSharedCacheSize is too small.
++         */
++        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
++                     "LDAPSharedCacheSize is too small. Increase it or "
++                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
++        if (cache->numentries < cache->fullmark) {
++            /*
++             * We have not even reached fullmark, trigger a complete purge.
++             * This is still better than not being able to add new entries
++             * at all.
++             */
++            cache->marktime = apr_time_now();
++        }
++        util_ald_cache_purge(cache);
++        tmp_payload = (*cache->copy)(cache, payload);
++        if (tmp_payload == NULL) {
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
++                         "Could not allocate memory for LDAP cache value");
++            util_ald_free(cache, node);
++            return NULL;
++        }
+     }
++    payload = tmp_payload;
+ 
+     /* populate the entry */
+     cache->inserts++;
+     hashval = (*cache->hash)(payload) % cache->size;
+     node->add_time = apr_time_now();
+     node->payload = payload;

@@ -1,13 +1,15 @@
-            if (result != DECLINED)
-                return result;
+    
+    if (cache_digest && session->push_diary) {
+        status = h2_push_diary_digest64_set(session->push_diary, req->authority, 
+                                            cache_digest, stream->pool);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          APLOGNO(03057)
+                          "h2_session(%ld): push diary set from Cache-Digest: %s", 
+                          session->id, cache_digest);
         }
     }
+    pushes = h2_push_collect(stream->pool, req, stream->push_policy, res);
+    return h2_push_diary_update(stream->session, pushes);
+}
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {

@@ -1,13 +1,13 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-	exit(1);
-    }
-
-    return server_hostname;
-}
-
+    /* find the scheme */
+    u = strchr(url, ':');
+    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0')
+       return DECLINED;
+    if ((u - url) > 14)
+        return HTTP_BAD_REQUEST;
+    scheme = apr_pstrmemdup(p, url, u - url);
+    /* scheme is lowercase */
+    ap_str_tolower(scheme);
+    /* is it for us? */
+    if (strcmp(scheme, "https") == 0) {
+        if (!ap_proxy_ssl_enable(NULL)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01112)

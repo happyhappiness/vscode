@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Guru Meditation: %s #%s:%d",msg,file,line);

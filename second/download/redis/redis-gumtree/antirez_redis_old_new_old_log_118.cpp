@@ -1,1 +1,0 @@
-__redisReaderSetError(r,REDIS_ERR_PROTOCOL,sbuf);

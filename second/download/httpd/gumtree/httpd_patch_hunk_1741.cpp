@@ -1,106 +1,123 @@
-             closesocket(qhead->accept_socket);
-             qhead = qhead->next;
-         }
-         apr_thread_mutex_unlock(qlock);
-     }
- 
--    /* Give busy worker threads a chance to service their connections */
--    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
--                 "Child %d: Waiting for %d worker threads to exit.", my_pid, threads_created);
--    end_time = time(NULL) + 180;
--    while (threads_created) {
--        rv = wait_for_many_objects(threads_created, child_handles, (DWORD)(end_time - time(NULL)));
--        if (rv != WAIT_TIMEOUT) {
--            rv = rv - WAIT_OBJECT_0;
--            ap_assert((rv >= 0) && (rv < threads_created));
--            cleanup_thread(child_handles, &threads_created, rv);
-+    /* Give busy threads a chance to service their connections,
-+     * (no more than the global server timeout period which 
-+     * we track in msec remaining).
-+     */
-+    watch_thread = 0;
-+    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
-+
-+    while (threads_created)
-+    {
-+        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
-+        DWORD dwRet;
-+
-+        /* Every time we roll over to wait on the first group
-+         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
-+         * and infrequently update the error log.
-+         */
-+        if (watch_thread >= threads_created) {
-+            if ((time_remains -= 100) < 0)
-+                break;
-+
-+            /* Every 30 seconds give an update */
-+            if ((time_remains % 30000) == 0) {
-+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
-+                             ap_server_conf,
-+                             "Child %d: Waiting %d more seconds "
-+                             "for %d worker threads to finish.", 
-+                             my_pid, time_remains / 1000, threads_created);
-+            }
-+            /* We'll poll from the top, 10 times per second */
-+            Sleep(100);
-+            watch_thread = 0;
-+        }
-+
-+        /* Fairness, on each iteration we will pick up with the thread
-+         * after the one we just removed, even if it's a single thread.
-+         * We don't block here.
-+         */
-+        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
-+                                           MAXIMUM_WAIT_OBJECTS),
-+                                       child_handles + watch_thread, 0, 0);
-+
-+        if (dwRet == WAIT_FAILED) {
-+            break;
-+        }
-+        if (dwRet == WAIT_TIMEOUT) {
-+            /* none ready */
-+            watch_thread += MAXIMUM_WAIT_OBJECTS;
-             continue;
-         }
--        break;
-+        else if (dwRet >= WAIT_ABANDONED_0) {
-+            /* We just got the ownership of the object, which
-+             * should happen at most MAXIMUM_WAIT_OBJECTS times.
-+             * It does NOT mean that the object is signaled.
-+             */
-+            if ((nFailsafe--) < 1)
-+                break;
-+        }
-+        else {
-+            watch_thread += (dwRet - WAIT_OBJECT_0);
-+            if (watch_thread >= threads_created)
-+                break;
-+            cleanup_thread(child_handles, &threads_created, watch_thread);
-+        }
+                 "Oops, no RSA, DSA or ECC server private key found?!");
+ #else
+                 "Oops, no RSA or DSA server private key found?!");
+ #endif
+         ssl_die();
      }
 -
-+ 
-     /* Kill remaining threads off the hard way */
-     if (threads_created) {
-         ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                      "Child %d: Terminating %d threads that failed to exit.",
-                      my_pid, threads_created);
-     }
-     for (i = 0; i < threads_created; i++) {
-         int *score_idx;
-         TerminateThread(child_handles[i], 1);
-         CloseHandle(child_handles[i]);
-         /* Reset the scoreboard entry for the thread we just whacked */
-         score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
--        ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
-+        if (score_idx) {
-+            ap_update_child_status_from_indexes(0, *score_idx,
-+                                                SERVER_DEAD, NULL);
-+        }
-     }
-     ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                  "Child %d: All worker threads have exited.", my_pid);
+-    /*
+-     * Try to read DH parameters from the (first) SSLCertificateFile
+-     */
+-    if ((mctx->pks->cert_files[0] != NULL) &&
+-        (dhparams = ssl_dh_GetParamFromFile(mctx->pks->cert_files[0]))) {
+-        SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "Custom DH parameters (%d bits) for %s loaded from %s",
+-                     BN_num_bits(dhparams->p), vhost_id,
+-                     mctx->pks->cert_files[0]);
+-        DH_free(dhparams);
+-    }
+-
+-#ifndef OPENSSL_NO_EC
+-    /*
+-     * Similarly, try to read the ECDH curve name from SSLCertificateFile...
+-     */
+-    if ((mctx->pks->cert_files[0] != NULL) &&
+-        (ecparams = ssl_ec_GetParamFromFile(mctx->pks->cert_files[0])) &&
+-        (nid = EC_GROUP_get_curve_name(ecparams)) &&
+-        (eckey = EC_KEY_new_by_curve_name(nid))) {
+-        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "ECDH curve %s for %s specified in %s",
+-                     OBJ_nid2sn(nid), vhost_id, mctx->pks->cert_files[0]);
+-    }
+-    /*
+-     * ...otherwise, enable auto curve selection (OpenSSL 1.0.2 and later)
+-     * or configure NIST P-256 (required to enable ECDHE for earlier versions)
+-     */
+-    else {
+-#if defined(SSL_CTX_set_ecdh_auto)
+-        SSL_CTX_set_ecdh_auto(mctx->ssl_ctx, 1);
+-#else
+-        eckey = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+-        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+-#endif
+-    }
+-    EC_KEY_free(eckey);
+-    EC_GROUP_free(ecparams);
+-#endif
+ }
  
-     CloseHandle(allowed_globals.jobsemaphore);
-     apr_thread_mutex_destroy(allowed_globals.jobmutex);
+-#ifdef HAVE_TLS_SESSION_TICKETS
+-static void ssl_init_ticket_key(server_rec *s,
+-                                apr_pool_t *p,
+-                                apr_pool_t *ptemp,
+-                                modssl_ctx_t *mctx)
+-{
+-    apr_status_t rv;
+-    apr_file_t *fp;
+-    apr_size_t len;
+-    char buf[TLSEXT_TICKET_KEY_LEN];
+-    char *path;
+-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+-
+-    if (!ticket_key->file_path) {
+-        return;
+-    }
+-
+-    path = ap_server_root_relative(p, ticket_key->file_path);
+-
+-    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
+-                       APR_OS_DEFAULT, ptemp);
+-
+-    if (rv != APR_SUCCESS) {
+-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+-                     "Failed to open ticket key file %s: (%d) %pm",
+-                     path, rv, &rv);
+-        ssl_die();
+-    }
+-
+-    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
+-
+-    if (rv != APR_SUCCESS) {
+-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+-                     "Failed to read %d bytes from %s: (%d) %pm",
+-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
+-        ssl_die();
+-    }
+-
+-    memcpy(ticket_key->key_name, buf, 16);
+-    memcpy(ticket_key->hmac_secret, buf + 16, 16);
+-    memcpy(ticket_key->aes_key, buf + 32, 16);
+-
+-    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
+-                                          ssl_callback_SessionTicket)) {
+-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+-                     "Unable to initialize TLS session ticket key callback "
+-                     "(incompatible OpenSSL version?)");
+-        ssl_log_ssl_error(APLOG_MARK, APLOG_EMERG, s);
+-        ssl_die();
+-    }
+-
+-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+-                 "TLS session ticket key for %s successfully loaded from %s",
+-                 (mySrvConfig(s))->vhost_id, path);
+-}
+-#endif
+-
+ static void ssl_init_proxy_certs(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
+ {
+     int n, ncerts = 0;
+     STACK_OF(X509_INFO) *sk;
+-    STACK_OF(X509) *chain;
+-    X509_STORE_CTX *sctx;
+-    X509_STORE *store = SSL_CTX_get_cert_store(mctx->ssl_ctx);
+     modssl_pk_proxy_t *pkp = mctx->pkp;
+ 
+     SSL_CTX_set_client_cert_cb(mctx->ssl_ctx,
+                                ssl_callback_proxy_cert);
+ 
+     if (!(pkp->cert_file || pkp->cert_path)) {

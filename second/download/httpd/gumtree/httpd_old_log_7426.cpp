@@ -1,0 +1,1 @@
+fprintf(stderr, "   -l   Display usernames from database on stdout.\n");

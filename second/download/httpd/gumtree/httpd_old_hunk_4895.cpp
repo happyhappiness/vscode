@@ -1,17 +1,21 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send mmap completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
+            (*runtime)->s = shm;
+            (*runtime)->tmutex = NULL;
+            if ((rv = ap_proxy_initialize_worker(*runtime, s, conf->pool)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(00966) "Cannot init worker");
+                return rv;
             }
         }
+    }
+    if (b->s->need_reset) {
+        if (b->lbmethod && b->lbmethod->reset)
+            b->lbmethod->reset(b, s);
+        b->s->need_reset = 0;
+    }
+    b->wupdated = b->s->wupdated;
+    return APR_SUCCESS;
+}
+
+void proxy_util_register_hooks(apr_pool_t *p)
+{
+    APR_REGISTER_OPTIONAL_FN(ap_proxy_retry_worker);
+}

@@ -1,15 +1,13 @@
-        lr->next = ap_listeners;
-        ap_listeners = lr;
+#error APR random number support is missing; you probably need to install the truerand library.
+#endif
+
+    if (status != APR_SUCCESS) {
+        char buf[120];
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
+                     "Digest: error generating secret: %s", 
+                     apr_strerror(status, buf, sizeof(buf)));
+        return status;
     }
 
-    /* Open the pipe to the parent process to receive the inherited socket
-     * data. The sockets have been set to listening in the parent process.
-     */
-    pipe = GetStdHandle(STD_INPUT_HANDLE);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, "Digest: done");
 
-    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
-        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO), 
-                      &BytesRead, (LPOVERLAPPED) NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "setup_inherited_listeners: Unable to read socket data from parent");
-            exit(APEXIT_CHILDINIT);

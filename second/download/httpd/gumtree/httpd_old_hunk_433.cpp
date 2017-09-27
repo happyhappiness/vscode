@@ -1,12 +1,12 @@
-    util_ald_destroy_cache(node->search_cache);
-    util_ald_destroy_cache(node->compare_cache);
-    util_ald_destroy_cache(node->dn_compare_cache);
-    util_ald_free(cache, node);
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
 }
 
-/* ------------------------------------------------------------------ */
-
-/* Cache functions for search nodes */
-unsigned long util_ldap_search_node_hash(void *n)
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
 {
-    util_search_node_t *node = (util_search_node_t *)n;
+    apr_status_t sts;

@@ -1,13 +1,22 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
+        }
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+        /* This child needs the existing stderr opened for logging,
+         * already
+         */
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+        /* Read this child's generation number as soon as now,
+         * so that further hooks can query it.
+         */
+        if (!ReadFile(pipe, &my_generation, sizeof(my_generation),
+                      &BytesRead, (LPOVERLAPPED) NULL)
+                || (BytesRead != sizeof(my_generation))) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), NULL, APLOGNO(02965)
+                         "Child: Unable to retrieve my generation from the parent");
+            exit(APEXIT_CHILDINIT);
+        }
+
+        /* The parent is responsible for providing the
+         * COMPLETE ARGUMENTS REQUIRED to the child.
+         *
+         * No further argument parsing is needed, but
+         * for good measure we will provide a simple

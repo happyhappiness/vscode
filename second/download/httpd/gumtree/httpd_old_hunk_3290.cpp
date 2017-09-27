@@ -1,13 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+     * because it points to the old error log, or back to the tty
+     * of the submitter.
+     * XXX: This is BS - /dev/null is non-portable
+     *      errno-as-apr_status_t is also non-portable
+     */
+    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main,
+                     "unable to replace stderr with /dev/null");
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    for (virt = s_main->next; virt; virt = virt->next) {
+        if (virt->error_fname) {
+            for (q=s_main; q != virt; q = q->next) {

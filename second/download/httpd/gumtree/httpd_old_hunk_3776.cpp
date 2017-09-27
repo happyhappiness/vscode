@@ -1,16 +1,24 @@
+                 * doing O(n) allocs and using O(n^2) space for
+                 * continuations that span many many lines.
+                 */
+                apr_size_t fold_len = last_len + len + 1; /* trailing null */
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+                if (fold_len >= (apr_size_t)(r->server->limit_req_fieldsize)) {
+                    r->status = HTTP_BAD_REQUEST;
+                    /* report what we have accumulated so far before the
+                     * overflow (last_field) as the field with the problem
+                     */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_psprintf(r->pool,
+                                               "Size of a request header field "
+                                               "after folding "
+                                               "exceeds server limit.<br />\n"
+                                               "<pre>\n%.*s\n</pre>\n", 
+                                               field_name_len(last_field), 
+                                               ap_escape_html(r->pool, last_field)));
+                    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00562)
+                                  "Request header exceeds LimitRequestFieldSize "
+                                  "after folding: %.*s",
+                                  field_name_len(last_field), last_field);
+                    return;
+                }

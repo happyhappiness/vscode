@@ -1,13 +1,18 @@
-     info->response_time = now;
+      */
+     if (!ok) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                      "Certificate Verification: Error (%d): %s",
+                      errnum, X509_verify_cert_error_string(errnum));
  
-     /* get the request time */
-     info->request_time = r->request_time;
++        if (sslconn->client_cert) {
++            X509_free(sslconn->client_cert);
++            sslconn->client_cert = NULL;
++        }
+         sslconn->client_dn = NULL;
+-        sslconn->client_cert = NULL;
+         sslconn->verify_error = X509_verify_cert_error_string(errnum);
+     }
  
-     /* check last-modified date */
--    /* XXX FIXME we're referencing date on a path where we didn't set it */
-     if (lastmod != APR_DATE_BAD && lastmod > date) {
-         /* if it's in the future, then replace by date */
-         lastmod = date;
-         lastmods = dates;
-         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                      r->server,
+     /*
+      * Finally check the depth of the certificate verification
+      */

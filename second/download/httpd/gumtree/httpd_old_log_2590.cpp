@@ -1,0 +1,1 @@
+fprintf(output, "    - Try again : %d\n", errors[TRY_AGAIN]);

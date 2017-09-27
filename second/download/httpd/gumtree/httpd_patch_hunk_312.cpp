@@ -1,47 +1,24 @@
-                 /* bio_filter_out_flush() already passed down a flush bucket
-                  * if there was any data to be flushed.
-                  */
-                 apr_bucket_delete(bucket);
-             }
-         }
-+        else if (AP_BUCKET_IS_EOC(bucket)) {
-+            /* The special "EOC" bucket means a shutdown is needed;
-+             * - turn off buffering in bio_filter_out_write
-+             * - issue the SSL_shutdown
-+             */
-+            filter_ctx->nobuffer = 1;
-+            status = ssl_filter_io_shutdown(filter_ctx, f->c, 0);
-+            if (status != APR_SUCCESS) {
-+                ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
-+                             "SSL filter error shutting down I/O");
-+            }
-+            if ((status = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
-+                return status;
-+            }
-+            break;
-+        }
-         else {
-             /* filter output */
-             const char *data;
-             apr_size_t len;
-             
--            status = apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
-+            status = apr_bucket_read(bucket, &data, &len, rblock);
-+
-+            if (APR_STATUS_IS_EAGAIN(status)) {
-+                /* No data available: flush... */
-+                if (bio_filter_out_flush(filter_ctx->pbioWrite) < 0) {
-+                    status = outctx->rc;
-+                    break;
-+                }
-+                rblock = APR_BLOCK_READ;
-+                continue; /* and try again with a blocking read. */
-+            }
-+
-+            rblock = APR_NONBLOCK_READ;
+         ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                      "%s: Unable to start the service manager.",
+                      service_name);
+         exit(APEXIT_INIT);
+     }
  
-             if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
-                 break;
-             }
++    /* Win9x: disable AcceptEx */
++    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
++        use_acceptex = 0;
++    }
++
+     ap_listen_pre_config();
+     ap_threads_per_child = DEFAULT_THREADS_PER_CHILD;
+     ap_pid_fname = DEFAULT_PIDLOG;
+     ap_max_requests_per_child = DEFAULT_MAX_REQUESTS_PER_CHILD;
++#ifdef AP_MPM_WANT_SET_MAX_MEM_FREE
++	ap_max_mem_free = APR_ALLOCATOR_MAX_FREE_UNLIMITED;
++#endif
  
-             status = ssl_filter_write(f, data, len);
+     apr_cpystrn(ap_coredump_dir, ap_server_root, sizeof(ap_coredump_dir));
+ 
+     return OK;
+ }
+ 

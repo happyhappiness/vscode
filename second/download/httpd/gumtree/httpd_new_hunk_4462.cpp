@@ -1,14 +1,32 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+    apr_status_t res;
+    apr_crypto_key_t *key = NULL;
+    apr_size_t ivSize = 0;
+    apr_crypto_block_t *block = NULL;
+    unsigned char *encrypt = NULL;
+    unsigned char *combined = NULL;
+    apr_size_t encryptlen, tlen, combinedlen;
+    char *base64;
+    apr_size_t blockSize = 0;
+    const unsigned char *iv = NULL;
+    apr_uuid_t salt;
+    apr_crypto_block_key_type_e *cipher;
+    const char *passphrase;
+    apr_size_t passlen;
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = ap_toupper(*cp);
+    /* use a uuid as a salt value, and prepend it to our result */
+    apr_uuid_get(&salt);
+    res = crypt_init(r, f, &cipher, dconf);
+    if (res != APR_SUCCESS) {
+        return res;
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
-++ apache_1.3.1/src/os/bs2000/ebcdic.c	1998-07-13 19:32:47.000000000 +0800
+    /* encrypt using the first passphrase in the list */
+    passphrase = APR_ARRAY_IDX(dconf->passphrases, 0, const char *);
+    passlen = strlen(passphrase);
+    res = apr_crypto_passphrase(&key, &ivSize, passphrase, passlen,
+            (unsigned char *) (&salt), sizeof(apr_uuid_t),
+            *cipher, APR_MODE_CBC, 1, 4096, f, r->pool);
+    if (APR_STATUS_IS_ENOKEY(res)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01825)
+                "the passphrase '%s' was empty", passphrase);
+    }

@@ -1,46 +1,64 @@
-	ap_destroy_sub_req(pa_req);
-    }
+    unlink(apr_pstrcat(ctx->pool, ctx->data_file, ".db", NULL));
+    unlink(ctx->data_file);
+
+    return;
 }
 
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-				       int (*getsfunc) (char *, int, void *),
-				       void *getsfunc_data)
+static apr_status_t socache_dbm_store(ap_socache_instance_t *ctx,
+                                      server_rec *s, const unsigned char *id,
+                                      unsigned int idlen, apr_time_t expiry,
+                                      unsigned char *ucaData,
+                                      unsigned int nData, apr_pool_t *pool)
 {
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
+    apr_dbm_t *dbm;
+    apr_datum_t dbmkey;
+    apr_datum_t dbmval;
+    apr_status_t rv;
 
-    if (buffer) {
-	*buffer = '\0';
+    /* be careful: do not try to store too much bytes in a DBM file! */
+#ifdef PAIRMAX
+    if ((idlen + nData) >= PAIRMAX) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00805)
+                 "data size too large for DBM socache: %d >= %d",
+                 (idlen + nData), PAIRMAX);
+        return APR_ENOSPC;
     }
-    w = buffer ? buffer : x;
+#else
+    if ((idlen + nData) >= 950 /* at least less than approx. 1KB */) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00806)
+                 "data size too large for DBM socache: %d >= %d",
+                 (idlen + nData), 950);
+        return APR_ENOSPC;
+    }
+#endif
 
-    ap_hard_timeout("read script header", r);
+    /* create DBM key */
+    dbmkey.dptr  = (char *)id;
+    dbmkey.dsize = idlen;
 
-    while (1) {
+    /* create DBM value */
+    dbmval.dsize = sizeof(apr_time_t) + nData;
+    dbmval.dptr  = (char *)ap_malloc(dbmval.dsize);
+    memcpy((char *)dbmval.dptr, &expiry, sizeof(apr_time_t));
+    memcpy((char *)dbmval.dptr+sizeof(apr_time_t), ucaData, nData);
 
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    /* and store it to the DBM file */
+    apr_pool_clear(ctx->pool);
 
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015') {
-		w[p - 2] = '\0';
-	    }
-	    else {
-		w[p - 1] = '\0';
-	    }
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+    if ((rv = apr_dbm_open(&dbm, ctx->data_file,
+                           APR_DBM_RWCREATE, DBM_FILE_MODE, ctx->pool)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00807)
+                     "Cannot open socache DBM file `%s' for writing "
+                     "(store)",
+                     ctx->data_file);
+        free(dbmval.dptr);
+        return rv;
+    }
+    if ((rv = apr_dbm_store(dbm, dbmkey, dbmval)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00808)
+                     "Cannot store socache object to DBM file `%s'",
+                     ctx->data_file);
+        apr_dbm_close(dbm);
+        free(dbmval.dptr);
+        return rv;
+    }

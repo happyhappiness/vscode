@@ -1,15 +1,15 @@
-     p = db ? db->pool : p;
- 
-     /* There might not be a <db> if we had problems creating it. */
-     if (db == NULL) {
-         errcode = 1;
-         errstr = "Could not open property database.";
-+        if (APR_STATUS_IS_EDSOOPEN(status))
-+            ap_log_error(APLOG_MARK, APLOG_CRIT, status, NULL,
-+                         "The DBM driver could not be loaded");
      }
      else {
-         (void) apr_dbm_geterror(db->file, &errcode, errbuf, sizeof(errbuf));
-         errstr = apr_pstrdup(p, errbuf);
-     }
- 
+         ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+         ap_rputs(DOCTYPE_HTML_3_2
+                  "<html><head><title>Balancer Manager</title></head>\n", r);
+         ap_rputs("<body><h1>Load Balancer Manager for ", r);
+-        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
++        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
++                  "</h1>\n\n", NULL);
+         ap_rvputs(r, "<dl><dt>Server Version: ",
+                   ap_get_server_description(), "</dt>\n", NULL);
+         ap_rvputs(r, "<dt>Server Built: ",
+                   ap_get_server_built(), "\n</dt></dl>\n", NULL);
+         balancer = (proxy_balancer *)conf->balancers->elts;
+         for (i = 0; i < conf->balancers->nelts; i++) {

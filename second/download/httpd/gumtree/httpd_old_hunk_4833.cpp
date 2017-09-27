@@ -1,13 +1,13 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
+        if (seed_rand()) {
+            break;
+        }
+        to64(&salt[0], rand(), 8);
+        salt[8] = '\0';
 
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
-    }
+        apr_cpystrn(cpw, crypt(pw, salt), sizeof(cpw) - 1);
+        if (strlen(pw) > 8) {
+            char *truncpw = strdup(pw);
+            truncpw[8] = '\0';
+            if (!strcmp(cpw, crypt(truncpw, salt))) {
+                apr_file_printf(errfile, "Warning: Password truncated to 8 characters "
+                                "by CRYPT algorithm." NL);

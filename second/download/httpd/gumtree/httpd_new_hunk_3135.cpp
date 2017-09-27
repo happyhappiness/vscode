@@ -1,13 +1,14 @@
-}
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    if (!(have_rsa || have_dsa
+#ifndef OPENSSL_NO_EC
+        || have_ecc
+#endif
+)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01910)
+                "Oops, no " KEYTYPES " server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);
+        ssl_die();
+    }
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    for (i = 0; i < SSL_AIDX_MAX; i++) {
+        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);

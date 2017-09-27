@@ -1,12 +1,15 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
+        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
+               (double) timetaken * 1000 / done);
+        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
+               (double) totalread / 1024 / timetaken);
+        if (send_body) {
+            printf("                        %.2f kb/s sent\n",
+               (double) totalposted / timetaken / 1024);
+            printf("                        %.2f kb/s total\n",
+               (double) (totalread + totalposted) / timetaken / 1024);
+        }
     }
-}
 
-#else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+    if (done > 0) {
+        /* work out connection times */
+        int i;

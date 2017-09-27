@@ -1,0 +1,1 @@
+fprintf(stderr, "Usage: logresolve [-s statfile] [-c] < input > output\n");

@@ -1,13 +1,15 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+        /* If all workers are in error state force the recovery.
+         */
+        worker = (proxy_worker **)balancer->workers->elts;
+        for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+            ++(*worker)->s->retries;
+            (*worker)->s->status &= ~PROXY_WORKER_IN_ERROR;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01165)
+                         "%s: Forcing recovery for worker (%s)",
+                         balancer->s->name, (*worker)->s->hostname);
+        }
     }
+}
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+static int proxy_balancer_pre_request(proxy_worker **worker,
+                                      proxy_balancer **balancer,

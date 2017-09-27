@@ -1,1 +1,0 @@
-serverLog(LL_WARNING, "--- CURRENT CLIENT INFO");

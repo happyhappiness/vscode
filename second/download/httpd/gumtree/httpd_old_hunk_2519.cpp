@@ -1,26 +1,50 @@
+                     */
+                    cache->remove_url_filter =
+                        ap_add_output_filter_handle(cache_remove_url_filter_handle,
+                                cache, r, r->connection);
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                                 r->server, "Cache locked for url, not caching "
+                                 "response: %s", r->uri);
+                }
+            }
+            else {
+                if (cache->stale_headers) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                 r->server, "Restoring request headers for %s",
+                                 r->uri);
 
-    /* Pass one --- direct matches */
+                    r->headers_in = cache->stale_headers;
+                }
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+                /* Delete our per-request configuration. */
+                ap_set_module_config(r->request_config, &cache_module, NULL);
+            }
         }
+        else {
+            /* error */
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by '%s' cache", cache->provider_name);
+        }
+        return DECLINED;
     }
 
-    /* Pass two --- wildcard matches */
+    /* if we are a lookup, we are exiting soon one way or another; Restore
+     * the headers. */
+    if (lookup) {
+        if (cache->stale_headers) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                         "Restoring request headers.");
+            r->headers_in = cache->stale_headers;
+        }
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
+        /* Delete our per-request configuration. */
+        ap_set_module_config(r->request_config, &cache_module, NULL);
     }
 
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    rv = ap_meets_conditions(r);
+    if (rv != OK) {
+        /* If we are a lookup, we have to return DECLINED as we have no
+         * way of knowing if we will be able to serve the content.

@@ -1,26 +1,23 @@
-                ap_rputs(" /> ", r);
-            }
-            else {
-                ap_rputs("      ", r);
-            }
-        }
-        emit_link(r, "Name", K_NAME, keyid, direction, 
-                  colargs, static_columns);
-        ap_rputs(pad_scratch + 4, r);
-        /*
-         * Emit the guaranteed-at-least-one-space-between-columns byte.
-         */
-        ap_rputs(" ", r);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ap_rputs("      ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            emit_link(r, "Size", K_SIZE, keyid, direction, 
-                      colargs, static_columns);
-            ap_rputs("  ", r);
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
+                 "Set to off to disable auth_ldap, even if it's been enabled in a higher tree"),
+ 
+    AP_INIT_FLAG("AuthLDAPFrontPageHack", ap_set_flag_slot,
+                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, frontpage_hack), OR_AUTHCFG,
+                 "Set to 'on' to support Microsoft FrontPage"),
+
+#ifdef APU_HAS_LDAP_STARTTLS
+    AP_INIT_FLAG("AuthLDAPStartTLS", ap_set_flag_slot,
+                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, starttls), OR_AUTHCFG,
+                 "Set to 'on' to start TLS after connecting to the LDAP server."),
+#endif /* APU_HAS_LDAP_STARTTLS */
+
+    {NULL}
+};
+
+static void mod_auth_ldap_register_hooks(apr_pool_t *p)
+{
+    ap_hook_check_user_id(mod_auth_ldap_check_user_id, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_auth_checker(mod_auth_ldap_auth_checker, NULL, NULL, APR_HOOK_MIDDLE);
+}
+
+module auth_ldap_module = {
+   STANDARD20_MODULE_STUFF,

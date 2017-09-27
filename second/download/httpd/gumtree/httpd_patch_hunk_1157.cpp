@@ -1,32 +1,33 @@
-                               apr_pool_cleanup_null, s->process->pool);
-     }
+ {
+     const char *fname;
+     int rc;
  
-     /* check if proxy module is available */
-     proxy_available = (ap_find_linked_module("mod_proxy.c") != NULL);
+     if (*s->error_fname == '|') {
+         apr_file_t *dummy = NULL;
++        apr_cmdtype_e cmdtype = APR_SHELLCMD_ENV;
++        fname = s->error_fname + 1;
  
--#ifndef REWRITELOG_DISABLED
--    /* create the rewriting lockfiles in the parent */
--    if ((rv = apr_global_mutex_create(&rewrite_log_lock, NULL,
--                                      APR_LOCK_DEFAULT, p)) != APR_SUCCESS) {
--        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
--                     "mod_rewrite: could not create rewrite_log_lock");
--        return HTTP_INTERNAL_SERVER_ERROR;
--    }
--
--#ifdef AP_NEED_SET_MUTEX_PERMS
--    rv = unixd_set_global_mutex_perms(rewrite_log_lock);
--    if (rv != APR_SUCCESS) {
--        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
--                     "mod_rewrite: Could not set permissions on "
--                     "rewrite_log_lock; check User and Group directives");
--        return HTTP_INTERNAL_SERVER_ERROR;
--    }
--#endif /* perms */
--#endif /* rewritelog */
--
-     rv = rewritelock_create(s, p);
-     if (rv != APR_SUCCESS) {
-         return HTTP_INTERNAL_SERVER_ERROR;
-     }
++        /* In 2.4 favor PROGRAM_ENV, accept "||prog" syntax for compatibility
++         * and "|$cmd" to override the default.
++         * Any 2.2 backport would continue to favor SHELLCMD_ENV so there 
++         * accept "||prog" to override, and "|$cmd" to ease conversion.
++         */
++        if (*fname == '|') {
++            cmdtype = APR_PROGRAM_ENV;
++            ++fname;
++        }
++        if (*fname == '$')
++            ++fname;
++	
+         /* Spawn a new child logger.  If this is the main server_rec,
+          * the new child must use a dummy stderr since the current
+          * stderr might be a pipe to the old logger.  Otherwise, the
+          * child inherits the parents stderr. */
+-        rc = log_child(p, s->error_fname + 1, &dummy, is_main);
++        rc = log_child(p, fname, &dummy, cmdtype, is_main);
+         if (rc != APR_SUCCESS) {
+             ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                          "Couldn't start ErrorLog process");
+             return DONE;
+         }
  
-     apr_pool_cleanup_register(p, (void *)s, rewritelock_remove,

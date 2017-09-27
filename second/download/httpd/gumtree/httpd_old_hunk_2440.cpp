@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+        }
     }
-#endif
+    ap_cfg_closefile(f);
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+    to_charset = derive_codepage_from_lang (p, "utf-8");
+    if (to_charset == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not find the UTF-8 charset in the file %s.",
+                     charset_confname);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    return OK;

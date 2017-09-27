@@ -1,1 +1,0 @@
-ERROR("Cannot read header\n");

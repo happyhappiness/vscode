@@ -1,37 +1,29 @@
-            b = apr_bucket_pool_create(buf, 8, r->pool, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Compressed %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+		      "[%d] auth_ldap authenticate: "
+		      "ap_get_basic_auth_pw() returns %d", getpid(), result);
+        util_ldap_connection_close(ldc);
+        return result;
+    }
 
-            /* leave notes for logging */
-            if (c->note_input_name) {
-                apr_table_setn(r->notes, c->note_input_name,
-                               (ctx->stream.total_in > 0)
-                                ? apr_off_t_toa(r->pool,
-                                                ctx->stream.total_in)
-                                : "-");
-            }
+    if (r->user == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
+		      "[%d] auth_ldap authenticate: no user specified", getpid());
+        util_ldap_connection_close(ldc);
+        return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    }
 
-            if (c->note_output_name) {
-                apr_table_setn(r->notes, c->note_output_name,
-                               (ctx->stream.total_in > 0)
-                                ? apr_off_t_toa(r->pool,
-                                                ctx->stream.total_out)
-                                : "-");
-            }
+    /* build the username filter */
+    mod_auth_ldap_build_filter(filtbuf, r, sec);
 
-            if (c->note_ratio_name) {
-                apr_table_setn(r->notes, c->note_ratio_name,
-                               (ctx->stream.total_in > 0)
-                                ? apr_itoa(r->pool,
-                                           (int)(ctx->stream.total_out
-                                                 * 100
-                                                 / ctx->stream.total_in))
-                                : "-");
-            }
+    /* do the user search */
+    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
+                                         sec->attributes, filtbuf, sent_pw, &dn, &vals);
+    util_ldap_connection_close(ldc);
 
-            deflateEnd(&ctx->stream);
+    /* sanity check - if server is down, retry it up to 5 times */
+    if (result == LDAP_SERVER_DOWN) {
+        if (failures++ <= 5) {
+            goto start_over;
+        }
+    }
 
-            /* Remove EOS from the old list, and insert into the new. */
-            APR_BUCKET_REMOVE(e);
+    /* handle bind failure */

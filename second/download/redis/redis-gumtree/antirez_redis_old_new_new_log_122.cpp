@@ -1,1 +1,0 @@
-__redisSetError(c,REDIS_ERR_OTHER,"Invalid format string");

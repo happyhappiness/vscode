@@ -1,33 +1,40 @@
-         if (d_uri.path) {
-             ap_unescape_url(d_uri.path);
+                                       "authorisation failed [%s][%s]",
+                                       getpid(), t, ldc->reason, ldap_err2string(result));
+                     }
+                 }
+             }
          }
-         if (d_uri.query) {
-             ap_unescape_url(d_uri.query);
-         }
-+        else if (r_uri.query) {
-+            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't 
-+             * include the query string in the uri Authorization component
-+             * or when computing the response component.  the second part
-+             * works out ok, since we can hash the header and get the same
-+             * result.  however, the uri from the request line won't match
-+             * the uri Authorization component since the header lacks the 
-+             * query string, leaving us incompatable with a (broken) MSIE.
-+             * 
-+             * the workaround is to fake a query string match if in the proper
-+             * environment - BrowserMatch MSIE, for example.  the cool thing
-+             * is that if MSIE ever fixes itself the simple match ought to 
-+             * work and this code won't be reached anyway, even if the
-+             * environment is set.
-+             */
-+            
-+            if (apr_table_get(r->subprocess_env, 
-+                              "AuthDigestEnableQueryStringHack")) {
-+                d_uri.query = r_uri.query;
++        else if (strcmp(w, "ldap-attribute") == 0) {
++            while (t[0]) {
++                w = ap_getword(r->pool, &t, '=');
++                value = ap_getword_conf(r->pool, &t);
++
++                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
++                              "[%d] auth_ldap authorise: checking attribute"
++                              " %s has value %s", getpid(), w, value);
++                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn,
++                                                 w, value);
++                switch(result) {
++                    case LDAP_COMPARE_TRUE: {
++                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
++                                      0, r, "[%d] auth_ldap authorise: "
++                                      "require attribute: authorisation "
++                                      "successful", getpid());
++                        return OK;
++                    }
++                    default: {
++                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
++                                      0, r, "[%d] auth_ldap authorise: "
++                                      "require attribute: authorisation "
++                                      "failed [%s][%s]", getpid(), 
++                                      ldc->reason, ldap_err2string(result));
++                    }
++                }
 +            }
 +        }
+     }
  
-         if (r->method_number == M_CONNECT) {
-             if (strcmp(resp->uri, r_uri.hostinfo)) {
-                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                               "Digest: uri mismatch - <%s> does not match "
-                               "request-uri <%s>", resp->uri, r_uri.hostinfo);
+     if (!method_restricted) {
+         ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                       "[%d] auth_ldap authorise: agreeing because non-restricted", 
+                       getpid());

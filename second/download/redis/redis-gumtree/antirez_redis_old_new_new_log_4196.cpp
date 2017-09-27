@@ -1,1 +1,0 @@
-fprintf(stderr, "Could not connect to Redis at %s:%d: %s", config.hostip, config.hostport, err);

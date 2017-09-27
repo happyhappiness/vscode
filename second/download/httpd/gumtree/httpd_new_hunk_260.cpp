@@ -1,13 +1,13 @@
-                    max_clients, ap_daemons_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " and would exceed the ServerLimit value of %d.",
-                    server_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " Automatically lowering MaxClients to %d.  To increase,",
-                    server_limit * ap_threads_per_child);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " please see the ServerLimit directive.");
-       ap_daemons_limit = server_limit;
-    } 
-    else if (ap_daemons_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
+                     APR_EBADPATH, NULL, "Invalid -E error log file %s",
+                     fname);
+        return APR_EBADPATH;
+    }
+    if ((rc = apr_file_open(&stderr_file, filename,
+                            APR_APPEND | APR_WRITE | APR_CREATE | APR_LARGEFILE,
+                            APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "%s: could not open error log file %s.",
+                     ap_server_argv0, fname);
+        return rc;
+    }

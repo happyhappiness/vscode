@@ -1,14 +1,13 @@
+        else if (cid->dconf.log_unsupported) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);
         }
-      else options = handle_option(*s++, options);
-      }
-    }
-  }
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-pattern_list = (pcre **)malloc(MAX_PATTERN_COUNT * sizeof(pcre *));
-hints_list = (pcre_extra **)malloc(MAX_PATTERN_COUNT * sizeof(pcre_extra *));
-
-if (pattern_list == NULL || hints_list == NULL)
-  {
-  fprintf(stderr, "pcregrep: malloc failed\n");
-  return 2;
-  }
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;

@@ -1,1 +1,0 @@
-decoded = sdscatprintf(decoded,"v:%d,%d ",regval,runlen);

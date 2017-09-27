@@ -1,1 +1,0 @@
-rewriteConfigYesNoOption(state,"slave-serve-stale-data",server.repl_serve_stale_data,1);

@@ -1,1 +1,1 @@
-ap_rputs("</body></html>\n", r);
+ap_rvputs(r, "</td><td>", (*worker)->s->route, NULL);

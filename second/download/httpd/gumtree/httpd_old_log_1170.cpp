@@ -1,1 +1,1 @@
-(*code != OP_NOTEXACT;
+printf("]");

@@ -1,21 +1,19 @@
-#ifndef OPENSSL_NO_SSL2
-#define SSL2_HELP_MSG "SSL2, "
-#else
-#define SSL2_HELP_MSG ""
-#endif
+             */
+            if (dobj->prefix) {
+                dobj->hdrsfile = dobj->prefix;
+                dobj->prefix = NULL;
+            }
 
-#ifdef HAVE_TLSV1_X
-#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
-#else
-#define TLS1_X_HELP_MSG ""
-#endif
+            mkdir_structure(conf, dobj->hdrsfile, r->pool);
 
-    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
-    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n"); 
-    fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
-#endif
-    exit(EINVAL);
-}
+            rv = apr_file_mktemp(&dobj->tfd, dobj->tempfile,
+                                 APR_CREATE | APR_WRITE | APR_BINARY | APR_EXCL,
+                                 r->pool);
 
-/* ------------------------------------------------------- */
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+
+            amt = sizeof(format);
+            apr_file_write(dobj->tfd, &format, &amt);
 

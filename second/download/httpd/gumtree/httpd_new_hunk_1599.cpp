@@ -1,13 +1,20 @@
+        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
+                 || (strcmp(if_range, match) != 0)) {
+            return 0;
+        }
+    }
 
-    /*
-     * record that we've entered the world !
-     */
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "%s configured -- resuming normal operations",
-                ap_get_server_description());
+    if (!ap_strchr_c(range, ',')) {
+        /* a single range */
+        num_ranges = 1;
+    }
+    else {
+        /* a multiple range */
+        num_ranges = 2;
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = range + 6;
 
-    restart_pending = shutdown_pending = 0;
-
+    return num_ranges;
+}

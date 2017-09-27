@@ -1,1 +1,0 @@
-sprintf(types[REDIS_RDB_OPCODE_EOF], "EOF");

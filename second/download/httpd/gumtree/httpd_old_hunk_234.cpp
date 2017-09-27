@@ -1,12 +1,23 @@
-	{
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
-		return rcode;
-	}
 
-    /* setup the socket for SSL */
-    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
-    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
-    sWS2Opts.options = &sNWTLSOpts;
+    if (mc->szCryptoDevice) {
+        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Init: Failed to load Crypto Device API `%s'",
+                         mc->szCryptoDevice);
+            ssl_die();
+        }
 
-    if (numcerts) {
+        if (strEQ(mc->szCryptoDevice, "chil")) {
+            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
+        }
+
+        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Init: Failed to enable Crypto Device API `%s'",
+                         mc->szCryptoDevice);
+            ssl_die();
+        }
+
+        ENGINE_free(e);
+    }
+}

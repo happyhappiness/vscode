@@ -1,45 +1,46 @@
+     */
+    rv = cache_select(r);
+    if (rv != OK) {
+        if (rv == DECLINED) {
+            if (!lookup) {
+
+                /*
+                 * Add cache_save filter to cache this request. Choose
+                 * the correct filter by checking if we are a subrequest
+                 * or not.
+                 */
+                if (r->main) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                 r->server,
+                                 "Adding CACHE_SAVE_SUBREQ filter for %s",
+                                 r->uri);
+                    ap_add_output_filter_handle(cache_save_subreq_filter_handle,
+                                                NULL, r, r->connection);
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                 r->server, "Adding CACHE_SAVE filter for %s",
+                                 r->uri);
+                    ap_add_output_filter_handle(cache_save_filter_handle,
+                                                NULL, r, r->connection);
+                }
+
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                             "Adding CACHE_REMOVE_URL filter for %s",
+                             r->uri);
+
+                /* Add cache_remove_url filter to this request to remove a
+                 * stale cache entry if needed. Also put the current cache
+                 * request rec in the filter context, as the request that
+                 * is available later during running the filter maybe
+                 * different due to an internal redirect.
+                 */
+                cache->remove_url_filter =
+                    ap_add_output_filter_handle(cache_remove_url_filter_handle,
+                                                cache, r, r->connection);
             }
-        }
-        else {
-            request_rec *id = r->main ? r->main : r;
-
-            /* do a full renegotiation */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Performing full renegotiation: "
-                         "complete handshake protocol");
-
-            SSL_set_session_id_context(ssl,
-                                       (unsigned char *)&id,
-                                       sizeof(id));
-
-            SSL_renegotiate(ssl);
-            SSL_do_handshake(ssl);
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation request failed");
-
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Awaiting re-negotiation handshake");
-
-            /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
-             * However, this causes failures in perl-framework currently,
-             * perhaps pre-test if we have already negotiated?
-             */
-            SSL_set_state(ssl, SSL_ST_ACCEPT);
-            SSL_do_handshake(ssl);
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                        "Not accepted by client!?");
-
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
-        }
-
+            else {
+                if (cache->stale_headers) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                 r->server, "Restoring request headers for %s",
+                                 r->uri);

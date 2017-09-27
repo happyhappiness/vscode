@@ -1,30 +1,40 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+    char msgbuf[100];
+    int cur;
 
-    return DECLINED;
-++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
+    switch(ctx->ees) {
+    case EES_LIMIT:
+        rv = 0;
+        msg = APLOGNO(02193) "xlate filter - a built-in restriction was encountered";
+        break;
+    case EES_BAD_INPUT:
+        rv = 0;
+        msg = APLOGNO(02194) "xlate filter - an input character was invalid";
+        break;
+    case EES_BUCKET_READ:
+        rv = 0;
+        msg = APLOGNO(02195) "xlate filter - bucket read routine failed";
+        break;
+    case EES_INCOMPLETE_CHAR:
+        rv = 0;
+        strcpy(msgbuf, APLOGNO(02196) "xlate filter - incomplete char at end of input - ");
+        cur = 0;
+        while ((apr_size_t)cur < ctx->saved) {
+            apr_snprintf(msgbuf + strlen(msgbuf), sizeof(msgbuf) - strlen(msgbuf),
+                         "%02X", (unsigned)ctx->buf[cur]);
+            ++cur;
+        }
+        msg = msgbuf;
+        break;
+    case EES_DOWNSTREAM:
+        msg = APLOGNO(02197) "xlate filter - an error occurred in a lower filter";
+        break;
+    default:
+        msg = APLOGNO(02198) "xlate filter - returning error";
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "%s", msg);
+}
+
+/* chk_filter_chain() is called once per filter instance; it tries to
+ * determine if the current filter instance should be disabled because
+ * its translation is incompatible with the translation of an existing
+ * instance of the translate filter

@@ -1,1 +1,0 @@
-printf("Connection error: %s\n", blocking_context->errstr);

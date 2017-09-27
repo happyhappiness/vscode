@@ -1,20 +1,30 @@
-#endif
+                        clen -= readbuflen;
+                        goto recv_again;
+                    }
+                } else {
+                    /* XXX what if we haven't seen end of the headers yet? */
 
-    ap_soft_timeout("send body", r);
+                    b = apr_bucket_eos_create(c->bucket_alloc);
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+                    APR_BRIGADE_INSERT_TAIL(ob, b);
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
+                    rv = ap_pass_brigade(r->output_filters, ob);
+                    if (rv != APR_SUCCESS) {
+                        break;
+                    }
+
+                    /* XXX Why don't we cleanup here?  (logic from AJP) */
+                }
                 break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+
+            case FCGI_STDERR:
+                /* TODO: Should probably clean up this logging a bit... */
+                if (clen) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                                 "proxy: FCGI: Got error '%s'", readbuf);
+                }
+
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }

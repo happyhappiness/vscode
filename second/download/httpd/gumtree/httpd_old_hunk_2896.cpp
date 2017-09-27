@@ -1,13 +1,19 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+#endif
+    magic_server_config_rec *conf = (magic_server_config_rec *)
+                    ap_get_module_config(s->module_config, &mime_magic_module);
+    const char *fname = ap_server_root_relative(p, conf->magicfile);
 
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     MODNAME ": Invalid magic file path %s", conf->magicfile);
+        return -1;
+    }
+    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED,
+                                APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                     MODNAME ": can't read magic file %s", fname);
+        return -1;
     }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    /* set up the magic list (empty) */
+    conf->magic = conf->last = NULL;

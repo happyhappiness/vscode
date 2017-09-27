@@ -1,1 +1,0 @@
-printf("%llu total elements\n", (unsigned long long)t->numele);

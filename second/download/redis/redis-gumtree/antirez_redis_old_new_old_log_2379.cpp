@@ -1,1 +1,0 @@
-s[19]="    error(\"global var '\"..n..\"' is not declared\", 2)\n";

@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
+apr_file_printf(errfile, " -D  Delete the specified user.\n");

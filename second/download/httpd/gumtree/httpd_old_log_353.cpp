@@ -1,1 +1,4 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.4 $");
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

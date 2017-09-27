@@ -1,0 +1,1 @@
+fprintf(stderr, "Closing file %s (%s)\n", finfo.name, finfo.fname);

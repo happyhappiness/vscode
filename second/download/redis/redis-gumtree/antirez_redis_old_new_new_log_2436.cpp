@@ -1,1 +1,0 @@
-fprintf(stderr,"Error writing to master\n");

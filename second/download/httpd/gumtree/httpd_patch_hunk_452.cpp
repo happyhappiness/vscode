@@ -1,101 +1,56 @@
-      * the four warnings during compile ? dirkx just does not know and
-      * hates both/
-      */
- 	qsort(stats, requests, sizeof(struct data),
- 	      (int (*) (const void *, const void *)) compradre);
- 	if ((requests > 1) && (requests % 2))
--	    meancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
-+        mediancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
- 	else
--	    meancon = stats[requests / 2].ctime;
-+        mediancon = stats[requests / 2].ctime;
+  * @tip ap_open_logs isn't expected to be used by modules, it is
+  * an internal core function 
+  */
+ int ap_open_logs(apr_pool_t *pconf, apr_pool_t *plog, 
+                  apr_pool_t *ptemp, server_rec *s_main);
  
- 	qsort(stats, requests, sizeof(struct data),
- 	      (int (*) (const void *, const void *)) compri);
- 	if ((requests > 1) && (requests % 2))
--	    meand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
-+        mediand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
- 	    -stats[requests / 2].ctime - stats[requests / 2 + 1].ctime) / 2;
- 	else
--	    meand = stats[requests / 2].time - stats[requests / 2].ctime;
-+        mediand = stats[requests / 2].time - stats[requests / 2].ctime;
++#ifdef CORE_PRIVATE
++
++/**
++ * Perform special processing for piped loggers in MPM child
++ * processes.
++ * @param p Not used
++ * @param s Not used
++ * @tip ap_logs_child_init is not for use by modules; it is an
++ * internal core function
++ */
++void ap_logs_child_init(apr_pool_t *p, server_rec *s);
++
++#endif /* CORE_PRIVATE */
++
+ /* 
+- * The three primary logging functions, ap_log_error, ap_log_rerror, and 
+- * ap_log_perror use a printf style format string to build the log message.  
++ * The primary logging functions, ap_log_error, ap_log_rerror, ap_log_cerror,
++ * and ap_log_perror use a printf style format string to build the log message.  
+  * It is VERY IMPORTANT that you not include any raw data from the network, 
+  * such as the request-URI or request header fields, within the format 
+  * string.  Doing so makes the server vulnerable to a denial-of-service 
+  * attack and other messy behavior.  Instead, use a simple format string 
+  * like "%s", followed by the string containing the untrusted data.
+  */
  
- 	qsort(stats, requests, sizeof(struct data),
- 	      (int (*) (const void *, const void *)) compwait);
- 	if ((requests > 1) && (requests % 2))
--	    meanwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
-+        medianwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
- 	else
--	    meanwait = stats[requests / 2].waittime;
-+        medianwait = stats[requests / 2].waittime;
- 
- 	qsort(stats, requests, sizeof(struct data),
- 	      (int (*) (const void *, const void *)) comprando);
- 	if ((requests > 1) && (requests % 2))
--	    meantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
-+        mediantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
- 	else
--	    meantot = stats[requests / 2].time;
-+        mediantot = stats[requests / 2].time;
- 
- 	printf("\nConnection Times (ms)\n");
- 
- 	if (confidence) {
- #define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
- 	    printf("              min  mean[+/-sd] median   max\n");
- 	    printf("Connect:    " CONF_FMT_STRING, 
--                   mincon, (int) (totalcon + 0.5), sdcon, meancon, maxcon);
-+                   mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
- 	    printf("Processing: " CONF_FMT_STRING,
--		   mind, (int) (totald + 0.5), sdd, meand, maxd);
-+		   mind, (int) (meand + 0.5), sdd, mediand, maxd);
- 	    printf("Waiting:    " CONF_FMT_STRING,
--	           minwait, (int) (totalwait + 0.5), sdwait, meanwait, maxwait);
-+	           minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);
- 	    printf("Total:      " CONF_FMT_STRING,
--		   mintot, (int) (total + 0.5), sdtot, meantot, maxtot);
-+		   mintot, (int) (meantot + 0.5), sdtot, mediantot, maxtot);
- #undef CONF_FMT_STRING
- 
--#define     SANE(what,avg,mean,sd) \
-+#define     SANE(what,mean,median,sd) \
-               { \
--                double d = (double)avg - mean; \
-+                double d = (double)mean - median; \
-                 if (d < 0) d = -d; \
-                 if (d > 2 * sd ) \
-                     printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                            "       deviation apart. These results are NOT reliable.\n"); \
-                 else if (d > sd ) \
-                     printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                            "        These results are probably not that reliable.\n"); \
-             }
--	    SANE("the initial connection time", totalcon, meancon, sdcon);
--	    SANE("the processing time", totald, meand, sdd);
--	    SANE("the waiting time", totalwait, meanwait, sdwait);
--	    SANE("the total time", total, meantot, sdtot);
-+        SANE("the initial connection time", meancon, mediancon, sdcon);
-+        SANE("the processing time", meand, mediand, sdd);
-+        SANE("the waiting time", meanwait, medianwait, sdwait);
-+        SANE("the total time", meantot, mediantot, sdtot);
- 	}
- 	else {
- 	    printf("              min   avg   max\n");
- #define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
- 	    printf("Connect:    " CONF_FMT_STRING, 
--                   mincon, totalcon / requests, maxcon);
--	    printf("Processing: " CONF_FMT_STRING, mintot - mincon, 
--                   (total / requests) - (totalcon / requests), 
--                   maxtot - maxcon);
-+                mincon, meancon, maxcon);
-+	    printf("Processing: " CONF_FMT_STRING, 
-+                mintot - mincon, meantot - meancon,  maxtot - maxcon);
- 	    printf("Total:      " CONF_FMT_STRING, 
--                   mintot, total / requests, maxtot);
-+                mintot, meantot, maxtot);
- #undef CONF_FMT_STRING
- 	}
- 
- 
- 	/* Sorted on total connect times */
- 	if (percentile && (requests > 1)) {
+ /**
+- * One of the primary logging routines in Apache.  This uses a printf-like
+- * format to log messages to the error_log.
++ * ap_log_error() - log messages which are not related to a particular
++ * request or connection.  This uses a printf-like format to log messages
++ * to the error_log.
+  * @param file The file in which this function is called
+  * @param line The line number on which this function is called
+  * @param level The level of this error message
+  * @param status The status code from the previous command
+  * @param s The server on which we are logging
+  * @param fmt The format string
+  * @param ... The arguments to use to fill out fmt.
+  * @tip Use APLOG_MARK to fill out file and line
++ * @tip If a request_rec is available, use that with ap_log_rerror()
++ * in preference to calling this function.  Otherwise, if a conn_rec is
++ * available, use that with ap_log_cerror() in preference to calling
++ * this function.
+  * @warning It is VERY IMPORTANT that you not include any raw data from 
+  * the network, such as the request-URI or request header fields, within 
+  * the format string.  Doing so makes the server vulnerable to a 
+  * denial-of-service attack and other messy behavior.  Instead, use a 
+  * simple format string like "%s", followed by the string containing the 
+  * untrusted data.

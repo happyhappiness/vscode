@@ -1,13 +1,13 @@
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
+            }
+            if (zRC == Z_STREAM_END) {
+                apr_bucket *tmp_heap;
+                apr_size_t avail;
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);
 
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,

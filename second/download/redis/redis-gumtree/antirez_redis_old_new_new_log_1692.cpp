@@ -1,1 +1,0 @@
-snprintf(seq,64,"\x1b[0G\x1b[0K\x1b[1A");

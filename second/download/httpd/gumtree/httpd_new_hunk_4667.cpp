@@ -1,13 +1,15 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
+            continue;
+        }
+
+        perform_idle_server_maintenance(pconf);
     }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+
+    retained->mpm->mpm_state = AP_MPMQ_STOPPING;
+
+    if (retained->mpm->shutdown_pending && retained->mpm->is_ungraceful) {
+        /* Time to shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        if (ap_unixd_killpg(getpgrp(), SIGTERM) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00168) "killpg SIGTERM");
+        }

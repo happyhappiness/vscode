@@ -1,1 +1,0 @@
-printf("\t[int]%lld", (long long) zipLoadInteger(p,entry.encoding));

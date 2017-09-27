@@ -1,21 +1,24 @@
-    if (err != NULL) {
-        return err;
-    }
+                             " shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+                break;
+            }
+            have_idle_worker = 1;
+        }
+            
+        /* We've already decremented the idle worker count inside
+         * ap_queue_info_wait_for_idler. */
 
-    ap_daemons_min_free = atoi(arg);
-    if (ap_daemons_min_free <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: detected MinSpareServers set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "Please read the documentation.");
-       ap_daemons_min_free = 1;
-    }
-       
-    return NULL;
-}
+        if ((rv = SAFE_ACCEPT(apr_proc_mutex_lock(accept_mutex)))
+            != APR_SUCCESS) {
+            int level = APLOG_EMERG;
 
-static const char *set_max_free_servers(cmd_parms *cmd, void *dummy, const char *arg)
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+            if (listener_may_exit) {
+                break;
+            }
+            if (ap_scoreboard_image->parent[process_slot].generation != 
+                ap_scoreboard_image->global->running_generation) {
+                level = APLOG_DEBUG; /* common to get these at restart time */
+            }
+            ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                         "apr_proc_mutex_lock failed. Attempting to shutdown "
+                         "process gracefully.");

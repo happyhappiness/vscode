@@ -1,1 +1,1 @@
-ap_rvputs(r, "</table>\n<input type=hidden name=\"b\" ", NULL);
+ap_rputs("</th><th>", r);

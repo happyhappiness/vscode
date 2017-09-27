@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
+                          "name in parsed document %s", ctx->r->filename);

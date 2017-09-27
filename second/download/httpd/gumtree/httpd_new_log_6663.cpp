@@ -1,0 +1,1 @@
+ap_rputs("<tr><td>Method</td><td><select name='w_hm'>\n", r);

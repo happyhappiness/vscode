@@ -1,1 +1,1 @@
-ap_rvputs(r, "</form>\n", NULL);
+ap_rputs(apr_strfsize((*worker)->s->read, fbuf), r);

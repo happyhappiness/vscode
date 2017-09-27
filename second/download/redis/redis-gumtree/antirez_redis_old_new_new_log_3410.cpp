@@ -1,1 +1,0 @@
-out = sdscat(out,"(empty list or set)\n");

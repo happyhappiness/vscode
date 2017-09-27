@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"client->fd = %d", c->fd);

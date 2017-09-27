@@ -1,1 +1,1 @@
-fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
+ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);

@@ -1,1 +1,0 @@
-used = snprintf(nextra, remaining, " ql_uncompressed_size:%lu", sz);

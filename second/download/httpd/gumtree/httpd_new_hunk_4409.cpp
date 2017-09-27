@@ -1,13 +1,17 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+                          APLOGNO(02938) "h2_stream(%ld-%d): reading data",
+                          session->id, (int)stream_id);
+            return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+    
+    if (eos) {
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    }
+    return (ssize_t)nread;
+}
+
+struct h2_stream *h2_session_push(h2_session *session, h2_stream *is,
+                                  h2_push *push)
+{
+    apr_status_t status;
+    h2_stream *stream;
+    h2_ngheader *ngh;

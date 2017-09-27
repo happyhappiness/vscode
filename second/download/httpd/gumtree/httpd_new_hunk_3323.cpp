@@ -1,18 +1,14 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    /* Setup worker threads */
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    /* clear the storage; we may not create all our threads immediately,
+     * and we want a 0 entry to indicate a thread which was not created
+     */
+    threads = ap_calloc(threads_per_child, sizeof(apr_thread_t *));
+    ts = apr_palloc(pchild, sizeof(*ts));
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    apr_threadattr_create(&thread_attr, pchild);
+    /* 0 means PTHREAD_CREATE_JOINABLE */
+    apr_threadattr_detach_set(thread_attr, 0);
+
+    if (ap_thread_stacksize != 0) {

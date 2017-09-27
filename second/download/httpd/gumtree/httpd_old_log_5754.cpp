@@ -1,0 +1,1 @@
+fprintf(stderr,"Removing the %s service\n", mpm_display_name);

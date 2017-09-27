@@ -1,2 +1,3 @@
-fprintf(stderr, "%s: must include a wildcard pattern "
-                    "for Include %s\n", ap_server_argv0, fname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);

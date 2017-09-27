@@ -1,17 +1,14 @@
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                r->status = HTTP_REQUEST_TIME_OUT;
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
+                              "Failed to read request header line %s", field);
+                r->status = HTTP_BAD_REQUEST;
+            }
 
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+            /* ap_rgetline returns APR_ENOSPC if it fills up the buffer before
+             * finding the end-of-line.  This is only going to happen if it
+             * exceeds the configured limit for a field size.

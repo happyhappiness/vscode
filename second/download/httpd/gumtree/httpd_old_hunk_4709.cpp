@@ -1,13 +1,15 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+            stream->rtmp = h2_req_create(stream->id, stream->pool, 
+                                         NULL, NULL, NULL, NULL, NULL, 0);
+        }
+        status = h2_request_add_header(stream->rtmp, stream->pool,
+                                       name, nlen, value, vlen);
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+    else  {
+        status = add_trailer(stream, name, nlen, value, vlen);
+    }
+    if (status != APR_SUCCESS) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      H2_STRM_MSG(stream, "header %s not accepted"), name);
+        h2_stream_dispatch(stream, H2_SEV_CANCELLED);
+    }
+    return status;

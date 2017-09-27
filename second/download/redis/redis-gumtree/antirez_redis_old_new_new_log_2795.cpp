@@ -1,1 +1,0 @@
-addReplyError(c,"Can't BGSAVE while AOF log rewriting is in progress");

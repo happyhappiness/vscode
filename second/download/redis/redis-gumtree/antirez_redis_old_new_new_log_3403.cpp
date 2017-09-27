@@ -1,1 +1,0 @@
-reply = redisCommand(context,"AUTH %s",config.auth);

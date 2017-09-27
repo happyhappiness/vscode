@@ -1,1 +1,0 @@
-addReplyError(c,"resulting score is not a number (NaN)");

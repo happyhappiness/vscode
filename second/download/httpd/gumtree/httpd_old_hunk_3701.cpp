@@ -1,18 +1,12 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+                    return rv;
+                }
+            }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+            if (zRC == Z_STREAM_END) {
+                /*
+                 * We have inflated all data. Now try to capture the
+                 * validation bytes. We may not have them all available
+                 * right now, but capture what is there.
+                 */

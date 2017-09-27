@@ -1,27 +1,39 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+        apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
+                        s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+    rv = apr_file_flush(fp);
+    if (rv) {
+      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02077)
+                   "Unable to flush file: %s", path);
+      return rv;
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
+    rv = apr_file_close(fp);
+    if (rv) {
+      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02078)
+                   "Unable to close file: %s", path);
+      return rv;
+    }
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
+    rv = apr_file_perms_set(path,
+                            APR_FPROT_UREAD | APR_FPROT_GREAD |
+                            APR_FPROT_WREAD);
+    if (rv && rv != APR_INCOMPLETE && rv != APR_ENOTIMPL) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02079)
+                     "Unable to set file permissions on %s",
+                     path);
+        return rv;
+    }
 
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+    rv = apr_file_rename(path, ctx->storage_path, pool);
+
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02080)
+                     "Unable to move file: %s -> %s", path,
+                     ctx->storage_path);
+        return rv;
+    }
+
+    return APR_SUCCESS;
+}

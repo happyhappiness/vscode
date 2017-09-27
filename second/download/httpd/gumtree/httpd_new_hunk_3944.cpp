@@ -1,17 +1,16 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-		    ap_isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
-++ apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
+                                              &authz_dbd_module);
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
+    }
+
+    groups = apr_array_make(r->pool, 4, sizeof(const char*));
+    rv = authz_dbd_group_query(r, cfg, groups);
+    if (rv != OK) {
+        return AUTHZ_GENERAL_ERROR;
+    }
+
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02590)
+                      "authz_dbd authorize: require dbd-group: Can't "

@@ -1,13 +1,75 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+                                         NULL));
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01019)
+                  "connecting %s to %s:%d", url, uri.hostname, uri.port);
+
+    /* do a DNS lookup for the destination host */
+    err = apr_sockaddr_info_get(&uri_addr, uri.hostname, APR_UNSPEC, uri.port,
+                                0, p);
+    if (APR_SUCCESS != err) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             apr_pstrcat(p, "DNS lookup failure for: ",
+                                         uri.hostname, NULL));
+    }
+
+    /* are we connecting directly, or via a proxy? */
+    if (proxyname) {
+        connectname = proxyname;
+        connectport = proxyport;
+        err = apr_sockaddr_info_get(&connect_addr, proxyname, APR_UNSPEC,
+                                    proxyport, 0, p);
+    }
+    else {
+        connectname = uri.hostname;
+        connectport = uri.port;
+        connect_addr = uri_addr;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "connecting to remote proxy %s on port %d",
+                  connectname, connectport);
+
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, uri_addr)) {
+        return ap_proxyerror(r, HTTP_FORBIDDEN,
+                             "Connect to remote machine blocked");
+    }
+
+    /* Check if it is an allowed port */
+    if(!allowed_port(c_conf, uri.port)) {
+              return ap_proxyerror(r, HTTP_FORBIDDEN,
+                                   "Connect to remote machine blocked");
+    }
+
+    /*
+     * Step Two: Make the Connection
+     *
+     * We have determined who to connect to. Now make the connection.
+     */
+
+    /* get all the possible IP addresses for the destname and loop through them
+     * until we get a successful connection
+     */
+    if (APR_SUCCESS != err) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             apr_pstrcat(p, "DNS lookup failure for: ",
+                                         connectname, NULL));
+    }
+
+    /*
+     * At this point we have a list of one or more IP addresses of
+     * the machine to connect to. If configured, reorder this
+     * list so that the "best candidate" is first try. "best
+     * candidate" could mean the least loaded server, the fastest
+     * responding server, whatever.
+     *
+     * For now we do nothing, ie we get DNS round robin.
+     * XXX FIXME
+     */
+    failed = ap_proxy_connect_to_backend(&sock, "CONNECT", connect_addr,
+                                         connectname, conf, r);
+
+    /* handle a permanent error from the above loop */
+    if (failed) {
+        if (proxyname) {
+            return DECLINED;

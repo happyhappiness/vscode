@@ -1,42 +1,43 @@
-    apr_int32_t autoindex_opts = autoindex_conf->opts;
-    char keyid;
-    char direction;
-    char *colargs;
-    char *fullpath;
-    apr_size_t dirpathlen;
-    char *ctype = "text/html";
-    char *charset;
+    apr_time_t expires;
+    int additional_sec;
+    char *timestr;
 
-    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Can't open directory for index: %s", r->filename);
-        return HTTP_FORBIDDEN;
-    }
-
-    if (autoindex_conf->ctype) {
-        ctype = autoindex_conf->ctype;
-    }
-    if (autoindex_conf->charset) {
-        charset = autoindex_conf->charset;
-    }
-    else {
-#if APR_HAS_UNICODE_FS
-        charset = "UTF-8";
-#else
-        charset = "ISO-8859-1";
-#endif
-    }
-    if (*charset) {
-        ap_set_content_type(r, apr_pstrcat(r->pool, ctype, ";charset=",
-                            charset, NULL));
-    }
-    else {
-        ap_set_content_type(r, ctype);
+    switch (code[0]) {
+    case 'M':
+	if (r->finfo.filetype == 0) { 
+	    /* file doesn't exist on disk, so we can't do anything based on
+	     * modification time.  Note that this does _not_ log an error.
+	     */
+	    return DECLINED;
+	}
+	base = r->finfo.mtime;
+        additional_sec = atoi(&code[1]);
+        additional = apr_time_from_sec(additional_sec);
+        break;
+    case 'A':
+        /* there's been some discussion and it's possible that 
+         * 'access time' will be stored in request structure
+         */
+        base = r->request_time;
+        additional_sec = atoi(&code[1]);
+        additional = apr_time_from_sec(additional_sec);
+        break;
+    default:
+        /* expecting the add_* routines to be case-hardened this 
+         * is just a reminder that module is beta
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (autoindex_opts & TRACK_MODIFIED) {
-        ap_update_mtime(r, r->finfo.mtime);
-        ap_set_last_modified(r);
-        ap_set_etag(r);
+    expires = base + additional;
+    if (expires < r->request_time) {
+        expires = r->request_time;
     }
-    if (r->header_only) {
+    apr_table_mergen(t, "Cache-Control",
+                     apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
+                                  apr_time_sec(expires - r->request_time)));
+    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+    apr_rfc822_date(timestr, expires);
+    apr_table_setn(t, "Expires", timestr);

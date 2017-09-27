@@ -1,1 +1,0 @@
-printf("ERROR: Out of range index should return NULL, returned offset: %ld\n", p-zl);

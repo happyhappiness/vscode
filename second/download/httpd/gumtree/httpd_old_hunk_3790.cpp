@@ -1,9 +1,18 @@
-/* Automatically generated file - do not edit */
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
+    }
+    if (!log_writer) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00645)
+                "log writer isn't correctly setup");
+         return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
+    if (rv != APR_SUCCESS)
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(00646) "Error writing to %s",
+                      cls->fname);
+    return OK;
+}
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+static int multi_log_transaction(request_rec *r)
+{
+    multi_log_state *mls = ap_get_module_config(r->server->module_config,

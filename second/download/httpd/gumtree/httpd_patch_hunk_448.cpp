@@ -1,14 +1,28 @@
-     /* 
-      * Create the pool of worker threads
-      */
-     ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                  "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
-     child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(int));
-+    apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
-+
-     while (1) {
-         for (i = 0; i < ap_threads_per_child; i++) {
-             int *score_idx;
-             int status = ap_scoreboard_image->servers[0][i].status;
-             if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                 continue;
+         ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                      "set timeout on socket to connect to listener");
+         apr_socket_close(sock);
+         return rv;
+     }
+ 
+-    rv = apr_connect(sock, pod->sa);
++    rv = apr_connect(sock, ap_listeners->bind_addr);
+     if (rv != APR_SUCCESS) {
+         int log_level = APLOG_WARNING;
+ 
+         if (APR_STATUS_IS_TIMEUP(rv)) {
+             /* probably some server processes bailed out already and there
+              * is nobody around to call accept and clear out the kernel
+              * connection queue; usually this is not worth logging
+              */
+             log_level = APLOG_DEBUG;
+         }
+ 
+         ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+-                     "connect to listener");
++                     "connect to listener on %pI", ap_listeners->bind_addr);
+     }
+ 
+     apr_socket_close(sock);
+     apr_pool_destroy(p);
+ 
+     return rv;

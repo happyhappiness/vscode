@@ -1,23 +1,14 @@
-          * that the client replies to a Hello Request). But because we insist
-          * on a reply (anything else is an error for us) we have to go to the
-          * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
-          * here because it resets too much of the connection.  So we set the
-          * state explicitly and continue the handshake manually.
-          */
--        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
--                     "Requesting connection re-negotiation");
-+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-+                      "Requesting connection re-negotiation");
+     cache_handle_t *h;
  
-         if (renegotiate_quick) {
-             STACK_OF(X509) *cert_stack;
+     list = cache->providers;
  
-             /* perform just a manual re-verification of the peer */
--            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Performing quick renegotiation: "
-                          "just re-verifying the peer");
- 
-             cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
- 
-             cert = SSL_get_peer_certificate(ssl);
+     /* Remove the stale cache entry if present. If not, we're
+      * being called from outside of a request; remove the
+-     * non-stalle handle.
++     * non-stale handle.
+      */
+     h = cache->stale_handle ? cache->stale_handle : cache->handle;
+     if (!h) {
+        return OK;
+     }
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,

@@ -1,1 +1,0 @@
-lua_pushstring(lua, "You can set the replication behavior only after turning on single commands replication with redis.replicate_commands().");

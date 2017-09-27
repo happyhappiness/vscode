@@ -1,1 +1,0 @@
-f("Compare strings with ziplist entries:\n");

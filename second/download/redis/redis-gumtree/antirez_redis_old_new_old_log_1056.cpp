@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Error trying to save the DB, can't exit.");

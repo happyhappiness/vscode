@@ -1,21 +1,15 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
-    }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
-    }
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+            else {
+                ctx->broken = 1;
+                ap_lua_release_state(L, ctx->spec, r);
+                ap_remove_output_filter(f);
+                apr_brigade_cleanup(pbbIn);
+                apr_brigade_cleanup(ctx->tmpBucket);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02663)
+                              "lua: Error while executing filter: %s",
+                              lua_tostring(L, -1));
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        /* If we've safely reached the end, do a final call to Lua to allow for any 
+        finishing moves by the script, such as appending a tail. */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(pbbIn))) {

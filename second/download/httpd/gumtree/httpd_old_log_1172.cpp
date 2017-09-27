@@ -1,1 +1,1 @@
-(*code == OP_NOTMINUPTO;
+(max == 0;

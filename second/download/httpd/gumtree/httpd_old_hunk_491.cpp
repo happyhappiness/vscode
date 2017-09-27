@@ -1,12 +1,13 @@
-    if (!shutdown_in_progress) {
-        /* Yow, hit an irrecoverable error! Tell the child to die. */
-        SetEvent(exit_event);
-    }
-    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Accept thread exiting.", my_pid);
-}
+        else if (cid->dconf.log_unsupported) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
+                          r->filename);
+        }
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-
-static PCOMP_CONTEXT winnt_get_connection(PCOMP_CONTEXT context)
-{
-    int rc;
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;

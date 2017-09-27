@@ -1,1 +1,0 @@
-printf("unblockClient %p %s\n", c, c->blockingkey->ptr);

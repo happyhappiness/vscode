@@ -1,21 +1,22 @@
- 
- globals allowed_globals = {NULL, NULL, NULL, NULL, 0};
- 
- #define MAX_SELECT_ERRORS 100
- 
- 
--static void add_job(int sock)
-+static void add_job(SOCKET sock)
- {
-     joblist *new_job;
- 
-     new_job = (joblist *) malloc(sizeof(joblist));
-     if (new_job == NULL) {
--	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                      "Ouch!  Out of memory in add_job()!");
-         return;
-     }
-     new_job->next = NULL;
-     new_job->sock = sock;
- 
+                              "malloc: out of memory");
+                 clean_child_exit(APEXIT_CHILDFATAL);
+             }
+             my_info->pid = my_child_num;
+             my_info->tid = i;
+             my_info->sd = 0;
+-        
++
+             /* We are creating threads right now */
+             ap_update_child_status_from_indexes(my_child_num, i,
+                                                 SERVER_STARTING, NULL);
+             /* We let each thread update its own scoreboard entry.  This is
+              * done because it lets us deal with tid better.
+              */
+-            rv = apr_thread_create(&threads[i], thread_attr, 
++            rv = apr_thread_create(&threads[i], thread_attr,
+                                    worker_thread, my_info, pchild);
+             if (rv != APR_SUCCESS) {
+                 ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create worker thread");
+                 /* let the parent decide how bad this really is */
+                 clean_child_exit(APEXIT_CHILDSICK);

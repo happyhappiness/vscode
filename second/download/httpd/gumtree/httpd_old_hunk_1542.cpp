@@ -1,16 +1,14 @@
-                if (str[j] >= 'a' && str[j] <= 'z') {
-                    str[j] = str[j] - ('a' - 'A');
-                }
-                j++;
-            }
-            apr_table_setn(e, str, vals[i]);
-            i++;
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
         }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
-
-    return AUTH_GRANTED;
-}
-
+        if (dobj->file_size < conf->minfs) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache_disk: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->minfs);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
+        }
+        if (cl_header) {

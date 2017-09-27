@@ -1,133 +1,96 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-static const char end_ifdefine_section[] = "</IfDefine>";
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
-					      unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
-                         ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <VirtualHost> section", NULL);
+                break;
+            }
+        }
+        
     }
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Limit> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
-	&& cmd->path != NULL) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Directory/Location/Files> "
-			  "section", NULL);
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
+                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
+        status = apr_brigade_write(io->output, pass_out, io, buf, length);
     }
     
-    if (((forbidden & NOT_IN_DIRECTORY)
-	 && (cmd->end_token == end_directory_section
-	     || cmd->end_token == end_directorymatch_section)) 
-	|| ((forbidden & NOT_IN_LOCATION)
-	    && (cmd->end_token == end_location_section
-		|| cmd->end_token == end_locationmatch_section)) 
-	|| ((forbidden & NOT_IN_FILES)
-	    && (cmd->end_token == end_files_section
-		|| cmd->end_token == end_filesmatch_section))) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <", cmd->end_token+2,
-			  " section", NULL);
-    }
-
-    return NULL;
+    return status;
 }
 
-static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
+apr_status_t h2_conn_io_writeb(h2_conn_io *io, apr_bucket *b)
 {
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    io->unflushed = 1;
+    return APR_SUCCESS;
 }
 
-static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
+apr_status_t h2_conn_io_consider_flush(h2_conn_io *io)
 {
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory(arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
-		    arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
-    }
+    apr_status_t status = APR_SUCCESS;
     
-    conf->ap_document_root = arg;
-    return NULL;
-}
-
-static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
-				      char *line)
-{
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
+    /* The HTTP/1.1 network output buffer/flush behaviour does not
+     * give optimal performance in the HTTP/2 case, as the pattern of
+     * buckets (data/eor/eos) is different.
+     * As long as we have not found out the "best" way to deal with
+     * this, force a flush at least every WRITE_BUFFER_SIZE amount
+     * of data.
      */
-  
-    w = ap_getword_conf_nc(cmd->pool, &line);
-    error_number = atoi(w);
-
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
-        index_number = idx500;
+    if (io->unflushed) {
+        apr_off_t len = 0;
+        if (!APR_BRIGADE_EMPTY(io->output)) {
+            apr_brigade_length(io->output, 0, &len);
+        }
+        len += io->buflen;
+        if (len >= WRITE_BUFFER_SIZE) {
+            return h2_conn_io_pass(io);
+        }
     }
-    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
-			  w, NULL);
-    }
-                
-    /* Store it... */
-
-    if (conf->response_code_strings == NULL) {
-	conf->response_code_strings =
-	    ap_pcalloc(cmd->pool,
-		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
-
-    return NULL;
+    return status;
 }
 
-/* access.conf commands...
- *
+static apr_status_t h2_conn_io_flush_int(h2_conn_io *io, int force)
+{
+    if (io->unflushed || force) {
+        if (io->buflen > 0) {
+            /* something in the buffer, put it in the output brigade */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                          "h2_conn_io: flush, flushing %ld bytes", (long)io->buflen);
+            bucketeer_buffer(io);
+            io->buflen = 0;
+        }
+        
+        if (force) {
+            APR_BRIGADE_INSERT_TAIL(io->output,
+                                    apr_bucket_flush_create(io->output->bucket_alloc));
+        }
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io: flush");
+        /* Send it out */
+        io->unflushed = 0;
+        return pass_out(io->output, io);
+        /* no more access after this, as we might have flushed an EOC bucket
+         * that de-allocated us all. */
+    }
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_conn_io_flush(h2_conn_io *io)
+{
+    return h2_conn_io_flush_int(io, 1);
+}
+
+apr_status_t h2_conn_io_pass(h2_conn_io *io)
+{
+    return h2_conn_io_flush_int(io, 0);
+}
+
+apr_status_t h2_conn_io_close(h2_conn_io *io, void *session)
+{
+    apr_bucket *b;
+
+    /* Send out anything in our buffers */
+    h2_conn_io_flush_int(io, 0);
+    
+    b = h2_bucket_eoc_create(io->connection->bucket_alloc, session);
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    b = apr_bucket_flush_create(io->connection->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    return ap_pass_brigade(io->connection->output_filters, io->output);
+    /* and all is gone */
+}

@@ -1,14 +1,13 @@
-#ifdef NOT_ASCII
-        apr_size_t inbytes_left = space, outbytes_left = space;
+        /* expected cause is that the client disconnected already,
+         * hence the debug level
+         */
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+    }
+#endif
 
-        status = apr_xlate_conv_buffer(from_ascii, buffer, &inbytes_left,
-                           c->cbuff + c->cbx, &outbytes_left);
-        if (status || inbytes_left || outbytes_left) {
-            fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
-                status, inbytes_left, outbytes_left);
-            exit(1);
-        }
-#else
-        memcpy(c->cbuff + c->cbx, buffer, space);
-#endif              /* NOT_ASCII */
-        c->cbx += tocopy;
+    /* The core filter requires the timeout mode to be set, which
+     * incidentally sets the socket to be nonblocking.  If this
+     * is not initialized correctly, Linux - for example - will
+     * be initially blocking, while Solaris will be non blocking
+     * and any initial read will fail.

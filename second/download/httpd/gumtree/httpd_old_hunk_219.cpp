@@ -1,27 +1,14 @@
-        }
-
-        /*
-         * Verify the signature on this CRL
-         */
-        pubkey = X509_get_pubkey(cert);
-        if (X509_CRL_verify(crl, pubkey) <= 0) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Invalid signature on CRL");
-
-            X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
-            X509_OBJECT_free_contents(&obj);
-            if (pubkey)
-                EVP_PKEY_free(pubkey);
-
-            return FALSE;
-        }
-
-        if (pubkey)
-            EVP_PKEY_free(pubkey);
-
-        /*
-         * Check date of CRL to make sure it's not expired
-         */
-        i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
-
-        if (i == 0) {
+                }
+            }
+            else if (s->type == MAPTYPE_RND) {
+                if ((rv = apr_stat(&st, s->checkfile,
+                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "mod_rewrite: can't access text RewriteMap "
+                                 "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open RewriteMap file, "
+                               "see error log");
+                    return NULL;
+                }
+                value = get_cache_string(cachep, s->name, CACHEMODE_TS,
+                                         st.mtime, key);

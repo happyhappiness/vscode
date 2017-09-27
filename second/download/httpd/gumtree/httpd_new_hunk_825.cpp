@@ -1,26 +1,18 @@
-            algoKey |= at;
+    printf(" -D BUFFERED_LOGS\n");
+#ifdef PIPE_BUF
+    printf(" -D PIPE_BUF=%ld\n",(long)PIPE_BUF);
+#endif
+#endif
 
-            /*
-             * Log the type of reading
-             */
-            if (nPassPhraseDialogCur == 0) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ,
-                             "unencrypted %s private key - pass phrase not "
-                             "required", an);
-            }
-            else {
-                if (cpPassPhraseCur != NULL) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 pServ,
-                                 "encrypted %s private key - pass phrase "
-                                 "requested", an);
-                }
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 pServ,
-                                 "encrypted %s private key - pass phrase"
-                                 " reused", an);
-                }
-            }
+    printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);
 
-            /*
+#if APR_CHARSET_EBCDIC
+    printf(" -D APR_CHARSET_EBCDIC\n");
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
+
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");

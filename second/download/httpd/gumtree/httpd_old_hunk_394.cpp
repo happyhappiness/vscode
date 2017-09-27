@@ -1,17 +1,37 @@
-        } else {
-            ResetEvent(qwait_event);
-        }
-        apr_thread_mutex_unlock(qlock);
+                 * Note:
+                 * Multiple failures in the next two steps will cause the pchild pool
+                 * to 'leak' storage. I don't think this is worth fixing...
+                 */
+                apr_allocator_t *allocator;
+
+                context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
   
-        if (!context) {
-            /* We failed to grab a context off the queue, consider allocating a
-             * new one out of the child pool. There may be up to ap_threads_per_child
-             * contexts in the system at once.
-             */
-            if (num_completion_contexts >= ap_threads_per_child) {
-                /* All workers are busy, need to wait for one */
-                static int reported = 0;
-                if (!reported) {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                                 "Server ran out of threads to serve requests. Consider "
-                                 "raising the ThreadsPerChild setting");
+                context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+                if (context->Overlapped.hEvent == NULL) {
+                    /* Hopefully this is a temporary condition ... */
+                    ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
+                                 "mpm_get_completion_context: CreateEvent failed.");
+                    return NULL;
+                }
+ 
+                /* Create the tranaction pool */
+                apr_allocator_create(&allocator);
+                apr_allocator_max_free_set(allocator, ap_max_mem_free);
+                rv = apr_pool_create_ex(&context->ptrans, pchild, NULL, allocator);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
+                                 "mpm_get_completion_context: Failed to create the transaction pool.");
+                    CloseHandle(context->Overlapped.hEvent);
+                    return NULL;
+                }
+                apr_allocator_owner_set(allocator, context->ptrans);
+                apr_pool_tag(context->ptrans, "transaction");
+                context->accept_socket = INVALID_SOCKET;
+                context->ba = apr_bucket_alloc_create(pchild);
+                apr_atomic_inc(&num_completion_contexts); 
+                break;
+            }
+        } else {
+            /* Got a context from the queue */
+            break;
+        }

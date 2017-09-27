@@ -1,85 +1,46 @@
-	    mb = ap_cpystrn(mb, linebuff+4, me - mb);
-	} while (memcmp(linebuff, buff, 4) != 0);
-    }
-    return status;
+
+    /* return the underlying error, or OK on success */
+    return r->status == HTTP_OK || r->status == OK ? OK : r->status;
+
 }
 
-static long int send_dir(BUFF *f, request_rec *r, cache_req *c, char *cwd)
+static int authenticate_form_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+        apr_pool_t *ptemp, server_rec *s)
 {
-    char buf[IOBUFSIZE];
-    char buf2[IOBUFSIZE];
-    char *filename;
-    int searchidx = 0;
-    char *searchptr = NULL;
-    int firstfile = 1;
-    unsigned long total_bytes_sent = 0;
-    register int n, o, w;
-    conn_rec *con = r->connection;
-    char *dir, *path, *reldir, *site;
 
-    /* Save "scheme://site" prefix without password */
-    site = ap_unparse_uri_components(r->pool, &r->parsed_uri, UNP_OMITPASSWORD|UNP_OMITPATHINFO);
-    /* ... and path without query args */
-    path = ap_unparse_uri_components(r->pool, &r->parsed_uri, UNP_OMITSITEPART|UNP_OMITQUERY);
-    (void)decodeenc(path);
-
-    /* Copy path, strip (all except the last) trailing slashes */
-    path = dir = ap_pstrcat(r->pool, path, "/", NULL);
-    while ((n = strlen(path)) > 1 && path[n-1] == '/' && path[n-2] == '/')
-	path[n-1] = '\0';
-
-    /* print "ftp://host/" */
-    n = ap_snprintf(buf, sizeof(buf), "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n"
-		"<HTML><HEAD><TITLE>%s%s</TITLE>\n"
-		"<BASE HREF=\"%s%s\"></HEAD>\n"
-		"<BODY><H2>Directory of "
-		"<A HREF=\"/\">%s</A>/",
-		site, path, site, path, site);
-    total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
-
-    while ((dir = strchr(dir+1, '/')) != NULL)
-    {
-	*dir = '\0';
-	if ((reldir = strrchr(path+1, '/'))==NULL)
-	    reldir = path+1;
-	else
-	    ++reldir;
-	/* print "path/" component */
-	ap_snprintf(buf, sizeof(buf), "<A HREF=\"/%s/\">%s</A>/", path+1, reldir);
-	total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
-	*dir = '/';
+    if (!ap_session_load_fn || !ap_session_get_fn || !ap_session_set_fn) {
+        ap_session_load_fn = APR_RETRIEVE_OPTIONAL_FN(ap_session_load);
+        ap_session_get_fn = APR_RETRIEVE_OPTIONAL_FN(ap_session_get);
+        ap_session_set_fn = APR_RETRIEVE_OPTIONAL_FN(ap_session_set);
+        if (!ap_session_load_fn || !ap_session_get_fn || !ap_session_set_fn) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02617)
+                    "You must load mod_session to enable the mod_auth_form "
+                                       "functions");
+            return !OK;
+        }
     }
-    /* If the caller has determined the current directory, and it differs */
-    /* from what the client requested, then show the real name */
-    if (cwd == NULL || strncmp (cwd, path, strlen(cwd)) == 0) {
-	ap_snprintf(buf, sizeof(buf), "</H2>\n<HR><PRE>");
-    } else {
-	ap_snprintf(buf, sizeof(buf), "</H2>\n(%s)\n<HR><PRE>", cwd);
+
+    if (!ap_request_insert_filter_fn || !ap_request_remove_filter_fn) {
+        ap_request_insert_filter_fn = APR_RETRIEVE_OPTIONAL_FN(ap_request_insert_filter);
+        ap_request_remove_filter_fn = APR_RETRIEVE_OPTIONAL_FN(ap_request_remove_filter);
+        if (!ap_request_insert_filter_fn || !ap_request_remove_filter_fn) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02618)
+                    "You must load mod_request to enable the mod_auth_form "
+                                       "functions");
+            return !OK;
+        }
     }
-    total_bytes_sent += ap_proxy_bputs2(buf, con->client, c);
 
-    while (!con->aborted) {
-	n = ap_bgets(buf, sizeof buf, f);
-	if (n == -1) {		/* input error */
-	    if (c != NULL)
-		c = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	if (buf[0] == 'l' && (filename=strstr(buf, " -> ")) != NULL) {
-	    char *link_ptr = filename;
+    return OK;
+}
 
-	    do {
-		filename--;
-	    } while (filename[0] != ' ');
-	    *(filename++) = '\0';
-	    *(link_ptr++) = '\0';
-	    if ((n = strlen(link_ptr)) > 1 && link_ptr[n - 1] == '\n')
-	      link_ptr[n - 1] = '\0';
-	    ap_snprintf(buf2, sizeof(buf2), "%s <A HREF=\"%s\">%s %s</A>\n", buf, filename, filename, link_ptr);
-	    ap_cpystrn(buf, buf2, sizeof(buf));
-	    n = strlen(buf);
-	}
-	else if (buf[0] == 'd' || buf[0] == '-' || buf[0] == 'l' || ap_isdigit(buf[0])) {
-	    if (ap_isdigit(buf[0])) {	/* handle DOS dir */
+static void register_hooks(apr_pool_t * p)
+{
+    ap_hook_post_config(authenticate_form_post_config,NULL,NULL,APR_HOOK_MIDDLE);
+
+#if AP_MODULE_MAGIC_AT_LEAST(20080403,1)
+    ap_hook_check_authn(authenticate_form_authn, NULL, NULL, APR_HOOK_MIDDLE,
+                        AP_AUTH_INTERNAL_PER_CONF);
+#else
+    ap_hook_check_user_id(authenticate_form_authn, NULL, NULL, APR_HOOK_MIDDLE);
+#endif

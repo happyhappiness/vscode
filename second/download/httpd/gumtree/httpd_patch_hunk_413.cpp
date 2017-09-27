@@ -1,106 +1,17 @@
-                 apr_pool_cleanup_register(pconf, lr, nwssl_socket_cleanup, apr_pool_cleanup_null);
-             }
-         } else {
-             return HTTP_INTERNAL_SERVER_ERROR;
-         }
-     } 
-+
-+    for (slu = ap_seclistenersup; slu; slu = slu->next) {
-+        /* Check the listener list for a matching upgradeable listener */
-+        found = 0;
-+        for (lr = ap_listeners; lr; lr = lr->next) {
-+            if (slu->port == lr->bind_addr->port) {
-+                found = 1;
-+                break;
-+            }
-+        }
-+        if (!found) {
-+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog,
-+                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);
-+        }
-+    }    
-+
-     build_cert_list(pconf);
- 
-     return OK;
+      */
+     cache_out_filter_handle = 
+         ap_register_output_filter("CACHE_OUT", 
+                                   cache_out_filter, 
+                                   NULL,
+                                   AP_FTYPE_CONTENT_SET-1);
+-    cache_conditional_filter_handle =
+-        ap_register_output_filter("CACHE_CONDITIONAL", 
+-                                  cache_conditional_filter, 
+-                                  NULL,
+-                                  AP_FTYPE_CONTENT_SET);
+     ap_hook_post_config(cache_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
  }
  
- static void *nwssl_config_server_create(apr_pool_t *p, server_rec *s)
+ module AP_MODULE_DECLARE_DATA cache_module =
  {
-     NWSSLSrvConfigRec *new = apr_palloc(p, sizeof(NWSSLSrvConfigRec));
-     new->sltable = apr_table_make(p, 5);
-+    new->slutable = apr_table_make(p, 5);
-     return new;
- }
- 
- static void *nwssl_config_server_merge(apr_pool_t *p, void *basev, void *addv)
- {
-     NWSSLSrvConfigRec *base = (NWSSLSrvConfigRec *)basev;
-     NWSSLSrvConfigRec *add  = (NWSSLSrvConfigRec *)addv;
-     NWSSLSrvConfigRec *merged  = (NWSSLSrvConfigRec *)apr_palloc(p, sizeof(NWSSLSrvConfigRec));
-     return merged;
- }
- 
--static int isSecureConn (const server_rec *s, const conn_rec *c)
-+static int compare_ipports(void *rec, const char *key, const char *value)
-+{
-+    conn_rec *c = (conn_rec*)rec;
-+
-+    if (value && 
-+        ((strcmp(value, "0.0.0.0") == 0) || (strcmp(value, c->local_ip) == 0))) 
-+    {
-+        return 0;
-+    }
-+    return 1;
-+}
-+
-+static int isSecureConnEx (const server_rec *s, const conn_rec *c, const apr_table_t *t)
- {
--    NWSSLSrvConfigRec *sc = get_nwssl_cfg(s);
--    const char *s_secure = NULL;
-     char port[8];
--    int ret = 0;
- 
-     itoa((c->local_addr)->port, port, 10);
--    s_secure = apr_table_get(sc->sltable, port);    
--    if (s_secure)
--        ret = 1;
-+    if (!apr_table_do(compare_ipports, (void*)c, t, port, NULL))
-+    {
-+        return 1;
-+    }
-+
-+    return 0;
-+}
-+
-+static int isSecureConn (const server_rec *s, const conn_rec *c)
-+{
-+    NWSSLSrvConfigRec *sc = get_nwssl_cfg(s);
-+
-+    return isSecureConnEx (s, c, sc->sltable);
-+}
-+
-+static int isSecureConnUpgradeable (const server_rec *s, const conn_rec *c)
-+{
-+    NWSSLSrvConfigRec *sc = get_nwssl_cfg(s);
- 
--    return ret;
-+    return isSecureConnEx (s, c, sc->slutable);
- }
- 
- static int isSecure (const request_rec *r)
- {
- 	return isSecureConn (r->server, r->connection);
- }
- 
-+static int isSecureUpgradeable (const request_rec *r)
-+{
-+	return isSecureConnUpgradeable (r->server, r->connection);
-+}
-+
- static int nwssl_hook_Fixup(request_rec *r)
- {
-     int i;
- 
-     if (!isSecure(r))
-         return DECLINED;
+     STANDARD20_MODULE_STUFF,

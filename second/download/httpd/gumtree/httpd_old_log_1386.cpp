@@ -1,1 +1,0 @@
-fprintf(stderr, "    %-32s", kb);

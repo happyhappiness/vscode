@@ -1,75 +1,26 @@
 
-    ap_hard_timeout("proxy receive", r);
-/* send response */
-/* write status line */
-    if (!r->assbackwards)
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-    if (c != NULL && c->fp != NULL
-	&& ap_bvputs(c->fp, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
-	c = ap_proxy_cache_error(c);
+    if (retained->is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00493)
+                     AP_SIG_GRACEFUL_STRING
+                     " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_GRACEFUL);
 
-/* send headers */
-    tdo.req = r;
-    tdo.cache = c;
-    ap_table_do(ap_proxy_send_hdr_line, &tdo, resp_hdrs, NULL);
 
-    if (!r->assbackwards)
-	ap_rputs(CRLF, r);
-    if (c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1)
-	c = ap_proxy_cache_error(c);
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
 
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-    r->sent_bodyct = 1;
-/* send body */
-    if (!r->header_only) {
-	if (parms[0] != 'd') {
-/* we need to set this for ap_proxy_send_fb()... */
-	    if (c != NULL)
-		c->cache_completion = 0;
-	    ap_proxy_send_fb(data, r, c);
-	} else
-	    send_dir(data, r, c, cwd);
-
-	if (rc == 125 || rc == 150)
-	    rc = ftp_getrc(f);
-
-	/* XXX: we checked for 125||150||226||250 above. This is redundant. */
-	if (rc != 226 && rc != 250)
-	    c = ap_proxy_cache_error(c);
     }
     else {
-/* abort the transfer */
-	ap_bputs("ABOR" CRLF, f);
-	ap_bflush(f);
-	if (!pasvmode)
-	    ap_bclose(data);
-	Explain0("FTP: ABOR");
-/* responses: 225, 226, 421, 500, 501, 502 */
-    /* 225 Data connection open; no transfer in progress. */
-    /* 226 Closing data connection. */
-    /* 421 Service not available, closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    /* 501 Syntax error in parameters or arguments. */
-    /* 502 Command not implemented. */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
+
+        ap_reclaim_child_processes(1,  /* Start with SIGTERM */
+                                   event_note_child_killed);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00494)
+                     "SIGHUP received.  Attempting to restart");
     }
-
-    ap_kill_timeout(r);
-    ap_proxy_cache_tidy(c);
-
-/* finish */
-    ap_bputs("QUIT" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: QUIT");
-/* responses: 221, 500 */
-    /* 221 Service closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    i = ftp_getrc(f);
-    Explain1("FTP: QUIT: status %d", i);
-
-    if (pasvmode)
-	ap_bclose(data);
-    ap_bclose(f);
-
-    ap_rflush(r);	/* flush before garbage collection */

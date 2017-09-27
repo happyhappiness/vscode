@@ -1,27 +1,129 @@
-    /* advance to the next generation */
-    /* XXX: we really need to make sure this new generation number isn't in
-     * use by any of the children.
-     */
-    ++ap_my_generation;
-    ap_scoreboard_image->global->running_generation = ap_my_generation;
-    
-    if (is_graceful) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
-        /* wake up the children...time to die.  But we'll have more soon */
-        ap_mpm_pod_killpg(pod, ap_daemons_limit, TRUE);
-    
+        }
 
-        /* This is mostly for debugging... so that we know what is still
-         * gracefully dealing with existing request.
-         */
-        
-    }
-    else {
-        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM 
-         * and a SIGHUP, we may as well use the same signal, because some user
-         * pthreads are stealing signals from us left and right.
-         */
-        ap_mpm_pod_killpg(pod, ap_daemons_limit, FALSE);
+      /* First, ensure the minimum number of matches are present. */
 
-        ap_reclaim_child_processes(1);                /* Start with SIGTERM */
+      for (i = 1; i <= min; i++)
+        {
+        if (eptr >= md->end_subject) return FALSE;
+        GETCHARINC(c, eptr)         /* Get character; increment eptr */
+
+#ifdef SUPPORT_UTF8
+        /* We do not yet support class members > 255 */
+        if (c > 255) return FALSE;
+#endif
+
+        if ((data[c/8] & (1 << (c&7))) != 0) continue;
+        return FALSE;
+        }
+
+      /* If max == min we can continue with the main loop without the
+      need to recurse. */
+
+      if (min == max) continue;
+
+      /* If minimizing, keep testing the rest of the expression and advancing
+      the pointer while it matches the class. */
+
+      if (minimize)
+        {
+        for (i = min;; i++)
+          {
+          if (match(eptr, ecode, offset_top, md, ims, eptrb, 0))
+            return TRUE;
+          if (i >= max || eptr >= md->end_subject) return FALSE;
+          GETCHARINC(c, eptr)       /* Get character; increment eptr */
+
+#ifdef SUPPORT_UTF8
+          /* We do not yet support class members > 255 */
+          if (c > 255) return FALSE;
+#endif
+          if ((data[c/8] & (1 << (c&7))) != 0) continue;
+          return FALSE;
+          }
+        /* Control never gets here */
+        }
+
+      /* If maximizing, find the longest possible run, then work backwards. */
+
+      else
+        {
+        const uschar *pp = eptr;
+        int len = 1;
+        for (i = min; i < max; i++)
+          {
+          if (eptr >= md->end_subject) break;
+          GETCHARLEN(c, eptr, len)  /* Get character, set length if UTF-8 */
+
+#ifdef SUPPORT_UTF8
+          /* We do not yet support class members > 255 */
+          if (c > 255) break;
+#endif
+          if ((data[c/8] & (1 << (c&7))) == 0) break;
+          eptr += len;
+          }
+
+        while (eptr >= pp)
+          {
+          if (match(eptr--, ecode, offset_top, md, ims, eptrb, 0))
+            return TRUE;
+
+#ifdef SUPPORT_UTF8
+          BACKCHAR(eptr)
+#endif
+          }
+        return FALSE;
+        }
+      }
+    /* Control never gets here */
+
+    /* Match a run of characters */
+
+    case OP_CHARS:
+      {
+      register int length = ecode[1];
+      ecode += 2;
+
+#ifdef DEBUG    /* Sigh. Some compilers never learn. */
+      if (eptr >= md->end_subject)
+        printf("matching subject <null> against pattern ");
+      else
+        {
+        printf("matching subject ");
+        pchars(eptr, length, TRUE, md);
+        printf(" against pattern ");
+        }
+      pchars(ecode, length, FALSE, md);
+      printf("\n");
+#endif
+
+      if (length > md->end_subject - eptr) return FALSE;
+      if ((ims & PCRE_CASELESS) != 0)
+        {
+        while (length-- > 0)
+          if (md->lcc[*ecode++] != md->lcc[*eptr++])
+            return FALSE;
+        }
+      else
+        {
+        while (length-- > 0) if (*ecode++ != *eptr++) return FALSE;
+        }
+      }
+    break;
+
+    /* Match a single character repeatedly; different opcodes share code. */
+
+    case OP_EXACT:
+    min = max = (ecode[1] << 8) + ecode[2];
+    ecode += 3;
+    goto REPEATCHAR;
+
+    case OP_UPTO:
+    case OP_MINUPTO:
+    min = 0;
+    max = (ecode[1] << 8) + ecode[2];
+    minimize = *ecode == OP_MINUPTO;
+    ecode += 3;
+    goto REPEATCHAR;
+
+    case OP_STAR:
+    case OP_MINSTAR:

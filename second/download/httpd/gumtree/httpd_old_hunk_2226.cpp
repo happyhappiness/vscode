@@ -1,15 +1,16 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+            good++;
+            close_connection(c);
+            return;
         }
-
-        r->read_chunked = 1;
+        /* catch legitimate fatal apr_socket_recv errors */
+        else if (status != APR_SUCCESS) {
+            err_except++; /* XXX: is this the right error counter? */
+            /* XXX: Should errors here be fatal, or should we allow a
+             * certain number of them before completely failing? -aaron */
+            apr_err("apr_socket_recv", status);
+        }
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    totalread += r;
+    if (c->read == 0) {
+        c->beginread = apr_time_now();

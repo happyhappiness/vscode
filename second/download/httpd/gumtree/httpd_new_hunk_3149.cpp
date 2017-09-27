@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
-
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+        if (ssl_err == SSL_ERROR_ZERO_RETURN) {
+            /*
+             * The case where the connection was closed before any data
+             * was transferred. That's not a real error and can occur
+             * sporadically with some clients.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02006)
+                         "SSL handshake stopped: connection was closed");
+        }
+        else if (ssl_err == SSL_ERROR_WANT_READ) {
+            /*
+             * This is in addition to what was present earlier. It is
+             * borrowed from openssl_state_machine.c [mod_tls].

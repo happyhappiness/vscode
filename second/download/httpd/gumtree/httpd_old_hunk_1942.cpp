@@ -1,13 +1,21 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "ab: Could not read POST data file: %s\n",
+                apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
     }
+    apr_file_close(postfd);
+    return 0;
+}
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+/* ------------------------------------------------------- */
+
+/* sort out command-line args and call test */
+int main(int argc, const char * const argv[])
+{
+    int r, l;
+    char tmp[1024];
+    apr_status_t status;
+    apr_getopt_t *opt;
+    const char *optarg;
+    char c;
+#ifdef USE_SSL

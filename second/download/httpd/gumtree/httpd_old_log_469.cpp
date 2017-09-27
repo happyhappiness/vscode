@@ -1,2 +1,2 @@
-printf("Processing: " CONF_FMT_STRING,
-		   mind, (int) (totald + 0.5), sdd, meand, maxd);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
+                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");

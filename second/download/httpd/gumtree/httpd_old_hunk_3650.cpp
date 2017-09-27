@@ -1,29 +1,14 @@
-	}
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02028)
+                  "upgrading connection to TLS");
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    bb = apr_brigade_create(r->pool, conn->bucket_alloc);
+
+    rv = ap_fputstrs(conn->output_filters, bb, SWITCH_STATUS_LINE, CRLF,
+                     UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+    if (rv == APR_SUCCESS) {
+        APR_BRIGADE_INSERT_TAIL(bb,
+                                apr_bucket_flush_create(conn->bucket_alloc));
+        rv = ap_pass_brigade(conn->output_filters, bb);
+    }
+

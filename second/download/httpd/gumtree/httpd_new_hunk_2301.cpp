@@ -1,18 +1,47 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+    /* Perform the iteration inside the mutex to avoid corruption or invalid
+     * pointer arithmetic. The rest of our logic uses read-only header data so
+     * doesn't need the lock. */
+    /* Iterate over the subcaches */
+    for (loop = 0; loop < header->subcache_num && rv == APR_SUCCESS; loop++) {
+        SHMCBSubcache *subcache = SHMCB_SUBCACHE(header, loop);
+        rv = shmcb_subcache_iterate(instance, s, userctx, header, subcache,
+                                    iterator, &buf, &buflen, pool, now);
+    }
+    return rv;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+/*
+ * Subcache-level cache operations 
+ */
+
+static void shmcb_subcache_expire(server_rec *s, SHMCBHeader *header,
+                                  SHMCBSubcache *subcache, apr_time_t now)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    unsigned int loop = 0, freed = 0, expired = 0;
+    unsigned int new_idx_pos = subcache->idx_pos;
+    SHMCBIndex *idx = NULL;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    while (loop < subcache->idx_used) {
+        idx = SHMCB_INDEX(subcache, new_idx_pos);
+        if (idx->removed)
+            freed++;
+        else if (idx->expires <= now)
+            expired++;
+        else
+            /* not removed and not expired yet, we're done iterating */
+            break;
+        loop++;
+        new_idx_pos = SHMCB_CYCLIC_INCREMENT(new_idx_pos, 1, header->index_num);
+    }
+    if (!loop)
+        /* Nothing to do */
+        return;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "expiring %u and reclaiming %u removed socache entries",
+                 expired, freed);
+    if (loop == subcache->idx_used) {
+        /* We're expiring everything, piece of cake */
+        subcache->idx_used = 0;
+        subcache->data_used = 0;
+    } else {
+        /* There remain other indexes, so we can use idx to adjust 'data' */

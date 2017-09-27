@@ -1,0 +1,1 @@
+ap_rputs("<td>\n<select name='b_lbm' id='b_lbm'>", r);

@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"SYNC append only file rewrite performed");

@@ -1,3 +1,2 @@
-printf("Processing: " CONF_FMT_STRING, mintot - mincon, 
-                   (total / requests) - (totalcon / requests), 
-                   maxtot - maxcon);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "cache: running CACHE_CONDITIONAL filter");

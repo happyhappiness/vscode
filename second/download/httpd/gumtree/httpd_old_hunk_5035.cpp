@@ -1,16 +1,27 @@
-#define APLOG_MARK	__FILE__,__LINE__
+                         format);
+        return 1;
+    }
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+    if (rv != APR_SUCCESS) {
+        apr_file_printf(errfile,
+                        "Error: Cannot open output DBM '%s': (%d) %s" NL NL,
+                         output, rv, apr_strerror(rv, errbuf, sizeof(errbuf)));
+        return 1;
+    }
 
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+    if (verbose) {
+        apr_file_printf(errfile, "DBM File: %s"NL, output);
+    }
+
+    rv = to_dbm(outdbm, infile, pool);
+
+    if (rv != APR_SUCCESS) {
+        apr_file_printf(errfile,
+                        "Error: Converting to DBM: (%d) %s" NL NL,
+                         rv, apr_strerror(rv, errbuf, sizeof(errbuf)));
+        return 1;
+    }
+
+    apr_dbm_close(outdbm);
+
+    if (verbose) {

@@ -1,14 +1,57 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            sent = tf->HeadLength;
+        }
 
+        sent += (apr_uint32_t)fsize;
+        apr_brigade_insert_file(bb, fd, tf->Offset, fsize, r->pool);
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+        if (tf->pTail && tf->TailLength) {
+            sent += tf->TailLength;
+            b = apr_bucket_transient_create((char*)tf->pTail,
+                                            tf->TailLength, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+        }
+
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+        if (rv != APR_SUCCESS)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: ServerSupport function "
+                          "HSE_REQ_TRANSMIT_FILE "
+                          "ap_pass_brigade failed: %s", r->filename);
+
+        /* Use tf->pfnHseIO + tf->pContext, or if NULL, then use cid->fnIOComplete
+         * pass pContect to the HseIO callback.
+         */
+        if (tf->dwFlags & HSE_IO_ASYNC) {
+            if (tf->pfnHseIO) {
+                if (rv == APR_SUCCESS) {
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_SUCCESS, sent);
+                }
+                else {
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_WRITE_FAULT, sent);
+                }
+            }
+            else if (cid->completion) {
+                if (rv == APR_SUCCESS) {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_SUCCESS);
+                }
+                else {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_WRITE_FAULT);
+                }
+            }
+        }
+        return (rv == APR_SUCCESS);
+    }
+
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "

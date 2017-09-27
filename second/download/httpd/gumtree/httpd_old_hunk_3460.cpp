@@ -1,18 +1,21 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+    }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    max_spare_threads = atoi(arg);
+    return NULL;
+}
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
+static const char *set_max_clients (cmd_parms *cmd, void *dummy,
+                                     const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
+    max_clients = atoi(arg);
+    return NULL;
+}
 
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy,
+                                          const char *arg)
+{

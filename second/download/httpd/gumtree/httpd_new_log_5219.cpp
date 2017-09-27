@@ -1,0 +1,1 @@
+ap_remove_pid(pconf, ap_pid_fname);

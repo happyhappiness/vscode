@@ -1,1 +1,0 @@
-createObject(REDIS_STRING,sdscatprintf(sdsempty(),"%lld",val));

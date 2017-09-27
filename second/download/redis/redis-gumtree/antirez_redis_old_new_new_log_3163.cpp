@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"%s/%02x/",path,j);

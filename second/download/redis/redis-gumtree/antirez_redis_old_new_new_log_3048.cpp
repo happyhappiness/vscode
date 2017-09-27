@@ -1,1 +1,0 @@
-addReplyErrorFormat(c,"Changing directory: %s", strerror(errno));

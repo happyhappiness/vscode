@@ -1,0 +1,1 @@
+apr_file_printf(out, "ServerRoot: \"%s\"\n", ap_server_root);

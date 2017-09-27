@@ -1,49 +1,24 @@
-    /* destroy the module information */
-    modi->modp = NULL;
-    modi->name = NULL;
-    return APR_SUCCESS;
-}
-
-/*
- * This is called for the directive LoadModule and actually loads
- * a shared object file into the address space of the server process.
- */
-
-static const char *load_module(cmd_parms *cmd, void *dummy,
-                               const char *modname, const char *filename)
 {
-    apr_dso_handle_t *modhandle;
-    apr_dso_handle_sym_t modsym;
-    module *modp;
-    const char *szModuleFile = ap_server_root_relative(cmd->pool, filename);
-    so_server_conf *sconf;
-    ap_module_symbol_t *modi;
-    ap_module_symbol_t *modie;
-    int i;
-    const char *error;
+    conn_rec *c = r->connection;
+    struct modssl_buffer_ctx *ctx;
+    apr_bucket_brigade *tempb;
+    apr_off_t total = 0; /* total length buffered */
+    int eos = 0; /* non-zero once EOS is seen */
 
-    /* we need to setup this value for dummy to make sure that we don't try
-     * to add a non-existant tree into the build when we return to
-     * execute_now.
-     */
-    *(ap_directive_t **)dummy = NULL;
+    /* Create the context which will be passed to the input filter;
+     * containing a setaside pool and a brigade which constrain the
+     * lifetime of the buffered data. */
+    ctx = apr_palloc(r->pool, sizeof *ctx);
+    apr_pool_create(&ctx->pool, r->pool);
+    ctx->bb = apr_brigade_create(ctx->pool, c->bucket_alloc);
 
-    if (!szModuleFile) {
-        return apr_pstrcat(cmd->pool, "Invalid LoadModule path ",
-                           filename, NULL);
-    }
+    /* ... and a temporary brigade. */
+    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
 
-    /*
-     * check for already existing module
-     * If it already exists, we have nothing to do
-     * Check both dynamically-loaded modules and statically-linked modules.
-     */
-    sconf = (so_server_conf *)ap_get_module_config(cmd->server->module_config,
-	                                        &so_module);
-    modie = (ap_module_symbol_t *)sconf->loaded_modules->elts;
-    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
-        modi = &modie[i];
-        if (modi->name != NULL && strcmp(modi->name, modname) == 0) {
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
-                          cmd->pool, "module %s is already loaded, skipping",
-                          modname);
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer");
+
+    do {
+        apr_status_t rv;
+        apr_bucket *e, *next;
+
+        /* The request body is read from the protocol-level input

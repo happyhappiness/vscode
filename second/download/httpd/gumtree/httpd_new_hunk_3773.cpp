@@ -1,13 +1,13 @@
-    rr->content_type = CGI_MAGIC_TYPE;
 
-    /* Run it. */
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00226)
+            "caught SIGTERM, shutting down");
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %lu thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+        mpm_main_cleanup();
+        return 1;

@@ -1,17 +1,13 @@
+            printf ("\rShutdown pending. Waiting for %lu thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+        mpm_main_cleanup();
+        return DONE;
     }
-
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    else {  /* the only other way out is a restart */
+        /* advance to the next generation */
+        /* XXX: we really need to make sure this new generation number isn't in
+         * use by any of the children.
+         */

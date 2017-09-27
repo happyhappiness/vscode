@@ -1,13 +1,25 @@
-        if (rv || !(sb_shared = apr_shm_baseaddr_get(ap_scoreboard_shm))) {
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        memset(sb_shared, 0, scoreboard_size);
-        ap_init_scoreboard(sb_shared);
+            remove_pollfd.desc.s = c->aprsock;
+	    apr_pollset_remove(readbits, &remove_pollfd);
+	    apr_socket_close(c->aprsock);
+	    err_conn++;
+	    if (bad++ > 10) {
+		fprintf(stderr,
+			"\nTest aborted after 10 failures\n\n");
+		apr_err("apr_connect()", rv);
+	    }
+	    c->state = STATE_UNCONNECTED;
+	    start_connect(c);
+	    return;
+	}
     }
-    else 
-#endif
-    {
-        /* A simple malloc will suffice */
-        void *sb_mem = calloc(1, scoreboard_size);
-        if (sb_mem == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+
+    /* connected first time */
+    c->state = STATE_CONNECTED;
+    started++;
+    write_request(c);
+}
+
+/* --------------------------------------------------------- */
+
+/* close down connection and save stats */
+

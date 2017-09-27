@@ -1,13 +1,14 @@
-    case HSE_REQ_REFRESH_ISAPI_ACL:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_REFRESH_ISAPI_ACL "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+    if (r->uri[0] != '/' && r->uri[0] != '\0') {
+        return DECLINED;
+    }
 
-    case HSE_REQ_IS_KEEP_CONN:
-        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
-        return 1;
-
+    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
+        if (ap_is_HTTP_REDIRECT(status)) {
+            /* include QUERY_STRING if any */
+            if (r->args) {
+                ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
+            }
+            apr_table_setn(r->headers_out, "Location", ret);
+        }
+        return status;
+    }

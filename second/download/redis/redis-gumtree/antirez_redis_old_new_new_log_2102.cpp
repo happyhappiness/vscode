@@ -1,1 +1,0 @@
-addReplyError(c,"Can't replicate myself");

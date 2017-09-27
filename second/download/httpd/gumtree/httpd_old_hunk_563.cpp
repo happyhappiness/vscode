@@ -1,12 +1,12 @@
-                          "make_sock: failed to set SendBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
-            /* not a fatal error */
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: header only");
         }
     }
 
-#if APR_TCP_NODELAY_INHERITED
-    ap_sock_disable_nagle(s);
-#endif
-
-    if ((stat = apr_bind(s, server->bind_addr)) != APR_SUCCESS) {
+    if ( conf->error_override ) {
+        /* the code above this checks for 'OK' which is what the hook expects */
+        if ( r->status == HTTP_OK )
+            return OK;
+        else  {
+            /* clear r->status for override error, otherwise ErrorDocument

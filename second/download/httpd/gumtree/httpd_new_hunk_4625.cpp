@@ -1,13 +1,13 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+     */
+    if ((certfile = APR_ARRAY_IDX(mctx->pks->cert_files, 0, const char *)) &&
+        (dhparams = ssl_dh_GetParamFromFile(certfile))) {
+        SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     DH_bits(dhparams), vhost_id, certfile);
+        DH_free(dhparams);
     }
-#endif
 
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+#ifdef HAVE_ECC
+    /*
+     * Similarly, try to read the ECDH curve name from SSLCertificateFile...

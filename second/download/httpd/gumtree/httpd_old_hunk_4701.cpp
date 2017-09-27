@@ -1,13 +1,13 @@
-    return res;
-}
+                & AP_SOCACHE_FLAG_NOTMPSAFE) {
 
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Done with config file %s", fp->name);
-#endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-}
+            rv = ap_global_mutex_create(&socache_mutex, NULL, cache_socache_id,
+                    NULL, s, pconf, 0);
+            if (rv != APR_SUCCESS) {
+                ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02391)
+                "failed to create %s mutex", cache_socache_id);
+                return 500; /* An HTTP status would be a misnomer! */
+            }
+            apr_pool_cleanup_register(pconf, NULL, remove_lock,
+                    apr_pool_cleanup_null);
+        }
 
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {

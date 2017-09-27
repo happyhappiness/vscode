@@ -1,13 +1,14 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
     }
 
-    Explain0("FTP: connected.");
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    st->connectionTimeout = atol(ttl);
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap connection: Setting connection timeout to %ld seconds.",
+                 st->connectionTimeout);
+#else
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                 "LDAP: Connection timeout option not supported by the "
+                 "LDAP SDK in use." );
+#endif
+

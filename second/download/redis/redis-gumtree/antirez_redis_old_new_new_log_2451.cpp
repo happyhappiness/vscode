@@ -1,1 +1,0 @@
-fprintf(stderr,"Please specify the amount of memory to test in megabytes.\n");

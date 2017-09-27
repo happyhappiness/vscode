@@ -1,1 +1,0 @@
-printf("Delete foo\n");

@@ -1,40 +1,29 @@
-	return;
+                 "socket reached timeout in lingering-close state");
+    rv = apr_socket_close(csd);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00468) "error closing socket");
+        AP_DEBUG_ASSERT(0);
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    apr_pool_clear(cs->p);
+    ap_push_pool(worker_queue_info, cs->p);
+    return 0;
 }
 
-
-static void help_proxy_garbage_coll(request_rec *r)
+static void notify_suspend(event_conn_state_t *cs)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    ap_run_suspend_connection(cs->c, cs->r);
+    cs->suspended = 1;
+}
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+static void notify_resume(event_conn_state_t *cs)
+{
+    cs->suspended = 0;
+    ap_run_resume_connection(cs->c, cs->r);
+}
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+/*
+ * This runs before any non-MPM cleanup code on the connection;
+ * if the connection is currently suspended as far as modules
+ * know, provide notification of resumption.
+ */
+static apr_status_t ptrans_pre_cleanup(void *dummy)

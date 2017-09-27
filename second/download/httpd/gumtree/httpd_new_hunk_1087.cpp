@@ -1,31 +1,33 @@
+                 */
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            conn->worker->s->transferred += bufsiz;
+            send_body = 1;
+        }
+        else if (content_length > 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: read zero bytes, expecting"
+                         " %" APR_OFF_T_FMT " bytes",
+                         content_length);
+            status = ajp_send_data_msg(conn->sock, msg, 0);
+            if (status != APR_SUCCESS) {
+                /* We had a failure: Close connection to backend */
+                conn->close++;
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                            "proxy: send failed to %pI (%s)",
+                            conn->worker->cp->addr,
+                            conn->worker->hostname);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            else {
+                /* Client send zero bytes with C-L > 0
+                 */
+                return HTTP_BAD_REQUEST;
+            }
+        }
+    }
 
-    if (*mask & APHTP_NOFILE) {
-        i--;
-    }
-    else {
-        if (strlen(argv[i]) > (APR_PATH_MAX - 1)) {
-            apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);
-            exit(ERR_OVERFLOW);
-        }
-        *pwfilename = apr_pstrdup(pool, argv[i]);
-        if (strlen(argv[i + 1]) > (MAX_STRING_LEN - 1)) {
-            apr_file_printf(errfile, "%s: username too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN - 1);
-            exit(ERR_OVERFLOW);
-        }
-    }
-    *user = apr_pstrdup(pool, argv[i + 1]);
-    if ((arg = strchr(*user, ':')) != NULL) {
-        apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'" NL, argv[0], *arg);
-        exit(ERR_BADUSER);
-    }
-    if (*mask & APHTP_NONINTERACTIVE) {
-        if (strlen(argv[i + 2]) > (MAX_STRING_LEN - 1)) {
-            apr_file_printf(errfile, "%s: password too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN);
-            exit(ERR_OVERFLOW);
-        }
-        *password = apr_pstrdup(pool, argv[i + 2]);
-    }
-}
+    /* read the response */
+    conn->data = NULL;
+    status = ajp_read_header(conn->sock, r, maxsize,
+                             (ajp_msg_t **)&(conn->data));

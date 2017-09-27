@@ -1,15 +1,14 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+    if (access_status == DECLINED && *balancer == NULL) {
+        *worker = ap_proxy_get_worker(r->pool, NULL, conf, *url);
+        if (*worker) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "%s: found worker %s for %s",
+                          (*worker)->s->scheme, (*worker)->s->name, *url);
+
+            *balancer = NULL;
+            access_status = OK;
+        }
+        else if (r->proxyreq == PROXYREQ_PROXY) {
+            if (conf->forward) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: found forward proxy worker for %s", *url);

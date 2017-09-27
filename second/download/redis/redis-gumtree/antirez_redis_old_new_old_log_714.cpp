@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Unknown command '%s' reading the append only file", (char*)argv[0]->ptr);

@@ -1,1 +1,0 @@
-__redisSetError(c,type,buf);

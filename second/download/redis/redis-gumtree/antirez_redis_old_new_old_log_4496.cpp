@@ -1,2 +1,0 @@
-addReplySds(c,sdscatprintf(sdsempty(),"%d\r\n",
-                        sdslen(val->ptr)));

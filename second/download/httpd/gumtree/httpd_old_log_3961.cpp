@@ -1,0 +1,1 @@
+ap_rputs("\"<b><code>C</code></b>\" Closing connection, \n", r);

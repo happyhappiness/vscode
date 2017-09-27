@@ -1,35 +1,46 @@
- */
- 
-     if (!sec->have_ldap_url) {
-         return DECLINED;
+         ap_mpm_pod_signal(pod, TRUE);
+         idle_spawn_rate = 1;
      }
+     else if (idle_thread_count < min_spare_threads) {
+         /* terminate the free list */
+         if (free_length == 0) {
+-            /* only report this condition once */
+-            static int reported = 0;
++            /* No room for more children, might warn about configuration */
++            if (active_thread_count >= ap_daemons_limit * ap_threads_per_child) {
++                /* no threads are "inactive" - starting, stopping, etc. - which would confuse matters */
++                /* Are all threads in use?  Then we're really at MaxClients */
++                if (0 == idle_thread_count) {
++                    /* only report this condition once */
++                    static int reported = 0;
  
-+    /* pre-scan for ldap-* requirements so we can get out of the way early */
-+    for(x=0; x < reqs_arr->nelts; x++) {
-+        if (! (reqs[x].method_mask & (AP_METHOD_BIT << m))) {
-+            continue;
-+        }
+-            if (!reported) {
+-                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+-                             ap_server_conf,
+-                             "server reached MaxClients setting, consider"
+-                             " raising the MaxClients setting");
+-                reported = 1;
++                    if (!reported) {
++                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
++                                     ap_server_conf,
++                                     "server reached MaxClients setting, consider"
++                                     " raising the MaxClients setting");
++                        reported = 1;
++                    }
++                } else {
++                    static int reported = 0;
 +
-+        t = reqs[x].requirement;
-+        w = ap_getword_white(r->pool, &t);
-+
-+        if (strncmp(w, "ldap-",5) == 0) {
-+            required_ldap = 1;
-+            break;
-+        }
-+    }
-+
-+    if (!required_ldap) {
-+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (no ldap requirements)", getpid());
-+        return DECLINED;
-+    }
-+
-+
-+
-     if (sec->host) {
-         ldc = util_ldap_connection_find(r, sec->host, sec->port,
-                                        sec->binddn, sec->bindpw, sec->deref,
-                                        sec->secure);
-         apr_pool_cleanup_register(r->pool, ldc,
-                                   authnz_ldap_cleanup_connection_close,
++                    if (!reported) {
++                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
++                                     ap_server_conf,
++                                     "server is within MinSpareThreads of MaxClients, consider"
++                                     " raising the MaxClients setting");
++                        reported = 1;
++                    }
++                }
+             }
+             idle_spawn_rate = 1;
+         }
+         else {
+             if (free_length > idle_spawn_rate) {
+                 free_length = idle_spawn_rate;

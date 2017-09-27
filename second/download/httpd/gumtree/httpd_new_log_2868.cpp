@@ -1,0 +1,1 @@
+printf("Warning: could not explode %s\n", lib);

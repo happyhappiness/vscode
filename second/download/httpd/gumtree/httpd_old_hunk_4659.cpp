@@ -1,16 +1,31 @@
-#define APLOG_MARK	__FILE__,__LINE__
+    else {
+        one_process = ap_exists_config_define("ONE_PROCESS");
+        no_detach = ap_exists_config_define("NO_DETACH");
+        foreground = ap_exists_config_define("FOREGROUND");
+    }
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+    /* sigh, want this only the second time around */
+    retained = ap_retained_data_get(userdata_key);
+    if (!retained) {
+        retained = ap_retained_data_create(userdata_key, sizeof(*retained));
+        retained->max_daemons_limit = -1;
+    }
+    ++retained->module_loads;
+    if (retained->module_loads == 2) {
+        /* test for correct operation of fdqueue */
+        static apr_uint32_t foo1, foo2;
 
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+        apr_atomic_set32(&foo1, 100);
+        foo2 = apr_atomic_add32(&foo1, -10);
+        if (foo2 != 100 || foo1 != 90) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected - add32 of negative number");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        rv = apr_pollset_create(&event_pollset, 1, plog,
+                                APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)
+                         "Couldn't create a Thread Safe Pollset. "
+                         "Is it supported on your platform?"

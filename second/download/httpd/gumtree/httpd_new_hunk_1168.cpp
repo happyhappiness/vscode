@@ -1,13 +1,13 @@
-     * that the can and have done so unless they they remove
-     * their decoding from the headers_in T-E list.
-     * XXX: Make this extensible, but in doing so, presume the
-     * encoding has been done by the extensions' handler, and
-     * do not modify add_te_chunked's logic
-     */
-    if (old_te_val && strcasecmp(old_te_val, "chunked") != 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: %s Transfer-Encoding is not supported",
-                     old_te_val);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+            if (!cert_stack && cert) {
+                /* client cert is in the session cache, but there is
+                 * no chain, since ssl3_get_client_certificate()
+                 * sk_X509_shift-ed the peer cert out of the chain.
+                 * we put it back here for the purpose of quick_renegotiation.
+                 */
+                cert_stack = sk_X509_new_null();
+                sk_X509_push(cert_stack, MODSSL_PCHAR_CAST cert);
+            }
 
+            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Cannot find peer certificate chain");

@@ -1,14 +1,25 @@
-#include "http_main.h"
-#include "http_request.h"
+    }
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
+    /*
+     * Let the user know when we're successful.
+     */
+    if (nPassPhraseDialog > 0) {
+        if (writetty) {
+            apr_file_printf(writetty, "\n"
+                            "OK: Pass Phrase Dialog successful.\n");
+        }
+    }
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+    /*
+     * Wipe out the used memory from the
+     * pass phrase array and then deallocate it
+     */
+    if (aPassPhrase->nelts) {
+        pphrase_array_clear(aPassPhrase);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02205)
+                     "Init: Wiped out the queried pass phrases from memory");
+    }
+
+    /* Close the pipes if they were opened
+     */
+    if (readtty) {

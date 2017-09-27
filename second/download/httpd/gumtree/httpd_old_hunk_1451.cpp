@@ -1,29 +1,28 @@
-                    }
+    apr_status_t rv;
 
-                    if (lastmod) {
-                        apr_table_set(r->headers_in, "If-Modified-Since",
-                                      lastmod);
-                    }
-                    cache->stale_handle = h;
-                }
-                else {
-                    int irv;
+    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
 
-                    /*
-                     * The copy isn't fresh enough, but we cannot revalidate.
-                     * So it is the same case as if there had not been a cached
-                     * entry at all. Thus delete the entry from cache.
-                     */
-                    irv = cache->provider->remove_url(h, r->pool);
-                    if (irv != OK) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
-                                     "cache: attempt to remove url from cache unsuccessful.");
-                    }
-                }
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        CHAR **start_argv;
+        SC_HANDLE   schService;
+        SC_HANDLE   schSCManager;
 
-                return DECLINED;
-            }
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_CONNECT);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
+        }
 
-            /* Okay, this response looks okay.  Merge in our stuff and go. */
-            ap_cache_accept_headers(h, r, 0);
-
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name,
+                                 SERVICE_START | SERVICE_QUERY_STATUS);
+        if (!schService) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to open the service.", mpm_display_name);
+            CloseServiceHandle(schSCManager);
+            return (rv);

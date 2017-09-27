@@ -1,104 +1,35 @@
+#include <stdio.h>
+#include <string.h>
+#include <pcre.h>
 
-    max_spare_threads = atoi(arg);
-    return NULL;
-}
+/* Compile thuswise:
+  gcc -Wall pcredemo.c -I/opt/local/include -L/opt/local/lib \
+    -R/opt/local/lib -lpcre
+*/
 
-static const char *set_max_clients (cmd_parms *cmd, void *dummy,
-                                     const char *arg) 
+#define OVECCOUNT 30    /* should be a multiple of 3 */
+
+int main(int argc, char **argv)
 {
-    int max_clients;
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+pcre *re;
+const char *error;
+int erroffset;
+int ovector[OVECCOUNT];
+int rc, i;
 
-    /* It is ok to use ap_threads_per_child here because we are
-     * sure that it gets set before MaxClients in the pre_config stage. */
-    max_clients = atoi(arg);
-    if (max_clients < ap_threads_per_child) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: MaxClients (%d) must be at least as large",
-                    max_clients);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " as ThreadsPerChild (%d). Automatically",
-                    ap_threads_per_child);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " increasing MaxClients to %d.",
-                    ap_threads_per_child);
-       max_clients = ap_threads_per_child;
-    }
-    ap_daemons_limit = max_clients / ap_threads_per_child;
-    if ((max_clients > 0) && (max_clients % ap_threads_per_child)) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: MaxClients (%d) is not an integer multiple",
-                    max_clients);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " of ThreadsPerChild (%d), lowering MaxClients to %d",
-                    ap_threads_per_child,
-                    ap_daemons_limit * ap_threads_per_child);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " for a maximum of %d child processes,",
-                    ap_daemons_limit);
-       max_clients = ap_daemons_limit * ap_threads_per_child; 
-    }
-    if (ap_daemons_limit > server_limit) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: MaxClients of %d would require %d servers,",
-                    max_clients, ap_daemons_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " and would exceed the ServerLimit value of %d.",
-                    server_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " Automatically lowering MaxClients to %d.  To increase,",
-                    server_limit * ap_threads_per_child);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " please see the ServerLimit directive.");
-       ap_daemons_limit = server_limit;
-    } 
-    else if (ap_daemons_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require MaxClients > 0, setting to 1");
-        ap_daemons_limit = 1;
-    }
-    return NULL;
-}
+if (argc != 3)
+  {
+  printf("Two arguments required: a regex and a subject string\n");
+  return 1;
+  }
 
-static const char *set_threads_per_child (cmd_parms *cmd, void *dummy,
-                                          const char *arg) 
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+/* Compile the regular expression in the first argument */
 
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > thread_limit) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                     "value of %d", ap_threads_per_child,
-                     thread_limit);
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "threads, lowering ThreadsPerChild to %d. To increase, please"
-                     " see the", thread_limit);
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     " ThreadLimit directive.");
-        ap_threads_per_child = thread_limit;
-    }
-    else if (ap_threads_per_child < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
-        ap_threads_per_child = 1;
-    }
-    return NULL;
-}
+re = pcre_compile(
+  argv[1],              /* the pattern */
+  0,                    /* default options */
+  &error,               /* for error message */
+  &erroffset,           /* for error offset */
+  NULL);                /* use default character tables */
 
-static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *arg) 
-{
-    int tmp_server_limit;
-    
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    tmp_server_limit = atoi(arg);
+/* Compilation failed: print the error message and exit */

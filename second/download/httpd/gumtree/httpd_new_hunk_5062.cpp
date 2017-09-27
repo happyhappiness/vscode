@@ -1,48 +1,25 @@
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-#ifdef CHARSET_EBCDIC
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-#endif
-
-    /* Get the request... */
-
-    ap_keepalive_timeout("read request line", r);
-    if (!read_request_line(r)) {
-        ap_kill_timeout(r);
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-        return NULL;
-    }
-    if (!r->assbackwards) {
-        ap_hard_timeout("read request headers", r);
-        get_mime_headers(r);
-        ap_kill_timeout(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-    }
-    else {
-        ap_kill_timeout(r);
+                               NULL, NULL, st->opTimeout, APR_LDAP_SIZELIMIT, &res);
+    if (AP_LDAP_IS_SERVER_DOWN(result))
+    {
+        ldc->reason = "ldap_search_ext_s() for user failed with server down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
     }
 
-    r->status = HTTP_OK;                         /* Until further notice. */
+    if (result == LDAP_TIMEOUT) {
+        ldc->reason = "ldap_search_ext_s() for user failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
 
-    /* update what we think the virtual host is based on the headers we've
-     * now read
-     */
+
+    /* if there is an error (including LDAP_NO_SUCH_OBJECT) return now */
+    if (result != LDAP_SUCCESS) {
+        ldc->reason = "ldap_search_ext_s() for user failed";
+        return result;
+    }
+

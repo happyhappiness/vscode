@@ -1,1 +1,1 @@
-apr_err("apr_connect()", rv);
+fprintf(stderr, "    -s              Use httpS instead of HTTP (SSL)\n");

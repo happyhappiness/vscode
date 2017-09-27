@@ -1,1 +1,0 @@
-fprintf(stderr, "example: redis-cli get my_passwd\n");

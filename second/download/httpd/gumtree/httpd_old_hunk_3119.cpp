@@ -1,13 +1,12 @@
+                    server_rec *base_server)
+{
+    SSLModConfigRec *mc = myModConfig(base_server);
+    SSLSrvConfigRec *sc;
+    server_rec *s;
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+    /* We initialize mc->pid per-process in the child init,
+     * but it should be initialized for startup before we
+     * call ssl_rand_seed() below.
+     */
+    mc->pid = getpid();
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }

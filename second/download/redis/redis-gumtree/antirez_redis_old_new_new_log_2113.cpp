@@ -1,1 +1,0 @@
-handleLinkIOError(link);

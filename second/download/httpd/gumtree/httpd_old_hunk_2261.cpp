@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
+                     "Digest: error generating secret: %s",
+                     apr_strerror(status, buf, sizeof(buf)));
+        return status;
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, "Digest: done");
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    return APR_SUCCESS;
 }
 
-module MODULE_VAR_EXPORT auth_module =
+static void log_error_and_cleanup(char *msg, apr_status_t sts, server_rec *s)
 {
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

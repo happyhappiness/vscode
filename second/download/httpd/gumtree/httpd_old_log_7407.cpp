@@ -1,0 +1,1 @@
+fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");

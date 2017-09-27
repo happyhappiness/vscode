@@ -1,13 +1,17 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
+
+    if (id >= slot->desc.num || !inuse[id] ) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02294)
+                     "slotmem(%s) release failed. Num %u/inuse[%u] %d",
+                     slot->name, slotmem_num_slots(slot),
+                     id, (int)inuse[id]);
+        if (id >= slot->desc.num) {
+            return APR_EINVAL;
+        } else {
+            return APR_NOTFOUND;
+        }
     }
+    inuse[id] = 0;
+    (*slot->num_free)++;
+    return APR_SUCCESS;
+}
 

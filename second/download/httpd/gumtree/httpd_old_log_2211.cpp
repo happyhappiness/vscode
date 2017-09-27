@@ -1,0 +1,1 @@
+printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");

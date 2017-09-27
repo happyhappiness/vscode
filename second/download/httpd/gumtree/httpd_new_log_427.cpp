@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "cache_disk: Error when writing cache file for URL %s",
-                     h->cache_obj->key);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cmd->server, 
+                     "LDAP: Could not open SSL trusted certificate authority file - %s", 
+                     st->cert_auth_file == NULL ? file : st->cert_auth_file);

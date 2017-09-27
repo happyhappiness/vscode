@@ -1,13 +1,15 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
+                }
+            }
+        } else {
+            const char *file = apr_pstrcat(pool, dir, "/", dirent.name, NULL);
+            rv = apr_file_remove(file, pool);
+            if (APR_SUCCESS != rv) {
+                apr_file_printf(errfile,
+                        "Could not remove file '%s': %pm" APR_EOL_STR, file,
+                        &rv);
+                break;
+            }
+        }
+    }
 
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
-
-    return HTTP_MOVED_PERMANENTLY;
+    apr_dir_close(dirp);

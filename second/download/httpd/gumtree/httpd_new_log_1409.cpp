@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "proxy: error processing body.%s",
-                                      r->connection->aborted ?
-                                      " Client aborted connection." : "");
+ap_rputs("<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>", r);

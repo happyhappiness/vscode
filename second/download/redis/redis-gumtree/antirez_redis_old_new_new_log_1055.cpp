@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Saving the final RDB snapshot before exiting.");

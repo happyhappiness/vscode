@@ -1,13 +1,12 @@
-            if (result != DECLINED)
-                return result;
-        }
+        rc = LDAP_TIMEOUT;
+    } else if (ldap_parse_result(ldc->ldap, result, &rc, NULL, NULL, NULL,
+                                 NULL, 1) == -1) {
+        ldc->reason = "LDAP: ldap_simple_bind() parse result failed";
+        return uldap_ld_errno(ldc);
     }
+    return rc;
+}
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+/*
+ * Connect to the LDAP server and binds. Does not connect if already
+ * connected (i.e. ldc->ldap is non-NULL.) Does not bind if already bound.

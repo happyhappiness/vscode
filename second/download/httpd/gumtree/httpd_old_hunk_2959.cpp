@@ -1,52 +1,40 @@
-#endif
+    proxy_worker **worker;
+    proxy_worker *mycandidate = NULL;
+    int checking_standby;
+    int checked_standby;
+    rr_data *ctx;
 
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-    ap_hard_timeout("proxy send body", r);
-
-    while (!con->aborted && f != NULL) {
-	n = ap_bread(f, buf, IOBUFSIZE);
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_sent += n;
-
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
-
-	while (n && !con->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0) {
-		if (f2 != NULL) {
-		    ap_pclosef(c->req->pool, c->fp->fd);
-		    c->fp = NULL;
-		    f2 = NULL;
-		    con->aborted = 1;
-		    unlink(c->tempfile);
-		}
-		break;
-	    }
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-	    n -= w;
-	    o += w;
-	}
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering roundrobin for BALANCER %s (%d)",
+                 balancer->name, (int)getpid());
+    
+    /* The index of the candidate last chosen is stored in ctx->index */
+    if (!balancer->context) {
+        /* UGLY */
+        ctx = apr_pcalloc(r->server->process->pconf, sizeof(rr_data));
+        balancer->context = (void *)ctx;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Creating roundrobin ctx for BALANCER %s (%d)",
+                 balancer->name, (int)getpid());
+    } else {
+        ctx = (rr_data *)balancer->context;
     }
-    if (!con->aborted)
-	ap_bflush(con->client);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: roundrobin index: %d (%d)",
+                 ctx->index, (int)getpid());
 
-    ap_kill_timeout(r);
-    return total_bytes_sent;
-}
+    checking_standby = checked_standby = 0;
+    while (!mycandidate && !checked_standby) {
+        worker = (proxy_worker **)balancer->workers->elts;
 
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+        for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+            if (i < ctx->index)
+                continue;
+            if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(*worker) : PROXY_WORKER_IS_STANDBY(*worker)) )
+                continue;
+            if (!PROXY_WORKER_IS_USABLE(*worker))
+                ap_proxy_retry_worker("BALANCER", *worker, r->server);
+            if (PROXY_WORKER_IS_USABLE(*worker)) {
+                mycandidate = *worker;
+                break;
+            }

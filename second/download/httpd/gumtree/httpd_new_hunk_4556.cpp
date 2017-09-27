@@ -1,13 +1,16 @@
+                nghttp2_priority_spec_init(&ps, id_parent, valid_weight(prio->weight), 0);
+                break;
+        }
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
 
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+        rv = nghttp2_session_change_stream_priority(session->ngh2, stream->id, &ps);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      ""H2_STRM_LOG(APLOGNO(03203), stream, 
+                      "PUSH %s, weight=%d, depends=%d, returned=%d"),
+                      ptype, ps.weight, ps.stream_id, rv);
+        status = (rv < 0)? APR_EGENERAL : APR_SUCCESS;
+    }
+#else
+    (void)session;
+    (void)stream;
+    (void)prio;

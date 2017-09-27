@@ -1,12 +1,14 @@
-static const char *util_ldap_set_cache_bytes(cmd_parms *cmd, void *dummy,
-                                             const char *bytes)
-{
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                                  &ldap_module);
+         * back end since they would in part be interpreted
+         * as another request!  If nothing is sent, then
+         * just send nothing.
+         *
+         * Prevents HTTP Response Splitting.
+         */
+        if (bytes_streamed > cl_val)
+             continue;
 
-    st->cache_bytes = atol(bytes);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "[%" APR_PID_T_FMT "] ldap cache: Setting shared memory "
-                 " cache size to %" APR_SIZE_T_FMT " bytes.",
+        if (header_brigade) {
+            /* we never sent the header brigade, so go ahead and
+             * take care of that now
+             */
+            bb = header_brigade;

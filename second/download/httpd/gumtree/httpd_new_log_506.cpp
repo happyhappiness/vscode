@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "LDAP: Could not set the connection timeout" );
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                            "Parent: Unable to connect child stderr.");

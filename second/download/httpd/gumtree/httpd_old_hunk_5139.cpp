@@ -1,17 +1,13 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send mmap completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
+        rv = authz_dbd_group_query(r, cfg, groups);
+        if (rv != OK) {
+            return AUTHZ_GENERAL_ERROR;
         }
+    }
+
+    t = require_args;
+    while (t[0]) {
+        w = ap_getword_white(r->pool, &t);
+        for (i=0; i < groups->nelts; ++i) {
+            if (!strcmp(w, ((const char**)groups->elts)[i])) {
+                return AUTHZ_GRANTED;
+            }

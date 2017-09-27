@@ -1,13 +1,13 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
+    backconn = ap_run_create_connection(c->pool, r->server, sock,
+                                        c->id, c->sbh, c->bucket_alloc);
+    if (!backconn) {
+        /* peer reset */
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01021)
+                      "an error occurred creating a new connection "
+                      "to %pI (%s)", connect_addr, connectname);
+        apr_socket_close(sock);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
+    ap_proxy_ssl_disable(backconn);
+    rc = ap_run_pre_connection(backconn, sock);
+    if (rc != OK && rc != DONE) {

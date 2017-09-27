@@ -1,26 +1,13 @@
-		    }   
-		}
-	    }
-	    break;
-	}
-
-	/*
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	/* blast trailing whitespace */
-	dst = &src[strlen(src)];
-	while (--dst >= src && ap_isspace(*dst))
-	    *dst = '\0';
-        /* Zap leading whitespace by shifting */
-        if (src != buf)
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-	        ;
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+    va_start(va, r);
+    while (1) {
+        s = va_arg(va, const char *);
+        if (s == NULL)
+            break;
+        len = strlen(s);
+        ascii_s = apr_pstrmemdup(r->pool, s, len);
+        ap_xlate_proto_to_ascii(ascii_s, len);
+        if (ap_rputs(ascii_s, r) < 0)
+            return -1;
+        written += len;
+    }
+    va_end(va);

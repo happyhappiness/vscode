@@ -1,1 +1,0 @@
-printf("  Using this option the benchmark will get/set keys\n");

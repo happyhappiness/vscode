@@ -1,15 +1,14 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+    int complete = 0;
+    char buffer[HUGE_STRING_LEN];
+    char drain_buffer[HUGE_STRING_LEN];
+    forward_info *forward = (forward_info *)backend->forward;
+    int len = 0;
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
-
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: CONNECT: sending the CONNECT request for %s:%d "
+                 "to the remote proxy %pI (%s)",
+                 forward->target_host, forward->target_port,
+                 backend->addr, backend->hostname);
+    /* Create the CONNECT request */
+    nbytes = apr_snprintf(buffer, sizeof(buffer),
+                          "CONNECT %s:%d HTTP/1.0" CRLF,

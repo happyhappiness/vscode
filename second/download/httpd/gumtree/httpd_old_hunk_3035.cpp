@@ -1,13 +1,14 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+                 */
+                ap_flush_conn(data);
+                if (data_sock) {
+                    apr_socket_close(data_sock);
+                }
+                data_sock = NULL;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: FTP: data connection closed");
+                /* signal that we must leave */
+                finish = TRUE;
+            }
+
+            /* if no EOS yet, then we must flush */
+            if (FALSE == finish) {

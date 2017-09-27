@@ -1,35 +1,29 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, HUGE_STRING_LEN, conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
-        }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
-#endif                          /* SIGUSR1 */
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-    if (len == (HUGE_STRING_LEN - 1)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "request failed for %s, reason: URI too long",
-            ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME));
-	/* hack to deal with the HTTP_REQUEST_TIME_OUT setting up above: */
-	if (r->status == HTTP_REQUEST_TIME_OUT) {
-	    r->status = HTTP_OK;
-	}
-	r->request_time = time(NULL);
-	ap_die (HTTP_REQUEST_URI_TOO_LARGE, r);
-        return 0;
+        /* connect failed */
+        return res;
     }
 
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
+    /* try to do the search */
+    result = ldap_search_ext_s(ldc->ldap, (char *)dn, LDAP_SCOPE_BASE,
+                               (char *)"cn=*", subgroupAttrs, 0,
+                               NULL, NULL, NULL, APR_LDAP_SIZELIMIT, &sga_res);
+    if (AP_LDAP_IS_SERVER_DOWN(result)) {
+        ldc->reason = "ldap_search_ext_s() for subgroups failed with server"
+                      " down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        goto start_over;
+    }
+    if (result == LDAP_TIMEOUT && failures == 0) {
+        /*
+         * we are reusing a connection that doesn't seem to be active anymore
+         * (firewall state drop?), let's try a new connection.
+         */
+        ldc->reason = "ldap_search_ext_s() for subgroups failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        goto start_over;
+    }
 
+    /* if there is an error (including LDAP_NO_SUCH_OBJECT) return now */
+    if (result != LDAP_SUCCESS) {
+        ldc->reason = "ldap_search_ext_s() for subgroups failed";

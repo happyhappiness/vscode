@@ -1,1 +1,1 @@
-s(ap_psignature("",r), r);
+ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);

@@ -1,23 +1,26 @@
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABRT)");
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGILL)");
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
-    
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &sa, NULL) < 0)
-    	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGPIPE)");
 
-    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
-     * processing one */
-    sigaddset(&sa.sa_mask, SIGHUP);
-    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
-    sa.sa_handler = restart;
-    if (sigaction(SIGHUP, &sa, NULL) < 0)
-    	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: Retrieved our scoreboard from the parent.", my_pid);
+}
+
+
+static int send_handles_to_child(apr_pool_t *p, 
+                                 HANDLE child_ready_event,
+                                 HANDLE child_exit_event, 
+                                 apr_proc_mutex_t *child_start_mutex,
+                                 apr_shm_t *scoreboard_shm,
+                                 HANDLE hProcess, 
+                                 apr_file_t *child_in)
+{
+    apr_status_t rv;
+    HANDLE hCurrentProcess = GetCurrentProcess();
+    HANDLE hDup;
+    HANDLE os_start;
+    HANDLE hScore;
+    DWORD BytesWritten;
+
+    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
+        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Unable to duplicate the ready event handle for the child");
+        return -1;

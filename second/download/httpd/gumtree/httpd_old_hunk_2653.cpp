@@ -1,14 +1,22 @@
-    ap_hard_timeout("send directory", r);
+     * we're in better shape.
+     */
+    if (!ctx) {
+        char *token;
+        const char *encoding;
 
-    /* Spew HTML preamble */
+        /*
+         * Only work on main request, not subrequests,
+         * that are not a 204 response with no content
+         * and are not tagged with the no-gzip env variable
+         * and not a partial response to a Range request.
+         */
+        if ((r->main != NULL) || (r->status == HTTP_NO_CONTENT) ||
+            apr_table_get(r->subprocess_env, "no-gzip") ||
+            apr_table_get(r->headers_out, "Content-Range")
+           ) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
 
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+        /* Some browsers might have problems with content types
+         * other than text/html, so set gzip-only-text/html

@@ -1,13 +1,18 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
+                         "%s server certificate is not a leaf certificate "
+                         "(BasicConstraints: pathlen == %d > 0 !?)",
+                         ssl_asn1_keystr(type), pathlen);
         }
+    }
 
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+    if (SSL_X509_match_name(ptemp, cert, (const char *)s->server_hostname,
+                            TRUE, s) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01909)
+                     "%s certificate configured for %s does NOT include "
+                     "an ID which matches the server name",
+                     ssl_asn1_keystr(type), (mySrvConfig(s))->vhost_id);
+    }
+}
+
+static void ssl_init_server_certs(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,

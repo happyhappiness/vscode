@@ -1,0 +1,1 @@
+apr_file_printf(out, "Mutex %s: using_defaults\n", name);

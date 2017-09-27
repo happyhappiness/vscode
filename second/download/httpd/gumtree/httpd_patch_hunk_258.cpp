@@ -1,77 +1,135 @@
-     const fnames *f1 = fn1;
-     const fnames *f2 = fn2;
  
-     return strcmp(f1->fname,f2->fname);
+     unixd_set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
+     return NULL;
  }
+ #endif
  
--AP_DECLARE(void) ap_process_resource_config(server_rec *s, const char *fname,
--                                            ap_directive_t **conftree,
--                                            apr_pool_t *p,
--                                            apr_pool_t *ptemp)
-+static void process_resource_config_nofnmatch(server_rec *s, const char *fname,
-+                                              ap_directive_t **conftree,
-+                                              apr_pool_t *p,
-+                                              apr_pool_t *ptemp)
++static const char *set_recursion_limit(cmd_parms *cmd, void *dummy,
++                                       const char *arg1, const char *arg2)
++{
++    core_server_config *conf = ap_get_module_config(cmd->server->module_config,
++                                                    &core_module);
++    int limit = atoi(arg1);
++
++    if (limit <= 0) {
++        return "The recursion limit must be greater than zero.";
++    }
++    if (limit < 4) {
++        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
++                     "Limiting internal redirects to very low numbers may "
++                     "cause normal requests to fail.");
++    }
++
++    conf->redirect_limit = limit;
++
++    if (arg2) {
++        limit = atoi(arg2);
++
++        if (limit <= 0) {
++            return "The recursion limit must be greater than zero.";
++        }
++        if (limit < 4) {
++            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
++                         "Limiting the subrequest depth to a very low level may"
++                         " cause normal requests to fail.");
++        }
++    }
++
++    conf->subreq_limit = limit;
++
++    return NULL;
++}
++
++static void log_backtrace(const request_rec *r)
++{
++    const request_rec *top = r;
++
++    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
++                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");
++
++    while (top && (top->prev || top->main)) {
++        if (top->prev) {
++            top = top->prev;
++            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
++                          "redirected from r->uri = %s",
++                          top->uri ? top->uri : "(unexpectedly NULL)");
++        }
++
++        if (!top->prev && top->main) {
++            top = top->main;
++            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
++                          "subrequested from r->uri = %s",
++                          top->uri ? top->uri : "(unexpectedly NULL)");
++        }
++    }
++}
++
++/*
++ * check whether redirect limit is reached
++ */
++AP_DECLARE(int) ap_is_recursion_limit_exceeded(const request_rec *r)
++{
++    core_server_config *conf = ap_get_module_config(r->server->module_config,
++                                                    &core_module);
++    const request_rec *top = r;
++    int redirects = 0, subreqs = 0;
++    int rlimit = conf->redirect_limit
++                 ? conf->redirect_limit
++                 : AP_DEFAULT_MAX_INTERNAL_REDIRECTS;
++    int slimit = conf->subreq_limit
++                 ? conf->subreq_limit
++                 : AP_DEFAULT_MAX_SUBREQ_DEPTH;
++
++
++    while (top->prev || top->main) {
++        if (top->prev) {
++            if (++redirects >= rlimit) {
++                /* uuh, too much. */
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                              "Request exceeded the limit of %d internal "
++                              "redirects due to probable configuration error. "
++                              "Use 'LimitInternalRecursion' to increase the "
++                              "limit if necessary. Use 'LogLevel debug' to get "
++                              "a backtrace.", rlimit);
++
++                /* post backtrace */
++                log_backtrace(r);
++
++                /* return failure */
++                return 1;
++            }
++
++            top = top->prev;
++        }
++
++        if (!top->prev && top->main) {
++            if (++subreqs >= slimit) {
++                /* uuh, too much. */
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                              "Request exceeded the limit of %d subrequest "
++                              "nesting levels due to probable confguration "
++                              "error. Use 'LimitInternalRecursion' to increase "
++                              "the limit if necessary. Use 'LogLevel debug' to "
++                              "get a backtrace.", slimit);
++
++                /* post backtrace */
++                log_backtrace(r);
++
++                /* return failure */
++                return 1;
++            }
++
++            top = top->main;
++        }
++    }
++
++    /* recursion state: ok */
++    return 0;
++}
++
+ static const char *add_ct_output_filters(cmd_parms *cmd, void *conf_,
+                                          const char *arg, const char *arg2)
  {
-     cmd_parms parms;
--    apr_finfo_t finfo;
--    const char *errmsg;
-     ap_configfile_t *cfp;
--    int ispatt;
--
--    /* XXX: lstat() won't work on the wildcard pattern...
--     */
--
--    /* don't require conf/httpd.conf if we have a -C or -c switch */
--    if ((ap_server_pre_read_config->nelts
--        || ap_server_post_read_config->nelts)
--        && !(strcmp(fname, ap_server_root_relative(p, SERVER_CONFIG_FILE)))) {
--        if (apr_lstat(&finfo, fname, APR_FINFO_TYPE, p) != APR_SUCCESS)
--            return;
--    }
-+    const char *errmsg;
- 
--    ispatt = apr_fnmatch_test(fname);
--    if (ispatt || ap_is_rdirectory(p, fname)) {
-+    if (ap_is_rdirectory(p, fname)) {
-         apr_dir_t *dirp;
-         apr_finfo_t dirent;
-         int current;
-         apr_array_header_t *candidates = NULL;
-         fnames *fnew;
-         apr_status_t rv;
--        char errmsg[120], *path = apr_pstrdup(p, fname), *pattern = NULL;
--
--        if (ispatt) {
--            pattern = ap_strrchr(path, '/');
--        
--            AP_DEBUG_ASSERT(pattern != NULL); /* path must be absolute. */
--        
--            *pattern++ = '\0';
--            
--            if (apr_fnmatch_test(path)) {
--                fprintf(stderr, "%s: wildcard patterns not allowed in Include "
--                        "%s\n", ap_server_argv0, fname);
--                exit(1);
--            }
--
--            if (!ap_is_rdirectory(p, path)){ 
--                fprintf(stderr, "%s: Include directory '%s' not found",
--                        ap_server_argv0, path);
--                exit(1);
--            }
--            
--            if (!apr_fnmatch_test(pattern)) {
--                fprintf(stderr, "%s: must include a wildcard pattern "
--                        "for Include %s\n", ap_server_argv0, fname);
--                exit(1);
--            }
--
--        }
-+        char errmsg[120], *path = apr_pstrdup(p, fname);
- 
-         /*
-          * first course of business is to grok all the directory
-          * entries here and store 'em away. Recall we need full pathnames
-          * for this.
-          */
+     core_dir_config *conf = conf_;
+     ap_filter_rec_t *old, *new = NULL;
+     const char *filter_name;

@@ -1,13 +1,12 @@
-        if (ap_process_config_tree(server_conf, ap_conftree, process->pconf,
-                                   ptemp) != OK) {
-            destroy_and_exit_process(process, 1);
+                             "Error ajp_marshal_into_msgb - "
+                             "Error appending the SSL key size");
+                return APR_EGENERAL;
+            }
         }
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_hook_sort_all();
-        apr_pool_clear(plog);
-        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Unable to open logs");
-            destroy_and_exit_process(process, 1);
-        }
+    }
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.

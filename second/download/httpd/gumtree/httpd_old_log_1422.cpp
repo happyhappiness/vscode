@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  No groups file?"
+                                  : "perform authentication. AuthType not set!",
+                                   r);

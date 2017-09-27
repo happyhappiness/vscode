@@ -1,1 +1,3 @@
-apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);
+apr_file_printf(errfile,
+                        "%s: cannot modify file %s; use '-c' to create it" NL,
+                        argv[0], pwfilename);

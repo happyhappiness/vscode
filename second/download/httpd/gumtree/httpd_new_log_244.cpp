@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "data size too large for DBM session cache: %d >= %d",
-                 (idlen + nData), PAIRMAX);
+ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);

@@ -1,15 +1,6 @@
-		errstr[len-1] = ' ';
-	    }
-	}
-    }
-#endif
 
-    va_start(args, fmt);
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-    va_end(args);
+int h2_beam_no_files(void *ctx, h2_bucket_beam *beam, apr_file_t *file)
+{
+    return 0;
+}
 
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);

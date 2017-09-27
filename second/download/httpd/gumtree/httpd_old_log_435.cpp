@@ -1,1 +1,0 @@
-ap_rputs("</table>\n</p>\n", r);

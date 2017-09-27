@@ -1,0 +1,1 @@
+fprintf(stderr, "Post-rotation prog: %21s\n", config->postrotate_prog);

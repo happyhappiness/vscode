@@ -1,16 +1,14 @@
- 	memcpy(pHook,pSort->pData,sizeof *pHook);
- 	if(apr_hook_debug_enabled)
- 	    printf(" %s",pHook->szName);
-     }
-     if(apr_hook_debug_enabled)
- 	fputc('\n',stdout);
-+
-+    /* destroy the pool - the sorted hooks were already copied */
-+    apr_pool_destroy(p);
-+
-     return pNew;
- }
+         if (status != APR_SUCCESS) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                          "proxy: prefetch request body failed to %pI (%s)"
+                          " from %s (%s)",
+                          p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                          c->remote_ip, c->remote_host ? c->remote_host: "");
+-            return HTTP_BAD_REQUEST;
++            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
+         }
  
- #ifndef NETWARE
- static apr_array_header_t *s_aHooksToSort;
- #endif
+         apr_brigade_length(temp_brigade, 1, &bytes);
+         bytes_read += bytes;
+ 
+         /*

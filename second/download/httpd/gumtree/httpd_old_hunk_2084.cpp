@@ -1,40 +1,21 @@
-	return;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: connection complete to %pI (%s)",
+                 proxy_function, backend_addr, conn->hostname);
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    /* set up the connection filters */
+    rc = ap_run_pre_connection(conn->connection, conn->sock);
+    if (rc != OK && rc != DONE) {
+        conn->connection->aborted = 1;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "proxy: %s: pre_connection setup failed (%d)",
+                     proxy_function, rc);
+        return rc;
+    }
+
+    return OK;
 }
 
-
-static void help_proxy_garbage_coll(request_rec *r)
+int ap_proxy_lb_workers(void)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

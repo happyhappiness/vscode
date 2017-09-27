@@ -1,1 +1,0 @@
-fprintf(stderr,"       ./redis-server --port 7777 --slaveof 127.0.0.1 8888\n");

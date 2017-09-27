@@ -1,18 +1,16 @@
-                /* bio_filter_out_flush() already passed down a flush bucket
-                 * if there was any data to be flushed.
-                 */
-                apr_bucket_delete(bucket);
-            }
-        }
-        else {
-            /* filter output */
-            const char *data;
-            apr_size_t len;
-            
-            status = apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
 
-            if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
-                break;
-            }
+    ap_listen_pre_config();
+    ap_threads_per_child = DEFAULT_THREADS_PER_CHILD;
+    ap_pid_fname = DEFAULT_PIDLOG;
+    ap_max_requests_per_child = DEFAULT_MAX_REQUESTS_PER_CHILD;
 
-            status = ssl_filter_write(f, data, len);
+    apr_cpystrn(ap_coredump_dir, ap_server_root, sizeof(ap_coredump_dir));
+
+    return OK;
+}
+

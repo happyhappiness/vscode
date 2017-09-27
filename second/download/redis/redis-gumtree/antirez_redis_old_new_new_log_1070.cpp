@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE, "supervised by upstart, will stop to signal readyness");

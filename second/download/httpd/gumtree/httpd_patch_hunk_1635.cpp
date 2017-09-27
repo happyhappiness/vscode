@@ -1,20 +1,17 @@
-     if (dmsg == NULL) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                      "ajp_msg_copy(): destination msg is null");
-         return AJP_EINVAL;
-     }
+ }
  
--    if (smsg->len > AJP_MSG_BUFFER_SZ) {
-+    if (smsg->len > smsg->max_size) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                      "ajp_msg_copy(): destination buffer too "
--                     "small %" APR_SIZE_T_FMT ", max size is %d",
--                     smsg->len, AJP_MSG_BUFFER_SZ);
-+                     "small %" APR_SIZE_T_FMT ", max size is %" APR_SIZE_T_FMT,
-+                     smsg->len, smsg->max_size);
-         return  AJP_ETOSMALL;
-     }
+ static void init_child(apr_pool_t *p, server_rec *s)
+ {
+     apr_status_t rv = 0; /* get a rid of gcc warning (REWRITELOG_DISABLED) */
  
-     memcpy(dmsg->buf, smsg->buf, smsg->len);
-     dmsg->len = smsg->len;
-     dmsg->pos = smsg->pos;
+-    if (lockname != NULL && *(lockname) != '\0') {
++    if (rewrite_mapr_lock_acquire) {
+         rv = apr_global_mutex_child_init(&rewrite_mapr_lock_acquire,
+-                                         lockname, p);
++                 apr_global_mutex_lockfile(rewrite_mapr_lock_acquire), p);
+         if (rv != APR_SUCCESS) {
+             ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                          "mod_rewrite: could not init rewrite_mapr_lock_acquire"
+                          " in child");
+         }
+     }

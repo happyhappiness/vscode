@@ -1,13 +1,13 @@
-                                  modssl_ctx_t *mctx)
-{
-    SSL_CTX *ctx = NULL;
-    SSL_METHOD *method = NULL;
-    char *cp;
-    int protocol = mctx->protocol;
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-
-    /*
-     *  Create the new per-server SSL context
-     */
-    if (protocol == SSL_PROTOCOL_NONE) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+         * something...
+         */
+        if (*pnPassPhraseDialog == 1) {
+            apr_file_printf(writetty, "%s mod_ssl/%s (Pass Phrase Dialog)\n",
+                            AP_SERVER_BASEVERSION, MOD_SSL_VERSION);
+            apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
+            apr_file_printf(writetty, "In order to read them you have to provide us with the pass phrases.\n");
+        }
+        if (*pbPassPhraseDialogOnce) {
+            *pbPassPhraseDialogOnce = FALSE;
+            apr_file_printf(writetty, "\n");
+            apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
+        }

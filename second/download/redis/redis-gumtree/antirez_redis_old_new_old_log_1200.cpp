@@ -1,1 +1,0 @@
-printf("-- Rehashing into ht[1]:\n");

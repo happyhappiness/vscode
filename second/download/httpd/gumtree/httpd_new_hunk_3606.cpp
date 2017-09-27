@@ -1,33 +1,32 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+        /* be safe; only files in this directory or below allowed */
+        rv = apr_filepath_merge(&newpath, NULL, tag_val,
+                                APR_FILEPATH_SECUREROOTTEST |
+                                APR_FILEPATH_NOTABSOLUTE, r->pool);
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+        if (rv != APR_SUCCESS) {
+            error_fmt = APLOGNO(02668) "unable to access file \"%s\" "
+                        "in parsed file %s";
+        }
+        else {
+            /* note: it is okay to pass NULL for the "next filter" since
+               we never attempt to "run" this sub request. */
+            rr = ap_sub_req_lookup_file(newpath, r, NULL);
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+            if (rr->status == HTTP_OK && rr->finfo.filetype != APR_NOFILE) {
+                to_send = rr->filename;
+                if ((rv = apr_stat(finfo, to_send,
+                    APR_FINFO_GPROT | APR_FINFO_MIN, rr->pool)) != APR_SUCCESS
+                    && rv != APR_INCOMPLETE) {
+                    error_fmt = APLOGNO(02669) "unable to get information "
+                                "about \"%s\" in parsed file %s";
+                }
+            }
+            else {
+                error_fmt = APLOGNO(02670) "unable to lookup information "
+                            "about \"%s\" in parsed file %s";
+            }
+        }
 
-    ap_kill_timeout(r);
+        if (error_fmt) {
+            ret = -1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR,

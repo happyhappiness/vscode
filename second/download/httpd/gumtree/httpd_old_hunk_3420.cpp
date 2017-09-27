@@ -1,22 +1,24 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
+            || !strcasecmp(signal_arg, "config")) {
+        return OK;
     }
-    ap_unblock_alarms();
+
+    if (ap_setup_listeners(s) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
+                     NULL, "no listening sockets available, shutting down");
+        return DONE;
+    }
+
+    return OK;
 }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
+static void winnt_child_init(apr_pool_t *pchild, struct server_rec *s)
 {
+    apr_status_t rv;
+
+    setup_signal_names(apr_psprintf(pchild,"ap%d", parent_pid));
+
+    /* This is a child process, not in single process mode */
+    if (!one_process) {
+        /* Set up events and the scoreboard */
+        get_handles_from_parent(s, &exit_event, &start_mutex,
+                                &ap_scoreboard_shm);

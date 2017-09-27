@@ -1,15 +1,30 @@
-        apr_bucket *bucket;
+static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
+{
+    ap_filter_provider_t *provider;
+    const char *str = NULL;
+    char *str1;
+    int match;
+    int err = 0;
+    unsigned int proto_flags;
+    request_rec *r = f->r;
+    harness_ctx *ctx = f->ctx;
+    provider_ctx *pctx;
+    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
+                                                &filter_module);
 
-        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
-                            APR_BLOCK_READ, HUGE_STRING_LEN);
-
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
-            return HTTP_INTERNAL_SERVER_ERROR;
+    /* Check registered providers in order */
+    for (provider = filter->providers; provider; provider = provider->next) {
+        match = ap_expr_eval(r, provider->expr, &err, NULL, ap_expr_string, NULL);
+        if (err) {
+            /* log error but accept match value ? */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Error evaluating filter dispatch condition");
         }
 
-        for (bucket = APR_BRIGADE_FIRST(bb);
-             bucket != APR_BRIGADE_SENTINEL(bb);
-             bucket = APR_BUCKET_NEXT(bucket))
-        {
+        if (match) {
+            /* condition matches this provider */
+#ifndef NO_PROTOCOL
+            /* check protocol
+             *
+             * FIXME:
+             * This is a quick hack and almost certainly buggy.

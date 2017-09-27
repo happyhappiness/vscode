@@ -1,1 +1,0 @@
-addReplyErrorFormat(c, "jemalloc support not available");

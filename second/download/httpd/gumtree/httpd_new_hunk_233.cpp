@@ -1,27 +1,18 @@
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
-        return -1;
-    }
 
-    if (mutual) {
-        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
-
-        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
-            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
-            return -1;
-        }
-    }
-
-    optParam = SO_TLS_UNCLEAN_SHUTDOWN;
-    WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam, sizeof(optParam), 
-             NULL, 0, NULL, NULL, NULL);
-
-    return s;
-}
-
-int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
+/* checks whether a host in uri_addr matches proxyblock */
+PROXY_DECLARE(int) ap_proxy_checkproxyblock(request_rec *r, proxy_server_conf *conf, 
+                             apr_sockaddr_t *uri_addr)
 {
-	int rcode;
+    int j;
+    apr_sockaddr_t * src_uri_addr = uri_addr;
+    /* XXX FIXME: conf->noproxies->elts is part of an opaque structure */
+    for (j = 0; j < conf->noproxies->nelts; j++) {
+        struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
+        struct apr_sockaddr_t *conf_addr = npent[j].addr;
+        uri_addr = src_uri_addr;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: checking remote machine [%s] against [%s]", uri_addr->hostname, npent[j].name);
+        if ((npent[j].name && ap_strstr_c(uri_addr->hostname, npent[j].name))
+            || npent[j].name[0] == '*') {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: connect to remote machine %s blocked: name %s matched", uri_addr->hostname, npent[j].name);

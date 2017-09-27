@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt TCP_NODELAY: %s\n", strerror(errno));

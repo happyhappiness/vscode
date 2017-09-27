@@ -1,26 +1,12 @@
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "set timeout on socket to connect to listener");
-        apr_socket_close(sock);
-        return rv;
+        return ap_pass_brigade(f->next, bb);
     }
 
-    rv = apr_connect(sock, pod->sa);
-    if (rv != APR_SUCCESS) {
-        int log_level = APLOG_WARNING;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: running CACHE_OUT filter");
 
-        if (APR_STATUS_IS_TIMEUP(rv)) {
-            /* probably some server processes bailed out already and there
-             * is nobody around to call accept and clear out the kernel
-             * connection queue; usually this is not worth logging
-             */
-            log_level = APLOG_DEBUG;
-        }
+    /* recall_headers() was called in cache_select_url() */
+    cache->provider->recall_body(cache->handle, r->pool, bb);
 
-        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
-                     "connect to listener");
-    }
+    /* This filter is done once it has served up its content */
+    ap_remove_output_filter(f);
 
-    apr_socket_close(sock);
-    apr_pool_destroy(p);
-
-    return rv;

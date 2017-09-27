@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "buggy client used un-escaped hash in Request-URI");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "data size too large for DBM session cache: %d >= %d",
+                 (idlen + nData), 950);

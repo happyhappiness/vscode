@@ -1,14 +1,13 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-                     "client stopped connection before send mmap completed");
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, APLOGNO(00014) "Configuration check failed");
+            destroy_and_exit_process(process, 1);
         }
+
+        if (ap_run_mode != AP_SQ_RM_NORMAL) {
+            if (showdirectives) { /* deferred in case of DSOs */
+                ap_show_directives();
+                destroy_and_exit_process(process, 0);
+            }
+            else {
+                ap_run_test_config(pconf, ap_server_conf);
+                if (ap_run_mode == AP_SQ_RM_CONFIG_TEST)

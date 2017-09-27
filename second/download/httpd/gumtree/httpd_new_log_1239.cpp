@@ -1,1 +1,1 @@
-apr_file_printf(errfile, " -D  Delete the specified user." NL);
+apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d" NL, rv);

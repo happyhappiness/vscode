@@ -1,84 +1,25 @@
- * that the interpolation doesn't expose parts of the filesystem.
- * We don't do strict RFC 952 / RFC 1123 syntax checking in order
- * to support iDNS and people who erroneously use underscores.
- * Instead we just check for filesystem metacharacters: directory
- * separators / and \ and sequences of more than one dot.
- */
-static void fix_hostname(request_rec *r)
-{
-    char *host, *scope_id;
-    char *dst;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
-
-    /* According to RFC 2616, Host header field CAN be blank. */
-    if (!*r->hostname) {
-        return;
-    }
-
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
      */
-    for (c = r->hostname; apr_isdigit(*c); ++c);
-    if (!*c) {  /* pure integer */
-        return;
+    flags |= ((coreconf->enable_sendfile == ENABLE_SENDFILE_OFF)
+              ? 0 : APR_SENDFILE_ENABLED);
+#endif
+    rc = apr_file_open(&dobj->fd, dobj->datafile, flags, 0, r->pool);
+    if (rc != APR_SUCCESS) {
+        /* XXX: Log message */
+        return DECLINED;
     }
 
-    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-    if (rv != APR_SUCCESS || scope_id) {
-        goto bad;
+    rc = apr_file_info_get(&finfo, APR_FINFO_SIZE, dobj->fd);
+    if (rc == APR_SUCCESS) {
+        dobj->file_size = finfo.size;
     }
 
-    if (port) {
-        /* Don't throw the Host: header's port number away:
-           save it in parsed_uri -- ap_get_server_port() needs it! */
-        /* @@@ XXX there should be a better way to pass the port.
-         *         Like r->hostname, there should be a r->portno
-         */
-        r->parsed_uri.port = port;
-        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+    /* Read the bytes to setup the cache_info fields */
+    rc = file_cache_recall_mydata(dobj->hfd, info, dobj, r);
+    if (rc != APR_SUCCESS) {
+        /* XXX log message */
+        return DECLINED;
     }
 
-    /* if the hostname is an IPv6 numeric address string, it was validated
-     * already; otherwise, further validation is needed
-     */
-    if (r->hostname[0] != '[') {
-        for (dst = host; *dst; dst++) {
-            if (apr_islower(*dst)) {
-                /* leave char unchanged */
-            }
-            else if (*dst == '.') {
-                if (*(dst + 1) == '.') {
-                    goto bad;
-                }
-            }
-            else if (apr_isupper(*dst)) {
-                *dst = apr_tolower(*dst);
-            }
-            else if (*dst == '/' || *dst == '\\') {
-                goto bad;
-            }
-        }
-        /* strip trailing gubbins */
-        if (dst > host && dst[-1] == '.') {
-            dst[-1] = '\0';
-        }
-    }
-    r->hostname = host;
-    return;
-
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Client sent malformed Host header");
-    return;
-}
-
-
-/* return 1 if host matches ServerName or ServerAliases */
-static int matches_aliases(server_rec *s, const char *host)
-{
-    int i;
-    apr_array_header_t *names;
-
+    /* Initialize the cache_handle callback functions */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "disk_cache: Recalled cached URL info header %s",  dobj->name);

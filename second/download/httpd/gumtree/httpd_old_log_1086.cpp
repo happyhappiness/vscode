@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                             ap_server_conf,
-                             "removed PID file %s (pid=%ld)",
-                             pidfile, (long)getpid());
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                             "integer overflow or out of memory condition." );

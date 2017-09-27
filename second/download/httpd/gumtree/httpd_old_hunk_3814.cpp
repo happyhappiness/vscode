@@ -1,13 +1,15 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+        if (strEQ(APR_ARRAY_IDX(mctx->pks->cert_files, i, const char *), chain)) {
+            skip_first = TRUE;
+            break;
+        }
+    }
+
+    n = SSL_CTX_use_certificate_chain(mctx->ssl_ctx,
+                                      (char *)chain,
+                                      skip_first, NULL);
+    if (n < 0) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01903)
+                "Failed to configure CA certificate chain!");
+        return ssl_die(s);
+    }
+

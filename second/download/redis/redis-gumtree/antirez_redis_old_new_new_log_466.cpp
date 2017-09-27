@@ -1,1 +1,0 @@
-RedisModule_ReplyWithError(ctx,"ERR invalid expire time");

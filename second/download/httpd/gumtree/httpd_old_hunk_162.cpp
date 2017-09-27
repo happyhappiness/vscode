@@ -1,16 +1,13 @@
 
-            rc = ap_os_create_privileged_process(r, procnew, argv0, argv, 
-                                                 (const char * const *)env, 
-                                                 procattr, ptrans);
+        /* We're cool with filtering this. */
+        ctx = f->ctx = apr_pcalloc(r->pool, sizeof(*ctx));
+        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
 
-            if (rc != APR_SUCCESS) {
-                /* Bad things happened. Everyone should have cleaned up. */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
-                              "couldn't create child process: %d: %s", rc, 
-                              apr_filename_of_pathname(r->filename));
-            }
-            else {
-                apr_hash_set(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id), 
-                             (void *)procnew->pid);
-            }
-        }
+        zRC = deflateInit2(&ctx->stream, Z_BEST_SPEED, Z_DEFLATED,
+                           c->windowSize, c->memlevel,
+                           Z_DEFAULT_STRATEGY);
+
+        if (zRC != Z_OK) {
+            f->ctx = NULL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

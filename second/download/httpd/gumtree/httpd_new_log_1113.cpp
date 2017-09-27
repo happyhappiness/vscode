@@ -1,1 +1,0 @@
-fprintf(stderr, "apr_table_copy: t's pool is not an ancestor of p\n");

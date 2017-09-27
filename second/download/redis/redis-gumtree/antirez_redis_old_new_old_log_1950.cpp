@@ -1,1 +1,0 @@
-key = sdscatprintf(sdsempty(),"%s:%d",ip,port);

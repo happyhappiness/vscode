@@ -1,1 +1,1 @@
-(*code != OP_EXACT;
+printf("    [^\\x%02x]", c);

@@ -1,71 +1,46 @@
-	    n = strlen(buf);
-	}
-
-	o = 0;
-	total_bytes_sent += n;
-
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
-
-	while (n && !r->connection->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0)
-		break;
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-	    n -= w;
-	    o += w;
-	}
-    }
-    site = "</PRE><HR>\n";
-    ap_bputs(site, con->client);
-    if (f2 != NULL)
-	ap_bputs(site, f2);
-    total_bytes_sent += strlen(site);
-
-    sig = ap_psignature("", r);
-    ap_bputs(sig, con->client);
-    if (f2 != NULL)
-	ap_bputs(sig, f2);
-    total_bytes_sent += strlen(sig);
-
-    site = "</BODY></HTML>\n";
-    ap_bputs(site, con->client);
-    if (f2 != NULL)
-	ap_bputs(site, f2);
-    total_bytes_sent += strlen(site);
-    ap_bflush(con->client);
-
-    return total_bytes_sent;
-}
-
-/*
- * Handles direct access of ftp:// URLs
- * Original (Non-PASV) version from
- * Troy Morrison <spiffnet@zoom.com>
- * PASV added by Chuck
- */
-int ap_proxy_ftp_handler(request_rec *r, struct cache_req *c, char *url)
+                              char *url, const char *proxyname,
+                              apr_port_t proxyport)
 {
-    char *host, *path, *strp, *user, *password, *parms;
-    const char *err;
-    int port, userlen, i, j, len, sock, dsock, rc, nocache;
-    int passlen = 0;
-    int csd = 0;
-    struct sockaddr_in server;
-    struct hostent server_hp;
-    struct hdr_entry *hdr;
-    struct in_addr destaddr;
-    array_header *resp_hdrs;
-    BUFF *f, *cache;
-    BUFF *data = NULL;
-    pool *p = r->pool;
-    int one = 1;
-    const long int zero = 0L;
-    NET_SIZE_T clen;
+    int status;
+    char server_portstr[32];
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend = NULL;
 
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
+
+    apr_pool_t *p = r->pool;
+
+    apr_uri_t *uri = apr_palloc(r->pool, sizeof(*uri));
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01076)
+                  "url: %s proxyname: %s proxyport: %d",
+                 url, proxyname, proxyport);
+
+    if (strncasecmp(url, "fcgi:", 5) == 0) {
+        url += 5;
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01077) "declining URL %s", url);
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01078) "serving URL %s", url);
+
+    /* Create space for state information */
+    if (! backend) {
+        status = ap_proxy_acquire_connection(FCGI_SCHEME, &backend, worker,
+                                             r->server);
+        if (status != OK) {
+            if (backend) {
+                backend->close = 1;
+                ap_proxy_release_connection(FCGI_SCHEME, backend, r->server);
+            }
+            return status;
+        }
+    }
+
+    backend->is_ssl = 0;
+
+    /* Step One: Determine Who To Connect To */
+    status = ap_proxy_determine_connection(p, r, conf, worker, backend,

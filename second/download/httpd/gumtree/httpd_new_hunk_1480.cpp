@@ -1,16 +1,13 @@
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                maxsize - AJP_HEADER_SZ);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
 
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                         "proxy: ap_get_brigade failed");
-            apr_brigade_destroy(input_brigade);
-            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
-        }
+    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+        /* Client tried to authenticate using wrong auth scheme */
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "client used wrong authentication scheme: %s", r->uri);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
 
-        /* have something */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: APR_BUCKET_IS_EOS");
+    while (*auth_line == ' ' || *auth_line == '\t') {

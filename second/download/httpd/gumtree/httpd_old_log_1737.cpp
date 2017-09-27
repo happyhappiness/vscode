@@ -1,5 +1,2 @@
-ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Status</th>"
-                "</tr>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());

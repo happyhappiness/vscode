@@ -1,13 +1,12 @@
-     * Rather than fall out to autoindex or some other mapper, this
-     * request must die.
-     */
-    if (anymatch && !neg->avail_vars->nelts) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		      "Negotiation: discovered file(s) matching request: %s"
-                      " (None could be negotiated).", 
-                      r->filename);
-        return HTTP_NOT_FOUND;
-    }
+                apr_bucket *tmp_buck;
 
-    set_vlist_validator(r, r);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "unknown parameter \"%s\" to tag config in %s",
+                              tag, r->filename);
+                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+            }
+        }
+    }
+    return 0;
+}
 

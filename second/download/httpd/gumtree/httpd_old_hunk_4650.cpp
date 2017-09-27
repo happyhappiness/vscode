@@ -1,13 +1,13 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00480)
+                     "apr_thread_create: unable to create worker thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
+    }
 
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
-        }
+    mpm_state = AP_MPMQ_RUNNING;
 
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+    /* If we are only running in one_process mode, we will want to
+     * still handle signals. */
+    if (one_process) {
+        /* Block until we get a terminating signal. */
+        apr_signal_thread(check_signal);

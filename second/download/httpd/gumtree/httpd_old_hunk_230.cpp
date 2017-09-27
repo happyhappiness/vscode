@@ -1,22 +1,31 @@
-                *alg = ALG_CRYPT;
+                apr_pstrcat(p, "Corrupt status line returned by remote "
+                            "server: ", buffer, NULL));
             }
-            else if (*arg == 'b') {
-                *mask |= APHTP_NONINTERACTIVE;
-                args_left++;
-            }
-            else {
-                usage();
-            }
-        }
-    }
+            backasswards = 0;
 
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
-        apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
-     */
-    if ((argc - i) != args_left) {
+            keepchar = buffer[12];
+            if (keepchar == '\0') {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d status line "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+            }
+            buffer[12] = '\0';
+            r->status = atoi(&buffer[9]);
+
+            buffer[12] = keepchar;
+            r->status_line = apr_pstrdup(p, &buffer[9]);
+            
+
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
+
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+                p_conn->close += 1;

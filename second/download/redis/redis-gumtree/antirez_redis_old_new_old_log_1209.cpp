@@ -1,1 +1,0 @@
-printf("Decoding with step size: %d\n", geohash.step);

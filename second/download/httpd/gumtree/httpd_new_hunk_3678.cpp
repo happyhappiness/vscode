@@ -1,13 +1,14 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+                    ++maybeEBCDIC;
+                if (!apr_isprint(*cp) && apr_isprint(native))
+                    ++maybeASCII;
+            }
+            if (maybeASCII > maybeEBCDIC) {
+                ap_log_error(SCRIPT_LOG_MARK, APLOG_ERR, 0, r->server,
+                             APLOGNO(02660) "CGI Interface Error: "
+                             "Script headers apparently ASCII: (CGI = %s)",
+                             r->filename);
+                inbytes_left = outbytes_left = cp - w;
+                apr_xlate_conv_buffer(ap_hdrs_from_ascii,
+                                      w, &inbytes_left, w, &outbytes_left);
+            }
+        }

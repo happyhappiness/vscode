@@ -1,108 +1,130 @@
-#endif
 
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-
-    ap_kill_timeout(r);
-
-#ifdef WIN32
-    /* works fine under win32, so leave it */
-    ap_hard_timeout("proxy send body", r);
-    alt_to = 0;
-#else
-    /* CHECKME! Since hard_timeout won't work in unix on sends with partial
-     * cache completion, we have to alternate between hard_timeout
-     * for reads, and soft_timeout for send.  This is because we need
-     * to get a return from ap_bwrite to be able to continue caching.
-     * BUT, if we *can't* continue anyway, just use hard_timeout.
-     */
-
-    if (c) {
-        if (c->len <= 0 || c->cache_completion == 1) {
-            ap_hard_timeout("proxy send body", r);
-            alt_to = 0;
-        }
-    } else {
-        ap_hard_timeout("proxy send body", r);
-        alt_to = 0;
-    }
-#endif
-
-    while (ok && f != NULL) {
-        if (alt_to)
-            ap_hard_timeout("proxy send body", r);
-
-	n = ap_bread(f, buf, IOBUFSIZE);
-
-        if (alt_to)
-            ap_kill_timeout(r);
-        else
-            ap_reset_timeout(r);
-
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_rcv += n;
-
-        if (f2 != NULL) {
-            if (ap_bwrite(f2, &buf[0], n) != n) {
-		f2 = ap_proxy_cache_error(c);
-            } else {
-                c->written += n;
-            }
-        }
-
-	while (n && !con->aborted) {
-            if (alt_to)
-                ap_soft_timeout("proxy send body", r);
-
-	    w = ap_bwrite(con->client, &buf[o], n);
-
-            if (alt_to)
-                ap_kill_timeout(r);
-            else
-                ap_reset_timeout(r);
-
-	    if (w <= 0) {
-		if (f2 != NULL) {
-                    /* when a send failure occurs, we need to decide
-                     * whether to continue loading and caching the
-                     * document, or to abort the whole thing
-                     */
-                    ok = (c->len > 0) &&
-                         (c->cache_completion > 0) &&
-                         (c->len * c->cache_completion < total_bytes_rcv);
-
-                    if (! ok) {
-                        ap_pclosef(c->req->pool, c->fp->fd);
-                        c->fp = NULL;
-                        f2 = NULL;
-                        unlink(c->tempfile);
-                    }
-		}
-                con->aborted = 1;
-		break;
-	    }
-	    n -= w;
-	    o += w;
-	}
-    }
-
-    if (!con->aborted)
-	ap_bflush(con->client);
-
-    ap_kill_timeout(r);
-    return total_bytes_rcv;
+AP_DECLARE(void) ap_die(int type, request_rec *r)
+{
+    ap_die_r(type, r, r->status);
 }
 
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+AP_DECLARE(apr_status_t) ap_check_pipeline(conn_rec *c, apr_bucket_brigade *bb,
+                                           unsigned int max_blank_lines)
+{
+    apr_status_t rv = APR_EOF;
+    ap_input_mode_t mode = AP_MODE_SPECULATIVE;
+    unsigned int num_blank_lines = 0;
+    apr_size_t cr = 0;
+    char buf[2];
+
+    while (c->keepalive != AP_CONN_CLOSE && !c->aborted) {
+        apr_size_t len = cr + 1;
+
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c->input_filters, bb, mode,
+                            APR_NONBLOCK_READ, len);
+        if (rv != APR_SUCCESS || APR_BRIGADE_EMPTY(bb) || !max_blank_lines) {
+            if (mode == AP_MODE_READBYTES) {
+                /* Unexpected error, stop with this connection */
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(02967)
+                              "Can't consume pipelined empty lines");
+                c->keepalive = AP_CONN_CLOSE;
+                rv = APR_EGENERAL;
+            }
+            else if (rv != APR_SUCCESS || APR_BRIGADE_EMPTY(bb)) {
+                if (rv != APR_SUCCESS && !APR_STATUS_IS_EAGAIN(rv)) {
+                    /* Pipe is dead */
+                    c->keepalive = AP_CONN_CLOSE;
+                }
+                else {
+                    /* Pipe is up and empty */
+                    rv = APR_EAGAIN;
+                }
+            }
+            else {
+                apr_off_t n = 0;
+                /* Single read asked, (non-meta-)data available? */
+                rv = apr_brigade_length(bb, 0, &n);
+                if (rv == APR_SUCCESS && n <= 0) {
+                    rv = APR_EAGAIN;
+                }
+            }
+            break;
+        }
+
+        /* Lookup and consume blank lines */
+        rv = apr_brigade_flatten(bb, buf, &len);
+        if (rv != APR_SUCCESS || len != cr + 1) {
+            int log_level;
+            if (mode == AP_MODE_READBYTES) {
+                /* Unexpected error, stop with this connection */
+                c->keepalive = AP_CONN_CLOSE;
+                log_level = APLOG_ERR;
+                rv = APR_EGENERAL;
+            }
+            else {
+                /* Let outside (non-speculative/blocking) read determine
+                 * where this possible failure comes from (metadata,
+                 * morphed EOF socket, ...). Debug only here.
+                 */
+                log_level = APLOG_DEBUG;
+                rv = APR_SUCCESS;
+            }
+            ap_log_cerror(APLOG_MARK, log_level, rv, c, APLOGNO(02968)
+                          "Can't check pipelined data");
+            break;
+        }
+
+        if (mode == AP_MODE_READBYTES) {
+            /* [CR]LF consumed, try next */
+            mode = AP_MODE_SPECULATIVE;
+            cr = 0;
+        }
+        else if (cr) {
+            AP_DEBUG_ASSERT(len == 2 && buf[0] == APR_ASCII_CR);
+            if (buf[1] == APR_ASCII_LF) {
+                /* consume this CRLF */
+                mode = AP_MODE_READBYTES;
+                num_blank_lines++;
+            }
+            else {
+                /* CR(?!LF) is data */
+                break;
+            }
+        }
+        else {
+            if (buf[0] == APR_ASCII_LF) {
+                /* consume this LF */
+                mode = AP_MODE_READBYTES;
+                num_blank_lines++;
+            }
+            else if (buf[0] == APR_ASCII_CR) {
+                cr = 1;
+            }
+            else {
+                /* Not [CR]LF, some data */
+                break;
+            }
+        }
+        if (num_blank_lines > max_blank_lines) {
+            /* Enough blank lines with this connection,
+             * stop and don't recycle it.
+             */
+            c->keepalive = AP_CONN_CLOSE;
+            rv = APR_NOTFOUND;
+            break;
+        }
+    }
+
+    return rv;
+}
+
+
+AP_DECLARE(void) ap_process_request_after_handler(request_rec *r)
+{
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    conn_rec *c = r->connection;
+    apr_status_t rv;
+
+    /* Send an EOR bucket through the output filter chain.  When
+     * this bucket is destroyed, the request will be logged and
+     * its pool will be freed
+     */
+    bb = apr_brigade_create(c->pool, c->bucket_alloc);

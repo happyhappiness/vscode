@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                             "couldn't create child process: %d: %s", rc,
-                             apr_filepath_name_get(r->filename));
+mod_info_show_parents(r, node->parent, from, to - 1);

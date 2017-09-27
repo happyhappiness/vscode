@@ -1,35 +1,14 @@
-             remove_pollfd.desc.s = c->aprsock;
- 	    apr_pollset_remove(readbits, &remove_pollfd);
- 	    apr_socket_close(c->aprsock);
- 	    err_conn++;
- 	    if (bad++ > 10) {
- 		fprintf(stderr,
--			"\nTest aborted after 10 failures\n\n");
--		apr_err("apr_connect()", rv);
-+                   "\nTest aborted after 10 failures\n\n");
-+                apr_err("apr_socket_connect()", rv);
- 	    }
- 	    c->state = STATE_UNCONNECTED;
- 	    start_connect(c);
- 	    return;
- 	}
      }
  
-     /* connected first time */
-     c->state = STATE_CONNECTED;
-     started++;
--    write_request(c);
-+#ifdef USE_SSL
-+    if (c->ssl) {
-+        ssl_proceed_handshake(c);
-+    } else
-+#endif
-+    {
-+        write_request(c);
-+    }
- }
- 
- /* --------------------------------------------------------- */
- 
- /* close down connection and save stats */
- 
+     /* Was this the final bucket? If yes, close the temp file and perform
+      * sanity checks.
+      */
+     if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+-        if (r->connection->aborted) {
++        if (r->connection->aborted || r->no_cache) {
+             ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                          "disk_cache: Discarding body for URL %s "
+                          "because connection has been aborted.",
+                          h->cache_obj->key);
+             /* Remove the intermediate cache file and return non-APR_SUCCESS */
+             file_cache_errorcleanup(dobj, r);

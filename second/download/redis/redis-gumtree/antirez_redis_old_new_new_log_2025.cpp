@@ -1,1 +1,0 @@
-snprintf(buf,len,"%lld",bytes);

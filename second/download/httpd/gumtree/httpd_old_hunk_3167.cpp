@@ -1,20 +1,16 @@
-#endif
+                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
+            }
+        }
 
-    ap_soft_timeout("send body", r);
+        /* configure new state */
+        if ((dc->szCipherSuite || sc->server->auth.cipher_suite) &&
+            !modssl_set_cipher_list(ssl, dc->szCipherSuite ?
+                                         dc->szCipherSuite :
+                                         sc->server->auth.cipher_suite)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unable to reconfigure (per-directory) "
+                          "permitted SSL ciphers");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+            if (cipher_list_old) {
+                sk_SSL_CIPHER_free(cipher_list_old);

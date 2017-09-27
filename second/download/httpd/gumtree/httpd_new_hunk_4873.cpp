@@ -1,13 +1,15 @@
-		errstr[len-1] = ' ';
-	    }
-	}
-    }
-#endif
+    r->useragent_addr = req->useragent_addr;
+    r->useragent_ip = req->useragent_ip;
 
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  req->proxy_ips
+                      ? "Using %s as client's IP by proxies %s"
+                      : "Using %s as client's IP by internal proxies%s",
+                  req->useragent_ip,
+                  (req->proxy_ips ? req->proxy_ips : ""));
+    return OK;
+}
 
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+static const command_rec remoteip_cmds[] =
+{
+    AP_INIT_TAKE1("RemoteIPHeader", header_name_set, NULL, RSRC_CONF,

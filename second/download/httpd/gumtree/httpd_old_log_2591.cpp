@@ -1,0 +1,1 @@
+fprintf(output, "    - No data   : %d\n", errors[NO_DATA]);

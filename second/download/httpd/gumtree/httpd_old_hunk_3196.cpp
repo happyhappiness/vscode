@@ -1,52 +1,28 @@
-#endif
+                 * but we fall through with a chance of success if the key
+                 * is not encrypted or can be handled via exec or pipe dialog.
+                 * and in the case of fallthrough, pkey_mtime and isatty()
+                 * are used to give a better idea as to what failed.
+                 */
+                if (pkey_mtime) {
+                    int i;
 
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-    ap_hard_timeout("proxy send body", r);
+                    for (i=0; i < SSL_AIDX_MAX; i++) {
+                        const char *key_id =
+                            ssl_asn1_table_keyfmt(p, cpVHostID, i);
+                        ssl_asn1_t *asn1 =
+                            ssl_asn1_table_get(mc->tPrivateKey, key_id);
 
-    while (!con->aborted && f != NULL) {
-	n = ap_bread(f, buf, IOBUFSIZE);
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_sent += n;
+                        if (asn1 && (asn1->source_mtime == pkey_mtime)) {
+                            ap_log_error(APLOG_MARK, APLOG_INFO,
+                                         0, pServ,
+                                         "%s reusing existing "
+                                         "%s private key on restart",
+                                         cpVHostID, ssl_asn1_keystr(i));
+                            return;
+                        }
+                    }
+                }
 
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
+                cpPassPhraseCur = NULL;
+                ssl_pphrase_server_rec = s; /* to make up for sslc flaw */
 
-	while (n && !con->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0) {
-		if (f2 != NULL) {
-		    ap_pclosef(c->req->pool, c->fp->fd);
-		    c->fp = NULL;
-		    f2 = NULL;
-		    con->aborted = 1;
-		    unlink(c->tempfile);
-		}
-		break;
-	    }
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-	    n -= w;
-	    o += w;
-	}
-    }
-    if (!con->aborted)
-	ap_bflush(con->client);
-
-    ap_kill_timeout(r);
-    return total_bytes_sent;
-}
-
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *

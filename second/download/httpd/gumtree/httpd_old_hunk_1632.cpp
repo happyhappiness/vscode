@@ -1,13 +1,12 @@
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_read_header: ajp_msg_reuse failed");
-            return rc;
-        }
     }
-    else {
-        rc = ajp_msg_create(r->pool, msg);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_read_header: ajp_msg_create failed");
-            return rc;
-        }
-    }
+
+    apr_dbm_close(dbmfp);
+
+    return value;
+}
+
+static char *lookup_map_program(request_rec *r, apr_file_t *fpin,
+                                apr_file_t *fpout, char *key)
+{
+    char *buf;
+    char c;

@@ -1,25 +1,13 @@
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-		    r, "need AuthName: %s", r->uri);
-        return SERVER_ERROR;
+        || have_ecc
+#endif
+)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01910)
+                "Oops, no " KEYTYPES " server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);
+        ssl_die(s);
     }
 
-    if (!auth_line) {
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
+    for (i = 0; i < SSL_AIDX_MAX; i++) {
+        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
     }
 
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-        /* Client tried to authenticate using wrong auth scheme */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client used wrong authentication scheme: %s", r->uri);
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
-    }
-
-    t = ap_uudecode(r->pool, auth_line);

@@ -1,16 +1,28 @@
-                            APR_BLOCK_READ, 8192);
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "could not read request body for SSL buffer");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        
-        /* Iterate through the returned brigade: setaside each bucket
-         * into the context's pool and move it into the brigade. */
-        for (e = APR_BRIGADE_FIRST(tempb); 
-             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {
-            const char *data;
-            apr_size_t len;
+     *  Initialise list of loaded modules
+     */
+    ap_loaded_modules = (module **)apr_palloc(process->pool,
+        sizeof(module *) * (total_modules + DYNAMIC_MODULE_LIMIT + 1));
 
-            next = APR_BUCKET_NEXT(e);
+    if (ap_loaded_modules == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Ouch!  Out of memory in ap_setup_prelinked_modules()!");
+    }
 
+    for (m = ap_preloaded_modules, m2 = ap_loaded_modules; *m != NULL; )
+        *m2++ = *m++;
+
+    *m2 = NULL;
+
+    /*
+     *   Initialize chain of linked (=activate) modules
+     */
+    for (m = ap_prelinked_modules; *m != NULL; m++)
+        ap_add_module(*m, process->pconf);
+
+    apr_hook_sort_all();
+}
+
+AP_DECLARE(const char *) ap_find_module_name(module *m)
+{
+    return m->name;
+}

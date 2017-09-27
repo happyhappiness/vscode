@@ -1,14 +1,14 @@
-        "<td colspan=2 %s>%s</td></tr>\n",
-        trstring, tdstring, tdstring, servername);
-     printf("<tr %s><th colspan=2 %s>Server Hostname:</th>"
-        "<td colspan=2 %s>%s</td></tr>\n",
-        trstring, tdstring, tdstring, hostname);
-     printf("<tr %s><th colspan=2 %s>Server Port:</th>"
--       "<td colspan=2 %s>%hd</td></tr>\n",
-+       "<td colspan=2 %s>%hu</td></tr>\n",
-        trstring, tdstring, tdstring, port);
-     printf("<tr %s><th colspan=2 %s>Document Path:</th>"
-        "<td colspan=2 %s>%s</td></tr>\n",
-        trstring, tdstring, tdstring, path);
-     printf("<tr %s><th colspan=2 %s>Document Length:</th>"
-        "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+ 
+     /* send body */
+     if (!r->header_only) {
+         apr_bucket *e;
+         int finish = FALSE;
+ 
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                      "proxy: FTP: start body send");
+ 
+         /* read the body, pass it to the output filters */
+         while (ap_get_brigade(data->input_filters,
+                               bb,
+                               AP_MODE_READBYTES,

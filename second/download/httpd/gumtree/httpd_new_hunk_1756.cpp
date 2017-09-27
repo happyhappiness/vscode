@@ -1,27 +1,24 @@
-    case MAPTYPE_DBM:
-        rv = apr_stat(&st, s->checkfile, APR_FINFO_MIN, r->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "mod_rewrite: can't access DBM RewriteMap file %s",
-                          s->checkfile);
-        }
-        else if(s->checkfile2 != NULL) {
-            apr_finfo_t st2;
+                                  "could not read bucket for SSL buffer");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                total += len;
+            }
 
-            rv = apr_stat(&st2, s->checkfile2, APR_FINFO_MIN, r->pool);
+            rv = apr_bucket_setaside(e, r->pool);
             if (rv != APR_SUCCESS) {
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "mod_rewrite: can't access DBM RewriteMap "
-                              "file %s", s->checkfile2);
+                              "could not setaside bucket for SSL buffer");
+                return HTTP_INTERNAL_SERVER_ERROR;
             }
-            else if(st2.mtime > st.mtime) {
-                st.mtime = st2.mtime;
-            }
-        }
-        if(rv != APR_SUCCESS) {
-            rewritelog((r, 1, NULL,
-                        "can't open DBM RewriteMap file, see error log"));
-            return NULL;
+
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
         }
 
-        value = get_cache_value(s->cachename, st.mtime, key, r->pool);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c,
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);
+
+        /* Fail if this exceeds the maximum buffer size. */
+        if (total > maxlen) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

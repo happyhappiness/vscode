@@ -1,13 +1,31 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+    /* Step 1: check if the url is for us
+     * The url we can handle starts with 'balancer://'
+     * If balancer is already provided skip the search
+     * for balancer, because this is failover attempt.
+     */
+    if (!*balancer &&
+        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
+        return DECLINED;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    /* Step 2: Lock the LoadBalancer
+     * XXX: perhaps we need the process lock here
+     */
+    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",
+                     (*balancer)->name);
+        return DECLINED;
+    }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    /* Step 3: force recovery */
+    force_recovery(*balancer, r->server);
+    
+    /* Step 3.5: Update member list for the balancer */
+    /* TODO: Implement as provider! */
+    /* proxy_update_members(balancer, r, conf); */
+
+    /* Step 4: find the session route */
+    runtime = find_session_route(*balancer, r, &route, &sticky, url);
+    if (runtime) {
+        if ((*balancer)->lbmethod && (*balancer)->lbmethod->updatelbstatus) {
+            /* Call the LB implementation */

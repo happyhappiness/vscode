@@ -1,25 +1,22 @@
-	return ap_proxyerror(r, err);	/* give up */
+                                        apr_bucket_pool_create(to_release,
+                                        intern->parse_pos, ctx->pool,
+                                        f->c->bucket_alloc));
+            }
+        }
+        else if (PARSE_PRE_HEAD != intern->state) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01372)
+                          "SSI directive was not properly finished at the end "
+                          "of parsed document %s", r->filename);
+            if (ctx->flags & SSI_FLAG_PRINTING) {
+                SSI_CREATE_ERROR_BUCKET(ctx, f, pass_bb);
+            }
+        }
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01373)
+                          "missing closing endif directive in parsed document"
+                          " %s", r->filename);
+        }
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+        /* cleanup our temporary memory */
+        apr_brigade_destroy(intern->tmp_bb);

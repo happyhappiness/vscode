@@ -1,17 +1,35 @@
+     * certificate-specified responder, falling back to default if
+     * necessary and possible. */
+    if (sc->server->ocsp_force_default) {
+        s = sc->server->ocsp_responder;
+    }
+    else {
+        s = extract_responder_uri(cert, p);
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+        if (s == NULL && sc->server->ocsp_responder) {
+            s = sc->server->ocsp_responder;
+        }
     }
 
-    cache = c->fp;
+    if (s == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01918)
+                      "no OCSP responder specified in certificate and "
+                      "no default configured");
+        return NULL;
+    }
 
-    c->hdrs = resp_hdrs;
+    rv = apr_uri_parse(p, s, u);
+    if (rv || !u->hostname) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(01919)
+                      "failed to parse OCSP responder URI '%s'", s);
+        return NULL;
+    }
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    if (strcasecmp(u->scheme, "http") != 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(01920)
+                      "cannot handle OCSP responder URI '%s'", s);
+        return NULL;
+    }
+
+    if (!u->port) {
+        u->port = apr_uri_port_of_scheme(u->scheme);

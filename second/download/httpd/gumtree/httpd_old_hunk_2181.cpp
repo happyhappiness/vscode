@@ -1,13 +1,12 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+            worker = (proxy_worker *)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);
+                ap_rvputs(r, "</td><td>",
+                          ap_escape_html(r->pool, worker->s->redirect), NULL);

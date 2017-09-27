@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+                    rv = apr_bucket_read(e, &buffer, &len, APR_BLOCK_READ);
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+                    if (rv == APR_SUCCESS) {
+                        parsing = 1;
+                        rv = parse_chunk_size(ctx, buffer, len,
+                                f->r->server->limit_req_fieldsize, strict);
+                    }
+                    if (rv != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590)
+                                      "Error reading/parsing chunk %s ",
+                                      (APR_ENOSPC == rv) ? "(overflow)" : "");
+                        if (parsing) {

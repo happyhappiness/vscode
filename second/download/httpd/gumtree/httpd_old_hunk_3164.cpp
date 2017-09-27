@@ -1,18 +1,23 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+        /*
+         * The SNI extension supplied a hostname. So don't accept requests
+         * with either no hostname or a different hostname.
+         */
+        if (!r->hostname) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "Hostname %s provided via SNI, but no hostname"
+                        " provided in HTTP request", servername);
+            return HTTP_BAD_REQUEST;
+        }
+        rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+        if (rv != APR_SUCCESS || scope_id) {
+            return HTTP_BAD_REQUEST;
+        }
+        if (strcmp(host, servername)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "Hostname %s provided via SNI and hostname %s provided"
+                        " via HTTP are different", servername, host);
+            return HTTP_BAD_REQUEST;
+        }
+    }
+    else if (((sc->strict_sni_vhost_check == SSL_ENABLED_TRUE)

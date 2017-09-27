@@ -1,1 +1,0 @@
-sprintf(types[RDB_TYPE_STRING], "STRING");

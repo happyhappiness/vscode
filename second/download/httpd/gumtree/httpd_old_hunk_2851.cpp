@@ -1,20 +1,13 @@
-#endif
+    }
 
-    ap_soft_timeout("send body", r);
+    return HTTP_INTERNAL_SERVER_ERROR;        /* If we make it this far,
+                                                 we failed. They lose! */
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+need_2_fields:
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                "map file %s, line %d syntax error: requires at "
+                "least two fields", r->uri, imap->line_number);
+    /* fall through */
+menu_bail:
+    ap_cfg_closefile(imap);
+    if (showmenu) {

@@ -1,13 +1,13 @@
-        return my_addr;
+    if (!fspec) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+                     "mod_file_cache: invalid file path "
+                     "%s, skipping", filename);
+	return;
     }
-
-    hep = gethostbyname(w);
-
-    if ((!hep) || (hep->h_addrtype != AF_INET || !hep->h_addr_list[0])) {
-        /* XXX Should be echoing by h_errno the actual failure, no?
-         * ap_log_error would be good here.  Better yet - APRize.
-         */
-        fprintf(stderr, "Cannot resolve host name %s --- exiting!\n", w);
-        exit(1);
+    if ((rc = apr_stat(&tmp.finfo, fspec, APR_FINFO_MIN,
+                                 cmd->temp_pool)) != APR_SUCCESS) {
+	ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+	    "mod_file_cache: unable to stat(%s), skipping", fspec);
+	return;
     }
-
+    if (tmp.finfo.filetype != APR_REG) {

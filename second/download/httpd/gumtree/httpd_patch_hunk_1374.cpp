@@ -1,14 +1,13 @@
- 
-     status = ilink_read(sock, msg->buf, hlen);
- 
-     if (status != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
-                      "ajp_ilink_receive() can't receive header");
--        return AJP_ENO_HEADER;
-+        return (APR_STATUS_IS_TIMEUP(status) ? APR_TIMEUP : AJP_ENO_HEADER);
-     }
- 
-     status = ajp_msg_check_header(msg, &blen);
- 
-     if (status != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+         }
+         if (len <= 0) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                           "proxy: error reading status line from remote "
+                           "server %s:%d", backend->hostname, backend->port);
+             if (APR_STATUS_IS_TIMEUP(rc)) {
++                apr_table_set(r->notes, "proxy_timedout", "1");
+                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                               "proxy: read timeout");
+             }
+             /*
+              * If we are a reverse proxy request shutdown the connection
+              * WITHOUT ANY response to trigger a retry by the client

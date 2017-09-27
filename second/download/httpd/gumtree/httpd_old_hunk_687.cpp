@@ -1,17 +1,15 @@
-                       ap_escape_shell_cmd(f->r->pool, arg_copy));
+        return DECLINED;
     }
 
-    env = (const char * const *) ap_create_environment(ctx->p,
-                                                       f->r->subprocess_env);
+    if (!(id = apr_table_get(r->subprocess_env, "UNIQUE_ID"))) {
+        /* we make the assumption that we can't go through all the PIDs in
+           under 1 second */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "mod_log_forensic: mod_unique_id must also be active");
+	return DECLINED;
+    }
+    ap_set_module_config(r->request_config, &log_forensic_module, (char *)id);
 
-    rc = apr_proc_create(ctx->proc, 
-                            ctx->filter->command, 
-                            (const char * const *)ctx->filter->args, 
-                            env, /* environment */
-                            ctx->procattr, 
-                            ctx->p);
-    if (rc != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, f->r,
-                      "couldn't create child process to run `%s'",
-                      ctx->filter->command);
-        return rc;
+    h.p = r->pool;
+    h.count = 0;
+

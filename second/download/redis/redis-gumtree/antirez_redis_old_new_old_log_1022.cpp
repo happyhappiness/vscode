@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Sentinel ID is %s", sentinel.myid);

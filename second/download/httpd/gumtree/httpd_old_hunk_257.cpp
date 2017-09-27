@@ -1,35 +1,12 @@
-    UCHAR ucaData[SSL_SESSION_MAX_DER];
-    int nData;
-    UCHAR *ucp;
-    apr_status_t rv;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s", errmsg);
+        exit(1);
+    }
 
-    /* streamline session data */
-    if ((nData = i2d_SSL_SESSION(sess, NULL)) > sizeof(ucaData))
-        return FALSE;
-    ucp = ucaData;
-    i2d_SSL_SESSION(sess, &ucp);
+    ap_cfg_closefile(cfp);
+}
 
-    /* be careful: do not try to store too much bytes in a DBM file! */
-#ifdef PAIRMAX
-    if ((idlen + nData) >= PAIRMAX)
-        return FALSE;
-#else
-    if ((idlen + nData) >= 950 /* at least less than approx. 1KB */)
-        return FALSE;
-#endif
-
-    /* create DBM key */
-    dbmkey.dptr  = (char *)id;
-    dbmkey.dsize = idlen;
-
-    /* create DBM value */
-    dbmval.dsize = sizeof(time_t) + nData;
-    dbmval.dptr  = (char *)malloc(dbmval.dsize);
-    if (dbmval.dptr == NULL)
-        return FALSE;
-    memcpy((char *)dbmval.dptr, &expiry, sizeof(time_t));
-    memcpy((char *)dbmval.dptr+sizeof(time_t), ucaData, nData);
-
-    /* and store it to the DBM file */
-    ssl_mutex_on(s);
-    if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+AP_DECLARE(void) ap_process_config_tree(server_rec *s,
+                                        ap_directive_t *conftree,
+                                        apr_pool_t *p, apr_pool_t *ptemp)
+{

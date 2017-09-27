@@ -1,13 +1,27 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+}
+
+#endif /* HAVE_OCSP_STAPLING */
+
+void ssl_hook_ConfigTest(apr_pool_t *pconf, server_rec *s)
+{
+    if (!ap_exists_config_define("DUMP_CERTS")) {
+        return;
     }
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+    /* Dump the filenames of all configured server certificates to
+     * stdout. */
+    while (s) {
+        SSLSrvConfigRec *sc = mySrvConfig(s);
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+        if (sc && sc->server && sc->server->pks) {
+            modssl_pk_server_t *const pks = sc->server->pks;
+            int i;
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+            for (i = 0; (i < SSL_AIDX_MAX) && pks->cert_files[i]; i++) {
+                printf("%s\n", pks->cert_files[i]);
+            }
+        }
+
+        s = s->next;
+    }
+

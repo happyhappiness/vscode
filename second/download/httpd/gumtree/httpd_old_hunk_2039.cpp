@@ -1,14 +1,16 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+        apr_array_header_t* varray;
+        apr_time_t expire;
 
+        len = sizeof(expire);
+        apr_file_read_full(dobj->hfd, &expire, len, &len);
 
-static const handler_rec autoindex_handlers[] =
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
+        if (expire < r->request_time) {
+            return DECLINED;
+        }
+
+        varray = apr_array_make(r->pool, 5, sizeof(char*));
+        rc = read_array(r, varray, dobj->hfd);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                         "disk_cache: Cannot parse vary header file: %s",
+                         dobj->hdrsfile);

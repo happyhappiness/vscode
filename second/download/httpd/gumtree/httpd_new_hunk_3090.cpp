@@ -1,14 +1,18 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
+                rv = send_http_connect(conn, s);
+                /* If an error occurred, loop round and try again */
+                if (rv != APR_SUCCESS) {
+                    conn->sock = NULL;
+                    apr_socket_close(newsock);
+                    loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
+                    ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00958)
+                                 "%s: attempt to connect to %s:%d "
+                                 "via http CONNECT through %pI (%s) failed",
+                                 proxy_function,
+                                 forward->target_host, forward->target_port,
+                                 backend_addr, worker->s->hostname);
+                    backend_addr = backend_addr->next;
+                    continue;
                 }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+            }
+        }
+

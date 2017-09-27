@@ -1,14 +1,21 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+     * OpenSSL about the currently verify depth. Instead we remember it in our
+     * SSLConnRec attached to the SSL* of OpenSSL.  We've to force the
+     * renegotiation if the reconfigured/new verify depth is less than the
+     * currently active/remembered verify depth (because this means more
+     * restriction on the certificate chain).
+     */
+    n = (sslconn->verify_depth != UNSET) ?
+        sslconn->verify_depth :
+        (mySrvConfig(handshakeserver))->server->auth.verify_depth;
+    /* determine the new depth */
+    sslconn->verify_depth = (dc->nVerifyDepth != UNSET) ?
+                            dc->nVerifyDepth : sc->server->auth.verify_depth;
+    if (sslconn->verify_depth < n) {
+        renegotiate = TRUE;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02254)
+                     "Reduced client verification depth will force "
+                     "renegotiation");
+    }
+
+    /*
+     * override of SSLVerifyClient

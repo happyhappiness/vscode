@@ -1,14 +1,13 @@
-    ap_hard_timeout("send directory", r);
+        }
+    }
+    else {
+        return "Certificate type was not specified.";
+    }
 
-    /* Spew HTML preamble */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                      "LDAP: SSL trusted client cert - %s (type %s)",
+                       file, type);
 
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    /* add the certificate to the client array */
+    cert = (apr_ldap_opt_tls_cert_t *)apr_array_push(dc->client_certs);
+    cert->type = cert_type;

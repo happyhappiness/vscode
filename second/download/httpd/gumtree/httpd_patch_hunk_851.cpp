@@ -1,119 +1,60 @@
- 
-         apr_hook_debug_current = m->name;
-         m->register_hooks(p);
      }
+ 
+     ap_threads_max_free = atoi(arg);
+     return NULL;
  }
  
-+static void ap_add_module_commands(module *m, apr_pool_t *p);
-+
-+typedef struct ap_mod_list_struct ap_mod_list;
-+struct ap_mod_list_struct {
-+    struct ap_mod_list_struct *next;
-+    module *m;
-+    const command_rec *cmd;
-+};
-+
-+static apr_status_t reload_conf_hash(void *baton)
-+{
-+    ap_config_hash = NULL;
-+    return APR_SUCCESS;
-+}
-+
-+static void rebuild_conf_hash(apr_pool_t *p, int add_prelinked)
-+{
-+    module **m;
-+
-+    ap_config_hash = apr_hash_make(p);
-+
-+    apr_pool_cleanup_register(p, NULL, reload_conf_hash,
-+                              apr_pool_cleanup_null);
-+    if (add_prelinked) {
-+        for (m = ap_prelinked_modules; *m != NULL; m++) {
-+            ap_add_module_commands(*m, p);
-+        }
-+    }
-+}
-+
-+static void ap_add_module_commands(module *m, apr_pool_t *p)
-+{
-+    apr_pool_t *tpool;
-+    ap_mod_list *mln;
-+    const command_rec *cmd;
-+    char *dir;
-+
-+    cmd = m->cmds;
-+
-+    if (ap_config_hash == NULL) {
-+        rebuild_conf_hash(p, 0);
-+    }
-+
-+    tpool = apr_hash_pool_get(ap_config_hash);
-+
-+    while (cmd && cmd->name) {
-+        mln = apr_palloc(tpool, sizeof(ap_mod_list));
-+        mln->cmd = cmd;
-+        mln->m = m;
-+        dir = apr_pstrdup(tpool, cmd->name);
-+
-+        ap_str_tolower(dir);
-+
-+        mln->next = apr_hash_get(ap_config_hash, dir, APR_HASH_KEY_STRING);
-+        apr_hash_set(ap_config_hash, dir, APR_HASH_KEY_STRING, mln);
-+        ++cmd;
-+    }
-+}
-+
-+
- /* One-time setup for precompiled modules --- NOT to be done on restart */
- 
--AP_DECLARE(void) ap_add_module(module *m, apr_pool_t *p)
-+AP_DECLARE(const char *) ap_add_module(module *m, apr_pool_t *p)
+-static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg) 
++static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg)
  {
--    /* This could be called from an AddModule httpd.conf command,
-+    /* This could be called from a LoadModule httpd.conf command,
-      * after the file has been linked and the module structure within it
-      * teased out...
-      */
- 
-     if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
--                     "%s: module \"%s\" is not compatible with this "
--                     "version of Apache (found %d, need %d).",
--                     ap_server_argv0, m->name, m->version,
--                     MODULE_MAGIC_NUMBER_MAJOR);
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
--                     "Please contact the vendor for the correct version.");
--        exit(1);
-+        return apr_psprintf(p, "Module \"%s\" is not compatible with this "
-+                            "version of Apache (found %d, need %d). Please "
-+                            "contact the vendor for the correct version.",
-+                            m->name, m->version, MODULE_MAGIC_NUMBER_MAJOR);
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+     if (err != NULL) {
+         return err;
      }
  
-     if (m->next == NULL) {
-         m->next = ap_top_module;
-         ap_top_module = m;
+     ap_threads_limit = atoi(arg);
+     if (ap_threads_limit > HARD_THREAD_LIMIT) {
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: MaxThreads of %d exceeds compile time limit "
+                     "of %d threads,", ap_threads_limit, HARD_THREAD_LIMIT);
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering MaxThreads to %d.  To increase, please "
+                     "see the", HARD_THREAD_LIMIT);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " HARD_THREAD_LIMIT define in %s.",
+                     AP_MPM_HARD_LIMITS_FILE);
+        ap_threads_limit = HARD_THREAD_LIMIT;
+-    } 
++    }
+     else if (ap_threads_limit < 1) {
+-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+             "WARNING: Require MaxThreads > 0, setting to 1");
+         ap_threads_limit = 1;
      }
+     return NULL;
+ }
  
-     if (m->module_index == -1) {
-         m->module_index = total_modules++;
-         dynamic_modules++;
- 
-         if (dynamic_modules > DYNAMIC_MODULE_LIMIT) {
--            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
--                         "%s: module \"%s\" could not be loaded, because"
--                         " the dynamic", ap_server_argv0, m->name);
--            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
--                         "module limit was reached. Please increase "
--                         "DYNAMIC_MODULE_LIMIT and recompile.");
--            exit(1);
-+            return apr_psprintf(p, "Module \"%s\" could not be loaded, "
-+                                "because the dynamic module limit was "
-+                                "reached. Please increase "
-+                                "DYNAMIC_MODULE_LIMIT and recompile.", m->name);
-         }
-     }
- 
-     /* Some C compilers put a complete path into __FILE__, but we want
-      * only the filename (e.g. mod_includes.c). So check for path
-      * components (Unix and DOS), and remove them.
+-static const char *set_thread_stacksize(cmd_parms *cmd, void *dummy, 
+-                                        const char *arg)
+-{
+-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+-    if (err != NULL) {
+-        return err;
+-    }
+-    
+-    ap_thread_stack_size = atoi(arg);
+-    return NULL;
+-}
+-
+ static const command_rec netware_mpm_cmds[] = {
+-AP_INIT_TAKE1("ThreadStackSize", set_thread_stacksize, NULL, RSRC_CONF,
+-              "Stack size each created thread will use."),
+ LISTEN_COMMANDS,
+ AP_INIT_TAKE1("StartThreads", set_threads_to_start, NULL, RSRC_CONF,
+               "Number of worker threads launched at server startup"),
+ AP_INIT_TAKE1("MinSpareThreads", set_min_free_threads, NULL, RSRC_CONF,
+               "Minimum number of idle threads, to handle request spikes"),
+ AP_INIT_TAKE1("MaxSpareThreads", set_max_free_threads, NULL, RSRC_CONF,

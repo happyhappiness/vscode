@@ -1,23 +1,20 @@
-            apr_brigade_cleanup(bb);
-
-            /* Detect chunksize error (such as overflow) */
-            if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
-                if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
-                    http_error = HTTP_REQUEST_TIME_OUT;
-                }
-                ctx->remaining = 0; /* Reset it in case we have to
-                                     * come back here later */
-                return bail_out_on_error(ctx, f, http_error);
-            }
-
-            if (!ctx->remaining) {
-                return read_chunked_trailers(ctx, f, b,
-                        conf->merge_trailers == AP_MERGE_TRAILERS_ENABLE);
-            }
-        }
     }
-    else {
-        bb = ctx->bb;
+
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
     }
+    if (!log_writer) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                "log writer isn't correctly setup");
+         return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
+    if (rv != APR_SUCCESS)
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, "Error writing to %s",
+                      cls->fname);
+    return OK;
+}
+
+static int multi_log_transaction(request_rec *r)
+{
+    multi_log_state *mls = ap_get_module_config(r->server->module_config,

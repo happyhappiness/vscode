@@ -1,69 +1,31 @@
- /* start asnchronous non-blocking connection */
- 
- static void start_connect(struct connection * c)
- {
-     apr_status_t rv;
- 
--#ifdef USE_SSL
--    if (ssl == 1) {
--        ssl_start_connect(c);
--        return;
--    }
--#endif
--    
-     if (!(started < requests))
--	return;
-+    return;
- 
-     c->read = 0;
-     c->bread = 0;
-     c->keepalive = 0;
-     c->cbx = 0;
-     c->gotheader = 0;
-     c->rwrite = 0;
-     if (c->ctx)
-         apr_pool_destroy(c->ctx);
-     apr_pool_create(&c->ctx, cntxt);
- 
-     if ((rv = apr_socket_create(&c->aprsock, destsa->family,
--				SOCK_STREAM, c->ctx)) != APR_SUCCESS) {
--	apr_err("socket", rv);
-+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
-+    apr_err("socket", rv);
-     }
-     if ((rv = apr_socket_opt_set(c->aprsock, APR_SO_NONBLOCK, 1))
-          != APR_SUCCESS) {
-         apr_err("socket nonblock", rv);
-     }
-     c->start = apr_time_now();
--    if ((rv = apr_connect(c->aprsock, destsa)) != APR_SUCCESS) {
-+#ifdef USE_SSL
-+    if (is_ssl) {
-+        BIO *bio;
-+        apr_os_sock_t fd;
-+
-+        if ((c->ssl = SSL_new(ssl_ctx)) == NULL) {
-+            BIO_printf(bio_err, "SSL_new failed.\n");
-+            ERR_print_errors(bio_err);
-+            exit(1);
+     for (e = APR_BRIGADE_FIRST(bb);
+          e != APR_BRIGADE_SENTINEL(bb);
+          e = APR_BUCKET_NEXT(e))
+     {
+         const char *str;
+         apr_size_t length, written;
+-        apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
++        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
++        if (rv != APR_SUCCESS) {
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
++                         "cache_disk: Error when reading bucket for URL %s",
++                         h->cache_obj->key);
++            /* Remove the intermediate cache file and return non-APR_SUCCESS */
++            file_cache_errorcleanup(dobj, r);
++            return rv;
 +        }
-+        ssl_rand_seed();
-+        apr_os_sock_get(&fd, c->aprsock);
-+        bio = BIO_new_socket(fd, BIO_NOCLOSE);
-+        SSL_set_bio(c->ssl, bio, bio);
-+        SSL_set_connect_state(c->ssl);
-+        if (verbosity >= 4) {
-+            BIO_set_callback(bio, ssl_print_cb);
-+            BIO_set_callback_arg(bio, bio_err);
-+        }
-+    } else {
-+        c->ssl = NULL;
-+    }
-+#endif
-+    if ((rv = apr_socket_connect(c->aprsock, destsa)) != APR_SUCCESS) {
- 	if (APR_STATUS_IS_EINPROGRESS(rv)) {
-             apr_pollfd_t new_pollfd;
- 	    c->state = STATE_CONNECTING;
- 	    c->rwrite = 0;
-             new_pollfd.desc_type = APR_POLL_SOCKET;
-             new_pollfd.reqevents = APR_POLLOUT;
+         rv = apr_file_write_full(dobj->tfd, str, length, &written);
+         if (rv != APR_SUCCESS) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                          "cache_disk: Error when writing cache file for URL %s",
+                          h->cache_obj->key);
+             /* Remove the intermediate cache file and return non-APR_SUCCESS */
+             file_cache_errorcleanup(dobj, r);
+-            return APR_EGENERAL;
++            return rv;
+         }
+         dobj->file_size += written;
+         if (dobj->file_size > conf->maxfs) {
+             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                          "cache_disk: URL %s failed the size check "
+                          "(%" APR_OFF_T_FMT ">%" APR_SIZE_T_FMT ")",

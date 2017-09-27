@@ -1,1 +1,0 @@
-t(REDIS_NOTIFY_SET,"spop",c->argv[1],c->db->id);

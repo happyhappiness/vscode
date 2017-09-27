@@ -1,1 +1,0 @@
-sprintf(types[REDIS_LIST], "LIST");

@@ -1,13 +1,29 @@
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
+    /* If there is no group file - then we are not
+     * configured. So decline.
      */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    if (!(conf->groupfile)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
+    }
 
-    ap_hard_timeout("send headers", r);
+    status = groups_for_user(r->pool, user, conf->groupfile,
+                             &grpstatus);
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open group file: %s",
+                      conf->groupfile);
+        return AUTHZ_DENIED;
+    }
 
-    ap_basic_http_header(r);
+    if (apr_table_elts(grpstatus)->nelts == 0) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Authorization of user %s to access %s failed, reason: "
+                        "user doesn't appear in group file (%s).",
+                        r->user, r->uri, conf->groupfile);
+        return AUTHZ_DENIED;
+    }
+

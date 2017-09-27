@@ -1,16 +1,26 @@
-#define APLOG_MARK	__FILE__,__LINE__
+                    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            }
+            destroy_and_exit_process(process, 0);
+        }
+    }
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
 
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
+        }
+    }
+
+    /* If our config failed, deal with that here. */
+    if (rv != OK) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, APLOGNO(00015) "Unable to open logs");
+        destroy_and_exit_process(process, 1);

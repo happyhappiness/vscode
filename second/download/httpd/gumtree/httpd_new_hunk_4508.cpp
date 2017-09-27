@@ -1,50 +1,83 @@
-        return errstatus;
+struct check_header_ctx {
+    request_rec *r;
+    int strict;
+};
+
+/* check a single header, to be used with apr_table_do() */
+static int check_header(struct check_header_ctx *ctx,
+                        const char *name, const char **val)
+{
+    const char *pos, *end;
+    char *dst = NULL;
+
+    if (name[0] == '\0') {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02428)
+                      "Empty response header name, aborting request");
+        return 0;
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+    if (ctx->strict) { 
+        end = ap_scan_http_token(name);
+    }
+    else {
+        end = ap_scan_vchar_obstext(name);
+    }
+    if (*end) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02429)
+                      "Response header name '%s' contains invalid "
+                      "characters, aborting request",
+                      name);
+        return 0;
+    }
 
-    if (r->method_number == M_INVALID) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
+    for (pos = *val; *pos; pos = end) {
+        end = ap_scan_http_field_content(pos);
+        if (*end) {
+            if (end[0] != CR || end[1] != LF || (end[2] != ' ' &&
+                                                 end[2] != '\t')) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
+                              "Response header '%s' value of '%s' contains "
+                              "invalid characters, aborting request",
+                              name, pos);
+                return 0;
+            }
+            if (!dst) {
+                *val = dst = apr_palloc(ctx->r->pool, strlen(*val) + 1);
+            }
+        }
+        if (dst) {
+            memcpy(dst, pos, end - pos);
+            dst += end - pos;
+            if (*end) {
+                /* skip folding and replace with a single space */
+                end += 3 + strspn(end + 3, "\t ");
+                *dst++ = ' ';
+            }
+        }
     }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
+    if (dst) {
+        *dst = '\0';
     }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
+    return 1;
+}
 
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	char *emsg;
+static int check_headers_table(apr_table_t *t, struct check_header_ctx *ctx)
+{
+    const apr_array_header_t *headers = apr_table_elts(t);
+    apr_table_entry_t *header;
+    int i;
 
-	emsg = "File does not exist: ";
-	if (r->path_info == NULL) {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, NULL);
-	}
-	else {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
-	ap_table_setn(r->notes, "error-notes", emsg);
-	return HTTP_NOT_FOUND;
+    for (i = 0; i < headers->nelts; ++i) {
+        header = &APR_ARRAY_IDX(headers, i, apr_table_entry_t);
+        if (!header->key) {
+            continue;
+        }
+        if (!check_header(ctx, header->key, (const char **)&header->val)) {
+            return 0;
+        }
     }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(OS2) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
+    return 1;
+}
 
-    if (f == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+/**
+ * Check headers for HTTP conformance

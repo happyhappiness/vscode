@@ -1,1 +1,1 @@
-fprintf(f, "0x%02x", *tables++);
+fprintf(f, " */\n\n/* End of chartables.c */\n");

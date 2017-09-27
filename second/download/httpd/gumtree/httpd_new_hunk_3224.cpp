@@ -1,14 +1,23 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = ap_toupper(*cp);
+            return SSL_TLSEXT_ERR_NOACK;
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
-++ apache_1.3.1/src/os/bs2000/ebcdic.c	1998-07-13 19:32:47.000000000 +0800
+    bs = OCSP_response_get1_basic(rsp);
+    if (bs == NULL) {
+        /* If we can't parse response just pass it to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01934)
+                     "stapling_check_response: Error Parsing Response!");
+        return SSL_TLSEXT_ERR_OK;
+    }
+
+    if (!OCSP_resp_find_status(bs, cinf->cid, &status, &reason, &rev,
+                               &thisupd, &nextupd)) {
+        /* If ID not present just pass back to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01935)
+                     "stapling_check_response: certificate ID not present in response!");
+    }
+    else {
+        if (OCSP_check_validity(thisupd, nextupd,
+                                mctx->stapling_resptime_skew,
+                                mctx->stapling_resp_maxage)) {
+            if (pok)
+                *pok = TRUE;

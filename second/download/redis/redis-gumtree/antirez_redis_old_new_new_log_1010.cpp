@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Timeout connecting to the MASTER...");

@@ -1,16 +1,12 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
-
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
+                    return decl_die(access_status, "check user", r);
+                }
+                if ((access_status = ap_run_auth_checker(r)) != OK) {
+                    return decl_die(access_status, "check authorization", r);
+                }
+            }
+            break;
+        }
     }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
-
-    /* perform sub-request for the file name without the suffix */
+    /* XXX Must make certain the ap_run_type_checker short circuits mime
+     * in mod-proxy for r->proxyreq && r->parsed_uri.scheme
+     *                              && !strcmp(r->parsed_uri.scheme, "http")

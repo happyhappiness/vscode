@@ -1,1 +1,0 @@
-cmd = sdscatprintf(cmd,"%lu",sdslen(argv[j]));

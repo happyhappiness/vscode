@@ -1,1 +1,1 @@
-(isprint(c = *(++code));
+(*code == OP_MINUPTO;

@@ -1,0 +1,1 @@
+fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");

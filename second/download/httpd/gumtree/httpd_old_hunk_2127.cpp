@@ -1,18 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+    provider_ctx *pctx;
+    int err;
+    ap_filter_rec_t *filter = f->frec;
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    harness_ctx *fctx = apr_pcalloc(f->r->pool, sizeof(harness_ctx));
+    for (p = filter->providers; p; p = p->next) {
+        if (p->frec->filter_init_func) {
+            f->ctx = NULL;
+            if ((err = p->frec->filter_init_func(f)) != OK) {
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
+                              "filter_init for %s failed", p->frec->name);
+                return err;   /* if anyone errors out here, so do we */
+            }

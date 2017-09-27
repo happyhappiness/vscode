@@ -1,18 +1,18 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session:  stream(%ld-%d): WINDOW_UPDATE "
+                          "incr=%d", 
+                          session->id, (int)frame->hd.stream_id,
+                          frame->window_update.window_size_increment);
+            break;
+        default:
+            if (APLOGctrace2(session->c)) {
+                char buffer[256];
+                
+                frame_print(frame, buffer,
+                            sizeof(buffer)/sizeof(buffer[0]));
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                              "h2_session: on_frame_rcv %s", buffer);
+            }
+            break;
+    }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

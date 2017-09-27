@@ -1,18 +1,25 @@
+                                      apr_pool_t *ptrans)
+{
+    apr_socket_t *csd;
+    apr_status_t status;
+    int sockdes;
 
-    SSL_set_shutdown(ssl, shutdown_type);
-    SSL_smart_shutdown(ssl);
-
-    /* and finally log the fact that we've closed the connection */
-    if (c->base_server->loglevel >= APLOG_INFO) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
-                     "Connection to child %ld closed with %s shutdown"
-                     "(server %s, client %s)",
-                     c->id, type,
-                     ssl_util_vhostid(c->pool, c->base_server),
-                     c->remote_ip ? c->remote_ip : "unknown");
+    status = apr_accept(&csd, lr->sd, ptrans);
+    if (status == APR_SUCCESS) { 
+        *accepted = csd;
+        apr_os_sock_get(&sockdes, csd);
+        if (sockdes >= FD_SETSIZE) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                         "new file descriptor %d is too large; you probably need "
+                         "to rebuild Apache with a larger FD_SETSIZE "
+                         "(currently %d)",
+                         sockdes, FD_SETSIZE);
+            apr_socket_close(csd);
+            return APR_EINTR;
+        } 
+        return status;
     }
 
-    /* deallocate the SSL connection */
-    if (sslconn->client_cert) {
-        X509_free(sslconn->client_cert);
-        sslconn->client_cert = NULL;
+    if (APR_STATUS_IS_EINTR(status)) {
+        return status;
+    }

@@ -1,14 +1,13 @@
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
-    cache = c->fp;
+        rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, 8192);
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02015)
+                          "could not read request body for SSL buffer");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+        /* Iterate through the returned brigade: setaside each bucket
+         * into the context's pool and move it into the brigade. */
+        for (e = APR_BRIGADE_FIRST(tempb);
+             e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {

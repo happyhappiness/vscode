@@ -1,52 +1,41 @@
- */
-
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-{
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
-
-    r->read_body = read_policy;
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
-    }
-
-    if ((r->read_body == REQUEST_NO_BODY) &&
-        (r->read_chunked || (r->remaining > 0))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "%s with body is not allowed for %s", r->method, r->uri);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-    }
-
-    return OK;
-}
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-{
-    /* First check if we have already read the request body */
+                            /* if we are on an async mpm, now is the time that
+                             * we may dare to pass control to it. */
+                            session->keep_sync_until = 0;
+                        }
+                        if (now > session->idle_until) {
+                            if (trace) {
+                                ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                              "h2_session(%ld): keepalive timeout",
+                                              session->id);
+                            }
+                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, "timeout");
+                        }
+                        else if (trace) {                        
+                            ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                          "h2_session(%ld): keepalive, %f sec left",
+                                          session->id, (session->idle_until - now) / 1000000.0f);
+                        }
+                        /* continue reading handling */
+                    }
+                    else if (APR_STATUS_IS_ECONNABORTED(status)
+                             || APR_STATUS_IS_ECONNRESET(status)
+                             || APR_STATUS_IS_EOF(status)
+                             || APR_STATUS_IS_EBADF(status)) {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): input gone", session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                    }
+                    else {
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                                      "h2_session(%ld): idle(1 sec timeout) "
+                                      "read failed", session->id);
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "error");
+                    }
+                }
+                
+                break;
+                
+            case H2_SESSION_ST_BUSY:
+                if (nghttp2_session_want_read(session->ngh2)) {
+                    ap_update_child_status(session->c->sbh, SERVER_BUSY_READ, NULL);
+                    h2_filter_cin_timeout_set(session->cin, session->s->timeout);

@@ -1,1 +1,0 @@
-version = sdscatprintf(version, "-dirty");

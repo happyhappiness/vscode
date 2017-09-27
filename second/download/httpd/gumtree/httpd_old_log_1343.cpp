@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         r->server,
-                         "Unable to reconfigure (per-directory) "
-                         "permitted SSL ciphers");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing full renegotiation: "
+                         "complete handshake protocol");

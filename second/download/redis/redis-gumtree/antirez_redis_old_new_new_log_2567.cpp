@@ -1,1 +1,0 @@
-addReplyErrorLength(c,err,strlen(err));

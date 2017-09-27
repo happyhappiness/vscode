@@ -1,24 +1,34 @@
-    apr_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
+/* ------------------------------------------------------- */
 
-    while (1) {
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.146 $> apache-2.0");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
+    }
+    else {
+	printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.146 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
 
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
-                          "Premature end of script headers: %s",
-                          apr_filepath_name_get(r->filename));
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	     /* Indeed, the host's '\n':
-	        '\012' for UNIX; '\015' for MacOS; '\025' for OS/390
-	         -- whatever the script generates.
-             */
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == CR) {
-		w[p - 2] = '\0';
-	    }
-	    else {
-		w[p - 1] = '\0';
+/* display usage information */
+static void usage(const char *progname)
+{
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing\n");

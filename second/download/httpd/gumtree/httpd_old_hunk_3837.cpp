@@ -1,13 +1,23 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00489)
+                 "%s configured -- resuming normal operations",
+                 ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00490)
+                 "Server built: %s", ap_get_server_built());
+    ap_log_command_line(plog, s);
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+    mpm_state = AP_MPMQ_RUNNING;
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+    server_main_loop(remaining_children_to_start);
+    mpm_state = AP_MPMQ_STOPPING;
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    if (shutdown_pending && !retained->is_graceful) {
+        /* Time to shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
+        ap_reclaim_child_processes(1, /* Start with SIGTERM */
+                                   event_note_child_killed);
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            ap_remove_pid(pconf, ap_pid_fname);

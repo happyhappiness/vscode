@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+printf("Total:      " CONF_FMT_STRING,
+		   mintot, (int) (total + 0.5), sdtot, meantot, maxtot);

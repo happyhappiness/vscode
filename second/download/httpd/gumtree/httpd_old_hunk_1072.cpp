@@ -1,17 +1,14 @@
-    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
-	fprintf(stderr, "%s: invalid URL\n", argv[0]);
-	usage(argv[0]);
-    }
+                        continue;
+                    }
+                    else if (rv == APR_EOF) {
+                        break;
+                    }
+                    else if (rv != APR_SUCCESS) {
+                        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
+                                      "proxy: error reading response");
+                        break;
+                    }
+                    /* next time try a non-blocking read */
+                    mode = APR_NONBLOCK_READ;
 
-    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
-       fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
-                argv[0], MAX_CONCURRENCY);
-        usage(argv[0]);
-    }
-
-    if ((heartbeatres) && (requests > 150)) {
-	heartbeatres = requests / 10;	/* Print line every 10% of requests */
-	if (heartbeatres < 100)
-	    heartbeatres = 100;	/* but never more often than once every 100
-				 * connections. */
-    }
+                    apr_brigade_length(bb, 0, &readbytes);

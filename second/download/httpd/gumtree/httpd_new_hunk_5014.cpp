@@ -1,24 +1,31 @@
-        else {
-            /*
-             * Dumb user has given us a bad url to redirect to --- fake up
-             * dying with a recursive server error...
-             */
-            recursive_error = SERVER_ERROR;
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Invalid error redirection directive: %s",
-                        custom_response);
-        }
-    }
-    ap_send_error_response(r, recursive_error);
-}
+                const char *p = ap_strchr_c(hostname_note, '.');
+                
+                match = p && strcasecmp(p, hostname + 1) == 0;
+            }
 
-static void decl_die(int status, char *phase, request_rec *r)
-{
-    if (status == DECLINED) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r,
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-        ap_die(SERVER_ERROR, r);
+            if (!match) {
+                proxy_ssl_check_peer_ok = FALSE;
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02005)
+                              "SSL Proxy: Peer certificate CN mismatch:"
+                              " Certificate CN: %s Requested hostname: %s",
+                              hostname, hostname_note);
+            }
+        }
+
+        if (cert) {
+            X509_free(cert);
+        }
+
+        if (proxy_ssl_check_peer_ok != TRUE) {
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            apr_table_setn(c->notes, "SSL_connect_rv", "err");
+            return HTTP_BAD_GATEWAY;
+        }
+
+        apr_table_setn(c->notes, "SSL_connect_rv", "ok");
+        return APR_SUCCESS;
     }
-    else
-        ap_die(status, r);
-}
+
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)

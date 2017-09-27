@@ -1,22 +1,35 @@
-    new->read_length     = r->read_length;     /* We can only read it once */
-    new->vlist_validator = r->vlist_validator;
+die_now:
+    if (shutdown_pending)
+    {
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    new->proto_output_filters  = r->proto_output_filters;
-    new->proto_input_filters   = r->proto_input_filters;
-
-    new->output_filters  = new->proto_output_filters;
-    new->input_filters   = new->proto_input_filters;
-
-    if (new->main) {
-        /* Add back the subrequest filter, which we lost when
-         * we set output_filters to include only the protocol
-         * output filters from the original request.
+        /* This shutdown is only marginally graceful. We will give the
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
          */
-        ap_add_output_filter_handle(ap_subreq_core_filter_handle,
-                                    NULL, new, new->connection);
-    }
-
-    update_r_in_filters(new->input_filters, r, new);
-    update_r_in_filters(new->output_filters, r, new);
-
-    apr_table_setn(new->subprocess_env, "REDIRECT_STATUS",
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
+        }
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %d failed", event_handles[CHILD_HANDLE]);
+        }
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+            else {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+        }
+        CloseHandle(child_exit_event);

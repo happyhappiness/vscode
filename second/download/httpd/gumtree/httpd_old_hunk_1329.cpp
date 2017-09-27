@@ -1,13 +1,19 @@
-        }
-        rc = GetQueuedCompletionStatus(ThreadDispatchIOCP, &BytesRead, &CompKey,
-                                       &pol, INFINITE);
-        if (!rc) {
-            rc = apr_get_os_error();
-            ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
-                             "Child %d: GetQueuedComplationStatus returned %d", my_pid, rc);
-            continue;
-        }
+                    return;
+                }
 
-        switch (CompKey) {
-        case IOCP_CONNECTION_ACCEPTED:
-            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool,
+                                                              last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
+
+                tmp_field = value - 1; /* last character of field-name */
+
+                *value++ = '\0'; /* NUL-terminate at colon */

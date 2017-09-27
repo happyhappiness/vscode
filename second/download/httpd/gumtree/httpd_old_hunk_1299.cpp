@@ -1,13 +1,13 @@
-                break;
-            case CMD_AJP13_END_RESPONSE:
-                e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                if (ap_pass_brigade(r->output_filters,
-                                    output_brigade) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "proxy: error processing end");
-                    output_failed = 1;
-                }
-                /* XXX: what about flush here? See mod_jk */
-                data_sent = 1;
-                request_ended = 1;
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
+
+    if (!r->assbackwards) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_REQUEST_TIME_OUT) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);

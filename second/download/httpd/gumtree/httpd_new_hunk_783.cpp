@@ -1,15 +1,23 @@
- */
-void ssl_init_ConfigureServer(server_rec *s,
-                              apr_pool_t *p,
-                              apr_pool_t *ptemp,
-                              SSLSrvConfigRec *sc)
-{
-    /* Initialize the server if SSL is enabled or optional.
-     */
-    if ((sc->enabled == SSL_ENABLED_TRUE) || (sc->enabled == SSL_ENABLED_OPTIONAL)) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Configuring server for SSL protocol");
-        ssl_init_server_ctx(s, p, ptemp, sc);
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "SSLSessionCache required");
+        ssl_die();
     }
 
-    if (sc->proxy_enabled) {
+    /* Use anonymous shm by default, fall back on name-based. */
+    rv = apr_shm_create(&(mc->pSessionCacheDataMM),
+                        mc->nSessionCacheDataSize,
+                        NULL, mc->pPool);
+
+    if (APR_STATUS_IS_ENOTIMPL(rv)) {
+        /* For a name-based segment, remove it first in case of a
+         * previous unclean shutdown. */
+        apr_shm_remove(mc->szSessionCacheDataFile, mc->pPool);
+
+        rv = apr_shm_create(&(mc->pSessionCacheDataMM),
+                            mc->nSessionCacheDataSize,
+                            mc->szSessionCacheDataFile,
+                            mc->pPool);
+    }
+
+    if (rv != APR_SUCCESS) {
+        char buf[100];

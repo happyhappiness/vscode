@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
-                              "Failed to set SNI extension for SSL Proxy "
-                              "request to '%s'", hostname_note);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);

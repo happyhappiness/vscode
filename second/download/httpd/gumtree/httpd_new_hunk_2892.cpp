@@ -1,14 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
-
-
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+                    frag = req_dat->tail;
+                    break;
+                }
+                else {
+                    /* should not be possible */
+                    /* abandon malfunctioning module */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01509)
+                                MODNAME ": bad state %d (ws)", state);
+                    return DECLINED;
+                }
+                /* NOTREACHED */
+            }
+            else if (state == rsl_type &&

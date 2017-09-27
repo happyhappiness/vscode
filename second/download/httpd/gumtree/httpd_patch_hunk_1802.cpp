@@ -1,27 +1,24 @@
-         return -1;
-     if ((a->waittime) > (b->waittime))
-         return 1;
-     return 0;
+ 
+     printf("Compiled in modules:\n");
+     for (n = 0; ap_loaded_modules[n]; ++n)
+         printf("  %s\n", ap_loaded_modules[n]->name);
  }
  
--static void output_results(void)
-+static void output_results(int sig)
+-AP_DECLARE(const char *) ap_show_mpm(void)
++AP_DECLARE(void *) ap_retained_data_get(const char *key)
  {
--    apr_interval_time_t timetakenusec;
--    float timetaken;
-+    double timetaken;
- 
--    endtime = apr_time_now();
--    timetakenusec = endtime - start;
--    timetaken = ((float)apr_time_sec(timetakenusec)) +
--        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
-+    if (sig) {
-+        lasttime = apr_time_now();  /* record final time if interrupted */
-+    }
-+    timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
- 
-     printf("\n\n");
-     printf("Server Software:        %s\n", servername);
-     printf("Server Hostname:        %s\n", hostname);
-     printf("Server Port:            %hu\n", port);
- #ifdef USE_SSL
+-    return MPM_NAME;
++    void *retained;
++
++    apr_pool_userdata_get((void *)&retained, key, ap_pglobal);
++    return retained;
++}
++
++AP_DECLARE(void *) ap_retained_data_create(const char *key, apr_size_t size)
++{
++    void *retained;
++
++    retained = apr_pcalloc(ap_pglobal, size);
++    apr_pool_userdata_set((const void *)retained, key, apr_pool_cleanup_null, ap_pglobal);
++    return retained;
+ }

@@ -1,70 +1,45 @@
- * field is still a time_t stamp.  By doing that, it is possible for a site to
- * have a "flag second" in which they stop all of their old-format servers,
- * wait one entire second, and then start all of their new-servers.  This
- * procedure will ensure that the new space of identifiers is completely unique
- * from the old space.  (Since the first four unencoded bytes always differ.)
  */
-/*
- * Sun Jun  7 05:43:49 CEST 1998 -- Alvaro
- * More comments:
- * 1) The UUencoding prodecure is now done in a general way, avoiding the problems
- * with sizes and paddings that can arise depending on the architecture. Now the
- * offsets and sizes of the elements of the unique_id_rec structure are calculated
- * in unique_id_global_init; and then used to duplicate the structure without the
- * paddings that might exist. The multithreaded server fix should be now very easy:
- * just add a new "tid" field to the unique_id_rec structure, and increase by one
- * UNIQUE_ID_REC_MAX.
- * 2) unique_id_rec.stamp has been changed from "time_t" to "unsigned int", because
- * its size is 64bits on some platforms (linux/alpha), and this caused problems with
- * htonl/ntohl. Well, this shouldn't be a problem till year 2106.
+apr_status_t h2_util_bb_readx(apr_bucket_brigade *bb, 
+                              h2_util_pass_cb *cb, void *ctx, 
+                              apr_off_t *plen, int *peos);
+
+/**
+ * Print a bucket's meta data (type and length) to the buffer.
+ * @return number of characters printed
  */
-
-static unsigned global_in_addr;
-
-static APACHE_TLS unique_id_rec cur_unique_id;
-
-/*
- * Number of elements in the structure unique_id_rec.
+apr_size_t h2_util_bucket_print(char *buffer, apr_size_t bmax, 
+                                apr_bucket *b, const char *sep);
+                                
+/**
+ * Prints the brigade bucket types and lengths into the given buffer
+ * up to bmax.
+ * @return number of characters printed
  */
-#define UNIQUE_ID_REC_MAX 4
+apr_size_t h2_util_bb_print(char *buffer, apr_size_t bmax, 
+                            const char *tag, const char *sep, 
+                            apr_bucket_brigade *bb);
+/**
+ * Logs the bucket brigade (which bucket types with what length)
+ * to the log at the given level.
+ * @param c the connection to log for
+ * @param sid the stream identifier this brigade belongs to
+ * @param level the log level (as in APLOG_*)
+ * @param tag a short message text about the context
+ * @param bb the brigade to log
+ */
+#define h2_util_bb_log(c, sid, level, tag, bb) \
+do { \
+    char buffer[4 * 1024]; \
+    const char *line = "(null)"; \
+    apr_size_t len, bmax = sizeof(buffer)/sizeof(buffer[0]); \
+    len = h2_util_bb_print(buffer, bmax, (tag), "", (bb)); \
+    ap_log_cerror(APLOG_MARK, level, 0, (c), "bb_dump(%ld-%d): %s", \
+        (c)->id, (int)(sid), (len? buffer : line)); \
+} while(0)
 
-static unsigned short unique_id_rec_offset[UNIQUE_ID_REC_MAX],
-                      unique_id_rec_size[UNIQUE_ID_REC_MAX],
-                      unique_id_rec_total_size,
-                      unique_id_rec_size_uu;
 
-static void unique_id_global_init(server_rec *s, pool *p)
-{
-#ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 256
-#endif
-    char str[MAXHOSTNAMELEN + 1];
-    struct hostent *hent;
-#ifndef NO_GETTIMEOFDAY
-    struct timeval tv;
-#endif
-
-    /*
-     * Calculate the sizes and offsets in cur_unique_id.
-     */
-    unique_id_rec_offset[0] = XtOffsetOf(unique_id_rec, stamp);
-    unique_id_rec_size[0] = sizeof(cur_unique_id.stamp);
-    unique_id_rec_offset[1] = XtOffsetOf(unique_id_rec, in_addr);
-    unique_id_rec_size[1] = sizeof(cur_unique_id.in_addr);
-    unique_id_rec_offset[2] = XtOffsetOf(unique_id_rec, pid);
-    unique_id_rec_size[2] = sizeof(cur_unique_id.pid);
-    unique_id_rec_offset[3] = XtOffsetOf(unique_id_rec, counter);
-    unique_id_rec_size[3] = sizeof(cur_unique_id.counter);
-    unique_id_rec_total_size = unique_id_rec_size[0] + unique_id_rec_size[1] +
-                               unique_id_rec_size[2] + unique_id_rec_size[3];
-
-    /*
-     * Calculate the size of the structure when uuencoded.
-     */
-    unique_id_rec_size_uu = (unique_id_rec_total_size*8+5)/6;
-
-    /*
-     * Now get the global in_addr.  Note that it is not sufficient to use one
-     * of the addresses from the main_server, since those aren't as likely to
-     * be unique as the physical address of the machine
-     */
+/**
+ * Transfer buckets from one brigade to another with a limit on the 
+ * maximum amount of bytes transfered. Does no setaside magic, lifetime
+ * of brigades must fit. 
+ * @param to   brigade to transfer buckets to

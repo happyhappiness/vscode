@@ -1,13 +1,37 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+        /*
+         * downstream server didn't send us a list of acceptable CA certs,
+         * so we send the first client cert in the list.
+         */
+        info = sk_X509_INFO_value(certs, 0);
+
+        modssl_proxy_info_log(s, info, "no acceptable CA list");
+
+        modssl_set_cert_info(info, x509, pkey);
+
+        return TRUE;
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    for (i = 0; i < sk_X509_NAME_num(ca_list); i++) {
+        ca_name = sk_X509_NAME_value(ca_list, i);
+
+        for (j = 0; j < sk_X509_INFO_num(certs); j++) {
+            info = sk_X509_INFO_value(certs, j);
+            issuer = X509_get_issuer_name(info->x509);
+
+            if (X509_NAME_cmp(issuer, ca_name) == 0) {
+                modssl_proxy_info_log(s, info, "found acceptable cert");
+
+                modssl_set_cert_info(info, x509, pkey);
+
+                return TRUE;
+            }
+        }
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT
+                 "no client certificate found!?", sc->vhost_id);
+
+    return FALSE;
+}
+

@@ -1,1 +1,0 @@
-ERROR("Cannot mmap: %s\n", rdbfilename);

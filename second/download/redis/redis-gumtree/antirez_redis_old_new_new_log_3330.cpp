@@ -1,1 +1,0 @@
-nwritten = snprintf(buf,buflen,"%s",lc.cvec[i]);

@@ -1,18 +1,13 @@
+                     * on Linux 2.0.x we seem to end up with EFAULT
+                     * occasionally, and we'd loop forever due to it.
+                     */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status,
+                                 ap_server_conf, "apr_pollset_poll: (listen)");
+                    SAFE_ACCEPT(accept_mutex_off());
+                    clean_child_exit(APEXIT_CHILDSICK);
+                }
 
-    if ((parent_pid != my_pid) || one_process)
-    {
-        /* The child process or in one_process (debug) mode
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %lu: Child process is running", my_pid);
-
-        child_main(pconf);
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %lu: Child process is exiting", my_pid);
-        return 1;
-    }
-    else
-    {
-        /* A real-honest to goodness parent */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                /* We can always use pdesc[0], but sockets at position N
+                 * could end up completely starved of attention in a very
+                 * busy server. Therefore, we round-robin across the
+                 * returned set of descriptors. While it is possible that

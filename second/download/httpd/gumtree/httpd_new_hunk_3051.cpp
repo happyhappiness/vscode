@@ -1,27 +1,30 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+                    /* if we've already started loading headers_out, then
+                     * return what we've accumulated so far, in the hopes
+                     * that they are useful; also note that we likely pre-read
+                     * the first line of the response.
+                     */
+                    if (saw_headers) {
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01098)
+                                      "Starting body due to bogus non-header "
+                                      "in headers returned by %s (%s)",
+                                      r->uri, r->method);
+                        *pread_len = len;
+                        return ;
+                    } else {
+                         ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01099)
+                                       "No HTTP headers returned by %s (%s)",
+                                       r->uri, r->method);
+                        return ;
+                    }
+                }
+            }
+            /* this is the psc->badopt == bad_ignore case */
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01100)
+                          "Ignoring bogus HTTP header returned by %s (%s)",
+                          r->uri, r->method);
+            continue;
+        }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+        *value = '\0';
+        ++value;
+        /* XXX: RFC2068 defines only SP and HT as whitespace, this test is

@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+        st->cache_file = ap_server_root_relative(st->pool, file);
+    }
+    else {
+        st->cache_file = NULL;
+    }
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01298)
+                 "LDAP cache: Setting shared memory cache file to %s bytes.",
+                 st->cache_file);
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+    return NULL;
+}
+

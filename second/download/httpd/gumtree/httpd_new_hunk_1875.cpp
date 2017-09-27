@@ -1,18 +1,24 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+                return;
+            if (in.EventType == MOUSE_EVENT
+                    && (in.Event.MouseEvent.dwEventFlags == DOUBLE_CLICK))
+                return;
+        }
+        remains = ((start + 30) - time(NULL));
+        sprintf (count, "%d...", remains);
+        if (!SetConsoleCursorPosition(hConErr, coninfo.dwCursorPosition))
+            return;
+        if (!WriteConsole(hConErr, count, (DWORD)strlen(count), &result, NULL)
+                || !result)
+            return;
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+    while ((remains > 0) && WaitForSingleObject(hConIn, 1000) != WAIT_FAILED);
+}
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+static BOOL  die_on_logoff = FALSE;
+
+static BOOL CALLBACK console_control_handler(DWORD ctrl_type)
+{
+    switch (ctrl_type)
+    {
+        case CTRL_BREAK_EVENT:
+            fprintf(stderr, "Apache server restarting...\n");

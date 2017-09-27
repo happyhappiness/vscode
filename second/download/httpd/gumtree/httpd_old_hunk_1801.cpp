@@ -1,36 +1,14 @@
-            e = APR_SUCCESS;
-        }
-        else
-#endif
-            e = apr_socket_send(c->aprsock, request + c->rwrote, &l);
+    r->handler = old_handler;
 
-        /*
-         * Bail early on the most common case
-         */
-        if (l == c->rwrite)
-            break;
-
-        if (e != APR_SUCCESS) {
-            /*
-             * Let's hope this traps EWOULDBLOCK too !
-             */
-            if (!APR_STATUS_IS_EAGAIN(e)) {
-                epipe++;
-                printf("Send request failed!\n");
-                close_connection(c);
-            }
-            return;
-        }
-        c->rwrote += l;
-        c->rwrite -= l;
-    } while (1);
-
-    totalposted += c->rwrite;
-    c->state = STATE_READ;
-    c->endwrite = apr_time_now();
-    {
-        apr_pollfd_t new_pollfd;
-        new_pollfd.desc_type = APR_POLL_SOCKET;
-        new_pollfd.reqevents = APR_POLLIN;
-        new_pollfd.desc.s = c->aprsock;
-        new_pollfd.client_data = c;
+    if (result == DECLINED && r->handler && r->filename) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
+    if ((result != OK) && (result != DONE) && (result != DECLINED)
+        && (result != AP_FILTER_ERROR)
+        && !ap_is_HTTP_VALID_RESPONSE(result)) {
+        /* If a module is deliberately returning something else
+         * (request_rec in non-HTTP or proprietary extension?)
+         * let it set a note to allow it explicitly.
+         * Otherwise, a return code that is neither reserved nor HTTP
+         * is a bug, as in PR#31759.

@@ -1,1 +1,0 @@
-snprintf(seq,64,"\x1b[0K");

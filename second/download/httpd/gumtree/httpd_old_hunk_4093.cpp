@@ -1,61 +1,28 @@
-
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
-
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs
-	(
-	    r,
-	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
-	    title,
-	    "</TITLE>\n </HEAD>\n <BODY>\n",
-	    NULL
-	);
-}
-
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to)
-	to = "";
-    if (!path)
-	path = "";
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    else if (to)
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    else
-	p->apply_to = NULL;
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH)
-	if (!strcmp(to, "**DIRECTORY**"))
-	    to = "^^DIRECTORY^^";
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
+    else if (!strcasecmp(menu, "semiformatted")) {
+        ap_rputs("<br />\n", r);
     }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
-    return NULL;
+    else if (!strcasecmp(menu, "unformatted")) {
+        ap_rputs("\n", r);
+    }
+    return;
 }
 
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+static void menu_comment(request_rec *r, char *menu, char *comment)
 {
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rputs("\n", r);         /* print just a newline if 'formatted' */
+    }
+    else if (!strcasecmp(menu, "semiformatted") && *comment) {
+        ap_rvputs(r, comment, "\n", NULL);
+    }
+    else if (!strcasecmp(menu, "unformatted") && *comment) {
+        ap_rvputs(r, comment, "\n", NULL);
+    }
+    return;                     /* comments are ignored in the
+                                   'formatted' form */
+}
+
+static void menu_default(request_rec *r, const char *menu, const char *href, const char *text)
+{
+    char *ehref, *etext;
+    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {

@@ -1,14 +1,16 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+    NGH2_SET_CALLBACK(*pcb, send_data, on_send_data_cb);
+    NGH2_SET_CALLBACK(*pcb, on_frame_send, on_frame_send_cb);
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
-    }
+    return APR_SUCCESS;
+}
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+static apr_status_t session_pool_cleanup(void *data)
+{
+    h2_session *session = data;
+    
+    /* keep us from destroying the pool, since that is already ongoing. */
+    session->pool = NULL;
+    h2_session_destroy(session);
+    return APR_SUCCESS;
+}
+

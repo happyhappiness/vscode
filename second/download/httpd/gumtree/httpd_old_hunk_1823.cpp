@@ -1,49 +1,41 @@
-        }
-    }
+#endif
 
-    backend->is_ssl = 0;
-    backend->close_on_recycle = 0;
+#ifdef NEED_HASHBANG_EMUL
+    printf(" -D NEED_HASHBANG_EMUL\n");
+#endif
 
-    /* Step One: Determine Who To Connect To */
-    status = ap_proxy_determine_connection(p, r, conf, worker, backend,
-                                           uri, &url, proxyname, proxyport,
-                                           server_portstr,
-                                           sizeof(server_portstr));
+#ifdef SHARED_CORE
+    printf(" -D SHARED_CORE\n");
+#endif
 
-    if (status != OK)
-        goto cleanup;
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
+#endif
 
-    /* Step Two: Make the Connection */
-    if (ap_proxy_connect_backend(scheme, backend, worker, r->server)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: AJP: failed to make connection to backend: %s",
-                     backend->hostname);
-        status = HTTP_SERVICE_UNAVAILABLE;
-        goto cleanup;
-    }
+#ifdef SUEXEC_BIN
+    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
+#endif
 
-    /* Handle CPING/CPONG */
-    if (worker->ping_timeout_set) {
-        status = ajp_handle_cping_cpong(backend->sock, r,
-                                        worker->ping_timeout);
-        if (status != APR_SUCCESS) {
-            backend->close++;
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: AJP: cping/cpong failed to %pI (%s)",
-                         worker->cp->addr,
-                         worker->hostname);
-            status = HTTP_SERVICE_UNAVAILABLE;
-            goto cleanup;
-        }
-    }
-    /* Step Three: Process the Request */
-    status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, url,
-                                  server_portstr);
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
+#endif
 
-cleanup:
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
-}
+#ifdef DEFAULT_PIDLOG
+    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
+#endif
 
-static void ap_proxy_http_register_hook(apr_pool_t *p)
+#ifdef DEFAULT_SCOREBOARD
+    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
+#endif
+
+#ifdef AP_TYPES_CONFIG_FILE
+    printf(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n");

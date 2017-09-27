@@ -1,12 +1,12 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
     }
-    service_set_status(SERVICE_STOPPED);
+}
 
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+/*
+ * Open a new log file, and if successful
+ * also close the old one.
+ *
+ * The timestamp for the calculation of the file
+ * name of the new log file will be the actual millisecond

@@ -1,0 +1,159 @@
+ /*****************************************************************
+  * Connection structures and accounting...
+  */
+ 
+ static int child_fatal;
+ 
+-/* volatile because they're updated from a signal handler */
+-static int volatile shutdown_pending;
+-static int volatile restart_pending;
+-
+-/*
+- * ap_start_shutdown() and ap_start_restart(), below, are a first stab at
+- * functions to initiate shutdown or restart without relying on signals.
+- * Previously this was initiated in sig_term() and restart() signal handlers,
+- * but we want to be able to start a shutdown/restart from other sources --
+- * e.g. on Win32, from the service manager. Now the service manager can
+- * call ap_start_shutdown() or ap_start_restart() as appropriate.  Note that
+- * these functions can also be called by the child processes, since global
+- * variables are no longer used to pass on the required action to the parent.
+- *
+- * These should only be called from the parent process itself, since the
+- * parent process will use the shutdown_pending and restart_pending variables
+- * to determine whether to shutdown or restart. The child process should
+- * call signal_parent() directly to tell the parent to die -- this will
+- * cause neither of those variable to be set, which the parent will
+- * assume means something serious is wrong (which it will be, for the
+- * child to force an exit) and so do an exit anyway.
+- */
+-
+-static void ap_start_shutdown(int graceful)
+-{
+-    mpm_state = AP_MPMQ_STOPPING;
+-    if (shutdown_pending == 1) {
+-        /* Um, is this _probably_ not an error, if the user has
+-         * tried to do a shutdown twice quickly, so we won't
+-         * worry about reporting it.
+-         */
+-        return;
+-    }
+-    shutdown_pending = 1;
+-    retained->is_graceful = graceful;
+-}
+-
+-/* do a graceful restart if graceful == 1 */
+-static void ap_start_restart(int graceful)
+-{
+-    mpm_state = AP_MPMQ_STOPPING;
+-    if (restart_pending == 1) {
+-        /* Probably not an error - don't bother reporting it */
+-        return;
+-    }
+-    restart_pending = 1;
+-    retained->is_graceful = graceful;
+-}
+-
+-static void sig_term(int sig)
+-{
+-    ap_start_shutdown(sig == AP_SIG_GRACEFUL_STOP);
+-}
+-
+-static void restart(int sig)
+-{
+-    ap_start_restart(sig == AP_SIG_GRACEFUL);
+-}
+-
+-static void set_signals(void)
+-{
+-#ifndef NO_USE_SIGACTION
+-    struct sigaction sa;
+-#endif
+-
+-    if (!one_process) {
+-        ap_fatal_signal_setup(ap_server_conf, pconf);
+-    }
+-
+-#ifndef NO_USE_SIGACTION
+-    sigemptyset(&sa.sa_mask);
+-    sa.sa_flags = 0;
+-
+-    sa.sa_handler = sig_term;
+-    if (sigaction(SIGTERM, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00264)
+-                     "sigaction(SIGTERM)");
+-#ifdef AP_SIG_GRACEFUL_STOP
+-    if (sigaction(AP_SIG_GRACEFUL_STOP, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00265)
+-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+-#endif
+-#ifdef SIGINT
+-    if (sigaction(SIGINT, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00266)
+-                     "sigaction(SIGINT)");
+-#endif
+-#ifdef SIGXCPU
+-    sa.sa_handler = SIG_DFL;
+-    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00267)
+-                     "sigaction(SIGXCPU)");
+-#endif
+-#ifdef SIGXFSZ
+-    /* For systems following the LFS standard, ignoring SIGXFSZ allows
+-     * a write() beyond the 2GB limit to fail gracefully with E2BIG
+-     * rather than terminate the process. */
+-    sa.sa_handler = SIG_IGN;
+-    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00268)
+-                     "sigaction(SIGXFSZ)");
+-#endif
+-#ifdef SIGPIPE
+-    sa.sa_handler = SIG_IGN;
+-    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00269)
+-                     "sigaction(SIGPIPE)");
+-#endif
+-
+-    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy
+-     * processing one */
+-    sigaddset(&sa.sa_mask, SIGHUP);
+-    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+-    sa.sa_handler = restart;
+-    if (sigaction(SIGHUP, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00270)
+-                     "sigaction(SIGHUP)");
+-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00271)
+-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+-#else
+-    if (!one_process) {
+-#ifdef SIGXCPU
+-        apr_signal(SIGXCPU, SIG_DFL);
+-#endif /* SIGXCPU */
+-#ifdef SIGXFSZ
+-        apr_signal(SIGXFSZ, SIG_IGN);
+-#endif /* SIGXFSZ */
+-    }
+-
+-    apr_signal(SIGTERM, sig_term);
+-#ifdef SIGHUP
+-    apr_signal(SIGHUP, restart);
+-#endif /* SIGHUP */
+-#ifdef AP_SIG_GRACEFUL
+-    apr_signal(AP_SIG_GRACEFUL, restart);
+-#endif /* AP_SIG_GRACEFUL */
+-#ifdef AP_SIG_GRACEFUL_STOP
+-    apr_signal(AP_SIG_GRACEFUL_STOP, sig_term);
+-#endif /* AP_SIG_GRACEFUL_STOP */
+-#ifdef SIGPIPE
+-    apr_signal(SIGPIPE, SIG_IGN);
+-#endif /* SIGPIPE */
+-
+-#endif
+-}
+-
+ /*****************************************************************
+  * Here follows a long bunch of generic server bookkeeping stuff...
+  */
+ 
+ /*****************************************************************
+  * Child process main loop.

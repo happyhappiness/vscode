@@ -1,14 +1,23 @@
-                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
-                                   ap_escape_html(r->pool,
-                                                  ws_record->client),
-                                   ap_escape_html(r->pool,
-                                                  ws_record->vhost),
-                                   ap_escape_html(r->pool,
-                                                  ap_escape_logitem(r->pool, 
-                                                                    ws_record->request)));
-                } /* no_table_report */
-            } /* for (j...) */
-        } /* for (i...) */
+                    return;
+                }
 
-        if (!no_table_report) {
-            ap_rputs("</table>\n \
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_psprintf(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                                "<pre>\n%.*s</pre>\n",
+                                                (int)LOG_NAME_MAX_LEN,
+                                                ap_escape_html(r->pool,
+                                                               last_field)));
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);
+                    return;
+                }
+                
+                tmp_field = value - 1; /* last character of field-name */
+
+                *value++ = '\0'; /* NUL-terminate at colon */

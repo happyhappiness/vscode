@@ -1,31 +1,25 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+    unsigned int len;
+    apr_status_t rv;
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
+    /* Serialise the session. */
+    len = i2d_SSL_SESSION(sess, NULL);
+    if (len > sizeof encoded) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "session is too big (%u bytes)", len);
+        return FALSE;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    ptr = encoded;
+    len = i2d_SSL_SESSION(sess, &ptr);
+
+    if (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) {
+        ssl_mutex_on(s);
     }
-    ap_rputs("</BODY></HTML>\n", r);
+    
+    rv = mc->sesscache->store(mc->sesscache_context, s, id, idlen, 
+                              expiry, encoded, len, p);
 
-    ap_kill_timeout(r);
+    if (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) {
+        ssl_mutex_off(s);
+    }
+

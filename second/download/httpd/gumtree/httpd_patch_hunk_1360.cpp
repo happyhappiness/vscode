@@ -1,88 +1,15 @@
-         else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
-                  || (strcmp(if_range, match) != 0)) {
-             return 0;
-         }
-     }
  
--    if (!ap_strchr_c(range, ',')) {
--        /* a single range */
--        num_ranges = 1;
--    }
--    else {
--        /* a multiple range */
--        num_ranges = 2;
-+    range += 6;
-+    it = range;
-+    while (*it) {
-+        if (*it++ == ',') {
-+            ranges++;
-+        }
-+    }
-+    it = range;
-+    *indexes = apr_array_make(r->pool, ranges, sizeof(indexes_t));
-+    while ((cur = ap_getword(r->pool, &range, ','))) {
-+        char *dash;
-+        char *errp;
-+        apr_off_t number, start, end;
-+
-+        if (!(dash = strchr(cur, '-'))) {
-+            break;
-+        }
-+
-+        if (dash == range) {
-+            /* In the form "-5" */
-+            if (apr_strtoff(&number, dash+1, &errp, 10) || *errp) {
-+                break;
-+            }
-+            start = clength - number;
-+            end = clength - 1;
-+        }
-+        else {
-+            *dash++ = '\0';
-+            if (apr_strtoff(&number, cur, &errp, 10) || *errp) {
-+                break;
-+            }
-+            start = number;
-+            if (*dash) {
-+                if (apr_strtoff(&number, dash, &errp, 10) || *errp) {
-+                    break;
-+                }
-+                end = number;
-+            }
-+            else {                  /* "5-" */
-+                end = clength - 1;
-+            }
-+        }
-+
-+        if (start < 0) {
-+            start = 0;
-+        }
-+        if (end >= clength) {
-+            end = clength - 1;
-+        }
-+
-+        if (start > end) {
-+            /* ignore? count? */
-+            break;
-+        }
-+
-+        idx = (indexes_t *)apr_array_push(*indexes);
-+        idx->start = start;
-+        idx->end = end;
-+        sum_lengths += end - start + 1;
-+        /* new set again */
-+        num_ranges++;
-+    }
-+
-+    if (sum_lengths >= clength) {
-+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-+                      "Sum of ranges not smaller than file, ignoring.");
-+        return 0;
-     }
- 
-     r->status = HTTP_PARTIAL_CONTENT;
--    r->range = range + 6;
-+    r->range = it;
- 
-     return num_ranges;
- }
+     if (!short_report) {
+         ap_rputs(DOCTYPE_HTML_3_2
+                  "<html><head>\n<title>Apache Status</title>\n</head><body>\n",
+                  r);
+         ap_rputs("<h1>Apache Server Status for ", r);
+-        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
++        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
++                  "</h1>\n\n", NULL);
+         ap_rvputs(r, "<dl><dt>Server Version: ",
+                   ap_get_server_description(), "</dt>\n", NULL);
+         ap_rvputs(r, "<dt>Server Built: ",
+                   ap_get_server_built(), "\n</dt></dl><hr /><dl>\n", NULL);
+         ap_rvputs(r, "<dt>Current Time: ",
+                   ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),

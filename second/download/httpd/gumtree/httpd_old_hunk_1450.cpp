@@ -1,18 +1,15 @@
-    int hash;
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager.");
+            return (rv);
+        }
 
-#if APR_POOL_DEBUG
-    {
-	apr_pool_t *pool;
-	pool = apr_pool_find(key);
-	if ((pool != key) && (!apr_pool_is_ancestor(pool, t->a.pool))) {
-	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
-	    abort();
-	}
-	pool = apr_pool_find(val);
-	if ((pool != val) && (!apr_pool_is_ancestor(pool, t->a.pool))) {
-	    fprintf(stderr, "apr_table_mergen: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name, DELETE);
 
+        if (!schService) {
+           rv = apr_get_os_error();
+           ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                        "%s: OpenService failed", mpm_display_name);
+           return (rv);
+        }

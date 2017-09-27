@@ -1,1 +1,0 @@
-printf("\nPerform a direct lookup:\n");

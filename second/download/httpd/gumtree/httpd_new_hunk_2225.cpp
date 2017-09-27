@@ -1,13 +1,22 @@
+        else if (c->bread != doclen) {
+            bad++;
+            err_length++;
+        }
+        /* save out time */
+        if (done < requests) {
+            struct data *s = &stats[done++];
+            c->done      = lasttime = apr_time_now();
+            s->starttime = c->start;
+            s->ctime     = ap_max(0, c->connect - c->start);
+            s->time      = ap_max(0, c->done - c->start);
+            s->waittime  = ap_max(0, c->beginread - c->endwrite);
+            if (heartbeatres && !(done % heartbeatres)) {
+                fprintf(stderr, "Completed %d requests\n", done);
+                fflush(stderr);
+            }
+        }
+    }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    {
+        apr_pollfd_t remove_pollfd;
+        remove_pollfd.desc_type = APR_POLL_SOCKET;

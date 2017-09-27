@@ -1,24 +1,16 @@
-  */
+              */
+             rv = apr_file_write_full(tempsock, data, len, NULL);
  
- #include "apr_arch_threadproc.h"
- 
- APR_DECLARE(apr_status_t) apr_proc_detach(int daemonize)
- {
--    int x;
--
-     if (chdir("/") == -1) {
-         return errno;
-     }
- 
- #if !defined(MPE) && !defined(OS2) && !defined(TPF) && !defined(BEOS)
-     /* Don't detach for MPE because child processes can't survive the death of
-      * the parent. */
-     if (daemonize) {
-+        int x;
+             if (rv != APR_SUCCESS) {
+                 /* silly script stopped reading, soak up remaining message */
+                 child_stopped_reading = 1;
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, 
++                              "Error writing request body to script %s", 
++                              r->filename);
 +
-         if ((x = fork()) > 0) {
-             exit(0);
+             }
          }
-         else if (x == -1) {
-             perror("fork");
-             fprintf(stderr, "unable to fork new process\n");
+         apr_brigade_cleanup(bb);
+     }
+     while (!seen_eos);
+ 

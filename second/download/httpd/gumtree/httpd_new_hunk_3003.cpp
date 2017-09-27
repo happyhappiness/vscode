@@ -1,28 +1,14 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+        }
+
+        envlen += vallen;
+
+	/* The cast of bodylen is safe since FCGI_MAX_ENV_SIZE is for sure an int */
+        if (envlen > FCGI_MAX_ENV_SIZE) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01063)
+                          "truncating environment to %d bytes and %d elements",
+                          (int)bodylen, i);
+            break;
+        }
+
+        bodylen = envlen;
     }
-
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);

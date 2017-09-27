@@ -1,14 +1,14 @@
-             file_cache_errorcleanup(dobj, r);
-             return APR_EGENERAL;
-         }
-         if (dobj->file_size < conf->minfs) {
-             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                          "cache_disk: URL %s failed the size check "
--                         "(%" APR_OFF_T_FMT "<%" APR_SIZE_T_FMT ")",
-+                         "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
-                          h->cache_obj->key, dobj->file_size, conf->minfs);
-             /* Remove the intermediate cache file and return non-APR_SUCCESS */
-             file_cache_errorcleanup(dobj, r);
-             return APR_EGENERAL;
-         }
+          * translated properly: mod_autoindex output, mod_status output,
+          * mod_info output, hard-coded error documents, etc.
+          */
+             strcmp(mime_type, DIR_MAGIC_TYPE) == 0 ||
+ #endif
+             strncasecmp(mime_type, "message/", 8) == 0 || 
+-            dc->force_xlate == FX_FORCE) {
++            dc->force_xlate == FX_FORCE)) {
  
+             rv = apr_xlate_open(&ctx->xlate,
+                                 dc->charset_default, dc->charset_source, f->r->pool);
+             if (rv != APR_SUCCESS) {
+                 ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                               "can't open translation %s->%s",

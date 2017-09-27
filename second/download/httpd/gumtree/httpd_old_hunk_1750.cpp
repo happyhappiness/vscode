@@ -1,41 +1,45 @@
-
-    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                &authn_dbd_module);
-    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s in database", user);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (conf->realm == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserRealmQuery has been specified.");
-        return AUTH_GENERAL_ERROR;
-    }
-    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserRealmQuery, key '%s'.", conf->realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                              0, user, realm, NULL) != 0) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s:%s in database", user, realm);
-        return AUTH_GENERAL_ERROR;
-    }
-    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-         rv != -1;
-         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-        if (rv != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Error looking up %s in database", user);
-            return AUTH_GENERAL_ERROR;
+            /*
+             * This is in addition to what was present earlier. It is
+             * borrowed from openssl_state_machine.c [mod_tls].
+             * TBD.
+             */
+            outctx->rc = APR_EAGAIN;
+            return SSL_ERROR_WANT_READ;
         }
-        if (dbd_hash == NULL) {
-            dbd_hash = apr_dbd_get_entry(dbd->driver, row, 0);
+        else if (ERR_GET_LIB(ERR_peek_error()) == ERR_LIB_SSL &&
+                 ERR_GET_REASON(ERR_peek_error()) == SSL_R_HTTP_REQUEST) {
+            /*
+             * The case where OpenSSL has recognized a HTTP request:
+             * This means the client speaks plain HTTP on our HTTPS port.
+             * ssl_io_filter_error will disable the ssl filters when it
+             * sees this status code.
+             */
+            return HTTP_BAD_REQUEST;
+        }
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
 
-#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-            /* add the rest of the columns to the environment */
-            int i = 1;
-            const char *name;
-            for (name = apr_dbd_get_name(dbd->driver, res, i);
-                 name != NULL;
+        }
+        if (inctx->rc == APR_SUCCESS) {
+            inctx->rc = APR_EGENERAL;
+        }
+
+        return ssl_filter_io_shutdown(filter_ctx, c, 1);
+    }
+    sc = mySrvConfig(sslconn->server);
+
+    /*
+     * Check for failed client authentication
+     */

@@ -1,33 +1,47 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+                                 r->proxyreq);
+        search = r->args;
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+    if (path == NULL)
+        return HTTP_BAD_REQUEST;
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
+    r->filename = apr_pstrcat(r->pool, "proxy:", BALANCER_PREFIX, host,
+            "/", path, (search) ? "?" : "", (search) ? search : "", NULL);
+
+    r->path_info = apr_pstrcat(r->pool, "/", path, NULL);
+
+    return OK;
+}
+
+static void init_balancer_members(apr_pool_t *p, server_rec *s,
+                                 proxy_balancer *balancer)
+{
+    int i;
+    proxy_worker **workers;
+
+    workers = (proxy_worker **)balancer->workers->elts;
+
+    for (i = 0; i < balancer->workers->nelts; i++) {
+        int worker_is_initialized;
+        proxy_worker *worker = *workers;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
+                     "Looking at %s -> %s initialized?", balancer->s->name, worker->s->name);
+        worker_is_initialized = PROXY_WORKER_IS_INITIALIZED(worker);
+        if (!worker_is_initialized) {
+            ap_proxy_initialize_worker(worker, s, p);
+        }
+        ++workers;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    /* Set default number of attempts to the number of
+     * workers.
+     */
+    if (!balancer->s->max_attempts_set && balancer->workers->nelts > 1) {
+        balancer->s->max_attempts = balancer->workers->nelts - 1;
+        balancer->s->max_attempts_set = 1;
     }
-    ap_rputs("</BODY></HTML>\n", r);
+}
 
-    ap_kill_timeout(r);
+/* Retrieve the parameter with the given name
+ * Something like 'JSESSIONID=12345...N'
+ */
+static char *get_path_param(apr_pool_t *pool, char *url,

@@ -1,52 +1,32 @@
+ * shared object file into the adress space of the server process.
  */
 
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
+static const char *load_file(cmd_parms *cmd, void *dummy, const char *filename)
 {
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
+    apr_dso_handle_t *handle;
+    const char *file;
 
-    r->read_body = read_policy;
-    r->read_chunked = 0;
-    r->remaining = 0;
+    file = ap_server_root_relative(cmd->pool, filename);
 
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
+    if (!file) {
+        return apr_pstrcat(cmd->pool, "Invalid LoadFile path ",
+                           filename, NULL);
     }
 
-    if ((r->read_body == REQUEST_NO_BODY) &&
-        (r->read_chunked || (r->remaining > 0))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "%s with body is not allowed for %s", r->method, r->uri);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
+    if (apr_dso_load(&handle, file, cmd->pool) != APR_SUCCESS) {
+        char my_error[256];
+
+        return apr_pstrcat(cmd->pool, "Cannot load ", filename,
+                          " into server: ",
+                          apr_dso_error(handle, my_error, sizeof(my_error)),
+                          NULL);
     }
 
-    return OK;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(01576)
+                 "loaded file %s", filename);
+
+    return NULL;
 }
 
-API_EXPORT(int) ap_should_client_block(request_rec *r)
+static module *ap_find_loaded_module_symbol(server_rec *s, const char *modname)
 {
-    /* First check if we have already read the request body */

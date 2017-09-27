@@ -1,1 +1,1 @@
-(isprint(i);
+printf("\n");

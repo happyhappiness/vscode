@@ -1,16 +1,20 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
+{
+    int my_child_num = ts->child_num_arg;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    proc_info *my_info;
+    apr_status_t rv;
+
+    my_info = (proc_info *) ap_malloc(sizeof(proc_info));
+    my_info->pid = my_child_num;
+    my_info->tid = -1;          /* listener thread doesn't have a thread slot */
+    my_info->sd = 0;
+    rv = apr_thread_create(&ts->listener, thread_attr, listener_thread,
+                           my_info, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00474)
+                     "apr_thread_create: unable to create listener thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+    apr_os_thread_get(&listener_os_thread, ts->listener);
+}

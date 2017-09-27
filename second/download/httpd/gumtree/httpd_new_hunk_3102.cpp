@@ -1,21 +1,35 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+    apr_int64_t expiry = (apr_int64_t) apr_time_now();
+
+    session_dbd_dir_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                      &session_dbd_module);
+
+    if (conf->selectlabel == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01853)
+                      "no SessionDBDselectlabel has been specified");
+        return APR_EGENERAL;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    rv = dbd_init(r, conf->selectlabel, &dbd, &statement);
+    if (rv) {
+        return rv;
+    }
+    rv = apr_dbd_pvbselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                          0, key, &expiry, NULL);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01854)
+                      "query execution error saving session '%s' "
+                      "in database using query '%s': %s", key, conf->selectlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+        return APR_EGENERAL;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01855)
+                          "error retrieving results while saving '%s' "
+                          "in database using query '%s': %s", key, conf->selectlabel,
+                           apr_dbd_error(dbd->driver, dbd->handle, rv));
+            return APR_EGENERAL;
+        }
+        if (*val == NULL) {

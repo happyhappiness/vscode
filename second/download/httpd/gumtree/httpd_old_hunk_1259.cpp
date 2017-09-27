@@ -1,12 +1,13 @@
-#endif
+            }
+        }
+    }
+    if (!interpreter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" first line", *cmd);
+        return APR_EBADF;
     }
 
-    return rv;
-}
-
-#if APR_HAS_THREADS
-static apr_status_t dbd_setup_lock(server_rec *s, dbd_group_t *group)
-{
-    apr_status_t rv = APR_SUCCESS, rv2;
-
-    /* several threads could be here at the same time, all trying to
+    *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                       args)->elts);
+    *cmd = (*argv)[0];

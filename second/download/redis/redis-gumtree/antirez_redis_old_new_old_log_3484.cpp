@@ -1,1 +1,0 @@
-addReplyError(c,"invalid bulk write count");

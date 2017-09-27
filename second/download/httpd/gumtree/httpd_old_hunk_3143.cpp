@@ -1,25 +1,96 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
-    }
-    return;
+    return -1;
 }
 
-static void rewritelock_open(server_rec *s, pool *p)
+static int bio_filter_out_write(BIO *bio, const char *in, int inl)
 {
-    rewrite_server_conf *conf;
+    bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)(bio->ptr);
+    
+    /* Abort early if the client has initiated a renegotiation. */
+    if (outctx->filter_ctx->config->reneg_state == RENEG_ABORT) {
+        outctx->rc = APR_ECONNABORTED;
+        return -1;
+    }
+    
+    /* when handshaking we'll have a small number of bytes.
+     * max size SSL will pass us here is about 16k.
+     * (16413 bytes to be exact)
+     */
+    BIO_clear_retry_flags(bio);
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    if (!outctx->length && (inl + outctx->blen < sizeof(outctx->buffer)) &&
+        !outctx->filter_ctx->nobuffer) {
+        /* the first two SSL_writes (of 1024 and 261 bytes)
+         * need to be in the same packet (vec[0].iov_base)
+         */
+        /* XXX: could use apr_brigade_write() to make code look cleaner
+         * but this way we avoid the malloc(APR_BUCKET_BUFF_SIZE)
+         * and free() of it later
+         */
+        memcpy(&outctx->buffer[outctx->blen], in, inl);
+        outctx->blen += inl;
+    }
+    else {
+        /* pass along the encrypted data
+         * need to flush since we're using SSL's malloc-ed buffer
+         * which will be overwritten once we leave here
+         */
+        apr_bucket *bucket = apr_bucket_transient_create(in, inl,
+                                             outctx->bb->bucket_alloc);
 
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
+        outctx->length += inl;
+        APR_BRIGADE_INSERT_TAIL(outctx->bb, bucket);
 
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+        if (bio_filter_out_flush(bio) < 0) {
+            return -1;
+        }
+    }
+
+    return inl;
+}
+
+static long bio_filter_out_ctrl(BIO *bio, int cmd, long num, void *ptr)
+{
+    long ret = 1;
+    char **pptr;
+
+    bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)(bio->ptr);
+
+    switch (cmd) {
+      case BIO_CTRL_RESET:
+        outctx->blen = outctx->length = 0;
+        break;
+      case BIO_CTRL_EOF:
+        ret = (long)((outctx->blen + outctx->length) == 0);
+        break;
+      case BIO_C_SET_BUF_MEM_EOF_RETURN:
+        outctx->blen = outctx->length = (apr_size_t)num;
+        break;
+      case BIO_CTRL_INFO:
+        ret = (long)(outctx->blen + outctx->length);
+        if (ptr) {
+            pptr = (char **)ptr;
+            *pptr = (char *)&(outctx->buffer[0]);
+        }
+        break;
+      case BIO_CTRL_GET_CLOSE:
+        ret = (long)bio->shutdown;
+        break;
+      case BIO_CTRL_SET_CLOSE:
+        bio->shutdown = (int)num;
+        break;
+      case BIO_CTRL_PENDING:
+        /* _PENDING is interpreted as "pending to read" - since this
+         * is a *write* buffer, return zero. */
+        ret = 0L;
+        break;
+      case BIO_CTRL_WPENDING:
+        /* _WPENDING is interpreted as "pending to write" - return the
+         * number of bytes in ->bb plus buffer. */
+        ret = (long)(outctx->blen + outctx->length);
+        break;
+      case BIO_CTRL_FLUSH:
+        ret = bio_filter_out_flush(bio);
+        break;
+      case BIO_CTRL_DUP:
+        ret = 1;
+        break;

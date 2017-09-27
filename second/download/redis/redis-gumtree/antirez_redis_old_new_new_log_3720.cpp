@@ -1,1 +1,0 @@
-addReplyError(c,(char*)msg);

@@ -1,31 +1,52 @@
-         conn->addr = worker->cp->addr;
-         if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-                          "proxy: unlock");
-         }
-     }
--    else
-+    else {
-         conn->addr = worker->cp->addr;
+     return NULL;
+ }
+ 
+ static proxy_worker *find_session_route(proxy_balancer *balancer,
+                                         request_rec *r,
+                                         char **route,
+-                                        char **sticky_used,
++                                        const char **sticky_used,
+                                         char **url)
+ {
+     proxy_worker *worker = NULL;
+-    char *sticky, *sticky_path, *path;
+ 
+     if (!balancer->sticky)
+         return NULL;
+-    sticky = sticky_path = apr_pstrdup(r->pool, balancer->sticky);
+-    if ((path = strchr(sticky, '|'))) {
+-        *path++ = '\0';
+-         sticky_path = path;
+-    }
+-    
+     /* Try to find the sticky route inside url */
+-    *sticky_used = sticky_path;
+-    *route = get_path_param(r->pool, *url, sticky_path, balancer->scolonsep);
+-    if (!*route) {
+-        *route = get_cookie_param(r, sticky);
+-        *sticky_used = sticky;
++    *route = get_path_param(r->pool, *url, balancer->sticky_path, balancer->scolonsep);
++    if (*route) {
++        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++                     "proxy: BALANCER: Found value %s for "
++                     "stickysession %s", *route, balancer->sticky_path);
++        *sticky_used =  balancer->sticky_path;
 +    }
- 
-     if (err != APR_SUCCESS) {
-         return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                              apr_pstrcat(p, "DNS lookup failure for: ",
-                                          conn->hostname, NULL));
-     }
- 
-     /* Get the server port for the Via headers */
-     {
-         server_port = ap_get_server_port(r);
-         if (ap_is_default_port(server_port, r)) {
-             strcpy(server_portstr,"");
--        } else {
++    else {
++        *route = get_cookie_param(r, balancer->sticky);
++        if (*route) {
++            *sticky_used =  balancer->sticky;
++            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++                         "proxy: BALANCER: Found value %s for "
++                         "stickysession %s", *route, balancer->sticky);
 +        }
-+        else {
-             apr_snprintf(server_portstr, server_portstr_size, ":%d",
-                          server_port);
-         }
      }
-     /* check if ProxyBlock directive on this host */
-     if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
+-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+-                            "proxy: BALANCER: Found value %s for "
+-                            "stickysession %s", *route, balancer->sticky);
+     /*
+      * If we found a value for sticksession, find the first '.' within.
+      * Everything after '.' (if present) is our route.
+      */
+     if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
+         (*route)++;

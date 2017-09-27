@@ -1,21 +1,37 @@
+     * We need a pool to allocate our mutex.  Since we can't clear
+     * allocated memory from a pool, create a subpool that we can blow
+     * away in the destruction callback. 
+     */
+    rv = apr_pool_create(&p, dynlockpool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, dynlockpool,
+                       "Failed to create subpool for dynamic lock");
+        return NULL;
     }
 
-#if !defined(MPE) && !defined(OS2) && !defined(TPF) && !defined(BEOS)
-    /* Don't detach for MPE because child processes can't survive the death of
-     * the parent. */
-    if (daemonize) {
-        if ((x = fork()) > 0) {
-            exit(0);
-        }
-        else if (x == -1) {
-            perror("fork");
-            fprintf(stderr, "unable to fork new process\n");
-            exit(1);  /* we can't do anything here, so just exit. */
-        }
-        /* RAISE_SIGSTOP(DETACH); */
+    ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, p,
+                  "Creating dynamic lock");
+    
+    value = (struct CRYPTO_dynlock_value *)apr_palloc(p, 
+                                                      sizeof(struct CRYPTO_dynlock_value));
+    if (!value) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, 0, p,
+                      "Failed to allocate dynamic lock structure");
+        return NULL;
     }
-#endif
-
-#ifdef HAVE_SETSID
-    /* A setsid() failure is not fatal if we didn't just fork().
-     * The calling process may be the process group leader, in
+    
+    value->pool = p;
+    /* Keep our own copy of the place from which we were created,
+       using our own pool. */
+    value->file = apr_pstrdup(p, file);
+    value->line = line;
+    rv = apr_thread_mutex_create(&(value->mutex), APR_THREAD_MUTEX_DEFAULT, 
+                                p);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, p,
+                      "Failed to create thread mutex for dynamic lock");
+        apr_pool_destroy(p);
+        return NULL;
+    }
+    return value;
+}

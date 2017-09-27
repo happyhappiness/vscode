@@ -1,19 +1,121 @@
-        requests_this_child = ap_max_requests_per_child;
-    }
-    else {
-        /* coding a value of zero means infinity */
-        requests_this_child = INT_MAX;
-    }
+#include "internal.h"
 
-    /* Setup worker threads */
+#define DFTABLES          /* maketables.c notices this */
+#include "maketables.c"
 
-    /* clear the storage; we may not create all our threads immediately,
-     * and we want a 0 entry to indicate a thread which was not created
-     */
-    threads = (apr_thread_t **)calloc(1,
-                                sizeof(apr_thread_t *) * ap_threads_per_child);
-    if (threads == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
-                     "malloc: out of memory");
-        clean_child_exit(APEXIT_CHILDFATAL);
+
+int main(int argc, char **argv)
+{
+int i;
+FILE *f;
+const unsigned char *tables = pcre_maketables();
+
+if (argc != 2)
+  {
+  fprintf(stderr, "dftables: one filename argument is required\n");
+  return 1;
+  }
+
+f = fopen(argv[1], "w");
+if (f == NULL)
+  {
+  fprintf(stderr, "dftables: failed to open %s for writing\n", argv[1]);
+  return 1;
+  }
+
+/* There are two fprintf() calls here, because gcc in pedantic mode complains
+about the very long string otherwise. */
+
+fprintf(f,
+  "/*************************************************\n"
+  "*      Perl-Compatible Regular Expressions       *\n"
+  "*************************************************/\n\n"
+  "/* This file is automatically written by the dftables auxiliary \n"
+  "program. If you edit it by hand, you might like to edit the Makefile to \n"
+  "prevent its ever being regenerated.\n\n");
+fprintf(f,
+  "This file is #included in the compilation of pcre.c to build the default\n"
+  "character tables which are used when no tables are passed to the compile\n"
+  "function. */\n\n"
+  "static unsigned char pcre_default_tables[] = {\n\n"
+  "/* This table is a lower casing table. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
+  fprintf(f, "%3d", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f, "/* This table is a case flipping table. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0) fprintf(f, "\n  ");
+  fprintf(f, "%3d", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f,
+  "/* This table contains bit maps for various character classes.\n"
+  "Each map is 32 bytes long and the bits run from the least\n"
+  "significant end of each byte. The classes that have their own\n"
+  "maps are: space, xdigit, digit, upper, lower, word, graph\n"
+  "print, punct, and cntrl. Other classes are built from combinations. */\n\n");
+
+fprintf(f, "  ");
+for (i = 0; i < cbit_length; i++)
+  {
+  if ((i & 7) == 0 && i != 0)
+    {
+    if ((i & 31) == 0) fprintf(f, "\n");
+    fprintf(f, "\n  ");
     }
+  fprintf(f, "0x%02x", *tables++);
+  if (i != cbit_length - 1) fprintf(f, ",");
+  }
+fprintf(f, ",\n\n");
+
+fprintf(f,
+  "/* This table identifies various classes of character by individual bits:\n"
+  "  0x%02x   white space character\n"
+  "  0x%02x   letter\n"
+  "  0x%02x   decimal digit\n"
+  "  0x%02x   hexadecimal digit\n"
+  "  0x%02x   alphanumeric or '_'\n"
+  "  0x%02x   regular expression metacharacter or binary zero\n*/\n\n",
+  ctype_space, ctype_letter, ctype_digit, ctype_xdigit, ctype_word,
+  ctype_meta);
+
+fprintf(f, "  ");
+for (i = 0; i < 256; i++)
+  {
+  if ((i & 7) == 0 && i != 0)
+    {
+    fprintf(f, " /* ");
+    if (isprint(i-8)) fprintf(f, " %c -", i-8);
+      else fprintf(f, "%3d-", i-8);
+    if (isprint(i-1)) fprintf(f, " %c ", i-1);
+      else fprintf(f, "%3d", i-1);
+    fprintf(f, " */\n  ");
+    }
+  fprintf(f, "0x%02x", *tables++);
+  if (i != 255) fprintf(f, ",");
+  }
+
+fprintf(f, "};/* ");
+if (isprint(i-8)) fprintf(f, " %c -", i-8);
+  else fprintf(f, "%3d-", i-8);
+if (isprint(i-1)) fprintf(f, " %c ", i-1);
+  else fprintf(f, "%3d", i-1);
+fprintf(f, " */\n\n/* End of chartables.c */\n");
+
+fclose(f);
+return 0;
+}
+
+/* End of dftables.c */

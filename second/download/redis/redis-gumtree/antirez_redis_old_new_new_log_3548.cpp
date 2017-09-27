@@ -1,1 +1,0 @@
-_addReplyError(c,s,sdslen(s));

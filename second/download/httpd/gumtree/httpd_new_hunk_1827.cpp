@@ -1,16 +1,20 @@
-        }
-        cur_lbset++;
-    } while (cur_lbset <= max_lbset && !mycandidate);
+        case 'v':
+            printf("Server version: %s\n", ap_get_server_description());
+            printf("Server built:   %s\n", ap_get_server_built());
+            destroy_and_exit_process(process, 0);
 
-    if (mycandidate) {
-        mycandidate->s->lbstatus -= total_factor;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
-                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+        case 'V':
+            if (strcmp(ap_show_mpm(), "")) { /* MPM built-in? */
+                show_compile_settings();
+                destroy_and_exit_process(process, 0);
+            }
+            else {
+                showcompile = 1;
+            }
+            break;
 
-    }
+        case 'l':
+            ap_show_modules();
+            destroy_and_exit_process(process, 0);
 
-    return mycandidate;
-}
-
-/*
+        case 'L':

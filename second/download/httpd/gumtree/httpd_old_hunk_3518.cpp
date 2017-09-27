@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+        buffer = apr_pstrcat(r->pool, "Max-Age=", apr_ltoa(r->pool, maxage), ";", NULL);
+    }
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+    /* create RFC2965 compliant cookie */
+    rfc2965 = apr_pstrcat(r->pool, name2, "=", val, ";", buffer,
+                          attrs2 && *attrs2 ? attrs2 : DEFAULT_ATTRS, NULL);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+                  "user '%s' set cookie2: '%s'", r->user, rfc2965);
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+    /* write the cookie to the header table(s) provided */
+    va_start(vp, maxage);
+    while ((t = va_arg(vp, apr_table_t *))) {
+        apr_table_addn(t, SET_COOKIE2, rfc2965);

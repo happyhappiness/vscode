@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Encountered premature end-of-stream while inflating");
+memcpy(ctx->header + ctx->header_len, data, len);

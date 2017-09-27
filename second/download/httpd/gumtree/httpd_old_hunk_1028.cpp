@@ -1,20 +1,27 @@
-				const char *val)
-{
-    apr_table_entry_t *elts;
-    apr_uint32_t checksum;
-    int hash;
+    char realm[MAX_STRING_LEN];
+    char line[MAX_STRING_LEN];
+    char l[MAX_STRING_LEN];
+    char w[MAX_STRING_LEN];
+    char x[MAX_STRING_LEN];
+    int found;
+   
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate); 
+    apr_pool_create(&cntxt, NULL);
+    apr_file_open_stderr(&errfile, cntxt);
 
-#ifdef POOL_DEBUG
-    {
-	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);
+        exit(1);
     }
 #endif
-
-    hash = TABLE_HASH(key);
+    
+    apr_signal(SIGINT, (void (*)(int)) interrupted);
+    if (argc == 5) {
+        if (strcmp(argv[1], "-c"))
+            usage();
+        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
+                           APR_OS_DEFAULT, cntxt);

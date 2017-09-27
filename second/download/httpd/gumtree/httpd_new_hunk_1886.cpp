@@ -1,13 +1,16 @@
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+        /* We've already decremented the idle worker count inside
+         * ap_queue_info_wait_for_idler. */
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+        if ((rv = SAFE_ACCEPT(apr_proc_mutex_lock(accept_mutex)))
+            != APR_SUCCESS) {
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+            if (!listener_may_exit) {
+                accept_mutex_error("lock", rv, process_slot);
+            }
+            break;                    /* skip the lock release */
+        }
+
+        if (!ap_listeners->next) {
+            /* Only one listener, so skip the poll */
+            lr = ap_listeners;

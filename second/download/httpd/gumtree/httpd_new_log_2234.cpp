@@ -1,0 +1,1 @@
+ap_log_command_line(plog, s);

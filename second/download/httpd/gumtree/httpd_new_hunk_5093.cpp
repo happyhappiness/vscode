@@ -1,14 +1,16 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			     "proxy: error creating cache directory %s",
-			     c->filename);
-	    *p = '/';
-	    ++p;
-	}
-#if defined(OS2) || defined(WIN32)
-	/* Under OS/2 use rename. */
-	if (rename(c->tempfile, c->filename) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			 "proxy: error renaming cache file %s to %s",
-			 c->tempfile, c->filename);
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                       filter_ctx, r, c);
+
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
+
+    /* write is non blocking for the benefit of async mpm */
+    if (c->cs) {
+        BIO_set_nbio(filter_ctx->pbioWrite, 1);
     }
-++ apache_1.3.2/src/modules/proxy/proxy_connect.c	1998-09-15 00:30:42.000000000 +0800
+
+    ssl_io_input_add_filter(filter_ctx, c, r, ssl);
+
+    SSL_set_bio(ssl, filter_ctx->pbioRead, filter_ctx->pbioWrite);
+    filter_ctx->pssl            = ssl;
+

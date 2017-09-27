@@ -1,32 +1,29 @@
-
-    /* Check that all client certs have got certificates and private
-     * keys. */
-    for (n = 0; n < ncerts; n++) {
-        X509_INFO *inf = sk_X509_INFO_value(sk, n);
-
-        if (!inf->x509 || !inf->x_pkey) {
-            sk_X509_INFO_free(sk);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
-                         "incomplete client cert configured for SSL proxy "
-                         "(missing or encrypted private key?)");
-            ssl_die();
-            return;
+                backend_failed = 1;
+                break;
         }
-    }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "loaded %d client certs for SSL proxy",
-                 ncerts);
-    pkp->certs = sk;
+        /*
+         * If connection has been aborted by client: Stop working.
+         * Nevertheless, we regard our operation so far as a success:
+         * So reset output_failed to 0 and set result to CMD_AJP13_END_RESPONSE
+         * But: Close this connection to the backend.
+         */
+        if (r->connection->aborted) {
+            conn->close++;
+            output_failed = 0;
+            result = CMD_AJP13_END_RESPONSE;
+            request_ended = 1;
+        }
 
-    if (!pkp->ca_cert_file || !store) {
-        return;
-    }
+        /*
+         * We either have finished successfully or we failed.
+         * So bail out
+         */
+        if ((result == CMD_AJP13_END_RESPONSE) || backend_failed
+            || output_failed)
+            break;
 
-    /* Load all of the CA certs and construct a chain */
-    pkp->ca_certs = (STACK_OF(X509) **) apr_pcalloc(p, ncerts * sizeof(sk));
-    sctx = X509_STORE_CTX_new();
-
-    if (!sctx) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
-                     "SSL proxy client cert initialization failed");
+        /* read the response */
+        status = ajp_read_header(conn->sock, r, maxsize,
+                                 (ajp_msg_t **)&(conn->data));
+        if (status != APR_SUCCESS) {

@@ -1,31 +1,38 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+                        char *replaced = ap_pregsub(r->pool, elts[j].val, val,
+                                                    AP_MAX_REG_MATCH, regm);
+                        if (replaced) {
+                            apr_table_setn(r->subprocess_env, elts[j].key,
+                                           replaced);
+                        }
+                        else {
+                            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01505)
+                                          "Regular expression replacement "
+                                          "failed for '%s', value too long?",
+                                          elts[j].key);
+                            return HTTP_INTERNAL_SERVER_ERROR;
+                        }
+                    }
+                    else {
+                        apr_table_setn(r->subprocess_env, elts[j].key,
+                                       elts[j].val);
+                    }
+                }
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "Setting %s",
+                              elts[j].key);
+            }
+        }
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    return DECLINED;
+}
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+static void register_hooks(apr_pool_t *p)
+{
+    ap_hook_header_parser(match_headers, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_read_request(match_headers, NULL, NULL, APR_HOOK_MIDDLE);
+}
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+AP_DECLARE_MODULE(setenvif) =
+{
+    STANDARD20_MODULE_STUFF,
+    create_setenvif_config_dir, /* dir config creater */

@@ -1,13 +1,20 @@
+#endif
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
+    /** IG: Now that we've merged to the final config, go one last time
+     *  through the chain, and prune out the NULL filters */
 
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+    for (p = cfg->chain; p; p = p->next) {
+        if (p->fname == NULL) 
+            cfg->chain = p->next;
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
 
-/*****************************************************************
+    for (p = cfg->chain; p; p = p->next) {
+        filter = apr_hash_get(cfg->live_filters, p->fname, APR_HASH_KEY_STRING);
+        if (filter == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unknown filter %s not added", p->fname);
+            continue;
+        }
+        ap_add_output_filter_handle(filter, NULL, r, r->connection);
+#ifndef NO_PROTOCOL
+        if (ranges && (filter->proto_flags

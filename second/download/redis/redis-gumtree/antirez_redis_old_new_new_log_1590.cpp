@@ -1,1 +1,0 @@
-addReplyErrorFormat(c,"Invalid config epoch specified: %lld",epoch);

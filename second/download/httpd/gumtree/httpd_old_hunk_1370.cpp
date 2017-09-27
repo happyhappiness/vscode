@@ -1,13 +1,18 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: AJP: request failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        if (status == AJP_EOVERFLOW)
-            return HTTP_BAD_REQUEST;
-        else {
-            /*
-             * This is only non fatal when the method is idempotent. In this
-             * case we can dare to retry it with a different worker if we are
-             * a balancer member.
-             */
-            if (is_idempotent(r) == METHOD_IDEMPOTENT) {
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+#ifndef OPENSSL_NO_SSL2
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#else
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");
+#endif
+#endif
+    exit(EINVAL);
+}
+
+/* ------------------------------------------------------- */
+

@@ -1,15 +1,30 @@
- */
-void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+        case AP_MPMQ_MAX_REQUESTS_DAEMON:
+            *result = ap_max_requests_per_child;
+            return APR_SUCCESS;
+        case AP_MPMQ_MAX_DAEMONS:
+            *result = ap_daemons_limit;
+            return APR_SUCCESS;
+        case AP_MPMQ_MPM_STATE:
+            *result = mpm_state;
+            return APR_SUCCESS;
+    }
+    return APR_ENOTIMPL;
+}
+
+/* a clean exit from a child with proper cleanup */ 
+static void clean_child_exit(int code) __attribute__ ((noreturn));
+static void clean_child_exit(int code)
 {
-    unsigned long e;
+    mpm_state = AP_MPMQ_STOPPING;
+    if (pchild) {
+        apr_pool_destroy(pchild);
+    }
+    exit(code);
+}
 
-    while ((e = ERR_get_error())) {
-        char err[256], *annotation;
+static void just_die(int sig)
+{
+    clean_child_exit(0);
+}
 
-        ERR_error_string_n(e, err, sizeof err);
-        annotation = ssl_log_annotation(err);
-
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s %s",
-                         e, err, annotation); 
+/*****************************************************************

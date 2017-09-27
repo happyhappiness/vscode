@@ -1,13 +1,12 @@
+#define APLOGctrace6(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE6)
+#define APLOGctrace7(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE7)
+#define APLOGctrace8(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE8)
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
+extern int AP_DECLARE_DATA ap_default_loglevel;
 
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
+#define APLOG_MARK     __FILE__,__LINE__,APLOG_MODULE_INDEX
 
-/*****************************************************************
+/**
+ * Set up for logging to stderr.
+ * @param p The pool to allocate out of
+ */

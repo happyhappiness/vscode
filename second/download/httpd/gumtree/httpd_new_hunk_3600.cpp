@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
+         svr = create_dbd_config(config_pool, s);
+         ap_set_module_config(s->module_config, &dbd_module, svr);
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    if (apr_hash_get(svr->cfg->queries, label, APR_HASH_KEY_STRING)
+        && strcmp(query, "")) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02653)
+                     "conflicting SQL statements with label %s", label);
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    apr_hash_set(svr->cfg->queries, label, APR_HASH_KEY_STRING, query);
 }
 
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800

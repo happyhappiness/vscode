@@ -1,14 +1,15 @@
-    }
-    ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
-    return;
-}
-static void register_hooks(apr_pool_t *p)
-{
-    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
-    ap_hook_insert_error_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_insert_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
-}
-
-module AP_MODULE_DECLARE_DATA expires_module =
-{
+                    else {
+                        const char *buf;
+                        apr_size_t len = 0;
+                        rv = apr_bucket_read(bucket, &buf, &len,
+                                             APR_BLOCK_READ);
+                        if (rv != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                                         c->base_server, "core_output_filter:"
+                                         " Error reading from bucket.");
+                            return HTTP_INTERNAL_SERVER_ERROR;
+                        }
+                    }
+                }
+            }
+            if (!ctx->deferred_write_pool) {

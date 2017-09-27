@@ -1,14 +1,14 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
-
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+                        accf = 0;
+                    }
+                    continue;
+                }
+                else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                         (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                    if (accf == 2)
+                        apr_bucket_free(buf);
+                    closesocket(context->accept_socket);
+                    context->accept_socket = INVALID_SOCKET;
+                    ++err_count;
+                    if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00339)
+                                     "Child: Encountered too many AcceptEx "

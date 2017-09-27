@@ -1,13 +1,14 @@
-#define STANDALONE_MAIN standalone_main
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
+    apr_err("socket", rv);
+    }
 
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
+    if ((rv = apr_socket_bind(c->aprsock, mysa)) != APR_SUCCESS) {
+        apr_err("bind", rv);
+    }
 
-    ap_standalone = 1;
-
-    is_graceful = 0;
+    c->pollfd.desc_type = APR_POLL_SOCKET;
+    c->pollfd.desc.s = c->aprsock;
+    c->pollfd.reqevents = 0;
+    c->pollfd.client_data = c;

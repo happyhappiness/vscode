@@ -1,1 +1,0 @@
-printf("AOF succesfully truncated to %ld bytes\n", pos);

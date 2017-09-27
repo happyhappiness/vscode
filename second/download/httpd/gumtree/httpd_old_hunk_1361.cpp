@@ -1,25 +1,48 @@
-        ap_replace_stderr_log(process->pool, temp_error_log);
+        ap_rvputs(r, comment, "\n", NULL);
     }
-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-    if (!server_conf) {
-        destroy_and_exit_process(process, 1);
+    return;                     /* comments are ignored in the
+                                   'formatted' form */
+}
+
+static void menu_default(request_rec *r, char *menu, char *href, char *text)
+{
+    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
+        return;                 /* don't print such lines, these aren't
+                                   really href's */
     }
-
-    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Pre-configuration failed");
-        destroy_and_exit_process(process, 1);
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
     }
+    if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+    }
+    return;
+}
 
-    rv = ap_process_config_tree(server_conf, ap_conftree,
-                                process->pconf, ptemp);
-    if (rv == OK) {
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_hook_sort_all();
+static void menu_directive(request_rec *r, char *menu, char *href, char *text)
+{
+    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
+        return;                 /* don't print such lines, as this isn't
+                                   really an href */
+    }
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+    }
+    return;
+}
 
-        if (configtestonly) {
-            ap_run_test_config(pconf, server_conf);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
-            destroy_and_exit_process(process, 0);
-        }
+static void menu_footer(request_rec *r)
+{

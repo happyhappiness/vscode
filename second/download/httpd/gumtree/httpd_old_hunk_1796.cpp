@@ -1,19 +1,12 @@
-
-/*
- * NOTICE: if you tweak this you should look at is_empty_table() 
- * and table_elts() in alloc.h
- */
-#ifdef MAKE_TABLE_PROFILE
-static apr_table_entry_t *table_push(apr_table_t *t)
 {
-    if (t->a.nelts == t->a.nalloc) {
-        return NULL;
-    }
-    return (apr_table_entry_t *) apr_array_push_noclear(&t->a);
+    const char *keystr = ssl_asn1_keystr(keytype);
+
+    return apr_pstrcat(p, id, ":", keystr, NULL);
 }
-#else /* MAKE_TABLE_PROFILE */
-#define table_push(t)	((apr_table_entry_t *) apr_array_push_noclear(&(t)->a))
-#endif /* MAKE_TABLE_PROFILE */
 
-APR_DECLARE(const apr_array_header_t *) apr_table_elts(const apr_table_t *t)
-{
+
+#if APR_HAS_THREADS
+/*
+ * To ensure thread-safetyness in OpenSSL - work in progress
+ */
+

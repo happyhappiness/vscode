@@ -1,1 +1,0 @@
-line = sdscatlen(line, " ", 1);

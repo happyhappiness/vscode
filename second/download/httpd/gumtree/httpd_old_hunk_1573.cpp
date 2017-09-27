@@ -1,12 +1,13 @@
-                     "proxy: AJP: failed to make connection to backend: %s",
-                     backend->hostname);
-        status = HTTP_SERVICE_UNAVAILABLE;
-        goto cleanup;
-    }
-
-    /* Step Three: Process the Request */
-    status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, url,
-                                  server_portstr);
-
-cleanup:
-    /* Do not close the socket */
+                }
+                else {
+                    ap_rputs("</td>", r);
+                }
+            }
+            if (d->name_adjust == K_ADJUST) {
+                ap_rvputs(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2), "</a>", NULL);
+            }
+            else {
+                nwidth = strlen(t2);
+                if (nwidth > name_width) {
+                  memcpy(name_scratch, t2, name_width - 3);

@@ -1,13 +1,13 @@
-                    if (apr_file_name_get(&tmpfile_name, tmpfile) != APR_SUCCESS) {
-                        tmpfile_name = "(unknown)";
-                    }
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: write to temporary file %s failed",
-                                 tmpfile_name);
-                    return status;
-                }
-                AP_DEBUG_ASSERT(bytes_read == bytes_written);
-                fsize += bytes_written;
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation handshake failed: "
+                              "Not accepted by client!?");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
             }
-            apr_brigade_cleanup(input_brigade);
         }
+
+        /*
+         * Remember the peer certificate's DN

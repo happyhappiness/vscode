@@ -1,3 +1,0 @@
-        addReplyLongLong(c,pos);
-    }
-}

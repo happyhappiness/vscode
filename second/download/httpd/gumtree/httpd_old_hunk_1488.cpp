@@ -1,13 +1,12 @@
-        if (status != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: prefetch request body failed to %pI (%s)"
-                         " from %s (%s)",
-                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
-                         c->remote_ip, c->remote_host ? c->remote_host: "");
-            return HTTP_BAD_REQUEST;
-        }
-
-        apr_brigade_length(temp_brigade, 1, &bytes);
-        bytes_read += bytes;
-
-        /*
+    }
+    else if (r->prev && (r->prev->per_dir_config == r->per_dir_config)) {
+        r->user = r->prev->user;
+        r->ap_auth_type = r->prev->ap_auth_type;
+    }
+    else {
+        switch (ap_satisfies(r)) {
+        case SATISFY_ALL:
+        case SATISFY_NOSPEC:
+            if ((access_status = ap_run_access_checker(r)) != 0) {
+                return decl_die(access_status, "check access", r);
+            }

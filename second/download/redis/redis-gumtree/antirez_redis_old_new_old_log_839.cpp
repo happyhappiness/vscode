@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Object type: %d", o->type);

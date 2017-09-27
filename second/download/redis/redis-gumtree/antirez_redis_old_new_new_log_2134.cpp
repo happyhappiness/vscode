@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt TCP_KEEPINTVL: %s\n", strerror(errno));

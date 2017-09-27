@@ -1,22 +1,28 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
-    }
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
-}
-
-
-static int check_symlinks(char *d, int opts)
+static apr_status_t ssl_io_filter_error(ap_filter_t *f,
+                                        apr_bucket_brigade *bb,
+                                        apr_status_t status)
 {
-#if defined(OS2) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+    SSLConnRec *sslconn = myConnConfig(f->c);
+    apr_bucket *bucket;
+    int send_eos = 1;
+
+    switch (status) {
+    case MODSSL_ERROR_HTTP_ON_HTTPS:
+            /* log the situation */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c, APLOGNO(01996)
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, sslconn->server);
+
+            sslconn->non_ssl_request = NON_SSL_SEND_HDR_SEP;
+            ssl_io_filter_disable(sslconn, f);
+
+            /* fake the request line */
+            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
+            send_eos = 0;
+            break;
+
+    case MODSSL_ERROR_BAD_GATEWAY:
+        bucket = ap_bucket_error_create(HTTP_BAD_REQUEST, NULL,
+                                        f->c->pool,
+                                        f->c->bucket_alloc);

@@ -1,13 +1,13 @@
-    case HSE_REQ_GET_IMPERSONATION_TOKEN:  /* Added in ISAPI 4.0 */
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_GET_IMPERSONATION_TOKEN "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+                        ap_rputs("Dying", r);
+                        break;
+                    default:
+                        ap_rputs("?STATE?", r);
+                        break;
+                    }
 
-    case HSE_REQ_MAP_URL_TO_PATH_EX:
-    {
-        /* Map a URL to a filename */
-        HSE_URL_MAPEX_INFO *info = (HSE_URL_MAPEX_INFO*)data_type;
+                    ap_rprintf(r, "] "
+#ifdef HAVE_TIMES
+                               "u%g s%g cu%g cs%g"
+#endif
+                               "\n %ld %ld (",
+#ifdef HAVE_TIMES

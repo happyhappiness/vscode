@@ -1,88 +1,95 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-		ap_send_size(ar[x]->size, r);
-		ap_rputs("  ", r);
-	    }
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-		if (ar[x]->desc) {
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-						   autoindex_opts), r);
-		}
-	    }
-	}
-	else {
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-	}
-	ap_rputc('\n', r);
+    do { \
+        if (APLOG_C_IS_LEVEL((m)->c,lvl)) \
+        h2_util_bb_log((m)->c,(io)->id,lvl,msg,(io)->bbin); \
+    } while(0)
+
+
+/* NULL or the mutex hold by this thread, used for recursive calls
+ */
+static apr_threadkey_t *thread_lock;
+
+apr_status_t h2_mplx_child_init(apr_pool_t *pool, server_rec *s)
+{
+    return apr_threadkey_private_create(&thread_lock, NULL, pool);
+}
+
+static apr_status_t enter_mutex(h2_mplx *m, int *pacquired)
+{
+    apr_status_t status;
+    void *mutex = NULL;
+    
+    /* Enter the mutex if this thread already holds the lock or
+     * if we can acquire it. Only on the later case do we unlock
+     * onleaving the mutex.
+     * This allow recursive entering of the mutex from the saem thread,
+     * which is what we need in certain situations involving callbacks
+     */
+    apr_threadkey_private_get(&mutex, thread_lock);
+    if (mutex == m->lock) {
+        *pacquired = 0;
+        return APR_SUCCESS;
     }
-    if (autoindex_opts & FANCY_INDEXING) {
-	ap_rputs("</PRE>", r);
+        
+    status = apr_thread_mutex_lock(m->lock);
+    *pacquired = (status == APR_SUCCESS);
+    if (*pacquired) {
+        apr_threadkey_private_set(m->lock, thread_lock);
     }
-    else {
-	ap_rputs("</UL>", r);
+    return status;
+}
+
+static void leave_mutex(h2_mplx *m, int acquired)
+{
+    if (acquired) {
+        apr_threadkey_private_set(NULL, thread_lock);
+        apr_thread_mutex_unlock(m->lock);
     }
 }
 
-/*
- * Compare two file entries according to the sort criteria.  The return
- * is essentially a signum function value.
- */
-
-static int dsortf(struct ent **e1, struct ent **e2)
+static int is_aborted(h2_mplx *m, apr_status_t *pstatus)
 {
-    struct ent *c1;
-    struct ent *c2;
-    int result = 0;
-
-    /*
-     * First, see if either of the entries is for the parent directory.
-     * If so, that *always* sorts lower than anything else.
-     */
-    if (is_parent((*e1)->name)) {
-        return -1;
-    }
-    if (is_parent((*e2)->name)) {
+    AP_DEBUG_ASSERT(m);
+    if (m->aborted) {
+        *pstatus = APR_ECONNABORTED;
         return 1;
     }
-    /*
-     * All of our comparisons will be of the c1 entry against the c2 one,
-     * so assign them appropriately to take care of the ordering.
-     */
-    if ((*e1)->ascending) {
-        c1 = *e1;
-        c2 = *e2;
-    }
-    else {
-        c1 = *e2;
-        c2 = *e1;
-    }
-    switch (c1->key) {
-    case K_LAST_MOD:
-	if (c1->lm > c2->lm) {
-            return 1;
-        }
-        else if (c1->lm < c2->lm) {
-            return -1;
-        }
-        break;
-    case K_SIZE:
-        if (c1->size > c2->size) {
-            return 1;
-        }
-        else if (c1->size < c2->size) {
-            return -1;
-        }
-        break;
-    case K_DESC:
-        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
-        if (result) {
-            return result;
-        }
-        break;
-    }
-    return strcmp(c1->name, c2->name);
+    return 0;
 }
 
+static void have_out_data_for(h2_mplx *m, int stream_id);
 
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+static void check_tx_reservation(h2_mplx *m) 
 {
-    char *title_name = ap_escape_html(r->pool, r->uri);
+    if (m->tx_handles_reserved == 0) {
+        m->tx_handles_reserved += h2_workers_tx_reserve(m->workers, 
+            H2MIN(m->tx_chunk_size, h2_io_set_size(m->stream_ios)));
+    }
+}
+
+static void check_tx_free(h2_mplx *m) 
+{
+    if (m->tx_handles_reserved > m->tx_chunk_size) {
+        apr_size_t count = m->tx_handles_reserved - m->tx_chunk_size;
+        m->tx_handles_reserved = m->tx_chunk_size;
+        h2_workers_tx_free(m->workers, count);
+    }
+    else if (m->tx_handles_reserved 
+             && (!m->stream_ios || h2_io_set_is_empty(m->stream_ios))) {
+        h2_workers_tx_free(m->workers, m->tx_handles_reserved);
+        m->tx_handles_reserved = 0;
+    }
+}
+
+static void h2_mplx_destroy(h2_mplx *m)
+{
+    AP_DEBUG_ASSERT(m);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): destroy, ios=%d", 
+                  m->id, (int)h2_io_set_size(m->stream_ios));
+    check_tx_free(m);
+    if (m->pool) {
+        apr_pool_destroy(m->pool);
+    }
+}
+
+/**

@@ -1,25 +1,17 @@
- 	totalbread += r;
-     }
+ AP_DECLARE(void) ap_log_error(const char *file, int line, int level, 
+                              apr_status_t status, const server_rec *s, 
+                              const char *fmt, ...)
+ 			    __attribute__((format(printf,6,7)));
  
-     if (c->keepalive && (c->bread >= c->length)) {
- 	/* finished a keep-alive connection */
- 	good++;
--	doneka++;
- 	/* save out time */
- 	if (good == 1) {
- 	    /* first time here */
- 	    doclen = c->bread;
- 	}
- 	else if (c->bread != doclen) {
- 	    bad++;
- 	    err_length++;
- 	}
- 	if (done < requests) {
- 	    struct data s;
-+	    doneka++;
- 	    if (done && heartbeatres && !(done % heartbeatres)) {
- 		fprintf(stderr, "Completed %ld requests\n", done);
- 		fflush(stderr);
- 	    }
- 	    c->done = apr_time_now();
- 	    s.read = c->read;
+ /**
+- * The second of the primary logging routines in Apache.  This uses 
+- * a printf-like format to log messages to the error_log.
++ * ap_log_perror() - log messages which are not related to a particular
++ * request, connection, or virtual server.  This uses a printf-like
++ * format to log messages to the error_log.
+  * @param file The file in which this function is called
+  * @param line The line number on which this function is called
+  * @param level The level of this error message
+  * @param status The status code from the previous command
+  * @param p The pool which we are logging for
+  * @param fmt The format string

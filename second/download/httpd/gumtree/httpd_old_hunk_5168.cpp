@@ -1,30 +1,21 @@
-    err = ap_proxy_host2addr(host, &server_hp);
-    if (err != NULL)
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+        url += 6;
+        scheme = "https";
     }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
+    else {
+        return DECLINED;
     }
+    def_port = apr_uri_port_of_scheme(scheme);
 
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "HTTP: canonicalising URL %s", url);
+
+    /* do syntatic check.
+     * We break the URL into host, port, path, search
+     */
+    port = def_port;
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01083)
+                      "error parsing URL %s: %s", url, err);
+        return HTTP_BAD_REQUEST;
     }
-

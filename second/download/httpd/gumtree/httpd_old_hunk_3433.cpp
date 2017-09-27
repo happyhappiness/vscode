@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+    CloseServiceHandle(schService);
+    CloseServiceHandle(schSCManager);
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+    if (rv == APR_SUCCESS)
+        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+    else
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+    return rv;
+}
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

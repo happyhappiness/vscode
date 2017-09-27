@@ -1,14 +1,14 @@
-                          "%s: Write: %s",
-                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
-         }
-         else if (where & SSL_CB_ALERT) {
-             char *str = (where & SSL_CB_READ) ? "read" : "write";
-             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
--                         "%s: Alert: %s:%s:%s\n",
-+                         "%s: Alert: %s:%s:%s",
-                          SSL_LIBRARY_NAME, str,
-                          SSL_alert_type_string_long(rc),
-                          SSL_alert_desc_string_long(rc));
-         }
-         else if (where & SSL_CB_EXIT) {
-             if (rc == 0) {
+      *
+      * The tricky bit, they aren't really a per-dir sort of
+      * config, they will always be constant across every 
+      * reference to the .dll no matter what context (vhost,
+      * location, etc) they apply to.
+      */
+-    isa->report_version = MAKELONG(0, 5); /* Revision 5.0 */
++    isa->report_version = 0x500; /* Revision 5.0 */
+     isa->timeout = 300 * 1000000; /* microsecs, not used */
+     
+     rv = apr_dso_load(&isa->handle, isa->filename, p);
+     if (rv)
+     {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,

@@ -1,1 +1,1 @@
-show_mpm_settings();
+printf("yes (fixed process count)\n");

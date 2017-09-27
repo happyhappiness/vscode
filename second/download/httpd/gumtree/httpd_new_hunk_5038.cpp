@@ -1,16 +1,19 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+            ret = ERR_PWMISMATCH;
+            break;
+        }
 
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-	exit(1);
-    }
+        apr_cpystrn(ctx->out, cbuf, ctx->out_len - 1);
+        if (strlen(pw) > 8) {
+            char *truncpw = apr_pstrdup(ctx->pool, pw);
+            truncpw[8] = '\0';
+            if (!strcmp(ctx->out, crypt(truncpw, salt))) {
+                apr_file_printf(errfile, "Warning: Password truncated to 8 "
+                                "characters by CRYPT algorithm." NL);
+            }
+            memset(truncpw, '\0', strlen(pw));
+        }
+        break;
+#endif /* CRYPT_ALGO_SUPPORTED */
 
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+#if BCRYPT_ALGO_SUPPORTED
+    case ALG_BCRYPT:

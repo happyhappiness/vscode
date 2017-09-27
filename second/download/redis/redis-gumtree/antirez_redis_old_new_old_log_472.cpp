@@ -1,1 +1,0 @@
-printf("HISTORY: %s\n", historyfile);

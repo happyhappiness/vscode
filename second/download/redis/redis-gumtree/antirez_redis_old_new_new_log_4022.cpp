@@ -1,1 +1,0 @@
-d = sdscatprintf(d, "%02x",digest[j]);

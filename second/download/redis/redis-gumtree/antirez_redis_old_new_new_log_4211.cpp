@@ -1,1 +1,0 @@
-fprintf(stderr, "example: cat /etc/passwd | redis-cli set my_passwd\n");

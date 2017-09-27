@@ -1,1 +1,0 @@
-tmp.argv[0] = sdscatprintf(sdsempty(),"@%s",commandGroups[i]);

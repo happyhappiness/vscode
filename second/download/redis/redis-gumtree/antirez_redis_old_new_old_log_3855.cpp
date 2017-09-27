@@ -1,1 +1,0 @@
-printf("key->refcount: %d\n",key->refcount);

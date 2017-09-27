@@ -1,40 +1,38 @@
-    apr_time_t expires;
-    int additional_sec;
-    char *timestr;
-
-    switch (code[0]) {
-    case 'M':
-        if (r->finfo.filetype == 0) {
-	    /* file doesn't exist on disk, so we can't do anything based on
-	     * modification time.  Note that this does _not_ log an error.
-	     */
-	    return DECLINED;
-	}
-	base = r->finfo.mtime;
-        additional_sec = atoi(&code[1]);
-        additional = apr_time_from_sec(additional_sec);
-        break;
-    case 'A':
-        /* there's been some discussion and it's possible that
-         * 'access time' will be stored in request structure
-         */
-        base = r->request_time;
-        additional_sec = atoi(&code[1]);
-        additional = apr_time_from_sec(additional_sec);
-        break;
-    default:
-        /* expecting the add_* routines to be case-hardened this
-         * is just a reminder that module is beta
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: bad expires code: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    expires = base + additional;
-    apr_table_mergen(t, "Cache-Control",
-                     apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
-                                  apr_time_sec(expires - r->request_time)));
-    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
-    apr_rfc822_date(timestr, expires);
-    apr_table_setn(t, "Expires", timestr);
+    /*
+     * Support for SSLRequireSSL directive
+     */
+    if (dc->bSSLRequired && !ssl) {
+        if (sc->enabled == SSL_ENABLED_OPTIONAL) {
+            /* This vhost was configured for optional SSL, just tell the
+             * client that we need to upgrade.
+             */
+            apr_table_setn(r->err_headers_out, "Upgrade", "TLS/1.0, HTTP/1.1");
+            apr_table_setn(r->err_headers_out, "Connection", "Upgrade");
+
+            return HTTP_UPGRADE_REQUIRED;
+        }
+
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "access to %s failed, reason: %s",
+                      r->filename, "SSL connection required");
+
+        /* remember forbidden access for strict require option */
+        apr_table_setn(r->notes, "ssl-access-forbidden", "1");
+
+        return HTTP_FORBIDDEN;
+    }
+
+    /*
+     * Check to see if SSL protocol is on
+     */
+    if (!((sc->enabled == SSL_ENABLED_TRUE) || (sc->enabled == SSL_ENABLED_OPTIONAL) || ssl)) {
+        return DECLINED;
+    }
+    /*
+     * Support for per-directory reconfigured SSL connection parameters.
+     *
+     * This is implemented by forcing an SSL renegotiation with the
+     * reconfigured parameter suite. But Apache's internal API processing
+     * makes our life very hard here, because when internal sub-requests occur

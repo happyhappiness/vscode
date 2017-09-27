@@ -1,20 +1,56 @@
-             * Transfer-Encoding overrides the Content-Length. ... A sender
-             * MUST remove the received Content-Length field".
-             */
-            apr_table_unset(r->headers_in, "Content-Length");
-        }
-    }
 
-    apr_brigade_destroy(tmp_bb);
+    /* remove ourselves */
+    ap_remove_output_filter(f);
+    return ap_pass_brigade(f->next, in);
+}
 
-    /* update what we think the virtual host is based on the headers we've
-     * now read. may update status.
-     */
-    ap_update_vhost_from_headers(r);
-    access_status = r->status;
+/*
+ * CACHE filter
+ * ------------
+ *
+ * This filter can be optionally inserted into the filter chain by the admin as
+ * a marker representing the precise location within the filter chain where
+ * caching is to be performed.
+ *
+ * When the filter chain is set up in the non-quick version of the URL handler,
+ * the CACHE filter is replaced by the CACHE_OUT or CACHE_SAVE filter,
+ * effectively inserting the caching filters at the point indicated by the
+ * admin. The CACHE filter is then removed.
+ *
+ * This allows caching to be performed before the content is passed to the
+ * INCLUDES filter, or to a filter that might perform transformations unique
+ * to the specific request and that would otherwise be non-cacheable.
+ */
+static int cache_filter(ap_filter_t *f, apr_bucket_brigade *in)
+{
+    /* we are just a marker, so let's just remove ourselves */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, f->r->server,
+                 "cache: CACHE filter was added twice, or was added in quick "
+    		     "handler mode and will be ignored.");
+    ap_remove_output_filter(f);
+    return ap_pass_brigade(f->next, in);
+}
 
-    /* Toggle to the Host:-based vhost's timeout mode to fetch the
-     * request body and send the response body, if needed.
-     */
-    if (cur_timeout != r->server->timeout) {
-        apr_socket_timeout_set(csd, r->server->timeout);
+/* -------------------------------------------------------------- */
+/* Setup configurable data */
+
+static void * create_cache_config(apr_pool_t *p, server_rec *s)
+{
+    const char *tmppath;
+    cache_server_conf *ps = apr_pcalloc(p, sizeof(cache_server_conf));
+
+    /* array of URL prefixes for which caching is enabled */
+    ps->cacheenable = apr_array_make(p, 10, sizeof(struct cache_enable));
+    /* array of URL prefixes for which caching is disabled */
+    ps->cachedisable = apr_array_make(p, 10, sizeof(struct cache_disable));
+    /* maximum time to cache a document */
+    ps->maxex = DEFAULT_CACHE_MAXEXPIRE;
+    ps->maxex_set = 0;
+    ps->minex = DEFAULT_CACHE_MINEXPIRE;
+    ps->minex_set = 0;
+    /* default time to cache a document */
+    ps->defex = DEFAULT_CACHE_EXPIRE;
+    ps->defex_set = 0;
+    /* factor used to estimate Expires date from LastModified date */
+    ps->factor = DEFAULT_CACHE_LMFACTOR;
+    ps->factor_set = 0;

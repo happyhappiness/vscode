@@ -1,1 +1,0 @@
-ERROR("Expected prefix '%c', got: '%c'",buf[0],prefix);

@@ -1,13 +1,13 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+        input_ctx->tmp = apr_palloc(r->pool, INPUT_XLATE_BUF_SIZE);
+        input_ctx->dc = dc;
+        reqinfo->input_ctx = input_ctx;
+        rv = apr_xlate_open(&input_ctx->xlate, dc->charset_source,
+                            dc->charset_default, r->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01449)
+                          "can't open translation %s->%s",
+                          dc->charset_default, dc->charset_source);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (apr_xlate_sb_get(input_ctx->xlate, &input_ctx->is_sb) != APR_SUCCESS) {
+            input_ctx->is_sb = 0;

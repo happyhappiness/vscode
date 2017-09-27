@@ -1,27 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+        rewritelog((r, 8, dconf->directory, "Declining, no further rewriting due to END flag"));
+        return DECLINED;
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+    /*
+     *  Do the Options check after engine check, so
+     *  the user is able to explicitly turn RewriteEngine Off.
+     */
+    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
+        /* FollowSymLinks is mandatory! */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00670)
+                     "Options FollowSymLinks and SymLinksIfOwnerMatch are both off, "
+                     "so the RewriteRule directive is also forbidden "

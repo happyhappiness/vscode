@@ -1,24 +1,23 @@
+}
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+apr_status_t h2_task_freeze(h2_task *task)
+{   
+    if (!task->frozen) {
+        task->frozen = 1;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
+                      "h2_task(%s), frozen", task->id);
+    }
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_task_thaw(h2_task *task)
 {
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+    if (task->frozen) {
+        task->frozen = 0;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
+                      "h2_task(%s), thawed", task->id);
     }
+    task->detached = 1;
+    return APR_SUCCESS;
+}
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

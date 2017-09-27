@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+    if (alg == ALG_CRYPT) {
+        alg = ALG_APMD5;
+        apr_file_printf(errfile, "Automatically using MD5 format." NL);
+    }
+#endif
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+    if (alg == ALG_PLAIN) {
+        apr_file_printf(errfile,"Warning: storing passwords as plain text "
+                        "might just not work on this platform." NL);
+    }
+#endif
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800

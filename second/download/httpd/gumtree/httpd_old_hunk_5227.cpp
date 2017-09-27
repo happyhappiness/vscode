@@ -1,17 +1,17 @@
-	    int cond_status = OK;
+    reqlen = strlen(request);
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
+    /*
+     * Combine headers and (optional) post file into one continuous buffer
+     */
+    if (send_body) {
+        char *buff = malloc(postlen + reqlen + 1);
+        if (!buff) {
+            fprintf(stderr, "error creating request buffer: out of memory\n");
+            return;
+        }
+        strcpy(buff, request);
+        memcpy(buff + reqlen, postdata, postlen);
+        request = buff;
+    }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+#ifdef NOT_ASCII

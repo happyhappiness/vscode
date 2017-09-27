@@ -1,14 +1,21 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
+                                           server_portstr,
+                                           sizeof(server_portstr));
+    if (status != OK) {
+        goto cleanup;
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    /* This scheme handler does not reuse connections by default, to
+     * avoid tieing up a fastcgi that isn't expecting to work on 
+     * parallel requests.  But if the user went out of their way to
+     * type the default value of disablereuse=off, we'll allow it.
+     */  
+    backend->close = 1;
+    if (worker->s->disablereuse_set && !worker->s->disablereuse) { 
+        backend->close = 0;
+    }
+
+    /* Step Two: Make the Connection */
+    if (ap_proxy_connect_backend(FCGI_SCHEME, backend, worker, r->server)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01079)
+                      "failed to make connection to backend: %s",
+                      backend->hostname);

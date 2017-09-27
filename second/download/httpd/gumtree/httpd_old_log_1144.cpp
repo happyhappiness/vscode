@@ -1,1 +1,1 @@
-printf("%3d Bra extra", (code[1] << 8) + code[2]);
+(isprint(c = code[3]);

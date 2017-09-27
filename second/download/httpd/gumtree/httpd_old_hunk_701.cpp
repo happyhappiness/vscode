@@ -1,13 +1,12 @@
-            r->filename = apr_pstrcat(r->pool, r->filename, "/", NULL);
-        }
-        return index_directory(r, d);
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Directory index forbidden by rule: %s", r->filename);
-        return HTTP_FORBIDDEN;
+
+    if (dirconf->fixup_out->nelts || dirconf->fixup_err->nelts) {
+        ap_add_output_filter("FIXUP_HEADERS_OUT", NULL, r, r->connection);
     }
 }
 
-static void register_hooks(apr_pool_t *p)
+static void ap_headers_insert_error_filter(request_rec *r)
 {
+    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
+                                                 &headers_module);
+
+    if (dirconf->fixup_err->nelts) {

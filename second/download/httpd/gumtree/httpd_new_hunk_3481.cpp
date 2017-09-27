@@ -1,31 +1,36 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+        field = NULL;
+        rv = ap_rgetline(&field, r->server->limit_req_fieldsize + 2,
+                         &len, r, 0, bb);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                r->status = HTTP_REQUEST_TIME_OUT;
+            }
+            else {
+                r->status = HTTP_BAD_REQUEST;
+            }
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
+            /* ap_rgetline returns APR_ENOSPC if it fills up the buffer before
+             * finding the end-of-line.  This is only going to happen if it
+             * exceeds the configured limit for a field size.
+             */
+            if (rv == APR_ENOSPC && field) {
+                /* ensure ap_escape_html will terminate correctly */
+                field[len - 1] = '\0';
+                apr_table_setn(r->notes, "error-notes",
+                               apr_psprintf(r->pool,
+                                           "Size of a request header field "
+                                           "exceeds server limit.<br />\n"
+                                           "<pre>\n%.*s\n</pre>\n", 
+                                           field_name_len(field), 
+                                           ap_escape_html(r->pool, field)));
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
+                              "Request header exceeds LimitRequestFieldSize: "
+                              "%.*s", field_name_len(field), field);
+            }
+            return;
+        }
 
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+        if (last_field != NULL) {
+            if ((len > 0) && ((*field == '\t') || *field == ' ')) {

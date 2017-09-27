@@ -1,18 +1,18 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
 
-	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
-	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
-	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
-
-	pid = (*func) (data, &info);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
-++ apache_1.3.2/src/main/buff.c	1998-09-05 00:47:46.000000000 +0800
+static void enable_listensocks(int process_slot)
+{
+    int i;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
+                 "Accepting new connections again: "
+                 "%u active conns (%u lingering/%u clogged/%u suspended), "
+                 "%u idle workers",
+                 apr_atomic_read32(&connection_count),
+                 apr_atomic_read32(&lingering_count),
+                 apr_atomic_read32(&clogged_count),
+                 apr_atomic_read32(&suspended_count),
+                 ap_queue_info_get_idlers(worker_queue_info));
+    for (i = 0; i < num_listensocks; i++)
+        apr_pollset_add(event_pollset, &listener_pollfd[i]);
+    /*
+     * XXX: This is not yet optimal. If many workers suddenly become available,
+     * XXX: the parent may kill some processes off too soon.

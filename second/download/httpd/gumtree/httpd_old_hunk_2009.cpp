@@ -1,40 +1,13 @@
-	return;
+         */
+        err = apr_sockaddr_info_get(&(worker->cp->addr),
+                                    conn->hostname, APR_UNSPEC,
+                                    conn->port, 0,
+                                    worker->cp->pool);
+        conn->addr = worker->cp->addr;
+        PROXY_THREAD_UNLOCK(worker);
     }
     else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
+        conn->addr = worker->cp->addr;
 
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    if (err != APR_SUCCESS) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,

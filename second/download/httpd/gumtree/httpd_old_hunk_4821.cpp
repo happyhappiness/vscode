@@ -1,19 +1,17 @@
-	version_locked++;
-    }
-}
+                ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, APLOGNO(00347)
+                             "getpeername failed");
+                memset(&context->sa_client, '\0', sizeof(context->sa_client));
+            }
+        }
 
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-/* a clean exit from a child with proper cleanup */
-static void __attribute__((noreturn)) clean_child_exit(int code)
-{
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    exit(code);
-}
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
-{
+        sockinfo.os_sock = &context->accept_socket;
+        sockinfo.local   = context->sa_server;
+        sockinfo.remote  = context->sa_client;
+        sockinfo.family  = context->sa_server->sa_family;
+        sockinfo.type    = SOCK_STREAM;
+        /* Restore the state corresponding to apr_os_sock_make's default
+         * assumption of timeout -1 (really, a flaw of os_sock_make and
+         * os_sock_put that it does not query to determine ->timeout).
+         * XXX: Upon a fix to APR, these three statements should disappear.
+         */
+        ioctlsocket(context->accept_socket, FIONBIO, &zero);

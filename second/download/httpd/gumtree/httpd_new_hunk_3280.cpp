@@ -1,19 +1,44 @@
-    if (!method_restricted)
-	return OK;
+     *
+     * If no size is specified, use the kernel default.
+     */
+    if (send_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_SNDBUF,  send_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p, APLOGNO(00070)
+                          "make_sock: failed to set SendBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
+        }
+    }
+    if (receive_buffer_size) {
+        stat = apr_socket_opt_set(s, APR_SO_RCVBUF, receive_buffer_size);
+        if (stat != APR_SUCCESS && stat != APR_ENOTIMPL) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p, APLOGNO(00071)
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);
+            /* not a fatal error */
+        }
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+#if APR_TCP_NODELAY_INHERITED
+    ap_sock_disable_nagle(s);
+#endif
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+    if ((stat = apr_socket_bind(s, server->bind_addr)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p, APLOGNO(00072)
+                      "make_sock: could not bind to address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }
 
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    if ((stat = apr_socket_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p, APLOGNO(00073)
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);
+        apr_socket_close(s);
+        return stat;
+    }

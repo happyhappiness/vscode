@@ -1,12 +1,22 @@
-        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
-        if (!any_dying_threads) {
-            last_non_dead = i;
-            ++total_non_dead;
         }
     }
-    ap_max_daemons_limit = last_non_dead + 1;
 
-    if (idle_thread_count > max_spare_threads) {
-        /* Kill off one child */
-        ap_mpm_pod_signal(pod, TRUE);
-        idle_spawn_rate = 1;
+    return rc;
+}
+
+static int open_error_log(server_rec *s, apr_pool_t *p)
+{
+    const char *fname;
+    int rc;
+
+    if (*s->error_fname == '|') {
+        apr_file_t *dummy = NULL;
+
+        /* This starts a new process... */
+        rc = log_child (p, s->error_fname + 1, &dummy);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "Couldn't start ErrorLog process");
+            return DONE;
+        }
+

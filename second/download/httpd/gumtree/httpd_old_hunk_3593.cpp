@@ -1,13 +1,27 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+        for (j = i + 1; j < nelts; j++) {
+            size_t ltabj = strlen(tab[j]);
+
+            /* must not use the same argument name twice */
+            if (!strcmp(tab[i], tab[j])) {
+                return apr_psprintf(pool,
+                                   "argument name conflict in macro '%s' (%s): "
+                                    "argument '%s': #%d and #%d, "
+                                    "change argument names!",
+                                    macro->name, macro->location,
+                                    tab[i], i + 1, j + 1);
+            }
+
+            /* warn about common prefix, but only if non empty names */
+            if (ltabi && ltabj &&
+                !strncmp(tab[i], tab[j], ltabi < ltabj ? ltabi : ltabj)) {
+                ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
+                             0, NULL,
+                             "macro '%s' (%s): "
+                            "argument name prefix conflict (%s #%d and %s #%d),"
+                             " be careful about your macro definition!",
+                             macro->name, macro->location,
+                             tab[i], i + 1, tab[j], j + 1);
+            }
+        }
     }
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

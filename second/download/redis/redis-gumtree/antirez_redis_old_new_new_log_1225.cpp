@@ -1,1 +1,0 @@
-addReplyError(c,"Unknown failure simulation specified");

@@ -1,1 +1,0 @@
-printf("\n# Scanned all %llu keys in the keyspace!\n", samples);

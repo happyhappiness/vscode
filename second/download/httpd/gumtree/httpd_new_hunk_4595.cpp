@@ -1,26 +1,52 @@
-	     * Kill child processes, tell them to call child_exit, etc...
-	     */
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-	    }
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-
-	    /* cleanup pid file on normal shutdown */
-	    {
-		const char *pidfile = NULL;
-		pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-		if ( pidfile != NULL && unlink(pidfile) == 0)
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-				 server_conf,
-				 "httpd: removed PID file %s (pid=%ld)",
-				 pidfile, (long)getpid());
-	    }
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-			"httpd: caught SIGTERM, shutting down");
-	    clean_parent_exit(0);
-	}
-
-	/* we've been told to restart */
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);
+                                                sizeof(ctx->server_portstr))) != OK) {
+        goto cleanup;
+    }
+    
+    /* If we are not already hosting an engine, try to push the request 
+     * to an already existing engine or host a new engine here. */
+    if (r && !ctx->engine) {
+        ctx->r_status = push_request_somewhere(ctx, r);
+        r = NULL;
+        if (ctx->r_status == SUSPENDED) {
+            /* request was pushed to another thread, leave processing here */
+            goto cleanup;
+        }
+    }
+    
+    /* Step Two: Make the Connection (or check that an already existing
+     * socket is still usable). On success, we have a socket connected to
+     * backend->hostname. */
+    if (ap_proxy_connect_backend(ctx->proxy_func, ctx->p_conn, ctx->worker, 
+                                 ctx->server)) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(03352)
+                      "H2: failed to make connection to backend: %s",
+                      ctx->p_conn->hostname);
+        goto reconnect;
+    }
+    
+    /* Step Three: Create conn_rec for the socket we have open now. */
+    if (!ctx->p_conn->connection) {
+        if ((status = ap_proxy_connection_create(ctx->proxy_func, ctx->p_conn,
+                                                 ctx->owner, 
+                                                 ctx->server)) != OK) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, ctx->owner, APLOGNO(03353)
+                          "setup new connection: is_ssl=%d %s %s %s", 
+                          ctx->p_conn->is_ssl, ctx->p_conn->ssl_hostname, 
+                          locurl, ctx->p_conn->hostname);
+            goto reconnect;
+        }
+        
+        if (!ctx->p_conn->data) {
+            /* New conection: set a note on the connection what CN is
+             * requested and what protocol we want */
+            if (ctx->p_conn->ssl_hostname) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, ctx->owner, 
+                              "set SNI to %s for (%s)", 
+                              ctx->p_conn->ssl_hostname, 
+                              ctx->p_conn->hostname);
+                apr_table_setn(ctx->p_conn->connection->notes,
+                               "proxy-request-hostname", ctx->p_conn->ssl_hostname);
+            }
+            if (ctx->is_ssl) {
+                apr_table_setn(ctx->p_conn->connection->notes,
+                               "proxy-request-alpn-protos", "h2");

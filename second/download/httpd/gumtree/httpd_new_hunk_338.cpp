@@ -1,13 +1,24 @@
+	 */
+	if (l == c->rwrite)
+	    break;
 
-    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
-                               ap_accept_lock_mech, _pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock");
-        mpm_state = AP_MPMQ_STOPPING;
-        return 1;
-    }
+#ifdef USE_SSL
+        if (ssl != 1)
+#endif
+	if (e != APR_SUCCESS) {
+	    /*
+	     * Let's hope this traps EWOULDBLOCK too !
+	     */
+	    if (!APR_STATUS_IS_EAGAIN(e)) {
+		epipe++;
+		printf("Send request failed!\n");
+		close_connection(c);
+	    }
+	    return;
+	}
+	c->rwrote += l;
+	c->rwrite -= l;
+    } while (1);
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
-        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+    totalposted += c->rwrite;
+    c->state = STATE_READ;

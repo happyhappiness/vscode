@@ -1,1 +1,0 @@
-sprintf(types[RDB_OPCODE_SELECTDB], "SELECTDB");

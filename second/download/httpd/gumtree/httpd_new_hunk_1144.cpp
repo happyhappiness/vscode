@@ -1,32 +1,14 @@
-                    /* sanity check */
-                    if (APR_BRIGADE_EMPTY(bb)) {
-                        apr_brigade_cleanup(bb);
-                        break;
-                    }
 
-                    /* Switch the allocator lifetime of the buckets */
-                    ap_proxy_buckets_lifetime_transform(r, bb, pass_bb);
+            X509_STORE_CTX_set_ex_data(&cert_store_ctx,
+                                       SSL_get_ex_data_X509_STORE_CTX_idx(),
+                                       (char *)ssl);
 
-                    /* found the last brigade? */
-                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-                        /* signal that we must leave */
-                        finish = TRUE;
-                    }
-
-                    /* try send what we read */
-                    if (ap_pass_brigade(r->output_filters, pass_bb) != APR_SUCCESS
-                        || c->aborted) {
-                        /* Ack! Phbtt! Die! User aborted! */
-                        backend->close = 1;  /* this causes socket close below */
-                        finish = TRUE;
-                    }
-
-                    /* make sure we always clean up after ourselves */
-                    apr_brigade_cleanup(bb);
-                    apr_brigade_cleanup(pass_bb);
-
-                } while (!finish);
+            if (!modssl_X509_verify_cert(&cert_store_ctx)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation verification step failed");
+                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
             }
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: end body send");
-        }
+
+            SSL_set_verify_result(ssl, cert_store_ctx.error);
+            X509_STORE_CTX_cleanup(&cert_store_ctx);
+

@@ -1,1 +1,1 @@
-ap_rputs("</dl><hr />\n", r);
+ap_rputs(" -D HAVE_SHMGET\n", r);

@@ -1,19 +1,26 @@
-	version_locked++;
+                          APLOGNO(02932) "nghttp2_session_upgrade: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        /* Now we need to auto-open stream 1 for the request we got. */
+        stream = h2_session_open_stream(session, 1, 0, NULL);
+        if (!stream) {
+            status = APR_EGENERAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02933) "open stream 1: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        status = h2_stream_set_request_rec(stream, session->r);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = stream_schedule(session, stream, 1);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
     }
-}
 
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-/* a clean exit from a child with proper cleanup */
-static void __attribute__((noreturn)) clean_child_exit(int code)
-{
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    exit(code);
-}
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
-{
+    slen = 0;

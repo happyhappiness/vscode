@@ -1,14 +1,23 @@
+    t->index_initialized |= s->index_initialized;
 }
 
-static void join_start_thread(apr_thread_t *start_thread_id)
+APR_DECLARE(void) apr_table_overlap(apr_table_t *a, const apr_table_t *b,
+				    unsigned flags)
 {
-    apr_status_t rv, thread_rv;
+    const int m = a->a.nelts;
+    const int n = b->a.nelts;
+    apr_pool_t *p = b->a.pool;
 
-    start_thread_may_exit = 1; /* tell it to give up in case it is still 
-                                * trying to take over slots from a 
-                                * previous generation
-                                */
-    rv = apr_thread_join(&thread_rv, start_thread_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "apr_thread_join: unable to join the start "
+    if (m + n == 0) {
+        return;
+    }
+
+    /* copy (extend) a using b's pool */
+    if (a->a.pool != p) {
+        make_array_core(&a->a, p, m+n, sizeof(apr_table_entry_t), 0);
+    }
+
+    apr_table_cat(a, b);
+
+    apr_table_compress(a, flags);
+}

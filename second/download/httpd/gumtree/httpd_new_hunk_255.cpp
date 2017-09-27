@@ -1,14 +1,12 @@
 
-            auth_line = ap_pbase64decode(r->pool, auth_line);
-            username = ap_getword_nulls(r->pool, &auth_line, ':');
-            password = auth_line;
-
-            if ((username[0] == '/') && strEQ(password, "password")) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "Encountered FakeBasicAuth spoof: %s", username);
-                return HTTP_FORBIDDEN;
-            }
+    *accepted = NULL;
+    status = apr_accept(&csd, lr->sd, ptrans);
+    if (status == APR_SUCCESS) { 
+        *accepted = csd;
+        apr_os_sock_get(&sockdes, csd);
+#ifdef TPF
+        if (sockdes == 0) {                  /* 0 is invalid socket for TPF */
+            return APR_EINTR;
         }
-    }
-
-    /*
+#endif
+        return status;

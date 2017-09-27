@@ -1,48 +1,25 @@
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-#ifdef CHARSET_EBCDIC
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-#endif
-
-    /* Get the request... */
-
-    ap_keepalive_timeout("read request line", r);
-    if (!read_request_line(r)) {
-        ap_kill_timeout(r);
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-        return NULL;
-    }
-    if (!r->assbackwards) {
-        ap_hard_timeout("read request headers", r);
-        get_mime_headers(r);
-        ap_kill_timeout(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-    }
-    else {
-        ap_kill_timeout(r);
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01702)
+                      "auth_ldap authorize: require user: user's DN has not "
+                      "been defined; failing authorization");
+        return AUTHZ_DENIED;
     }
 
-    r->status = HTTP_OK;                         /* Until further notice. */
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02585)
+                      "auth_ldap authorize: require user: Can't evaluate expression: %s",
+                      err);
+        return AUTHZ_DENIED;
+    }
 
-    /* update what we think the virtual host is based on the headers we've
-     * now read
+    /*
+     * First do a whole-line compare, in case it's something like
+     *   require user Babs Jensen
      */
+    result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, require);
+    switch(result) {
+        case LDAP_COMPARE_TRUE: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01703)
+                          "auth_ldap authorize: require user: authorization "
+                          "successful");
+            set_request_vars(r, LDAP_AUTHZ);

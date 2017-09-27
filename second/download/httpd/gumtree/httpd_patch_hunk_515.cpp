@@ -1,22 +1,21 @@
-                 if (error_fmt) {
-                     ap_log_rerror(APLOG_MARK, loglevel,
-                                   0, r, error_fmt, tag_val, r->filename);
-                     CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
-                                         *inserted_head);
-                 }
--
--                /* destroy the sub request */
--                if (rr != NULL) {
--                    ap_destroy_sub_req(rr);
--                }
-+                
-+                /* Do *not* destroy the subrequest here; it may have allocated
-+                 * variables in this r->subprocess_env in the subrequest's
-+                 * r->pool, so that pool must survive as long as this request.
-+                 * Yes, this is a memory leak. */
-             }
-             else {
-                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                             "unknown parameter \"%s\" to tag include in %s",
-                             tag, r->filename);
-                 CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+     isa->isapi_version = apr_pcalloc(p, sizeof(HSE_VERSION_INFO));
+ 
+     /* TODO: These aught to become overrideable, so that we
+      * assure a given isapi can be fooled into behaving well.
+      *
+      * The tricky bit, they aren't really a per-dir sort of
+-     * config, they will always be constant across every 
++     * config, they will always be constant across every
+      * reference to the .dll no matter what context (vhost,
+      * location, etc) they apply to.
+      */
+     isa->report_version = 0x500; /* Revision 5.0 */
+     isa->timeout = 300 * 1000000; /* microsecs, not used */
+-    
++
+     rv = apr_dso_load(&isa->handle, isa->filename, p);
+     if (rv)
+     {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                      "ISAPI: failed to load %s", isa->filename);
+         isa->handle = NULL;

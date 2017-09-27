@@ -1,25 +1,18 @@
-     *    This event is signaled by the worker threads to indicate that
-     *    the process has handled MaxRequestsPerChild connections.
-     *
-     * TIMEOUT:
-     *    To do periodic maintenance on the server (check for thread exits,
-     *    number of completion contexts, etc.)
-     */
-    while (1) {
-        rv = WaitForMultipleObjects(2, (HANDLE *) child_events, FALSE, 1000);
-        cld = rv - WAIT_OBJECT_0;
-        if (rv == WAIT_FAILED) {
-            /* Something serious is wrong */
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: WAIT_FAILED -- shutting down server");
-            break;
+               */
+              ((rc = apr_procattr_child_err_set(procattr, r->server->error_log, NULL)) != APR_SUCCESS) ||
+              ((rc = apr_procattr_child_in_set(procattr, inout, NULL)) != APR_SUCCESS))) ||
+            ((rc = apr_procattr_child_out_set(procattr, inout, NULL)) != APR_SUCCESS) ||
+            ((rc = apr_procattr_dir_set(procattr,
+                                  ap_make_dirstr_parent(r->pool, r->filename))) != APR_SUCCESS) ||
+            ((rc = apr_procattr_cmdtype_set(procattr, cmd_type)) != APR_SUCCESS)) {
+            /* Something bad happened, tell the world. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                      "couldn't set child process attributes: %s", r->filename);
         }
-        else if (rv == WAIT_TIMEOUT) {
-            apr_proc_other_child_check();
-        }
-        else if (cld == 0) {
-            /* Exit event was signaled */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Exit event signaled. Child process is ending.", my_pid);
-            break;
-        }
+        else {
+            argv = (const char * const *)create_argv(r->pool, NULL, NULL, NULL, argv0, r->args);
+
+           /* We want to close sd2 for the new CGI process too.
+            * If it is left open it'll make ap_pass_brigade() block
+            * waiting for EOF if CGI forked something running long.
+            * close(sd2) here should be okay, as CGI channel

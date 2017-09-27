@@ -1,1 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", description);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                     0, ap_server_conf,
+                     "seg fault or similar nasty error detected "
+                     "in the parent process");

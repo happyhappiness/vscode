@@ -1,29 +1,33 @@
-	}
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+    apr_pool_create(&ctx->pool, p);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+    return NULL;
+}
+
+#if AP_NEED_SET_MUTEX_PERMS
+static int try_chown(apr_pool_t *p, server_rec *s,
+                     const char *name, const char *suffix)
+{
+    if (suffix)
+        name = apr_pstrcat(p, name, suffix, NULL);
+    if (-1 == chown(name, ap_unixd_config.user_id,
+                    (gid_t)-1 /* no gid change */ ))
+    {
+        if (errno != ENOENT)
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(errno), s, APLOGNO(00802)
+                         "Can't change owner of %s", name);
+        return -1;
+    }
+    return 0;
+}
 #endif
-	return 0;
+
+
+static apr_status_t socache_dbm_init(ap_socache_instance_t *ctx,
+                                     const char *namespace,
+                                     const struct ap_socache_hints *hints,
+                                     server_rec *s, apr_pool_t *p)
+{
+    apr_dbm_t *dbm;
+    apr_status_t rv;
+

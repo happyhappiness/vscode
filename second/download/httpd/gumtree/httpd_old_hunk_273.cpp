@@ -1,45 +1,22 @@
+    int csd;
+    ap_sb_handle_t *sbh;
 
-    /* truncate any arguments from the cmd */
-    for (ptr = cmd_only; *ptr && (*ptr != ' '); ptr++);
-    *ptr = '\0';
+    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
+    apr_os_sock_get(&csd, sock);
 
-    /* Figure out what the extension is so that we can matche it. */
-    ext = strrchr(apr_filename_of_pathname(cmd_only), '.');
-
-    /* If there isn't an extension then give it an empty string */
-    if (!ext) {
-        ext = "";
-    }
-    
-    /* eliminate the '.' if there is one */
-    if (*ext == '.')
-        ++ext;
-
-    /* If it is an NLM then just execute it. */
-    if (stricmp(ext, "nlm")) {
-        /* check if we have a registered command for the extension*/
-        *cmd = apr_table_get(d->file_type_handlers, ext);
-        if (*cmd == NULL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Could not find a command associated with the %s extension", ext);
-            return APR_EBADF;
-        }
-
-        /* If we have a registered command then add the file that was passed in as a
-          parameter to the registered command. */
-        *cmd = apr_pstrcat (p, *cmd, " ", cmd_only, NULL);
-
-        /* Run in its own address space if specified */
-        detached = apr_table_get(d->file_handler_mode, ext);
-        if (detached) {
-		    e_info->cmd_type = APR_PROGRAM_ENV;
-        }
-		else {
-		    e_info->cmd_type = APR_PROGRAM;
-		}
+    if (csd >= FD_SETSIZE) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "new file descriptor %d is too large; you probably need "
+                     "to rebuild Apache with a larger FD_SETSIZE "
+                     "(currently %d)", 
+                     csd, FD_SETSIZE);
+        apr_socket_close(sock);
+        return;
     }
 
-    /* Tokenize the full command string into its arguments */
-    apr_tokenize_to_argv(*cmd, (char***)argv, p);
-    e_info->detached = 1;
-
+    current_conn = ap_run_create_connection(p, ap_server_conf, sock,
+                                            conn_id, sbh, bucket_alloc);
+    if (current_conn) {
+        ap_process_connection(current_conn, sock);
+        ap_lingering_close(current_conn);
+    }

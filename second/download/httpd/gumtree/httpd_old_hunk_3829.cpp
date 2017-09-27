@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+                !strcasecmp(id[i], name)) {
+                matched = TRUE;
+            }
 
-    Explain0("FTP: connected.");
+            if (s) {
+                ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                             "[%s] SSL_X509_match_name: expecting name '%s', "
+                             "%smatched by ID '%s'",
+                             (mySrvConfig(s))->vhost_id, name,
+                             matched == TRUE ? "" : "NOT ", id[i]);
+            }
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+            if (matched == TRUE) {

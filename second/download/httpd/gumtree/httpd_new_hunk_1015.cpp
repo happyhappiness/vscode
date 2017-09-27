@@ -1,21 +1,20 @@
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "XML parser error (at end). status=%d", status);
-        return HTTP_BAD_REQUEST;
-    }
+    /* Save a copy for the proxy */
+    fullurl = apr_pstrdup(cntxt, url);
 
-#if APR_CHARSET_EBCDIC
-    apr_xml_parser_convert_doc(r->pool, *pdoc, ap_hdrs_from_ascii);
+    if (strlen(url) > 7 && strncmp(url, "http://", 7) == 0) {
+	url += 7;
+#ifdef USE_SSL
+        is_ssl = 0;
 #endif
-    return OK;
-
-  parser_error:
-    (void) apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "XML Parser Error: %s", errbuf);
-
-    /* FALLTHRU */
-
-  read_error:
-    /* make sure the parser is terminated */
-    (void) apr_xml_parser_done(parser, NULL);
+    }
+    else
+#ifdef USE_SSL
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+	url += 8;
+        is_ssl = 1;
+    }
+#else
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+	fprintf(stderr, "SSL not compiled in; no https support\n");
+	exit(1);
+    }

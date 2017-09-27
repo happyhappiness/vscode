@@ -1,13 +1,13 @@
-        getword(x, l, ':');
-        if (strcmp(user, w) || strcmp(realm, x)) {
-            putline(tfp, line);
-            continue;
-        }
-        else {
-            apr_file_printf(errfile, "Changing password for user %s in realm %s\n", 
-                    user, realm);
-            add_password(user, realm, tfp);
-            found = 1;
-        }
+    int error_index = ap_index_of_response(type);
+    char *custom_response = ap_response_code_string(r, error_index);
+    int recursive_error = 0;
+    request_rec *r_1st_err = r;
+
+    if (type == AP_FILTER_ERROR) {
+        return;
     }
-    if (!found) {
+
+    if (type == DONE) {
+        ap_finalize_request_protocol(r);
+        return;
+    }

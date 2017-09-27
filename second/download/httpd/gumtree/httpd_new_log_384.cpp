@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "The -c flag creates a new file.\n");
+apr_file_printf(errfile, "%s: could not determine temp dir\n",
+                        argv[0]);

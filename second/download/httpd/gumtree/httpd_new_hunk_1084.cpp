@@ -1,13 +1,15 @@
-    apr_file_close(f);
-
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
-                APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n",
-                        argv[0], argv[1]);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    apr_file_close(tfp);
 
-    return 0;
-}
+    expires = base + additional;
+    if (expires < r->request_time) {
+        expires = r->request_time;
+    }
+    apr_table_mergen(t, "Cache-Control",
+                     apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
+                                  apr_time_sec(expires - r->request_time)));
+    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+    apr_rfc822_date(timestr, expires);
+    apr_table_setn(t, "Expires", timestr);

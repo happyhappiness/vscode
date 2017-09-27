@@ -1,13 +1,14 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
-
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+            ap_rputc(127, r);
+            llen = ap_ntoh64(&llen); /* ntoh doubles as hton */
+            ap_rwrite((char*) &llen, 8, r);
+        }
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03014) 
+                      "Websocket: Writing raw message to client");
+    }
+    ap_rwrite(string, len, r);
+    rv = ap_rflush(r);
+    if (rv == APR_SUCCESS) {
+        lua_pushboolean(L, 1);
+    }

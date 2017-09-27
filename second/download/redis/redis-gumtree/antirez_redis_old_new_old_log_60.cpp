@@ -1,1 +1,0 @@
-printf("Removing rubicon\n");

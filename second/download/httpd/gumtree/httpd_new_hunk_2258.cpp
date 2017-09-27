@@ -1,13 +1,26 @@
+ * untrusted data.
+ */
+#if __STDC_VERSION__ >= 199901L
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_rerror(...) ap_log_rerror__(__VA_ARGS__)
+#define ap_log_rerror__(file, line, mi, level, status, r, ...)              \
+    do { if (APLOG_R_MODULE_IS_LEVEL(r, mi, level))                         \
+             ap_log_rerror_(file, line, mi, level, status, r, __VA_ARGS__); \
+    } while(0)
+#else
+#define ap_log_rerror ap_log_rerror_
+#endif
+AP_DECLARE(void) ap_log_rerror_(const char *file, int line, int module_index,
+                                int level, apr_status_t status,
+                                const request_rec *r, const char *fmt, ...)
+			    __attribute__((format(printf,7,8)));
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+/**
+ * ap_log_cerror() - log messages which are related to a particular
+ * connection.  This uses a printf-like format to log messages to the
+ * error_log.
+ * @param file The file in which this function is called
+ * @param line The line number on which this function is called
+ * @param level The level of this error message
+ * @param module_index The module_index of the module generating this message
+ * @param status The status code from the previous command

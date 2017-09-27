@@ -1,56 +1,103 @@
-        else if (cid->dconf.log_unsupported) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
-                          r->filename);
+    /* We are putting the socket discriptor into an apr_file_t so that we can
+     * use a pipe bucket to send the data to the client.  APR will create
+     * a cleanup for the apr_file_t which will close the socket, so we'll
+     * get rid of the cleanup we registered when we created the socket.
+     */
+    apr_os_pipe_put_ex(&tempsock, &sd, 1, r->pool);
+    apr_pool_cleanup_kill(r->pool, (void *)sd, close_unix_socket);
+
+    bcgi = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    b    = apr_bucket_pipe_create(tempsock, r->connection->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bcgi, b);
+    ap_pass_brigade(f->next, bcgi);
+
+    return 0;
+}
+
+static int handle_exec(include_ctx_t *ctx, apr_bucket_brigade **bb, request_rec *r,
+                       ap_filter_t *f, apr_bucket *head_ptr, apr_bucket **inserted_head)
+{
+    char *tag     = NULL;
+    char *tag_val = NULL;
+    char *file = r->filename;
+    apr_bucket  *tmp_buck;
+    char parsed_string[MAX_STRING_LEN];
+
+    *inserted_head = NULL;
+    if (ctx->flags & FLAG_PRINTING) {
+        if (ctx->flags & FLAG_NO_EXEC) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "exec used but not allowed in %s", r->filename);
+            CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
         }
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
+        else {
+            while (1) {
+                cgid_pfn_gtv(ctx, &tag, &tag_val, 1);
+                if (tag_val == NULL) {
+                    if (tag == NULL) {
+                        return (0);
+                    }
+                    else {
+                        return 1;
+                    }
+                }
+                if (!strcmp(tag, "cmd")) {
+                    cgid_pfn_ps(r, ctx, tag_val, parsed_string, sizeof(parsed_string), 1);
+                    if (include_cmd(ctx, bb, parsed_string, r, f) == -1) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                    "execution failure for parameter \"%s\" "
+                                    "to tag exec in file %s", tag, r->filename);
+                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+                    }
+                    /* just in case some stooge changed directories */
+                }
+                else if (!strcmp(tag, "cgi")) {
+                    apr_status_t retval = APR_SUCCESS;
 
-    case HSE_REQ_MAP_URL_TO_PATH:
-    {
-        /* Map a URL to a filename */
-        char *file = (char *)buf_data;
-        apr_uint32_t len;
-        subreq = ap_sub_req_lookup_uri(
-                     apr_pstrndup(cid->r->pool, file, *buf_size), r, NULL);
+                    cgid_pfn_ps(r, ctx, tag_val, parsed_string, sizeof(parsed_string), 0);
+                    SPLIT_AND_PASS_PRETAG_BUCKETS(*bb, ctx, f->next, retval);
+                    if (retval != APR_SUCCESS) {
+                        return retval;
+                    }
 
-        if (!subreq->filename) {
-            ap_destroy_sub_req(subreq);
-            return 0;
+                    if (include_cgi(parsed_string, r, f->next, head_ptr, inserted_head) == -1) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                    "invalid CGI ref \"%s\" in %s", tag_val, file);
+                        CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+                    }
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                "unknown parameter \"%s\" to tag exec in %s", tag, file);
+                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
+                }
+            }
         }
-
-        len = (apr_uint32_t)strlen(r->filename);
-
-        if ((subreq->finfo.filetype == APR_DIR)
-              && (!subreq->path_info)
-              && (file[len - 1] != '/'))
-            file = apr_pstrcat(cid->r->pool, subreq->filename, "/", NULL);
-        else
-            file = apr_pstrcat(cid->r->pool, subreq->filename, 
-                                              subreq->path_info, NULL);
-
-        ap_destroy_sub_req(subreq);
-
-#ifdef WIN32
-        /* We need to make this a real Windows path name */
-        apr_filepath_merge(&file, "", file, APR_FILEPATH_NATIVE, r->pool);
-#endif
-
-        *buf_size = apr_cpystrn(buf_data, file, *buf_size) - buf_data;
-
-        return 1;
     }
+    return 0;
+}
+/*============================================================================
+ *============================================================================
+ * This is the end of the cgi filter code moved from mod_include.
+ *============================================================================
+ *============================================================================*/
 
-    case HSE_REQ_GET_SSPI_INFO:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                           "is not supported: %s", r->filename);
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
 
-    case HSE_APPEND_LOG_PARAMETER:
-        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
-         */
-        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+static void register_hook(apr_pool_t *p)
+{
+    static const char * const aszPre[] = { "mod_include.c", NULL };
+
+    ap_hook_post_config(cgid_init, aszPre, NULL, APR_HOOK_MIDDLE);
+    ap_hook_handler(cgid_handler, NULL, NULL, APR_HOOK_MIDDLE);
+}
+
+module AP_MODULE_DECLARE_DATA cgid_module = { 
+    STANDARD20_MODULE_STUFF, 
+    NULL, /* dir config creater */ 
+    NULL, /* dir merger --- default is to override */ 
+    create_cgid_config, /* server config */ 
+    merge_cgid_config, /* merge server config */ 
+    cgid_cmds, /* command table */ 
+    register_hook /* register_handlers */ 
+}; 
+

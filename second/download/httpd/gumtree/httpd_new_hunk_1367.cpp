@@ -1,14 +1,39 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_headers: ajp_msg_get_byte failed");
-        return rc;
+static apr_status_t ssl_io_filter_error(ap_filter_t *f,
+                                        apr_bucket_brigade *bb,
+                                        apr_status_t status)
+{
+    SSLConnRec *sslconn = myConnConfig(f->c);
+    apr_bucket *bucket;
+    int send_eos = 1;
+
+    switch (status) {
+      case HTTP_BAD_REQUEST:
+            /* log the situation */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, sslconn->server);
+
+            sslconn->non_ssl_request = NON_SSL_SEND_HDR_SEP;
+            ssl_io_filter_disable(sslconn, f);
+
+            /* fake the request line */
+            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
+            send_eos = 0;
+            break;
+
+      default:
+        return status;
     }
-    if (result != CMD_AJP13_SEND_HEADERS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_headers: wrong type 0x%02x expecting 0x%02x",
-               result, CMD_AJP13_SEND_HEADERS);
-        return AJP_EBAD_HEADER;
+
+    APR_BRIGADE_INSERT_TAIL(bb, bucket);
+    if (send_eos) {
+        bucket = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, bucket);
     }
-    return ajp_unmarshal_response(msg, r, conf);
+    return APR_SUCCESS;
 }
 
-/* parse the body and return data address and length */
+static const char ssl_io_filter[] = "SSL/TLS Filter";
+static const char ssl_io_buffer[] = "SSL/TLS Buffer";
+

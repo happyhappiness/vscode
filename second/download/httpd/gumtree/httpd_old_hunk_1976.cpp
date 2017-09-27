@@ -1,16 +1,14 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-		    isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
+    ap_input_mode_t mode, apr_read_type_e block, apr_off_t readbytes)
+{
+
+    apr_bucket *b;
+    apr_status_t ret;
+    conn_rec *c = f->c;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+        "mod_dumpio: %s [%s-%s] %" APR_OFF_T_FMT " readbytes",
+         f->frec->name,
+         whichmode(mode),
+         ((block) == APR_BLOCK_READ) ? "blocking" : "nonblocking",
+         readbytes) ;
+

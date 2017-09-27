@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                     "LDAP: auth_ldap using SSL connections");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "mod_rewrite: Could not set permissions on "
+                     "rewrite_log_lock; check User and Group directives");

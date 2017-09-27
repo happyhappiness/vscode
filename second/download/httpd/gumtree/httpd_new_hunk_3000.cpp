@@ -1,16 +1,25 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
+    if (strncasecmp(url, "fcgi:", 5) == 0) {
+        url += 5;
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+    else {
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                 "canonicalising URL %s", url);
+
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01059)
+                      "error parsing URL %s: %s", url, err);
+        return HTTP_BAD_REQUEST;
+    }
+
+    apr_snprintf(sport, sizeof(sport), ":%d", port);
+
+    if (ap_strchr_c(host, ':')) {
+        /* if literal IPv6 address */
+        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
+    }
+
+    if (apr_table_get(r->notes, "proxy-nocanon")) {

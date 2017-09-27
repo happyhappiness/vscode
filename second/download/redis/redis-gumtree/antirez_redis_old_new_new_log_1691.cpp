@@ -1,1 +1,0 @@
-snprintf(seq,64,"\x1b[%dB", old_rows-rpos);

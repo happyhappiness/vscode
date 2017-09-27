@@ -1,1 +1,0 @@
-ll2string(bufa,sizeof(bufa),(long) a->ptr);

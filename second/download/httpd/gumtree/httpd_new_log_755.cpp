@@ -1,1 +1,1 @@
-ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
+ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);

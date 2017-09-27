@@ -1,1 +1,1 @@
-(j == '-' || j == ']';
+printf("matching subject ");

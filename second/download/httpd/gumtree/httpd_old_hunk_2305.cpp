@@ -1,20 +1,16 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+                shmcb_cyclic_cton_memcpy(header->subcache_data_size, dest,
+                                         SHMCB_DATA(header, subcache),
+                                         data_offset, dest_len);
+                dest[dest_len] = '\0';
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+                rv = (*iterator)(instance, s, id, idx->id_len,
+                                 dest, dest_len, pool);
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "shmcb_subcache_iterate discarding expired entry");
+                if (rv != APR_SUCCESS)
+                    return rv;
+            }
+            else {
+                /* Already stale, quietly remove and treat as not-found */
+                idx->removed = 1;

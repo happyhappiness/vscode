@@ -1,1 +1,0 @@
-addReplyError(c,"The specified key does not exist");

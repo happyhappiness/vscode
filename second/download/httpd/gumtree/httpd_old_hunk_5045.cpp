@@ -1,14 +1,18 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01675)
+                      "failed to create %s mutex", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */
     }
-    else {
-	mm = (caddr_t)-1;
+    apr_pool_cleanup_register(pconf, NULL, remove_lock, apr_pool_cleanup_null);
+
+    errmsg = socache_provider->create(&socache_instance, NULL, ptmp, pconf);
+    if (errmsg) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01676) "%s", errmsg);
+        return 500; /* An HTTP status would be a misnomer! */
     }
--- apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
+
+    rv = socache_provider->init(socache_instance, authn_cache_id,
+                                &authn_cache_hints, s, pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01677)
+                      "failed to initialise %s cache", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */

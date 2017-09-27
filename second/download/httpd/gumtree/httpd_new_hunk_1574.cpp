@@ -1,55 +1,42 @@
-    if ((*route) && (**route)) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                  "proxy: BALANCER: Found route %s", *route);
-        /* We have a route in path or in cookie
-         * Find the worker that has this route defined.
-         */
-        worker = find_route_worker(balancer, *route, r);
-        if (worker && strcmp(*route, worker->s->route)) {
-            /*
-             * Notice that the route of the worker chosen is different from
-             * the route supplied by the client.
-             */
-            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: BALANCER: Route changed from %s to %s",
-                         *route, worker->s->route);
-        }
-        return worker;
-    }
-    else
-        return NULL;
-}
-
-static proxy_worker *find_best_worker(proxy_balancer *balancer,
-                                      request_rec *r)
-{
-    proxy_worker *candidate = NULL;
-    apr_status_t rv;
-
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-        "proxy: BALANCER: (%s). Lock failed for find_best_worker()", balancer->name);
-        return NULL;
-    }
-
-    candidate = (*balancer->lbmethod->finder)(balancer, r);
-
-    if (candidate)
-        candidate->s->elected++;
-
-/*
-        PROXY_THREAD_UNLOCK(balancer);
-        return NULL;
-*/
-
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-        "proxy: BALANCER: (%s). Unlock failed for find_best_worker()", balancer->name);
-    }
-
-    if (candidate == NULL) {
-        /* All the workers are in error state or disabled.
-         * If the balancer has a timeout sleep for a while
-         * and try again to find the worker. The chances are
-         * that some other thread will release a connection.
+                  name_scratch[name_width - 2] = '.';
+                  name_scratch[name_width - 1] = '>';
+                  name_scratch[name_width] = 0;
+                  t2 = name_scratch;
+                  nwidth = name_width;
+                }
+                ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", "<a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2),
+                          "</a>", pad_scratch + nwidth, NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "%Y-%m-%d %H:%M  ",
+                                 &ts);
+                    ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">",time_str, NULL);
+                }
+                else {
+                    ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">&nbsp;" : ">&nbsp;", NULL);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcolsize\">" : " align=\"right\">",
+                          apr_strfsize(ar[x]->size, buf), NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    if (d->desc_adjust == K_ADJUST) {
+                        ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">", ar[x]->desc, NULL);
+                    }
+                    else {
+                        ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">",
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts,
+                                                        desc_width), NULL);
+                    }
+                }
+                else {

@@ -1,32 +1,19 @@
-     * just the certificate/keys of one virtual host (which one cannot be said
-     * easily - but that doesn't matter here).
-     */
-    table = apr_hash_make(p);
+}
 
-    for (s = base_server; s; s = s->next) {
-        sc = mySrvConfig(s);
+BOOL ssl_scache_shmcb_store(server_rec *s, UCHAR *id, int idlen,
+                           time_t timeout, SSL_SESSION * pSession)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    void *shm_segment;
+    BOOL to_return = FALSE;
 
-        if (!(sc->enabled && s->addrs)) {
-            continue;
-        }
-
-        key = apr_psprintf(p, "%pA:%u",
-                           &s->addrs->host_addr, s->addrs->host_port);
-        klen = strlen(key);
-
-        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         base_server,
-                         "Init: SSL server IP/port conflict: "
-                         "%s (%s:%d) vs. %s (%s:%d)",
-                         ssl_util_vhostid(p, s), 
-                         (s->defn_name ? s->defn_name : "unknown"),
-                         s->defn_line_number,
-                         ssl_util_vhostid(p, ps),
-                         (ps->defn_name ? ps->defn_name : "unknown"), 
-                         ps->defn_line_number);
-            conflict = TRUE;
-            continue;
-        }
-
-        apr_hash_set(table, key, klen, s);
+    /* We've kludged our pointer into the other cache's member variable. */
+    shm_segment = (void *) mc->tSessionCacheDataTable;
+    ssl_mutex_on(s);
+    if (!shmcb_store_session(s, shm_segment, id, idlen, pSession, timeout))
+        /* in this cache engine, "stores" should never fail. */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "'shmcb' code was unable to store a "
+                     "session in the cache.");
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,

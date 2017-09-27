@@ -1,14 +1,20 @@
-    return res;
-}
+        }
 
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-        "Done with config file %s", cfp->name);
+        apr_hash_set(table, key, klen, s);
+    }
+
+    if (conflict) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: Name-based SSL virtual hosts require "
+                     "an OpenSSL version with support for TLS extensions "
+                     "(RFC 6066 - Server Name Indication / SNI), "
+                     "but the currently used library version (%s) is "
+                     "lacking this feature", SSLeay_version(SSLEAY_VERSION));
+    }
 #endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
+
+    return APR_SUCCESS;
 }
 
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {
+static int ssl_init_FindCAList_X509NameCmp(const X509_NAME * const *a,
+                                           const X509_NAME * const *b)

@@ -1,13 +1,23 @@
+        url += 4;
+    }
+    else {
+        return DECLINED;
+    }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+             "proxy: AJP: canonicalising URL %s", url);
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    /*
+     * do syntactic check.
+     * We break the URL into host, port, path, search
+     */
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
+    }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    /*
+     * now parse path/search args, according to rfc1738:

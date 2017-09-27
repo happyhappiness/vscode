@@ -1,13 +1,19 @@
-    }
-    if (!shutdown_in_progress) {
-        /* Yow, hit an irrecoverable error! Tell the child to die. */
-        SetEvent(exit_event);
-    }
-    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Accept thread exiting.", my_pid);
-    return 0;
-}
+                if (fold_len >= (apr_size_t)(r->server->limit_req_fieldsize)) {
+                    r->status = HTTP_BAD_REQUEST;
+                    /* report what we have accumulated so far before the
+                     * overflow (last_field) as the field with the problem
+                     */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Size of a request header field "
+                                               "after folding "
+                                               "exceeds server limit.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool, last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
 
-
-static PCOMP_CONTEXT winnt_get_connection(PCOMP_CONTEXT context)
-{
+                if (fold_len > alloc_len) {
+                    char *fold_buf;
+                    alloc_len += alloc_len;

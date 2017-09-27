@@ -1,13 +1,17 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+        return err;
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    st->connectionTimeout = atol(ttl);
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap connection: Setting connection timeout to %ld seconds.",
+                 st->connectionTimeout);
+#else
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                 "LDAP: Connection timeout option not supported by the "
+                 "LDAP SDK in use." );
+#endif
+
+    return NULL;
+}

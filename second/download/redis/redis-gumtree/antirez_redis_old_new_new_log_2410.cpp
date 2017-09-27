@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"%o",server.unixsocketperm);

@@ -1,1 +1,1 @@
-(i == '-' || i == ']';
+printf("    %s", OP_names[*code]);

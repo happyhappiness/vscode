@@ -1,26 +1,37 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
-
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00693)
+                "cache: No cache request information available for key"
+                " generation");
+        return DECLINED;
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    /* if no-cache, we can't serve from the cache, but we may store to the
+     * cache.
+     */
+    if (!ap_cache_check_no_cache(cache, r)) {
+        return DECLINED;
+    }
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    if (!cache->key) {
+        rv = cache_generate_key(r, r->pool, &cache->key);
+        if (rv != APR_SUCCESS) {
+            return DECLINED;
+        }
+    }
+
+    /* go through the cache types till we get a match */
+    h = apr_palloc(r->pool, sizeof(cache_handle_t));
+
+    list = cache->providers;
+
+    while (list) {
+        switch ((rv = list->provider->open_entity(h, r, cache->key))) {
+        case OK: {
+            char *vary = NULL;
+            int mismatch = 0;
+            char *last = NULL;
+
+            if (list->provider->recall_headers(h, r) != APR_SUCCESS) {
+                /* try again with next cache type */
+                list = list->next;
+                continue;
+            }

@@ -1,25 +1,15 @@
-             /*
-              * Log SSL errors and any unexpected conditions.
-              */
-             ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                           "SSL library error %d in handshake "
-                           "(server %s)", ssl_err,
--                          ssl_util_vhostid(c->pool, c->base_server));
--            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
-+                          ssl_util_vhostid(c->pool, server));
-+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
- 
+          * Read in server certificate(s): This is the easy part
+          * because this file isn't encrypted in any way.
+          */
+         if (sc->server->pks->cert_files[0] == NULL) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
+                          "Server should be SSL-aware but has no certificate "
+-                         "configured [Hint: SSLCertificateFile]");
++                         "configured [Hint: SSLCertificateFile] (%s:%d)",
++                         pServ->defn_name, pServ->defn_line_number);
+             ssl_die();
          }
-         if (inctx->rc == APR_SUCCESS) {
-             inctx->rc = APR_EGENERAL;
-         }
- 
-         return ssl_filter_io_shutdown(filter_ctx, c, 1);
-     }
-+    sc = mySrvConfig(sslconn->server);
- 
-     /*
-      * Check for failed client authentication
-      */
-     verify_result = SSL_get_verify_result(filter_ctx->pssl);
+         algoCert = SSL_ALGO_UNKNOWN;
+         algoKey  = SSL_ALGO_UNKNOWN;
+         for (i = 0, j = 0; i < SSL_AIDX_MAX && sc->server->pks->cert_files[i] != NULL; i++) {
  

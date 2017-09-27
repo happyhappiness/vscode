@@ -1,28 +1,46 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
+    }
+    else {
+        return OK;
+    }
 }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+/*
+ * In the case of the reverse proxy, we need to see if we
+ * were passed a UDS url (eg: from mod_proxy) and adjust uds_path
+ * as required.  
+ */
+static void fix_uds_filename(request_rec *r, char **url) 
+{
+    char *ptr, *ptr2;
+    if (!r || !r->filename) return;
+
+    if (!strncmp(r->filename, "proxy:", 6) &&
+            (ptr2 = ap_strcasestr(r->filename, "unix:")) &&
+            (ptr = ap_strchr(ptr2, '|'))) {
+        apr_uri_t urisock;
+        apr_status_t rv;
+        *ptr = '\0';
+        rv = apr_uri_parse(r->pool, ptr2, &urisock);
+        if (rv == APR_SUCCESS) {
+            char *rurl = ptr+1;
+            char *sockpath = ap_runtime_dir_relative(r->pool, urisock.path);
+            apr_table_setn(r->notes, "uds_path", sockpath);
+            *url = apr_pstrdup(r->pool, rurl); /* so we get the scheme for the uds */
+            /* r->filename starts w/ "proxy:", so add after that */
+            memmove(r->filename+6, rurl, strlen(rurl)+1);
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                    "*: rewrite of url due to UDS(%s): %s (%s)",
+                    sockpath, *url, r->filename);
+        }
+        else {
+            *ptr = '|';
+        }
+    }
+}
+
+PROXY_DECLARE(int) ap_proxy_pre_request(proxy_worker **worker,
+                                        proxy_balancer **balancer,
+                                        request_rec *r,
+                                        proxy_server_conf *conf, char **url)
+{
+    int access_status;

@@ -1,1 +1,0 @@
-printf("K,L,M,N,O,P,Q,?  1,2,4,8,16,30,60,>60 seconds\n");

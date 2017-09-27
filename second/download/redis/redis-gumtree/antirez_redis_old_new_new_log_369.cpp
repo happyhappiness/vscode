@@ -1,1 +1,0 @@
-rdbCheckError("Server crash checking the specified RDB file!");

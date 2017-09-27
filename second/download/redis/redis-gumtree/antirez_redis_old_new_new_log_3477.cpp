@@ -1,1 +1,0 @@
-addReplyError(c,"Protocol error: invalid bulk length");

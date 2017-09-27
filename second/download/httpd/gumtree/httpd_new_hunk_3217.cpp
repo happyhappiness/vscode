@@ -1,16 +1,37 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+    apr_brigade_destroy(tmpbb);
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    /* Finally decode the OCSP response from what's stored in the
+     * bio. */
+    response = d2i_OCSP_RESPONSE_bio(bio, NULL);
+    if (response == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01988)
+                      "failed to decode OCSP response data");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, mySrvFromConn(c));
+    }
+
+    return response;
+}
+
+OCSP_RESPONSE *modssl_dispatch_ocsp_request(const apr_uri_t *uri,
+                                            apr_interval_time_t timeout,
+                                            OCSP_REQUEST *request,
+                                            conn_rec *c, apr_pool_t *p)
+{
+    OCSP_RESPONSE *response = NULL;
+    apr_socket_t *sd;
+    BIO *bio;
+
+    bio = serialize_request(request, uri);
+    if (bio == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01989)
+                      "could not serialize OCSP request");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, mySrvFromConn(c));
+        return NULL;
+    }
+
+    sd = send_request(bio, uri, timeout, c, p);
+    if (sd == NULL) {
+        /* Errors already logged. */
+        BIO_free(bio);
+        return NULL;
+    }

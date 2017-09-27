@@ -1,22 +1,13 @@
-                        continue;
-                    }
-                    else if (rv == APR_EOF) {
-                        break;
-                    }
-                    else if (rv != APR_SUCCESS) {
-                        /* In this case, we are in real trouble because
-                         * our backend bailed on us. Pass along a 502 error
-                         * error bucket
-                         */
-                        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                                      "proxy: error reading response");
-                        ap_proxy_backend_broke(r, bb);
-                        ap_pass_brigade(r->output_filters, bb);
-                        backend_broke = 1;
-                        backend->close = 1;
-                        break;
-                    }
-                    /* next time try a non-blocking read */
-                    mode = APR_NONBLOCK_READ;
+            else /* if (ssl_err == SSL_ERROR_SSL) */ {
+                /*
+                 * Log SSL errors and any unexpected conditions.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, mySrvFromConn(c));
 
-                    apr_brigade_length(bb, 0, &readbytes);
+            }
+            if (inctx->rc == APR_SUCCESS) {
+                inctx->rc = APR_EGENERAL;
+            }
+            break;

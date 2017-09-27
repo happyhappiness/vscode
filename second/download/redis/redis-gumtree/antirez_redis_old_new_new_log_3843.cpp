@@ -1,1 +1,0 @@
-printf("storage: %d\n",vp->storage);

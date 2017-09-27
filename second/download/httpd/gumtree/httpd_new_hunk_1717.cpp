@@ -1,13 +1,12 @@
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    if (st->connectionTimeout > 0) {
-        timeOut.tv_sec = st->connectionTimeout;
     }
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
+        return ap_proxyerror(r, HTTP_FORBIDDEN,
+                             "Connect to remote machine blocked");
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);
+    return OK;
+}
 
-    if (st->connectionTimeout >= 0) {
-        rc = apr_ldap_set_option(r->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
-                                 (void *)&timeOut, &(result));
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set the connection timeout");
-        }
-    }

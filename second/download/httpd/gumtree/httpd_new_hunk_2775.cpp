@@ -1,29 +1,13 @@
-	}
+        return *methnum;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+    if (cur_method_number > METHOD_NUMBER_LAST) {
+        /* The method registry  has run out of dynamically
+         * assignable method numbers. Log this and return M_INVALID.
+         */
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p, APLOGNO(01610)
+                      "Maximum new request methods %d reached while "
+                      "registering method %s.",
+                      METHOD_NUMBER_LAST, methname);
+        return M_INVALID;
+    }
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;

@@ -1,16 +1,13 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
-
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-	exit(1);
+            ap_rputs("\n"
+                     "</pre>\n", r);
+        }
     }
 
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+    if (ap_extended_status && !short_report) {
+        apr_table_t *vhosts = apr_table_make(r->pool, 10);
+        if (no_table_report)
+            ap_rputs("<hr /><h2>Server Details</h2>\n\n", r);
+        else
+            ap_rputs("\n\n<table border=\"0\"><tr>"
+                     "<th>Srv</th><th>PID</th><th>Acc</th>"
+                     "<th>M</th>"

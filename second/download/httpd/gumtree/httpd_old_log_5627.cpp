@@ -1,0 +1,1 @@
+apr_file_printf(f, "wildcard NameVirtualHosts and _default_ servers:\n");

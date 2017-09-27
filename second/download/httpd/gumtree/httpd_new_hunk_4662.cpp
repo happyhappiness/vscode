@@ -1,16 +1,13 @@
+static apr_status_t accept_mutex_off(void)
 {
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+    apr_status_t rv = apr_proc_mutex_unlock(my_bucket->mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't release the accept mutex";
 
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-	exit(1);
-    }
-
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+        if (retained->mpm->my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf, APLOGNO(00145) "%s", msg);
+            /* don't exit here... we have a connection to
+             * process, after which point we'll see that the
+             * generation changed and we'll exit cleanly
+             */

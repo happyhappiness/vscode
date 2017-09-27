@@ -1,31 +1,40 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+    return newcfg;
+}
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+static void log_bad_create_options(server_rec *s, const char *type)
+{
+    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                 "Invalid options were specified when creating the %s mutex",
+                 type);
+}
 
-    ap_kill_timeout(r);
+static void log_unknown_type(server_rec *s, const char *type)
+{
+    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
+                 "Can't create mutex of unknown type %s", type);
+}
+
+static void log_create_failure(apr_status_t rv, server_rec *s, const char *type,
+                               const char *fname)
+{
+    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                 "Couldn't create the %s mutex %s%s%s", type,
+                 fname ? "(file " : "",
+                 fname ? fname : "",
+                 fname ? ")" : "");
+}
+
+static void log_perms_failure(apr_status_t rv, server_rec *s, const char *type)
+{
+    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                 "Couldn't set permissions on the %s mutex; "
+                 "check User and Group directives",
+                 type);
+}
+
+AP_DECLARE(apr_status_t) ap_global_mutex_create(apr_global_mutex_t **mutex,
+                                                const char **name,
+                                                const char *type,
+                                                const char *instance_id,
+                                                server_rec *s, apr_pool_t *p,

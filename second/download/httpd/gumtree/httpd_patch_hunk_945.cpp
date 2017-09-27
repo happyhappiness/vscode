@@ -1,68 +1,58 @@
-                      "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
-         shutdown_pending = 1;
-     }
-     else if (cld == SHUTDOWN_HANDLE) {
-         /* shutdown_event signalled */
-         shutdown_pending = 1;
--        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, 
-+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s,
-                      "Parent: Received shutdown signal -- Shutting down the server.");
-         if (ResetEvent(shutdown_event) == 0) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                          "ResetEvent(shutdown_event)");
-         }
-     }
-     else if (cld == RESTART_HANDLE) {
--        /* Received a restart event. Prepare the restart_event to be reused 
--         * then signal the child process to exit. 
-+        /* Received a restart event. Prepare the restart_event to be reused
-+         * then signal the child process to exit.
-          */
-         restart_pending = 1;
--        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                      "Parent: Received restart signal -- Restarting the server.");
-         if (ResetEvent(restart_event) == 0) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                          "Parent: ResetEvent(restart_event) failed.");
-         }
-         if (SetEvent(child_exit_event) == 0) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
--                         "Parent: SetEvent for child process %d failed.", 
-+                         "Parent: SetEvent for child process %d failed.",
-                          event_handles[CHILD_HANDLE]);
-         }
--        /* Don't wait to verify that the child process really exits, 
-+        /* Don't wait to verify that the child process really exits,
-          * just move on with the restart.
-          */
-         CloseHandle(event_handles[CHILD_HANDLE]);
-         event_handles[CHILD_HANDLE] = NULL;
-     }
-     else {
-         /* The child process exited prematurely due to a fatal error. */
-         DWORD exitcode;
-         if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
-             /* HUH? We did exit, didn't we? */
-             exitcode = APEXIT_CHILDFATAL;
-         }
--        if (   exitcode == APEXIT_CHILDFATAL 
-+        if (   exitcode == APEXIT_CHILDFATAL
-             || exitcode == APEXIT_CHILDINIT
-             || exitcode == APEXIT_INIT) {
--            ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, 
-+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                          "Parent: child process exited with status %u -- Aborting.", exitcode);
-+            shutdown_pending = 1;
-         }
-         else {
-             int i;
-             restart_pending = 1;
--            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                          "Parent: child process exited with status %u -- Restarting.", exitcode);
-             for (i = 0; i < ap_threads_per_child; i++) {
-                 ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
-             }
-         }
-         CloseHandle(event_handles[CHILD_HANDLE]);
+                     return;
+                 }
+ 
+                 if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                     r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                     apr_table_setn(r->notes, "error-notes",
+-                                   apr_psprintf(r->pool,
++                                   apr_pstrcat(r->pool,
+                                                "Request header field is "
+                                                "missing ':' separator.<br />\n"
+-                                                "<pre>\n%.*s</pre>\n",
+-                                                (int)LOG_NAME_MAX_LEN,
+-                                                ap_escape_html(r->pool,
+-                                                               last_field)));
+-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+-                                  "Request header field is missing ':' "
+-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+-                                  last_field);
++                                               "<pre>\n",
++                                               ap_escape_html(r->pool,
++                                                              last_field),
++                                               "</pre>\n", NULL));
+                     return;
+                 }
+-                
++
+                 tmp_field = value - 1; /* last character of field-name */
+ 
+                 *value++ = '\0'; /* NUL-terminate at colon */
+ 
+                 while (*value == ' ' || *value == '\t') {
+                     ++value;            /* Skip to start of value   */
+                 }
+ 
+                 /* Strip LWS after field-name: */
+-                while (tmp_field > last_field 
++                while (tmp_field > last_field
+                        && (*tmp_field == ' ' || *tmp_field == '\t')) {
+                     *tmp_field-- = '\0';
+                 }
+-                
++
+                 /* Strip LWS after field-value: */
+                 tmp_field = last_field + last_len - 1;
+                 while (tmp_field > value
+                        && (*tmp_field == ' ' || *tmp_field == '\t')) {
+                     *tmp_field-- = '\0';
+                 }
+ 
+                 apr_table_addn(r->headers_in, last_field, value);
+-                
++
+                 /* reset the alloc_len so that we'll allocate a new
+                  * buffer if we have to do any more folding: we can't
+                  * use the previous buffer because its contents are
+                  * now part of r->headers_in
+                  */
+                 alloc_len = 0;

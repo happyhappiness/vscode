@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: return code %d from HttpExtensionProc() "
-                           "was not not recognized", rv);
+ap_register_output_filter("INFLATE", inflate_out_filter, NULL,
+                              AP_FTYPE_RESOURCE-1);

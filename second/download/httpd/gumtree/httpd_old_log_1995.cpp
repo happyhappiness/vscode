@@ -1,1 +1,1 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.146 $");
+ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);

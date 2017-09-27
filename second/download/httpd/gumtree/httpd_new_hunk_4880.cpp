@@ -1,13 +1,13 @@
+                          "%s: Unlock failed for balancer_handler",
+                          balancer->s->name);
+        }
+    }
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
+    if (r->args && (r->method_number == M_GET)) {
+        const char *allowed[] = { "w", "b", "nonce", "xml", NULL };
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01191) "parsing r->args");
 
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+        push2table(r->args, params, allowed, r->pool);
+    }
+    if (r->method_number == M_POST) {
+        apr_bucket_brigade *ib;

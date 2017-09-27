@@ -1,1 +1,0 @@
-printf("  keys, the <keyspacelen> argument determines the max\n");

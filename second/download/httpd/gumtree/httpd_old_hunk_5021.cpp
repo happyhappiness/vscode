@@ -1,17 +1,13 @@
-	    int cond_status = OK;
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
+    apr_threadattr_create(&thread_attr, pchild);
+    /* 0 means PTHREAD_CREATE_JOINABLE */
+    apr_threadattr_detach_set(thread_attr, 0);
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    if (ap_thread_stacksize != 0) {
+        apr_threadattr_stacksize_set(thread_attr, ap_thread_stacksize);
+    }
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    ts->threads = threads;
+    ts->listener = NULL;
+    ts->child_num_arg = child_num_arg;
+    ts->threadattr = thread_attr;

@@ -1,1 +1,0 @@
-addReplyLongLong(c,server.lastsave);

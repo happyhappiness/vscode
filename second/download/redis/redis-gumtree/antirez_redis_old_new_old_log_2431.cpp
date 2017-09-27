@@ -1,1 +1,0 @@
-len = snprintf(buf,sizeof(buf),"%.17Lg", value);

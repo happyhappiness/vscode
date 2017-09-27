@@ -1,2 +1,3 @@
-fprintf(stderr, "%s: Include directory '%s' not found",
-                    ap_server_argv0, path);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                                 "Re-negotiation handshake failed: "
+                                 "Client certificate missing");

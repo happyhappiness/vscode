@@ -1,12 +1,11 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
+     * resource in the cache under a key where it is never found by the quick
+     * handler during following requests.
+     */
+    cache->key = apr_pstrdup(r->pool, *key);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "cache: Key for entity %s?%s is %s", r->parsed_uri.path,
+                 r->parsed_uri.query, *key);
+
+    return APR_SUCCESS;
+}

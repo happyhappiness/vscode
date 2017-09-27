@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "ap_pass_brigade(filtered buffer) failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "unable to compile pattern \"%s\"", rexp);

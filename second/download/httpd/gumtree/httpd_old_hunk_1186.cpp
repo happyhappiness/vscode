@@ -1,15 +1,37 @@
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth, hdrs);
+    }
+    else {
+        snprintf_res = apr_snprintf(request,  sizeof(_request),
+            "POST %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "Content-length: %" APR_SIZE_T_FMT "\r\n"
+            "Content-type: %s\r\n"
+            "%s"
+            "\r\n",
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth,
+            postlen,
+            (content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+    if (snprintf_res >= sizeof(_request)) {
+        err("Request too long\n");
+    }
 
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
-                      total, eos);
+    if (verbosity >= 2)
+        printf("INFO: POST header == \n---\n%s\n---\n", request);
 
-        /* Fail if this exceeds the maximum buffer size. */
-        if (total > SSL_MAX_IO_BUFFER) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request body exceeds maximum size for SSL buffer");
-            return HTTP_REQUEST_ENTITY_TOO_LARGE;
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one contineous buffer
+     */
+    if (posting == 1) {
+        char *buff = malloc(postlen + reqlen + 1);
+        if (!buff) {
+            fprintf(stderr, "error creating request buffer: out of memory\n");
+            return;
         }
-
-    } while (!eos);
-
-    apr_brigade_destroy(tempb);
+        strcpy(buff, request);

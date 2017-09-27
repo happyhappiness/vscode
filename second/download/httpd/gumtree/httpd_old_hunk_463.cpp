@@ -1,37 +1,13 @@
-                }
-                else if (h1 && h2 && !strcmp(h1, h2)) {
-                    /* both headers exist and are equal - do nothing */
-                }
-                else {
-                    /* headers do not match, so Vary failed */
-                    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
-                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");
-                    apr_table_clear(r->headers_out);
-                    r->status_line = NULL;
-                    cache->handle = NULL;
-                    return DECLINED;
-                }
-            }
-            cache->provider = list->provider;
-            cache->provider_name = list->provider_name;
-            return OK;
-        }
-        case DECLINED: {
-            /* try again with next cache type */
-            list = list->next;
-            continue;
-        }
-        default: {
-            /* oo-er! an error */
-            cache->handle = NULL;
-            return rv;
-        }
-        }
-    }
-    cache->handle = NULL;
-    return DECLINED;
-}
+                                      conf->limit_nproc)) != APR_SUCCESS) ||
+#endif
+        ((rc = apr_procattr_cmdtype_set(procattr,
+                                        e_info->cmd_type)) != APR_SUCCESS) ||
 
-apr_status_t cache_generate_key_default( request_rec *r, apr_pool_t*p, char**key ) 
-{
-    if (r->hostname) {
+        ((rc = apr_procattr_detach_set(procattr,
+                                        e_info->detached)) != APR_SUCCESS) ||
+        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
+        /* Something bad happened, tell the world. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                      "couldn't set child process attributes: %s", r->filename);
+    }
+    else {

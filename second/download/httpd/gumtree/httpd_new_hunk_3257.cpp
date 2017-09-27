@@ -1,163 +1,222 @@
-	return;
+}
+
+static const char *set_access_name(cmd_parms *cmd, void *dummy,
+                                   const char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_core_module_config(sconf);
+
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
-    detached_proxy_garbage_coll(r);
-#else
-    help_proxy_garbage_coll(r);
-#endif
-    ap_unblock_alarms();
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    conf->access_name = apr_pstrdup(cmd->pool, arg);
+    return NULL;
 }
 
-
-static void
-add_long61 (long61_t *accu, long val)
+AP_DECLARE(const char *) ap_resolve_env(apr_pool_t *p, const char * word)
 {
-    /* Add in lower 30 bits */
-    accu->lower += (val & 0x3FFFFFFFL);
-    /* add in upper bits, and carry */
-    accu->upper += (val >> 30) + ((accu->lower & ~0x3FFFFFFFL) != 0L);
-    /* Clear carry */
-    accu->lower &= 0x3FFFFFFFL;
+# define SMALL_EXPANSION 5
+    struct sll {
+        struct sll *next;
+        const char *string;
+        apr_size_t len;
+    } *result, *current, sresult[SMALL_EXPANSION];
+    char *res_buf, *cp;
+    const char *s, *e, *ep;
+    unsigned spc;
+    apr_size_t outlen;
+
+    s = ap_strchr_c(word, '$');
+    if (!s) {
+        return word;
+    }
+
+    /* well, actually something to do */
+    ep = word + strlen(word);
+    spc = 0;
+    result = current = &(sresult[spc++]);
+    current->next = NULL;
+    current->string = word;
+    current->len = s - word;
+    outlen = current->len;
+
+    do {
+        /* prepare next entry */
+        if (current->len) {
+            current->next = (spc < SMALL_EXPANSION)
+                            ? &(sresult[spc++])
+                            : (struct sll *)apr_palloc(p,
+                                                       sizeof(*current->next));
+            current = current->next;
+            current->next = NULL;
+            current->len = 0;
+        }
+
+        if (*s == '$') {
+            if (s[1] == '{' && (e = ap_strchr_c(s, '}'))) {
+                char *name = apr_pstrndup(p, s+2, e-s-2);
+                word = NULL;
+                if (server_config_defined_vars)
+                    word = apr_table_get(server_config_defined_vars, name);
+                if (!word)
+                    word = getenv(name);
+                if (word) {
+                    current->string = word;
+                    current->len = strlen(word);
+                    outlen += current->len;
+                }
+                else {
+                    if (ap_strchr(name, ':') == 0)
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(00111)
+                                     "Config variable ${%s} is not defined",
+                                     name);
+                    current->string = s;
+                    current->len = e - s + 1;
+                    outlen += current->len;
+                }
+                s = e + 1;
+            }
+            else {
+                current->string = s++;
+                current->len = 1;
+                ++outlen;
+            }
+        }
+        else {
+            word = s;
+            s = ap_strchr_c(s, '$');
+            current->string = word;
+            current->len = s ? s - word : ep - word;
+            outlen += current->len;
+        }
+    } while (s && *s);
+
+    /* assemble result */
+    res_buf = cp = apr_palloc(p, outlen + 1);
+    do {
+        if (result->len) {
+            memcpy(cp, result->string, result->len);
+            cp += result->len;
+        }
+        result = result->next;
+    } while (result);
+    res_buf[outlen] = '\0';
+
+    return res_buf;
 }
 
-static void
-sub_long61 (long61_t *accu, long val)
+static int reset_config_defines(void *dummy)
 {
-    int carry = (val & 0x3FFFFFFFL) > accu->lower;
-    /* Subtract lower 30 bits */
-    accu->lower = accu->lower - (val & 0x3FFFFFFFL) + ((carry) ? 0x40000000 : 0);
-    /* add in upper bits, and carry */
-    accu->upper -= (val >> 30) + carry;
+    ap_server_config_defines = saved_server_config_defines;
+    server_config_defined_vars = NULL;
+    return OK;
 }
 
-/* Compare two long61's:
- * return <0 when left < right
- * return  0 when left == right
- * return >0 when left > right
+/*
+ * Make sure we can revert the effects of Define/UnDefine when restarting.
+ * This function must be called once per loading of the config, before
+ * ap_server_config_defines is changed. This may be during reading of the
+ * config, which is even before the pre_config hook is run (due to
+ * EXEC_ON_READ for Define/UnDefine).
  */
-static long
-cmp_long61 (long61_t *left, long61_t *right)
+static void init_config_defines(apr_pool_t *pconf)
 {
-    return (left->upper == right->upper) ? (left->lower - right->lower)
-					 : (left->upper - right->upper);
-}
-
-/* Compare two gc_ent's, sort them by expiration date */
-static int gcdiff(const void *ap, const void *bp)
-{
-    const struct gc_ent *a = (const struct gc_ent * const) ap;
-    const struct gc_ent *b = (const struct gc_ent * const) bp;
-
-    if (a->expire > b->expire)
-	return 1;
-    else if (a->expire < b->expire)
-	return -1;
-    else
-	return 0;
-}
-
-#if !defined(WIN32) && !defined(MPE) && !defined(__EMX__)
-static void detached_proxy_garbage_coll(request_rec *r)
-{
-    pid_t pid;
-    int status;
-    pid_t pgrp;
-
-    switch (pid = fork()) {
-	case -1:
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: fork() for cache cleanup failed");
-	    return;
-
-	case 0:	/* Child */
-
-	    /* close all sorts of things, including the socket fd */
-	    ap_cleanup_for_exec();
-
-	    /* Fork twice to disassociate from the child */
-	    switch (pid = fork()) {
-		case -1:
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: fork(2nd) for cache cleanup failed");
-		    exit(1);
-
-		case 0:	/* Child */
-		    /* The setpgrp() stuff was snarfed from http_main.c */
-#ifndef NO_SETSID
-		    if ((pgrp = setsid()) == -1) {
-			perror("setsid");
-			fprintf(stderr, "httpd: setsid failed\n");
-			exit(1);
-		    }
-#elif defined(NEXT) || defined(NEWSOS)
-		    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-			perror("setpgrp");
-			fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-			exit(1);
-		    }
-#else
-		    if ((pgrp = setpgrp(getpid(), 0)) == -1) {
-			perror("setpgrp");
-			fprintf(stderr, "httpd: setpgrp failed\n");
-			exit(1);
-		    }
-#endif
-		    help_proxy_garbage_coll(r);
-		    exit(0);
-
-		default:    /* Father */
-		    /* After grandson has been forked off, */
-		    /* there's nothing else to do. */
-		    exit(0);		    
-	    }
-	default:
-	    /* Wait until grandson has been forked off */
-	    /* (without wait we'd leave a zombie) */
-	    waitpid(pid, &status, 0);
-	    return;
-    }
-}
-#endif /* ndef WIN32 */
-
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static (per-process) data!!! */
-
-    cachedir = conf->root;
-    /* configured size is given in kB. Make it bytes, convert to long61_t: */
-    cachesize.lower = cachesize.upper = 0;
-    add_long61(&cachesize, conf->space << 10);
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    /* Usually, the modification time of <cachedir>/.time can only increase.
-     * Thus, even with several child processes having their own copy of
-     * lastcheck, if time(NULL) still < lastcheck then it's not time
-     * for GC yet.
+    saved_server_config_defines = ap_server_config_defines;
+    /* Use apr_array_copy instead of apr_array_copy_hdr because it does not
+     * protect from the way unset_define removes entries.
      */
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
+    ap_server_config_defines = apr_array_copy(pconf, ap_server_config_defines);
+}
 
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+static const char *set_define(cmd_parms *cmd, void *dummy,
+                              const char *name, const char *value)
+{
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS);
+    if (err)
+        return err;
+    if (ap_strchr_c(name, ':') != NULL)
+        return "Variable name must not contain ':'";
 
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    if (!saved_server_config_defines)
+        init_config_defines(cmd->pool);
+    if (!ap_exists_config_define(name)) {
+        char **newv = (char **)apr_array_push(ap_server_config_defines);
+        *newv = apr_pstrdup(cmd->pool, name);
+    }
+    if (value) {
+        if (!server_config_defined_vars)
+            server_config_defined_vars = apr_table_make(cmd->pool, 5);
+        apr_table_setn(server_config_defined_vars, name, value);
+    }
+
+    return NULL;
+}
+
+static const char *unset_define(cmd_parms *cmd, void *dummy,
+                                const char *name)
+{
+    int i;
+    char **defines;
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS);
+    if (err)
+        return err;
+    if (ap_strchr_c(name, ':') != NULL)
+        return "Variable name must not contain ':'";
+
+    if (!saved_server_config_defines)
+        init_config_defines(cmd->pool);
+
+    defines = (char **)ap_server_config_defines->elts;
+    for (i = 0; i < ap_server_config_defines->nelts; i++) {
+        if (strcmp(defines[i], name) == 0) {
+            defines[i] = apr_array_pop(ap_server_config_defines);
+            break;
+        }
+    }
+
+    if (server_config_defined_vars) {
+        apr_table_unset(server_config_defined_vars, name);
+    }
+
+    return NULL;
+}
+
+static const char *generate_error(cmd_parms *cmd, void *dummy,
+                                  const char *arg)
+{
+    if (!arg || !*arg) {
+        return "The Error directive was used with no message.";
+    }
+
+    if (*arg == '"' || *arg == '\'') { /* strip off quotes */
+        apr_size_t len = strlen(arg);
+        char last = *(arg + len - 1);
+
+        if (*arg == last) {
+            return apr_pstrndup(cmd->pool, arg + 1, len - 2);
+        }
+    }
+
+    return arg;
+}
+
+#ifdef GPROF
+static const char *set_gprof_dir(cmd_parms *cmd, void *dummy, const char *arg)
+{
+    void *sconf = cmd->server->module_config;
+    core_server_config *conf = ap_get_core_module_config(sconf);
+
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+    if (err != NULL) {
+        return err;
+    }
+
+    conf->gprof_dir = arg;
+    return NULL;
+}
+#endif /*GPROF*/
+
+static const char *set_add_default_charset(cmd_parms *cmd,
+                                           void *d_, const char *arg)

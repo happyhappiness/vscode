@@ -1,65 +1,36 @@
-
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
-
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
-
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    }
-    else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
+        return APR_SUCCESS;
     }
 
-    /* Add extra strings to array. */
-    n = n + 2;
+    sk = sk_X509_INFO_new_null();
 
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+    if (pkp->cert_file) {
+        load_x509_info(ptemp, sk, pkp->cert_file);
+    }
+
+    if (pkp->cert_path) {
+        apr_dir_t *dir;
+        apr_finfo_t dirent;
+        apr_int32_t finfo_flags = APR_FINFO_TYPE|APR_FINFO_NAME;
+    
+        if (apr_dir_open(&dir, pkp->cert_path, ptemp) == APR_SUCCESS) {
+            while ((apr_dir_read(&dirent, finfo_flags, dir)) == APR_SUCCESS) {
+                const char *fullname;
+
+                if (dirent.filetype == APR_DIR) {
+                    continue; /* don't try to load directories */
+                }
+        
+                fullname = apr_pstrcat(ptemp,
+                                       pkp->cert_path, "/", dirent.name,
+                                       NULL);
+                load_x509_info(ptemp, sk, fullname);
+            }
+
+            apr_dir_close(dir);
+        }
+    }
+
+    if ((ncerts = sk_X509_INFO_num(sk)) <= 0) {
+        sk_X509_INFO_free(sk);
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02206)
+                     "no client certs found for SSL proxy");

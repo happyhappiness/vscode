@@ -1,46 +1,38 @@
-	ap_destroy_sub_req(pa_req);
+        return NULL;
     }
-}
 
+    session = apr_pcalloc(pool, sizeof(h2_session));
+    if (session) {
+        int rv;
+        nghttp2_mem *mem;
+        
+        session->id = c->id;
+        session->c = c;
+        session->r = r;
+        session->config = config;
+        
+        session->pool = pool;
+        apr_pool_pre_cleanup_register(pool, session, session_pool_cleanup);
+        
+        session->max_stream_count = h2_config_geti(config, H2_CONF_MAX_STREAMS);
+        session->max_stream_mem = h2_config_geti(config, H2_CONF_STREAM_MAX_MEM);
 
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-				       int (*getsfunc) (char *, int, void *),
-				       void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
-
-    if (buffer) {
-	*buffer = '\0';
-    }
-    w = buffer ? buffer : x;
-
-    ap_hard_timeout("read script header", r);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015') {
-		w[p - 2] = '\0';
-	    }
-	    else {
-		w[p - 1] = '\0';
-	    }
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+        status = apr_thread_cond_create(&session->iowait, session->pool);
+        if (status != APR_SUCCESS) {
+            return NULL;
+        }
+        
+        session->streams = h2_stream_set_create(session->pool, session->max_stream_count);
+        
+        session->workers = workers;
+        session->mplx = h2_mplx_create(c, session->pool, config, workers);
+        
+        h2_mplx_set_consumed_cb(session->mplx, update_window, session);
+        
+        h2_conn_io_init(&session->io, c, config, session->pool);
+        session->bbtmp = apr_brigade_create(session->pool, c->bucket_alloc);
+        
+        status = init_callbacks(c, &callbacks);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, c, APLOGNO(02927) 
+                          "nghttp2: error in init_callbacks");

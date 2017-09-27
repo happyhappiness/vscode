@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to create thread mutex");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                  "Authorization of user %s to access %s failed, reason: %s",
+                  r->user, r->uri, reason ? reason : "unknown");

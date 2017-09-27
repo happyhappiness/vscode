@@ -1,0 +1,1 @@
+cache_remove_lock(conf, cache, r, NULL);

@@ -1,0 +1,1 @@
+fprintf(stderr, "logresolve: missing filename to -s\n");

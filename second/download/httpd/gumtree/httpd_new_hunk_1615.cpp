@@ -1,13 +1,13 @@
-                                      getpid(), t, ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
-        }
-        else if (strcmp(w, "ldap-attribute") == 0) {
-            required_ldap = 1;
-            if (req->dn == NULL || strlen(req->dn) == 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
-                              "require ldap-attribute: user's DN has not been defined; failing authorisation",
-                              getpid());
-                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    }
+    else {
+        st->cache_file = NULL;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "LDAP cache: Setting shared memory cache file to %s bytes.",
+                 st->cache_file);
+
+    return NULL;
+}
+
+static const char *util_ldap_set_cache_ttl(cmd_parms *cmd, void *dummy,

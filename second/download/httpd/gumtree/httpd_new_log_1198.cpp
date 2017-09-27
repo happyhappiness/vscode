@@ -1,1 +1,1 @@
-(namecount <= 0;
+apr_err("apr_socket_recv", status);

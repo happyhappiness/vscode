@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Can't handle RDB format version %d",rdbver);

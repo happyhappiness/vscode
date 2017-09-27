@@ -1,1 +1,0 @@
-(buflen == 0) ? "premature EOF" : strerror(errno);

@@ -1,32 +1,32 @@
-                              "Error ajp_marshal_into_msgb - "
-                              "Error appending the SSL key size");
-                 return APR_EGENERAL;
-             }
-         }
+     return 1;
+ }
+ 
+ AP_DECLARE(void) ap_send_interim_response(request_rec *r, int send_headers)
+ {
+     hdr_ptr x;
++    char *status_line = NULL;
+ 
+     if (r->proto_num < 1001) {
+         /* don't send interim response to HTTP/1.0 Client */
+         return;
      }
-+    /* Forward the remote port information, which was forgotten
-+     * from the builtin data of the AJP 13 protocol.
-+     * Since the servlet spec allows to retrieve it via getRemotePort(),
-+     * we provide the port to the Tomcat connector as a request
-+     * attribute. Modern Tomcat versions know how to retrieve
-+     * the remote port from this attribute.
-+     */
-+    {
-+        const char *key = SC_A_REQ_REMOTE_PORT;
-+        char *val = apr_itoa(r->pool, r->connection->remote_addr->port);
-+        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-+            ajp_msg_append_string(msg, key)   ||
-+            ajp_msg_append_string(msg, val)) {
-+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-+                    "ajp_marshal_into_msgb: "
-+                    "Error appending attribute %s=%s",
-+                    key, val);
-+            return AJP_EOVERFLOW;
-+        }
-+    }
-     /* Use the environment vars prefixed with AJP_
-      * and pass it to the header striping that prefix.
-      */
-     for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-         if (!strncmp(elts[i].key, "AJP_", 4)) {
-             if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+     if (!ap_is_HTTP_INFO(r->status)) {
+         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                       "Status is %d - not sending interim response", r->status);
+         return;
+     }
+ 
++    status_line = apr_pstrcat(r->pool, AP_SERVER_PROTOCOL, " ", r->status_line, CRLF, NULL);
++    ap_xlate_proto_to_ascii(status_line, strlen(status_line));
++
+     x.f = r->connection->output_filters;
+     x.bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+-    ap_fputstrs(x.f, x.bb, AP_SERVER_PROTOCOL, " ", r->status_line, CRLF, NULL);
++
++    ap_fputs(x.f, x.bb, status_line);
+     if (send_headers) {
+         apr_table_do(send_header, &x, r->headers_out, NULL);
+         apr_table_clear(r->headers_out);
+     }
+     ap_fputs(x.f, x.bb, CRLF);
+     ap_fflush(x.f, x.bb);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "SSL Re-negotiation in conjunction "
-                     "with POST method not supported! "
-                     "hint: try SSLOptions +OptRenegotiate");
+r(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: Waiting for %d worker threads to exit.", my_pid, threads_created);

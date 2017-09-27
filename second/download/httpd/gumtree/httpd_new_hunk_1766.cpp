@@ -1,33 +1,24 @@
-        conn->worker->s->transferred += transferred;
-    status = ap_pass_brigade(origin->output_filters, bb);
-    if (status != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: pass request body failed to %pI (%s)",
-                     conn->addr, conn->hostname);
-        if (origin->aborted) { 
-            return APR_STATUS_IS_TIMEUP(status) ? HTTP_GATEWAY_TIME_OUT : HTTP_BAD_GATEWAY;
-        }
-        else { 
-            return HTTP_BAD_REQUEST; 
-        }
-    }
-    apr_brigade_cleanup(bb);
-    return OK;
-}
+                                       SSL_get_ex_data_X509_STORE_CTX_idx(),
+                                       (char *)ssl);
 
-#define MAX_MEM_SPOOL 16384
+            if (!modssl_X509_verify_cert(&cert_store_ctx)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation verification step failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
+            }
 
-static int stream_reqbody_chunked(apr_pool_t *p,
-                                           request_rec *r,
-                                           proxy_conn_rec *p_conn,
-                                           conn_rec *origin,
-                                           apr_bucket_brigade *header_brigade,
-                                           apr_bucket_brigade *input_brigade)
-{
-    int seen_eos = 0, rv = OK;
-    apr_size_t hdr_len;
-    apr_off_t bytes;
-    apr_status_t status;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *bb;
-    apr_bucket *e;
+            SSL_set_verify_result(ssl, cert_store_ctx.error);
+            X509_STORE_CTX_cleanup(&cert_store_ctx);
+
+            if (cert_stack != SSL_get_peer_cert_chain(ssl)) {
+                /* we created this ourselves, so free it */
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
+        }
+        else {
+            request_rec *id = r->main ? r->main : r;
+
+            /* Additional mitigation for CVE-2009-3555: At this point,
+             * before renegotiating, an (entire) request has been read
+             * from the connection.  An attacker may have sent further
+             * data to "prefix" any subsequent request by the victim's

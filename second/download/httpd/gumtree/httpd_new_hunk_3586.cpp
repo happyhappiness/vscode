@@ -1,18 +1,12 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+ *
+ * Deliver cached content (headers and body) up the stack.
+ */
+static apr_status_t cache_out_filter(ap_filter_t *f, apr_bucket_brigade *in)
+{
+    request_rec *r = f->r;
+    cache_request_rec *cache = (cache_request_rec *)f->ctx;
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    if (!cache) {
+        /* user likely configured CACHE_OUT manually; they should use mod_cache
+         * configuration to do that */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00762)

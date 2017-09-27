@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "disk_cache: rename tempfile to hdrsfile failed: %s -> %s",
-                     dobj->tempfile, dobj->hdrsfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered premature end-of-stream while "
+                                  "reading inflate header");

@@ -1,1 +1,0 @@
-lua_pushstring(lua, "First argument must be a number (log level).");

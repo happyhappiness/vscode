@@ -1,13 +1,12 @@
+        vec_next->iov_base = CRLF;
+        vec_next->iov_len = sizeof(CRLF) - 1;
+        vec_next++;
+        t_elt++;
+    } while (t_elt < t_end);
 
-static void show_server_data()
-{
-    ap_listen_rec *lr;
-    module **m;
-
-    printf("%s\n", ap_get_server_version());
-    if (ap_my_addrspace && (ap_my_addrspace[0] != 'O') && (ap_my_addrspace[1] != 'S'))
-        printf("   Running in address space %s\n", ap_my_addrspace);
-
-
-    /* Display listening ports */
-    printf("   Listening on port(s):");
+#if APR_CHARSET_EBCDIC
+    {
+        apr_size_t len;
+        char *tmp = apr_pstrcatv(r->pool, vec, vec_next - vec, &len);
+        ap_xlate_proto_to_ascii(tmp, len);
+        return apr_brigade_write(h->bb, NULL, NULL, tmp, len);

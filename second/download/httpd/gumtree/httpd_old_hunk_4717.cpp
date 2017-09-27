@@ -1,19 +1,14 @@
-	version_locked++;
-    }
-}
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-/* a clean exit from a child with proper cleanup */
-static void __attribute__((noreturn)) clean_child_exit(int code)
-{
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    exit(code);
-}
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
-{
+#else
+#ifdef AP_HAVE_C99
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_error(...) ap_log_error__(__VA_ARGS__)
+/* need server_rec *sr = ... for the case if s is verbatim NULL */
+#define ap_log_error__(file, line, mi, level, status, s, ...)           \
+    do { const server_rec *sr = s; if (APLOG_MODULE_IS_LEVEL(sr, mi, level))      \
+             ap_log_error_(file, line, mi, level, status, sr, __VA_ARGS__); \
+    } while(0)
+#else
+#define ap_log_error ap_log_error_
+#endif
+AP_DECLARE(void) ap_log_error_(const char *file, int line, int module_index,
+                               int level, apr_status_t status,

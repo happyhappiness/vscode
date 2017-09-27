@@ -1,33 +1,38 @@
-                     "Parent: Could not create exit event for child process");
-        apr_pool_destroy(ptemp);
-        CloseHandle(waitlist[waitlist_ready]);
-        return -1;
+         */
+        apr_ssize_t ate = send_response_header(cid, shi->pszStatus,
+                                               shi->pszHeader,
+                                               shi->cchStatus,
+                                               shi->cchHeader);
+        if (ate < 0) {
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return 0;
+        }
+        else if ((apr_size_t)ate < shi->cchHeader) {
+            apr_bucket_brigade *bb;
+            apr_bucket *b;
+            bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+            b = apr_bucket_transient_create(shi->pszHeader + ate,
+                                            shi->cchHeader - ate,
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+        }
+        return 1;
     }
 
-    /* Build the env array */
-    for (envc = 0; _environ[envc]; ++envc) {
-        ;
-    }
-    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
-    memcpy(env, _environ, envc * sizeof (char*));
-    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
-    env[envc] = pidbuf;
-    env[envc + 1] = NULL;
+    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to create the child process.");
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
-        CloseHandle(new_child.hproc);
-        return -1;
-    }
-    apr_file_close(child_out);
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Parent: Created child process %d", new_child.pid);
-
-    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
-                              start_mutex, ap_scoreboard_shm,
-                              new_child.hproc, new_child.in)) {
+    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
+        /* Returns True if client is connected c.f. MSKB Q188346
+         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
+         */

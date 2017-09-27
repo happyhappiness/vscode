@@ -1,14 +1,17 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+                                           server_portstr,
+                                           sizeof(server_portstr));
+    if (status != OK) {
+        goto cleanup;
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+    /* XXX Setting close to 0 is a great way to end up with
+     *     timeouts at this point, since we lack good ways to manage the
+     *     back end fastcgi processes.  This should be revisited when we
+     *     have a better story on that part of things. */
+    backend->close = 1;
+
+    /* Step Two: Make the Connection */
+    if (ap_proxy_connect_backend(FCGI_SCHEME, backend, worker, r->server)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01079)
+                      "failed to make connection to backend: %s",
+                      backend->hostname);

@@ -1,33 +1,24 @@
-         * logs a warning later
-         */
-        changed_limit_at_restart = 1;
-        return NULL;
-    }
-    server_limit = tmp_server_limit;
+if (re == NULL)
+  {
+  printf("PCRE compilation failed at offset %d: %s\n", erroffset, error);
+  return 1;
+  }
 
-    if (server_limit > MAX_SERVER_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: ServerLimit of %d exceeds compile time limit "
-                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
-       server_limit = MAX_SERVER_LIMIT;
-    }
-    else if (server_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: Require ServerLimit > 0, setting to 1");
-	server_limit = 1;
-    }
-    return NULL;
-}
 
-static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg)
-{
-    int tmp_thread_limit;
+/*************************************************************************
+* If the compilation succeeded, we call PCRE again, in order to do a     *
+* pattern match against the subject string. This does just ONE match. If *
+* further matching is needed, it will be done below.                     *
+*************************************************************************/
 
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+rc = pcre_exec(
+  re,                   /* the compiled pattern */
+  NULL,                 /* no extra data - we didn't study the pattern */
+  subject,              /* the subject string */
+  subject_length,       /* the length of the subject */
+  0,                    /* start at offset 0 in the subject */
+  0,                    /* default options */
+  ovector,              /* output vector for substring information */
+  OVECCOUNT);           /* number of elements in the output vector */
 
-    tmp_thread_limit = atoi(arg);
+/* Matching failed: handle error cases */

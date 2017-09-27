@@ -1,41 +1,12 @@
-
-            if (rc == 0)
-                thefile->bufpos = 0;
-        }
-
-        return rc;
-    } else {
-        FlushFileBuffers(thefile->filehand);
-        return APR_SUCCESS;
-    }
-}
-
-static int printf_flush(apr_vformatter_buff_t *vbuff)
+void ssl_io_filter_init(conn_rec *c, SSL *ssl)
 {
-    /* I would love to print this stuff out to the file, but I will
-     * get that working later.  :)  For now, just return.
-     */
-    return -1;
-}
+    ssl_filter_ctx_t *filter_ctx;
 
-APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
-                                        const char *format, ...)
-{
-    int cc;
-    va_list ap;
-    char *buf;
-    int len;
+    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
 
-    buf = malloc(HUGE_STRING_LEN);
-    if (buf == NULL) {
-        return 0;
-    }
-    va_start(ap, format);
-    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
-    cc = apr_file_puts(buf, fptr);
-    va_end(ap);
-    free(buf);
-    return (cc == APR_SUCCESS) ? len : -1;
-}
+    filter_ctx->nobuffer        = 0;
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter_ctx, NULL, c);
 
-
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);

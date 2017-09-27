@@ -1,24 +1,22 @@
-         types_confname = AP_TYPES_CONFIG_FILE;
+ 
+     SSL_set_shutdown(ssl, shutdown_type);
+     SSL_smart_shutdown(ssl);
+ 
+     /* and finally log the fact that we've closed the connection */
+     if (c->base_server->loglevel >= APLOG_INFO) {
+-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
+-                     "Connection to child %ld closed with %s shutdown"
+-                     "(server %s, client %s)",
+-                     c->id, type,
+-                     ssl_util_vhostid(c->pool, c->base_server),
+-                     c->remote_ip ? c->remote_ip : "unknown");
++        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
++                      "Connection closed to child %ld with %s shutdown "
++                      "(server %s)",
++                      c->id, type, ssl_util_vhostid(c->pool, c->base_server));
      }
  
-     types_confname = ap_server_root_relative(p, types_confname);
-     if (!types_confname) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
--                     "Invalid mime types config path %s", 
-+                     "Invalid mime types config path %s",
-                      (const char *)ap_get_module_config(s->module_config,
-                                                         &mime_module));
-         return HTTP_INTERNAL_SERVER_ERROR;
-     }
--    if ((status = ap_pcfg_openfile(&f, ptemp, types_confname)) 
-+    if ((status = ap_pcfg_openfile(&f, ptemp, types_confname))
-                 != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
--                     "could not open mime types config file %s.", 
-+                     "could not open mime types config file %s.",
-                      types_confname);
-         return HTTP_INTERNAL_SERVER_ERROR;
-     }
- 
-     mime_type_extensions = apr_hash_make(p);
- 
+     /* deallocate the SSL connection */
+     if (sslconn->client_cert) {
+         X509_free(sslconn->client_cert);
+         sslconn->client_cert = NULL;

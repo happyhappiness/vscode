@@ -1,21 +1,33 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
-    }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
+    apr_err("socket", rv);
     }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
+    if ((rv = apr_socket_bind(c->aprsock, mysa)) != APR_SUCCESS) {
+        apr_err("bind", rv);
+    }
 
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    c->pollfd.desc_type = APR_POLL_SOCKET;
+    c->pollfd.desc.s = c->aprsock;
+    c->pollfd.reqevents = 0;
+    c->pollfd.client_data = c;
+
+    if ((rv = apr_socket_opt_set(c->aprsock, APR_SO_NONBLOCK, 1))
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
+    }
+
+    if (windowsize != 0) {
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_SNDBUF,
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket send buffer", rv);
+        }
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_RCVBUF,
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket receive buffer", rv);
+        }
+    }
+

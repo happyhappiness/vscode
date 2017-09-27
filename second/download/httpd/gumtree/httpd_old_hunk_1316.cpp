@@ -1,14 +1,12 @@
-        }
-        rv = apr_bucket_read(e, &s, &len, eblock);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-        if (len) {
-            /* Check for buffer overflow */
-           if ((obj->count + len) > mobj->m_len) {
-               return APR_ENOMEM;
-           }
-           else {
-               memcpy(cur, s, len);
-               cur+=len;
-               obj->count+=len;
+        return AJP_EBAD_HEADER;
+    }
+    *ptr = (char *)&(msg->buf[msg->pos]);
+    return APR_SUCCESS;
+}
+
+/*
+ * Allocate a msg to send data
+ */
+apr_status_t  ajp_alloc_data_msg(apr_pool_t *pool, char **ptr, apr_size_t *len,
+                                 ajp_msg_t **msg)
+{

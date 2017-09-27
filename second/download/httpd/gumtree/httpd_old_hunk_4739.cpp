@@ -1,16 +1,22 @@
-                --cp;
-        }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
-#endif
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                            "access to %s failed for %s", r->uri,
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-                                            REMOTE_NOLOOKUP));
-            return HTTP_FORBIDDEN;
-        }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+             "Apache Server Information</h1>\n", r);
+    if (!r->args || strcasecmp(r->args, "list")) {
+        if (!r->args) {
+            ap_rputs("<dl><dt><tt>Subpages:<br />", r);
+            ap_rputs("<a href=\"?config\">Configuration Files</a>, "
+                     "<a href=\"?server\">Server Settings</a>, "
+                     "<a href=\"?list\">Module List</a>,  "
+                     "<a href=\"?hooks\">Active Hooks</a>", r);
+            ap_rputs("</tt></dt></dl><hr />", r);
+
+            ap_rputs("<dl><dt><tt>Sections:<br />", r);
+            ap_rputs("<a href=\"#modules\">Loaded Modules</a>, "
+                     "<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>, "
+                     "<a href=\"#other_hooks\">Other Hooks</a>", r);
+            ap_rputs("</tt></dt></dl><hr />", r);
+
+            ap_rputs("<h2><a name=\"modules\">Loaded Modules</a></h2>"
+                    "<dl><dt><tt>", r);
+
+            modules = get_sorted_modules(r->pool);

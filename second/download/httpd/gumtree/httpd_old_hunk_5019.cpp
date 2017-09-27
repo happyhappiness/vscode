@@ -1,13 +1,17 @@
-	perror("Unable to gethostname");
-	exit(1);
+                                             pl->read_fd,
+                                             pl->write_fd))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
+        /* Something bad happened, give up and go away. */
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00103)
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));
     }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-	exit(1);
-    }
+    else {
+        char **args;
+        const char *pname;
 
-    return server_hostname;
-}
-
+        apr_tokenize_to_argv(pl->program, &args, pl->p);

@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE, "MASTER <-> SLAVE sync: Flushing old data");

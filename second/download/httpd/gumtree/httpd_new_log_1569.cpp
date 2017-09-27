@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "SSL FIPS mode disabled");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);

@@ -1,1 +1,0 @@
-printf("*** RDB CHECK FAILED: %s ***\n", msg);

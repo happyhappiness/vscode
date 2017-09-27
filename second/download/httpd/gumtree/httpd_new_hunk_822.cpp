@@ -1,13 +1,36 @@
-    apr_status_t rv;
-
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to acquire SSL session cache lock");
-        return FALSE;
+    if (!filename) {
+        return APR_EGENERAL;
     }
-    return TRUE;
+
+    fname = ap_server_root_relative(p, filename);
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
+                     NULL, "Invalid PID file path %s, ignoring.", filename);
+        return APR_EGENERAL;
+    }
+
+    rv = apr_file_open(&pid_file, fname, APR_READ, APR_OS_DEFAULT, p);
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    buf = apr_palloc(p, BUFFER_SIZE);
+
+    rv = apr_file_read_full(pid_file, buf, BUFFER_SIZE - 1, &bytes_read);
+    if (rv != APR_SUCCESS && rv != APR_EOF) {
+        return rv;
+    }
+
+    /* If we fill the buffer, we're probably reading a corrupt pid file.
+     * To be nice, let's also ensure the first char is a digit. */
+    if (bytes_read == 0 || bytes_read == BUFFER_SIZE - 1 || !apr_isdigit(*buf)) {
+        return APR_EGENERAL;
+    }
+
+    buf[bytes_read] = '\0';
+    *mypid = strtol(buf, &endptr, 10);
+
+    apr_file_close(pid_file);
+    return APR_SUCCESS;
 }
 
-int ssl_mutex_off(server_rec *s)

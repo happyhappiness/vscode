@@ -1,14 +1,16 @@
-    ap_hard_timeout("send directory", r);
+                                                       &authn_file_module);
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    apr_status_t status;
+    char *file_hash = NULL;
 
-    /* Spew HTML preamble */
+    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
 
-    title_endp = title_name + strlen(title_name) - 1;
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);
+        return AUTH_GENERAL_ERROR;
+    }
 
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
+        const char *rpw, *w, *x;

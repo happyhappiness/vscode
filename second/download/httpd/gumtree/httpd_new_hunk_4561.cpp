@@ -1,26 +1,17 @@
-	     * Kill child processes, tell them to call child_exit, etc...
-	     */
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-	    }
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-
-	    /* cleanup pid file on normal shutdown */
-	    {
-		const char *pidfile = NULL;
-		pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-		if ( pidfile != NULL && unlink(pidfile) == 0)
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-				 server_conf,
-				 "httpd: removed PID file %s (pid=%ld)",
-				 pidfile, (long)getpid());
-	    }
-
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-			"httpd: caught SIGTERM, shutting down");
-	    clean_parent_exit(0);
-	}
-
-	/* we've been told to restart */
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);
+    if (session->state != nstate) {
+        int loglvl = APLOG_DEBUG;
+        if ((session->state == H2_SESSION_ST_BUSY && nstate == H2_SESSION_ST_WAIT)
+            || (session->state == H2_SESSION_ST_WAIT && nstate == H2_SESSION_ST_BUSY)){
+            loglvl = APLOG_TRACE1;
+        }
+        ap_log_cerror(APLOG_MARK, loglvl, 0, session->c, 
+                      H2_SSSN_LOG(APLOGNO(03078), session, 
+                      "transit [%s] -- %s --> [%s]"), 
+                      h2_session_state_str(session->state), action, 
+                      h2_session_state_str(nstate));
+        session->state = nstate;
+        switch (session->state) {
+            case H2_SESSION_ST_IDLE:
+                update_child_status(session, (session->open_streams == 0? 
+                                              SERVER_BUSY_KEEPALIVE
+                                              : SERVER_BUSY_READ), "idle");

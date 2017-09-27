@@ -1,1 +1,0 @@
-printf("RDB preamble is OK, proceding with AOF tail...\n");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                         ap_server_conf, "caught SIGTERM, shutting down");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+            "ap_proxy_connect_backend disabling worker for (%s)",
+            worker->hostname);

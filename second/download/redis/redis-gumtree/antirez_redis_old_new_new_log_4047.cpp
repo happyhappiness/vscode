@@ -1,1 +1,0 @@
-ll2string(bufb,sizeof(bufb),(long) b->ptr);

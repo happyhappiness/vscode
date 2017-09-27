@@ -1,1 +1,0 @@
-c->errstr = sdsnew(strerror(errno));

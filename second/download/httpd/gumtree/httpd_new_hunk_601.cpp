@@ -1,21 +1,40 @@
- *                         ap_finalize_sub_req_protocol on Win32 and NetWare
- * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
- *                         calling ap_setup_prelinked_modules
- * 20020903.10 (2.0.55-dev) add ap_log_cerror()
- * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
- * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
- * 20020903.13 (2.0.62-dev) Add *ftp_directory_charset to proxy_dir_conf
- */
+                      "Digest: unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
 
-#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
+    return_code = get_hash(r, r->user, conf);
 
-#ifndef MODULE_MAGIC_NUMBER_MAJOR
-#define MODULE_MAGIC_NUMBER_MAJOR 20020903
-#endif
-#define MODULE_MAGIC_NUMBER_MINOR 13                    /* 0...n */
+    if (return_code == AUTH_USER_NOT_FOUND) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' not found: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else if (return_code == AUTH_USER_FOUND) {
+        /* we have a password, so continue */
+    }
+    else if (return_code == AUTH_DENIED) {
+        /* authentication denied in the provider before attempting a match */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else {
+        /* AUTH_GENERAL_ERROR (or worse)
+         * We'll assume that the module has already said what its error
+         * was in the logs.
+         */
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-/**
- * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
- * specified value.
- * <pre>
- * Useful for testing for features.
+    if (resp->message_qop == NULL) {
+        /* old (rfc-2069) style digest */
+        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);

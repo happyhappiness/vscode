@@ -1,1 +1,0 @@
-fprintf(stderr, "Invalid element count from SCAN!\n");

@@ -1,22 +1,23 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
+    /* save away the possible providers */
+    cache->providers = providers;
+
+    /*
+     * Are we allowed to serve cached info at all?
+     */
+
+    /* find certain cache controlling headers */
+    auth = apr_table_get(r->headers_in, "Authorization");
+
+    /* First things first - does the request allow us to return
+     * cached information at all? If not, just decline the request.
+     */
+    if (auth) {
+        return DECLINED;
     }
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
-}
 
-
-static int check_symlinks(char *d, int opts)
-{
-#if defined(__EMX__) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+    /*
+     * Try to serve this request from the cache.
+     *
+     * If no existing cache file (DECLINED)
+     *   add cache_save filter
+     * If cached file (OK)

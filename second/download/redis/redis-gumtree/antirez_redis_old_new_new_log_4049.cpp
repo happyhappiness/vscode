@@ -1,1 +1,0 @@
-ll2string(buf,32,value);

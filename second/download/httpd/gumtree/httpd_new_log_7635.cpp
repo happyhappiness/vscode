@@ -1,0 +1,1 @@
+fprintf(stderr, "    -l              Accept variable document length (use this for dynamic pages)\n");

@@ -1,18 +1,20 @@
-        if ((val = apr_table_get(params, "dw"))) {
-            if (!strcasecmp(val, "Disable"))
-                wsel->s->status |= PROXY_WORKER_DISABLED;
-            else if (!strcasecmp(val, "Enable"))
-                wsel->s->status &= ~PROXY_WORKER_DISABLED;
-        }
-        if ((val = apr_table_get(params, "ls"))) {
-            int ival = atoi(val);
-            if (ival >= 0 && ival <= 99) {
-                wsel->s->lbset = ival;
-             }
+        apr_bucket *bucket;
+
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "Timeout during reading request entity data");
+                return HTTP_REQUEST_TIME_OUT;
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
 
-    }
-    if (apr_table_get(params, "xml")) {
-        ap_set_content_type(r, "text/xml");
-        ap_rputs("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n", r);
-        ap_rputs("<httpd:manager xmlns:httpd=\"http://httpd.apache.org\">\n", r);
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {

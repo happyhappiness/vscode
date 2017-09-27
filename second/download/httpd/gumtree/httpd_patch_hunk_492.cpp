@@ -1,18 +1,14 @@
  
- /*
-  * worker_main()
-  * Main entry point for the worker threads. Worker threads block in 
-  * win*_get_connection() awaiting a connection to service.
-  */
--static void worker_main(long thread_num)
-+static unsigned int __stdcall worker_main(void *thread_num_val)
- {
-     static int requests_this_child = 0;
-     PCOMP_CONTEXT context = NULL;
-+    int thread_num = (int)thread_num_val;
-     ap_sb_handle_t *sbh;
- 
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                  "Child %d: Worker thread %ld starting.", my_pid, thread_num);
-     while (1) {
-         conn_rec *c;
+     case HSE_REQ_GET_SSPI_INFO:
+         if (cid->dconf.log_unsupported)
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                            "is not supported: %s", r->filename);
+-        SetLastError(ERROR_INVALID_PARAMETER);
++        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+         return 0;
+         
+     case HSE_APPEND_LOG_PARAMETER:
+         /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
+          */
+         apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);

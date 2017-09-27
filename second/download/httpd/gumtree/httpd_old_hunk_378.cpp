@@ -1,23 +1,66 @@
 
-    if (mc->szCryptoDevice) {
-        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to load Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_die();
-        }
-
-        if (strEQ(mc->szCryptoDevice, "chil")) {
-            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
-        }
-
-        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Init: Failed to enable Crypto Device API `%s'",
-                         mc->szCryptoDevice);
-            ssl_die();
-        }
-
-        ENGINE_free(e);
-    }
+    return st;
 }
+
+static apr_status_t util_ldap_cleanup_module(void *data)
+{
+    server_rec *s = data;
+
+    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
+                                          s->module_config, &ldap_module);
+
+    #if APR_HAS_LDAP_SSL
+        #if APR_HAS_NOVELL_LDAPSDK
+            if (st->ssl_support)
+                ldapssl_client_deinit();
+        #endif
+    #endif
+   
+    return(APR_SUCCESS);
+}
+
+static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
+                                 apr_pool_t *ptemp, server_rec *s)
+{
+    int rc = LDAP_SUCCESS;
+    apr_status_t result;
+    char buf[MAX_STRING_LEN];
+
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
+
+#if APR_HAS_SHARED_MEMORY
+    server_rec *s_vhost;
+    util_ldap_state_t *st_vhost;
+    
+    /* initializing cache if file is here and we already don't have shm addr*/
+    if (st->cache_file && !st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        apr_strerror(result, buf, sizeof(buf));
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
+                     "LDAP cache init: %s", buf);
+
+#if APR_HAS_SHARED_MEMORY
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
+
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            s_vhost = s_vhost->next;
+        }
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
+    }
+#endif
+    
+    /* log the LDAP SDK used 
+     */
+    #if APR_HAS_NETSCAPE_LDAPSDK 

@@ -1,1 +1,0 @@
-hval = createObject(REDIS_STRING,sdscatprintf(sdsempty(),"%lld",value));

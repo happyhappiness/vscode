@@ -1,12 +1,13 @@
-}
+        return;
+    }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    fname = ap_server_root_relative(p, filename);
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
+                     NULL, "Invalid PID file path %s, ignoring.", filename);
+        return;
+    }
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    mypid = getpid();
+    if (mypid != saved_pid
+        && apr_stat(&finfo, fname, APR_FINFO_MTIME, p) == APR_SUCCESS) {

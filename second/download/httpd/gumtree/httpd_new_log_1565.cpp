@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failonstatus' parameter being set",
-                       balancer->name, worker->name);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary EC parameters (256 bits)");

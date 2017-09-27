@@ -1,13 +1,13 @@
+    r = vr;
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
+    /* sure we got r, but don't call ap_log_rerror() because we don't
+     * have r->headers_in and possibly other storage referenced by
+     * ap_log_rerror()
+     */
+    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, APLOGNO(01241) "%s", description);
+}
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+static int cgid_server(void *data)
+{
+    int sd, sd2, rc;
+    mode_t omask;

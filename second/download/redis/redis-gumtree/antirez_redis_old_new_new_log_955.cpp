@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Waiting for next BGSAVE for SYNC");

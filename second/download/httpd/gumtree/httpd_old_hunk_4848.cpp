@@ -1,13 +1,17 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
-    }
+    /* make the IOCTL call */
+    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+                     sizeof(struct tlsclientopts), NULL, 0, NULL,
+                     NULL, NULL);
 
+    /* make sure that it was successful */
+        if(SOCKET_ERROR == rcode ){
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02125)
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+        }
+        return rcode;
+}
+
+static int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
+{
+    int rcode;
+    struct tlsserveropts sWS2Opts;

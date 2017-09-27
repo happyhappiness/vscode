@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: password too long (> %d)\n",
-                argv[0], MAX_STRING_LEN);
+apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], dirname);

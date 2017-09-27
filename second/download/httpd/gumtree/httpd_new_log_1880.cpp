@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                      "buffered SSL brigade exhausted");
+ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">",
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts,
+                                                        desc_width), NULL);

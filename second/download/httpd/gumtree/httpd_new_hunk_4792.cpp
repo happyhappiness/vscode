@@ -1,13 +1,13 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
+        if (sc->server->pks->cert_files[0] == NULL
+            && sc->server->pkcs7 == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02240)
+                         "Server should be SSL-aware but has no certificate "
+                         "configured [Hint: SSLCertificateFile] (%s:%d)",
+                         pServ->defn_name, pServ->defn_line_number);
+            ssl_die(pServ);
         }
 
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+        /* Bitmasks for all key algorithms configured for this server;
+         * initialize to zero. */
+        algoCert = SSL_ALGO_UNKNOWN;
+        algoKey  = SSL_ALGO_UNKNOWN;

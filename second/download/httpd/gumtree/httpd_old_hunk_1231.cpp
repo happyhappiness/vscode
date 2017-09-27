@@ -1,28 +1,14 @@
-    }
-    else {
-        /* Use the server port */
-        port_str = apr_psprintf(p, ":%u", ap_get_server_port(r));
-    }
-
-    /* Key format is a URI, optionally without the query-string */
-    if (conf->ignorequerystring) {
-        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
-                           r->parsed_uri.path, "?", NULL);
-    }
-    else {
-        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
-                           r->parsed_uri.path, "?", r->parsed_uri.query, NULL);
-    }
-
-    /*
-     * Store the key in the request_config for the cache as r->parsed_uri
-     * might have changed in the time from our first visit here triggered by the
-     * quick handler and our possible second visit triggered by the CACHE_SAVE
-     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
-     * resource in the cache under a key where it is never found by the quick
-     * handler during following requests.
-     */
-    cache->key = apr_pstrdup(r->pool, *key);
-
-    return APR_SUCCESS;
-}
+            /* handle one potential stray CRLF */
+            rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), rp, 0, &len);
+        }
+        if (len <= 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                          "proxy: error reading status line from remote "
+                          "server %s", backend->hostname);
+            if (rc == APR_TIMEUP) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "proxy: read timeout");
+            }
+            /*
+             * If we are a reverse proxy request shutdown the connection
+             * WITHOUT ANY response to trigger a retry by the client

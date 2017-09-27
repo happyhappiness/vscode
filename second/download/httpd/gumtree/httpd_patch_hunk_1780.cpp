@@ -1,31 +1,101 @@
-     apr_socket_t *newsock;
-     void *sconf = s->module_config;
-     proxy_server_conf *conf =
-         (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
- 
-     if (conn->sock) {
--        /*
--         * This increases the connection pool size
--         * but the number of dropped connections is
--         * relatively small compared to connection lifetime
--         */
-         if (!(connected = is_socket_connected(conn->sock))) {
--            apr_socket_close(conn->sock);
--            conn->sock = NULL;
-+            socket_cleanup(conn);
-             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                          "proxy: %s: backend socket is disconnected.",
-                          proxy_function);
+                               server_rec *s, int where, int rc)
+ {
+     /*
+      * create the various trace messages
+      */
+     if (where & SSL_CB_HANDSHAKE_START) {
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "%s: Handshake: start", SSL_LIBRARY_NAME);
++        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                      "%s: Handshake: start", SSL_LIBRARY_NAME);
+     }
+     else if (where & SSL_CB_HANDSHAKE_DONE) {
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "%s: Handshake: done", SSL_LIBRARY_NAME);
++        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                      "%s: Handshake: done", SSL_LIBRARY_NAME);
+     }
+     else if (where & SSL_CB_LOOP) {
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "%s: Loop: %s",
+-                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
++        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                      "%s: Loop: %s",
++                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+     }
+     else if (where & SSL_CB_READ) {
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "%s: Read: %s",
+-                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
++        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                      "%s: Read: %s",
++                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+     }
+     else if (where & SSL_CB_WRITE) {
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "%s: Write: %s",
+-                     SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
++        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                      "%s: Write: %s",
++                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+     }
+     else if (where & SSL_CB_ALERT) {
+         char *str = (where & SSL_CB_READ) ? "read" : "write";
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                     "%s: Alert: %s:%s:%s",
+-                     SSL_LIBRARY_NAME, str,
+-                     SSL_alert_type_string_long(rc),
+-                     SSL_alert_desc_string_long(rc));
++        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                      "%s: Alert: %s:%s:%s",
++                      SSL_LIBRARY_NAME, str,
++                      SSL_alert_type_string_long(rc),
++                      SSL_alert_desc_string_long(rc));
+     }
+     else if (where & SSL_CB_EXIT) {
+         if (rc == 0) {
+-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                         "%s: Exit: failed in %s",
+-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
++            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                          "%s: Exit: failed in %s",
++                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+         }
+         else if (rc < 0) {
+-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                         "%s: Exit: error in %s",
+-                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
++            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
++                          "%s: Exit: error in %s",
++                          SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
          }
      }
-     while (backend_addr && !connected) {
-         if ((rv = apr_socket_create(&newsock, backend_addr->family,
-                                 SOCK_STREAM, APR_PROTO_TCP,
--                                conn->pool)) != APR_SUCCESS) {
-+                                conn->scpool)) != APR_SUCCESS) {
-             loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
-             ap_log_error(APLOG_MARK, loglevel, rv, s,
-                          "proxy: %s: error creating fam %d socket for target %s",
-                          proxy_function,
-                          backend_addr->family,
-                          worker->hostname);
+ 
+     /*
+      * Because SSL renegotations can happen at any time (not only after
+      * SSL_accept()), the best way to log the current connection details is
+      * right after a finished handshake.
+      */
+     if (where & SSL_CB_HANDSHAKE_DONE) {
+-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+-                     "Connection: Client IP: %s, Protocol: %s, "
+-                     "Cipher: %s (%s/%s bits)",
+-                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
+-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
+-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+-                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
++        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
++                      "Connection: Client IP: %s, Protocol: %s, "
++                      "Cipher: %s (%s/%s bits)",
++                      ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
++                      ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
++                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
++                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
++                      ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));
+     }
+ }
+ 
+ /*
+  * This callback function is executed while OpenSSL processes the SSL
+  * handshake and does SSL record layer stuff.  It's used to trap

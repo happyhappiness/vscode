@@ -1,1 +1,0 @@
-fprintf(stderr,"       ./redis-server -h or --help\n");

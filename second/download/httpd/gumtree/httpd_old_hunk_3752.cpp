@@ -1,35 +1,17 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
+    SSL_CTX *ctx = mctx->ssl_ctx;
+    const char *suite;
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
-    }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
+    /*
+     *  Configure SSL Cipher Suite. Always disable NULL and export ciphers,
+     *  see also ssl_engine_config.c:ssl_cmd_SSLCipherSuite().
+     *  OpenSSL's SSL_DEFAULT_CIPHER_LIST already includes !aNULL:!eNULL,
+     *  so only prepend !EXP in this case.
+     */
+    suite = mctx->auth.cipher_suite ? mctx->auth.cipher_suite :
+            apr_pstrcat(ptemp, "!EXP:", SSL_DEFAULT_CIPHER_LIST, NULL);
 
-    r->status = 200;
-    r->status_line = "200 OK";
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Configuring permitted SSL ciphers [%s]",
+                 suite);
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    if (!SSL_CTX_set_cipher_list(ctx, suite)) {

@@ -1,13 +1,13 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
+         * this bit unbinds children which will then bind to another cpu
+         */
+        int status = bindprocessor(BINDPROCESS, (int)getpid(),
+                                   PROCESSOR_CLASS_ANY);
+        if (status != OK) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
+                         ap_server_conf, "processor unbind failed");
         }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+#endif
+        RAISE_SIGSTOP(MAKE_CHILD);
+        AP_MONCONTROL(1);
+        /* Disable the parent's signal handlers and set up proper handling in
+         * the child.

@@ -1,32 +1,14 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+                                   (void *)wl->data, w->pool);
+            }
+            wl = wl->next;
+        }
     }
-#if !defined(__EMX__) && !defined(WIN32)
-    /* make sure the childs have access to this file */
-    if (geteuid() == 0 /* is superuser */)
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-#endif
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                 "%sWatchdog (%s) stopping",
+                 w->singleton ? "Singleton" : "", w->name);
 
-    return;
-}
+    if (locked)
+        apr_proc_mutex_unlock(w->mutex);
+    apr_thread_exit(w->thread, APR_SUCCESS);
 
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0') {
-        return;
-    }
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    return NULL;

@@ -1,13 +1,21 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+                             "stapling_cb: fatal error renewing response");
+                return SSL_TLSEXT_ERR_ALERT_FATAL;
+            }
+        }
     }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    if (rsp) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
+                     "stapling_cb: setting response");
+        if (!stapling_set_response(ssl, rsp))
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        return SSL_TLSEXT_ERR_OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01957)
+                 "stapling_cb: no response available");
+
+    return SSL_TLSEXT_ERR_NOACK;
+
+}
+
+apr_status_t modssl_init_stapling(server_rec *s, apr_pool_t *p,

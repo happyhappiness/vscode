@@ -1,4 +1,3 @@
-printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (float) (totalread + totalposted) / timetaken);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Processing of request failed backend: %i, client: %i",
+                     backend_failed, client_failed);

@@ -1,1 +1,0 @@
-serverLog(level,"%s (hexdump):", descr);

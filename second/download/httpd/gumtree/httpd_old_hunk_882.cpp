@@ -1,36 +1,37 @@
-
-    ap_server_root = def_server_root;
-    if (temp_error_log) {
-        ap_replace_stderr_log(process->pool, temp_error_log);
+         * logs a warning later
+         */
+        changed_limit_at_restart = 1;
+        return NULL;
     }
-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Pre-configuration failed");
-        destroy_and_exit_process(process, 1);
+    thread_limit = tmp_thread_limit;
+    
+    if (thread_limit > MAX_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: ThreadLimit of %d exceeds compile time limit "
+                    "of %d threads,", thread_limit, MAX_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+       thread_limit = MAX_THREAD_LIMIT;
+    } 
+    else if (thread_limit < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+	thread_limit = 1;
     }
-
-    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-    ap_fixup_virtual_hosts(pconf, server_conf);
-    ap_fini_vhost_config(pconf, server_conf);
-    apr_hook_sort_all();
-    if (configtestonly) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
-        destroy_and_exit_process(process, 0);
+    return NULL;
+}
+static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy, char *arg) 
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
-
-    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
-    if (signal_server) {
-        int exit_status;
-
-        if (signal_server(&exit_status, pconf) != 0) {
-            destroy_and_exit_process(process, exit_status);
-        }
+    if (use_acceptex) {
+        use_acceptex = 0;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL, 
+                     "Disabled use of AcceptEx() WinSock2 API");
     }
+    return NULL;
+}
 
-    apr_pool_clear(plog);
-
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs");
-        destroy_and_exit_process(process, 1);
+static const command_rec winnt_cmds[] = {

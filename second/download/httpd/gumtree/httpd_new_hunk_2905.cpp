@@ -1,21 +1,22 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
+        (void) magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
+        return DONE;
+    case APR_LNK:
+        /* We used stat(), the only possible reason for this is that the
+         * symlink is broken.
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01527)
+                    MODNAME ": broken symlink (%s)", fn);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    case APR_SOCK:
+        magic_rsl_puts(r, MIME_BINARY_UNKNOWN);
+        return DONE;
+    case APR_REG:
+        break;
+    default:
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01528)
+                      MODNAME ": invalid file type %d.", r->finfo.filetype);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
-    }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    /*
+     * regular file, check next possibility

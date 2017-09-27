@@ -1,22 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
+    do {
+        apr_int32_t n;
+        const apr_pollfd_t *pollresults;
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+        n = concurrency;
+        do {
+        status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        } while (APR_STATUS_IS_EINTR(status));
+        if (status != APR_SUCCESS)
+            apr_err("apr_poll", status);
+
+        if (!n) {
+            err("\nServer timed out\n\n");

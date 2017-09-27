@@ -1,12 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
-
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+             */
+            retained->sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case, as no child ever fully initialized; give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(02325)
+                         "A resource shortage or other unrecoverable failure "
+                         "was encountered before any child process initialized "
+                         "successfully... httpd is exiting!");

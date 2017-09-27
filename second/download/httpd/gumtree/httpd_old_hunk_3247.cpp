@@ -1,20 +1,17 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
+
+#define AP_MAX_ARGC 64
+
+static const char *invoke_cmd(const command_rec *cmd, cmd_parms *parms,
+                              void *mconfig, const char *args)
 {
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
+    char *w, *w2, *w3;
+    const char *errmsg = NULL;
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+    if ((parms->override & cmd->req_override) == 0)
+        return apr_pstrcat(parms->pool, cmd->name, " not allowed here", NULL);
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+    parms->info = cmd->cmd_data;
+    parms->cmd = cmd;
+
+    switch (cmd->args_how) {
+    case RAW_ARGS:

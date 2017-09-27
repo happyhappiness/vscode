@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "worker %s already used by another worker", worker->name);
+ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolicon\">" : " valign=\"top\">", NULL);

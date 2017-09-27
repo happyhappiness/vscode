@@ -1,2 +1,2 @@
-ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", r->uri,
-           "</title>\n</head><body>\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          PARTITION_ERR_FMT, range_start, clength);

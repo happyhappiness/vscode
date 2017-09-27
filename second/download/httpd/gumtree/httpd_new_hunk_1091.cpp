@@ -1,18 +1,32 @@
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
+                    /* sanity check */
+                    if (APR_BRIGADE_EMPTY(bb)) {
+                        apr_brigade_cleanup(bb);
+                        break;
+                    }
+
+                    /* Switch the allocator lifetime of the buckets */
+                    ap_proxy_buckets_lifetime_transform(r, bb, pass_bb);
+
+                    /* found the last brigade? */
+                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+                        /* signal that we must leave */
+                        finish = TRUE;
+                    }
+
+                    /* try send what we read */
+                    if (ap_pass_brigade(r->output_filters, pass_bb) != APR_SUCCESS
+                        || c->aborted) {
+                        /* Ack! Phbtt! Die! User aborted! */
+                        backend->close = 1;  /* this causes socket close below */
+                        finish = TRUE;
+                    }
+
+                    /* make sure we always clean up after ourselves */
+                    apr_brigade_cleanup(bb);
+                    apr_brigade_cleanup(pass_bb);
+
+                } while (!finish);
             }
-            else {
-                /*
-                 * If we've not got a colon on the line, this could well
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
-                 */
-                apr_file_printf(errfile, "%s: The file %s does not appear "
-                                         "to be a valid htpasswd file." NL,
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: end body send");
+        }

@@ -1,27 +1,14 @@
-         apr_signal(SIGTERM, just_die);
-         child_main(slot);
+     case HSE_REQ_GET_IMPERSONATION_TOKEN:  /* Added in ISAPI 4.0 */
+         if (cid->dconf.log_unsupported)
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction "
+                           "HSE_REQ_GET_IMPERSONATION_TOKEN "
+                           "is not supported: %s", r->filename);
+-        SetLastError(ERROR_INVALID_PARAMETER);
++        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+         return 0;
  
-         clean_child_exit(0);
-     }
-     /* else */
-+    if (ap_scoreboard_image->parent[slot].pid != 0) {
-+        /* This new child process is squatting on the scoreboard
-+         * entry owned by an exiting child process, which cannot
-+         * exit until all active requests complete.
-+         * Don't forget about this exiting child process, or we
-+         * won't be able to kill it if it doesn't exit by the
-+         * time the server is shut down.
-+         */
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-+                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
-+                     ap_scoreboard_image->parent[slot].pid,
-+                     ap_scoreboard_image->parent[slot].quiescing ?
-+                         " (quiescing)" : "");
-+        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
-+    }
-     ap_scoreboard_image->parent[slot].quiescing = 0;
-     ap_scoreboard_image->parent[slot].pid = pid;
-     return 0;
- }
- 
- /* start up a bunch of children */
+     case HSE_REQ_MAP_URL_TO_PATH_EX:
+     {
+         /* Map a URL to a filename */
+         HSE_URL_MAPEX_INFO *info = (HSE_URL_MAPEX_INFO*)data_type;

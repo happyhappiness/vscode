@@ -1,17 +1,12 @@
-	    int cond_status = OK;
+        /* reset the expiry back to maxage, if the expiry is present */
+        if (dconf->maxage) {
+            z->expiry = now + dconf->maxage * APR_USEC_PER_SEC;
+            z->maxage = dconf->maxage;
+        }
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+        /* encode the session */
+        rv = ap_run_session_encode(r, z);
+        if (OK != rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01820)
+                          "error while encoding the session, "
+                          "session not saved: %s", r->uri);

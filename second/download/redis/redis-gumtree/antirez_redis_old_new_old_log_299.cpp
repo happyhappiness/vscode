@@ -1,1 +1,0 @@
-rdbCheckError("Unexpected EOF reading RDB file");

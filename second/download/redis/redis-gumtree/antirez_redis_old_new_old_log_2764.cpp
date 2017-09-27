@@ -1,1 +1,0 @@
-printf("Not connected, please use: connect <host> <port>\n");

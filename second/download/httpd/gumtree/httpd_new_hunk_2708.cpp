@@ -1,15 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
-
-	i = read(fd, line, 26);
+                    if (rv != APR_SUCCESS) {
+                        apr_brigade_destroy(pass_bb);
+                        return rv;
+                    }
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01371)
+                                  "unknown directive \"%s\" in parsed doc %s",
+                                  apr_pstrmemdup(r->pool, intern->directive,
+                                                 intern->directive_len),
+                                                 r->filename);
+                    if (ctx->flags & SSI_FLAG_PRINTING) {
+                        SSI_CREATE_ERROR_BUCKET(ctx, f, pass_bb);

@@ -1,19 +1,21 @@
-    return to_return;
+    if (err != NULL) {
+        return err;
+    }
+
+    min_spare_threads = atoi(arg);
+    if (min_spare_threads <= 0) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: detected MinSpareThreads set to non-positive.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "Resetting to 1 to avoid almost certain Apache failure.");
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "Please read the documentation.");
+       min_spare_threads = 1;
+    }
+       
+    return NULL;
 }
 
-SSL_SESSION *ssl_scache_shmcb_retrieve(server_rec *s, UCHAR *id, int idlen)
+static const char *set_max_spare_threads(cmd_parms *cmd, void *dummy, const char *arg)
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    void *shm_segment;
-    SSL_SESSION *pSession;
-
-    /* We've kludged our pointer into the other cache's member variable. */
-    shm_segment = (void *) mc->tSessionCacheDataTable;
-    ssl_mutex_on(s);
-    pSession = shmcb_retrieve_session(s, shm_segment, id, idlen);
-    ssl_mutex_off(s);
-    if (pSession)
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "shmcb_retrieve had a hit");
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

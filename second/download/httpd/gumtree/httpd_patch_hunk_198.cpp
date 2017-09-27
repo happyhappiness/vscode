@@ -1,22 +1,14 @@
- /* ------------------------------------------------------- */
- 
- /* display copyright information */
- static void copyright(void)
- {
-     if (!use_html) {
--	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121 $> apache-2.0");
-+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.1 $> apache-2.0");
- 	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
- 	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
- 	printf("\n");
-     }
-     else {
- 	printf("<p>\n");
--	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121 $");
-+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.1 $");
- 	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
- 	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
- 	printf("</p>\n<p>\n");
-     }
- }
- 
+ 		       "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
+                        max_daemons, threaded ? "yes" : "no",
+                        forked ? "yes" : "no");
+             ap_rprintf(r, "<dt><strong>Server Root:</strong> "
+                         "<tt>%s</tt></dt>\n", ap_server_root);
+             ap_rprintf(r, "<dt><strong>Config File:</strong> "
+-		       "<tt>%s</tt></dt>\n", SERVER_CONFIG_FILE);
++		       "<tt>%s</tt></dt>\n", ap_conftree->filename);
+             ap_rputs("</dl><hr />", r);
+         }
+         for (modp = ap_top_module; modp; modp = modp->next) {
+             if (!r->args || !strcasecmp(modp->name, r->args)) {
+                 ap_rprintf(r, "<dl><dt><a name=\"%s\"><strong>Module Name:</strong> "
+                             "<font size=\"+1\"><tt>%s</tt></font></a></dt>\n",

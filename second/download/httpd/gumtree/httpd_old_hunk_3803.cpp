@@ -1,17 +1,13 @@
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "%s: fam %d socket created to connect to %s",
+                      proxy_function, backend_addr->family, backend_name);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+        if (conf->source_address) {
+            rv = apr_socket_bind(*newsock, conf->source_address);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00938)
+                              "%s: failed to bind socket to local address",
+                              proxy_function);
+            }
+        }

@@ -1,15 +1,15 @@
-    ap_hard_timeout("send directory", r);
 
-    /* Spew HTML preamble */
+    if (retained->is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00171)
+                    "Graceful restart requested, doing restart");
 
-    title_endp = title_name + strlen(title_name) - 1;
+        /* kill off the idle ones */
+        for (i = 0; i < num_buckets; i++) {
+            ap_mpm_pod_killpg(all_buckets[i].pod, retained->max_daemons_limit);
+        }
 
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
-    }
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.  This will break
+         * in a very nasty way if we ever have the scoreboard totally
+         * file-based (no shared memory)
+         */

@@ -1,13 +1,23 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
+                 */
+                apr_table_setn(r->subprocess_env, "proxy-nokeepalive", "1");
+            }
         }
-
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+        else if (r->proxyreq == PROXYREQ_REVERSE) {
+            if (conf->reverse) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: found reverse proxy worker for %s", *url);
+                *balancer = NULL;
+                *worker = conf->reverse;
+                access_status = OK;
+                /*
+                 * The reverse worker does not keep connections alive, so
+                 * ensure that mod_proxy_http does the correct thing
+                 * regarding the Connection header in the request.
+                 */
+                apr_table_setn(r->subprocess_env, "proxy-nokeepalive", "1");
+            }
+        }
+    }
+    else if (access_status == DECLINED && *balancer != NULL) {
+        /* All the workers are busy */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00934)

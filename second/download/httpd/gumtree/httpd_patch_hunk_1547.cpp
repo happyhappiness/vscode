@@ -1,83 +1,15 @@
-                                             c->bucket_alloc);
-             APR_BRIGADE_INSERT_TAIL(bb, b);
-             sent = tf->HeadLength;
-         }
+ ** ### this function is not logging any errors! (e.g. the body)
+ */
+ static int dav_error_response(request_rec *r, int status, const char *body)
+ {
+     r->status = status;
  
-         sent += (apr_uint32_t)fsize;
--#if APR_HAS_LARGE_FILES
--        if (r->finfo.size > AP_MAX_SENDFILE) {
--            /* APR_HAS_LARGE_FILES issue; must split into mutiple buckets,
--             * no greater than MAX(apr_size_t), and more granular than that
--             * in case the brigade code/filters attempt to read it directly.
--             */
--            b = apr_bucket_file_create(fd, tf->Offset, AP_MAX_SENDFILE,
--                                       r->pool, c->bucket_alloc);
--            while (fsize > AP_MAX_SENDFILE) {
--                apr_bucket *bc;
--                apr_bucket_copy(b, &bc);
--                APR_BRIGADE_INSERT_TAIL(bb, bc);
--                b->start += AP_MAX_SENDFILE;
--                fsize -= AP_MAX_SENDFILE;
--            }
--            b->length = (apr_size_t)fsize; /* Resize just the last bucket */
--        }
--        else
--#endif
--            b = apr_bucket_file_create(fd, tf->Offset, (apr_size_t)fsize,
--                                       r->pool, c->bucket_alloc);
--        APR_BRIGADE_INSERT_TAIL(bb, b);
-+        apr_brigade_insert_file(bb, fd, tf->Offset, fsize, r->pool);
+-    /* ### I really don't think this is needed; gotta test */
+-    r->status_line = ap_get_status_line(status);
+-
+     ap_set_content_type(r, "text/html; charset=ISO-8859-1");
  
-         if (tf->pTail && tf->TailLength) {
-             sent += tf->TailLength;
-             b = apr_bucket_transient_create((char*)tf->pTail,
-                                             tf->TailLength, c->bucket_alloc);
-             APR_BRIGADE_INSERT_TAIL(bb, b);
-         }
- 
-         b = apr_bucket_flush_create(c->bucket_alloc);
-         APR_BRIGADE_INSERT_TAIL(bb, b);
--        ap_pass_brigade(r->output_filters, bb);
-+        rv = ap_pass_brigade(r->output_filters, bb);
-         cid->response_sent = 1;
-+        if (rv != APR_SUCCESS)
-+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-+                          "ISAPI: ServerSupport function "
-+                          "HSE_REQ_TRANSMIT_FILE "
-+                          "ap_pass_brigade failed: %s", r->filename);
- 
-         /* Use tf->pfnHseIO + tf->pContext, or if NULL, then use cid->fnIOComplete
-          * pass pContect to the HseIO callback.
-          */
-         if (tf->dwFlags & HSE_IO_ASYNC) {
-             if (tf->pfnHseIO) {
--                if (rv == OK) {
-+                if (rv == APR_SUCCESS) {
-                     tf->pfnHseIO(cid->ecb, tf->pContext,
-                                  ERROR_SUCCESS, sent);
-                 }
-                 else {
-                     tf->pfnHseIO(cid->ecb, tf->pContext,
-                                  ERROR_WRITE_FAULT, sent);
-                 }
-             }
-             else if (cid->completion) {
--                if (rv == OK) {
-+                if (rv == APR_SUCCESS) {
-                     cid->completion(cid->ecb, cid->completion_arg,
-                                     sent, ERROR_SUCCESS);
-                 }
-                 else {
-                     cid->completion(cid->ecb, cid->completion_arg,
-                                     sent, ERROR_WRITE_FAULT);
-                 }
-             }
-         }
--        return (rv == OK);
-+        return (rv == APR_SUCCESS);
-     }
- 
-     case HSE_REQ_REFRESH_ISAPI_ACL:
-         if (cid->dconf.log_unsupported)
-             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction "
+     /* begin the response now... */
+     ap_rvputs(r,
+               DAV_RESPONSE_BODY_1,
+               r->status_line,

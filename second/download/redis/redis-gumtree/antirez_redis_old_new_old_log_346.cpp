@@ -1,1 +1,0 @@
-SHIFT_ERROR(positions[0].offset, "Expected EOF, got %s", types[entry.type]);

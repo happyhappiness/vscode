@@ -1,12 +1,17 @@
+    }
+    else {
+        depth = mctx->auth.verify_depth;
+    }
 
-static APR_INLINE int re_check(include_ctx_t *ctx, const char *string,
-                               const char *rexp)
-{
-    ap_regex_t *compiled;
-    backref_t *re = ctx->intern->re;
+    if (errdepth > depth) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn,
+                      "Certificate Verification: Certificate Chain too long "
+                      "(chain has %d certificates, but maximum allowed are "
+                      "only %d)",
+                      errdepth, depth);
 
-    compiled = ap_pregcomp(ctx->dpool, rexp, AP_REG_EXTENDED);
-    if (!compiled) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->intern->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
-        return -1;
+        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+
+        ok = FALSE;
+    }

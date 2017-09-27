@@ -1,1 +1,0 @@
-serverLog(REDIS_VERBOSE,"Closing idle client");

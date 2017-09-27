@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "send_http_connect: response from the forward proxy: %s",
-                     buffer);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);

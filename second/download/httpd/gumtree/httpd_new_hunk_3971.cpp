@@ -1,18 +1,14 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+                if ((rv = wd_startup(w, wd_server_conf->pool)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01573)
+                                 "Watchdog: Failed to create worker thread.");
+                    /* No point to continue */
+                    return;
+                }
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02981)
+                             "Watchdog: Created worker thread (%s).", wn[i].provider_name);
+            }
+        }
+    }
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+/*--------------------------------------------------------------------------*/

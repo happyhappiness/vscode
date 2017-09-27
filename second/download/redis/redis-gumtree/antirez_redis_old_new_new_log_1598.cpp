@@ -1,1 +1,0 @@
-addReplyError(c, "TESTFAILED sparse encoding not used");

@@ -1,13 +1,12 @@
-    server_rec *s;
-
-    if ((ssl = (SSL *)BIO_get_callback_arg(bio)) == NULL)
-        return rc;
-    if ((c = (conn_rec *)SSL_get_app_data(ssl)) == NULL)
-        return rc;
-    s = c->base_server;
-
-    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
-        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
-        if (rc >= 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: %s %ld/%d bytes %s BIO#%pp [mem: %pp] %s",
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
+    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
+    fprintf(stderr, "                    Default is 'text/plain'\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");

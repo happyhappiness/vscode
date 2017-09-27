@@ -1,1 +1,0 @@
-buf = sdscatprintf(buf,"$%lu\r\n",sdslen(o->ptr));

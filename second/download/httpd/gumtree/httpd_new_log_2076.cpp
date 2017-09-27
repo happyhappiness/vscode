@@ -1,0 +1,8 @@
+(!connected && PROXY_WORKER_IS_USABLE(worker) &&
+        !(worker->s->status & PROXY_WORKER_IGNORE_ERRORS)) {
+        worker->s->status |= PROXY_WORKER_IN_ERROR;
+        worker->s->error_time = apr_time_now();
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+            "ap_proxy_connect_backend disabling worker for (%s)",
+            worker->hostname);
+    };

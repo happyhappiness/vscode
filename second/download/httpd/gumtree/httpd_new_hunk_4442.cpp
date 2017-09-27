@@ -1,38 +1,35 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-				ap_escape_html(scratch,
-					       ap_os_escape_path(scratch, t,
-								 0)),
-				"\">", NULL);
-	}
+    }
+    else if (req_engine_pull && ctx->engine) {
+        apr_status_t status;
+        status = req_engine_pull(ctx->engine, before_leave? 
+                                 APR_BLOCK_READ: APR_NONBLOCK_READ, 
+                                 ctx->capacity, &ctx->next);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, ctx->owner, 
+                      "h2_proxy_engine(%s): pulled request (%s) %s", 
+                      ctx->engine_id, 
+                      before_leave? "before leave" : "regular", 
+                      (ctx->next? ctx->next->the_request : "NULL"));
+        return APR_STATUS_IS_EAGAIN(status)? APR_SUCCESS : status;
+    }
+    return APR_EOF;
+}
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs(anchor, r);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
-			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-			  "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			       d->icon_height, d->icon_width);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
-
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+static apr_status_t proxy_engine_run(h2_proxy_ctx *ctx) {
+    apr_status_t status = OK;
+    int h2_front;
+    
+    /* Step Four: Send the Request in a new HTTP/2 stream and
+     * loop until we got the response or encounter errors.
+     */
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, ctx->owner, 
+                  "eng(%s): setup session", ctx->engine_id);
+    h2_front = is_h2? is_h2(ctx->owner) : 0;
+    ctx->session = h2_proxy_session_setup(ctx->engine_id, ctx->p_conn, ctx->conf,
+                                          h2_front, 30, 
+                                          h2_proxy_log2((int)ctx->req_buffer_size), 
+                                          request_done);
+    if (!ctx->session) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, 
+                      APLOGNO(03372) "session unavailable");
+        return HTTP_SERVICE_UNAVAILABLE;
+    }

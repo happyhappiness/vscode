@@ -1,12 +1,13 @@
-            return HTTP_BAD_REQUEST;
-        else
-            return HTTP_SERVICE_UNAVAILABLE;
-    }
+    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET-2);
+    ap_hook_insert_error_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_insert_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+}
 
-    /* allocate an AJP message to store the data of the buckets */
-    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: ajp_alloc_data_msg failed");
+module AP_MODULE_DECLARE_DATA expires_module =
+{
+    STANDARD20_MODULE_STUFF,
+    create_dir_expires_config,  /* dir config creater */
+    merge_expires_dir_configs,  /* dir merger --- default is to override */
+    NULL,                       /* server config */
+    NULL,                       /* merge server configs */

@@ -1,44 +1,56 @@
-	    int cond_status = OK;
+    }
+}
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    ap_overlap_tables(r->err_headers_out, merge,
-		AP_OVERLAP_TABLES_MERGE);
-	    if (!ap_is_empty_table(cookie_table)) {
-		r->err_headers_out = ap_overlay_tables(r->pool,
-		    r->err_headers_out, cookie_table);
-	    }
-	    return cond_status;
-	}
+#ifdef HAVE_TLSEXT
+/*
+ * This callback function is executed when OpenSSL encounters an extended
+ * client hello with a server name indication extension ("SNI", cf. RFC 6066).
+ */
+int ssl_callback_ServerNameIndication(SSL *ssl, int *al, modssl_ctx_t *mctx)
+{
+    const char *servername =
+                SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    if (c) {
+        if (servername) {
+            if (ap_vhost_iterate_given_conn(c, ssl_find_vhost,
+                                            (void *)servername)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02043)
+                              "SSL virtual host for servername %s found",
+                              servername);
+                return SSL_TLSEXT_ERR_OK;
+            }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02044)
+                              "No matching SSL virtual host for servername "
+                              "%s found (using default/first virtual host)",
+                              servername);
+                /*
+                 * RFC 6066 section 3 says "It is NOT RECOMMENDED to send
+                 * a warning-level unrecognized_name(112) alert, because
+                 * the client's behavior in response to warning-level alerts
+                 * is unpredictable."
+                 *
+                 * To maintain backwards compatibility in mod_ssl, we
+                 * no longer send any alert (neither warning- nor fatal-level),
+                 * i.e. we take the second action suggested in RFC 6066:
+                 * "If the server understood the ClientHello extension but
+                 * does not recognize the server name, the server SHOULD take
+                 * one of two actions: either abort the handshake by sending
+                 * a fatal-level unrecognized_name(112) alert or continue
+                 * the handshake."
+                 */
+            }
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02645)
+                          "Server name not provided via TLS extension "
+                          "(using default/first virtual host)");
+        }
+    }
 
-#ifdef CHARSET_EBCDIC
-	    /* Chances are that we received an ASCII header text instead of
-	     * the expected EBCDIC header lines. Try to auto-detect:
-	     */
-	if (!(l = strchr(w, ':'))) {
-	    int maybeASCII = 0, maybeEBCDIC = 0;
-	    char *cp;
+    return SSL_TLSEXT_ERR_NOACK;
+}
 
-	    for (cp = w; *cp != '\0'; ++cp) {
-		if (isprint(*cp) && !isprint(os_toebcdic[*cp]))
-		    ++maybeEBCDIC;
-		if (!isprint(*cp) && isprint(os_toebcdic[*cp]))
-		    ++maybeASCII;
-		}
-	    if (maybeASCII > maybeEBCDIC) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)", r->filename);
-		ascii2ebcdic(w, w, cp - w);
-	    }
-	}
-#endif
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+/*

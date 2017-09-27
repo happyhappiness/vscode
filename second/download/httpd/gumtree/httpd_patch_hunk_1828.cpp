@@ -1,103 +1,101 @@
-             }
-             checked_standby = checking_standby++;
-         }
-         cur_lbset++;
-     } while (cur_lbset <= max_lbset && !mycandidate);
+      */
  
-+    if (mycandidate) {
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                     "proxy: bytraffic selected worker \"%s\" : busy %" APR_SIZE_T_FMT,
-+                     mycandidate->name, mycandidate->s->busy);
-+
-+    }
-+
-+    return mycandidate;
-+}
-+
-+static proxy_worker *find_best_bybusyness(proxy_balancer *balancer,
-+                                request_rec *r)
-+{
-+
-+    int i;
-+    proxy_worker *worker;
-+    proxy_worker *mycandidate = NULL;
-+    int cur_lbset = 0;
-+    int max_lbset = 0;
-+    int checking_standby;
-+    int checked_standby;
-+
-+    int total_factor = 0;
-+    
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                 "proxy: Entering bybusyness for BALANCER (%s)",
-+                 balancer->name);
-+
-+    /* First try to see if we have available candidate */
-+    do {
-+
-+        checking_standby = checked_standby = 0;
-+        while (!mycandidate && !checked_standby) {
-+
-+            worker = (proxy_worker *)balancer->workers->elts;
-+            for (i = 0; i < balancer->workers->nelts; i++, worker++) {
-+                if  (!checking_standby) {    /* first time through */
-+                    if (worker->s->lbset > max_lbset)
-+                        max_lbset = worker->s->lbset;
-+                }
-+
-+                if (worker->s->lbset > cur_lbset)
-+                    continue;
-+
-+                if ( (checking_standby ? !PROXY_WORKER_IS_STANDBY(worker) : PROXY_WORKER_IS_STANDBY(worker)) )
-+                    continue;
-+
-+                /* If the worker is in error state run
-+                 * retry on that worker. It will be marked as
-+                 * operational if the retry timeout is elapsed.
-+                 * The worker might still be unusable, but we try
-+                 * anyway.
-+                 */
-+                if (!PROXY_WORKER_IS_USABLE(worker))
-+                    ap_proxy_retry_worker("BALANCER", worker, r->server);
-+
-+                /* Take into calculation only the workers that are
-+                 * not in error state or not disabled.
-+                 */
-+                if (PROXY_WORKER_IS_USABLE(worker)) {
-+
-+                    worker->s->lbstatus += worker->s->lbfactor;
-+                    total_factor += worker->s->lbfactor;
-+                    
-+                    if (!mycandidate
-+                        || worker->s->busy < mycandidate->s->busy
-+                        || (worker->s->busy == mycandidate->s->busy && worker->s->lbstatus > mycandidate->s->lbstatus))
-+                        mycandidate = worker;
-+
-+                }
-+
-+            }
-+
-+            checked_standby = checking_standby++;
-+
+     ap_server_root = def_server_root;
+     if (temp_error_log) {
+         ap_replace_stderr_log(process->pool, temp_error_log);
+     }
+-    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+-    if (!server_conf) {
++    ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
++    if (!ap_server_conf) {
+         destroy_and_exit_process(process, 1);
+     }
+-    /* sort hooks here to make sure pre_config hooks are sorted properly */
+-    apr_hook_sort_all();
+ 
+     if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+         ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                      NULL, "Pre-configuration failed");
+         destroy_and_exit_process(process, 1);
+     }
+ 
+-    rv = ap_process_config_tree(server_conf, ap_conftree,
++    rv = ap_process_config_tree(ap_server_conf, ap_conftree,
+                                 process->pconf, ptemp);
+     if (rv == OK) {
+-        ap_fixup_virtual_hosts(pconf, server_conf);
+-        ap_fini_vhost_config(pconf, server_conf);
+-        /*
+-         * Sort hooks again because ap_process_config_tree may have added
+-         * modules and hence hooks. This happens with mod_perl and modules
+-         * written in perl.
+-         */
++        ap_fixup_virtual_hosts(pconf, ap_server_conf);
++        ap_fini_vhost_config(pconf, ap_server_conf);
+         apr_hook_sort_all();
+ 
++        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
++            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
++                         NULL, "Configuration check failed");
++            destroy_and_exit_process(process, 1);
 +        }
 +
-+        cur_lbset++;
-+
-+    } while (cur_lbset <= max_lbset && !mycandidate);
-+
-+    if (mycandidate) {
-+        mycandidate->s->lbstatus -= total_factor;
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
-+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
-+
+         if (configtestonly) {
+-            ap_run_test_config(pconf, server_conf);
++            ap_run_test_config(pconf, ap_server_conf);
+             ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+             destroy_and_exit_process(process, 0);
+         }
+-    }
+-
+-    /* If our config failed, deal with that here. */
+-    if (rv != OK) {
+-        destroy_and_exit_process(process, 1);
++        else if (showcompile) { /* deferred due to dynamically loaded MPM */
++            show_compile_settings();
++            destroy_and_exit_process(process, 0);
++        }
+     }
+ 
+     signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+     if (signal_server) {
+         int exit_status;
+ 
+         if (signal_server(&exit_status, pconf) != 0) {
+             destroy_and_exit_process(process, exit_status);
+         }
+     }
+ 
++    /* If our config failed, deal with that here. */
++    if (rv != OK) {
++        destroy_and_exit_process(process, 1);
 +    }
 +
-     return mycandidate;
-+
- }
+     apr_pool_clear(plog);
  
- /*
-  * How to add additional lbmethods:
-  *   1. Create func which determines "best" candidate worker
-  *      (eg: find_best_bytraffic, above)
+-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
++    if ( ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+         ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                      0, NULL, "Unable to open logs");
+         destroy_and_exit_process(process, 1);
+     }
+ 
+-    if ( ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
++    if ( ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+         ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                      NULL, "Configuration Failed");
+         destroy_and_exit_process(process, 1);
+     }
+ 
+     apr_pool_destroy(ptemp);
+ 
+     for (;;) {
+         apr_hook_deregister_all();
+         apr_pool_clear(pconf);
++        ap_clear_auth_internal();
+ 
+         for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
+             ap_register_hooks(*mod, pconf);
+         }
+ 
+         /* This is a hack until we finish the code so that it only reads

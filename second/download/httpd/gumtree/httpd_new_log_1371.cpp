@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
-                          "Script timed out before returning headers: %s",
-                          apr_filepath_name_get(r->filename));
+fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");

@@ -1,29 +1,33 @@
-    if (cur_timeout != conn->base_server->timeout) {
-        apr_socket_timeout_set(csd, conn->base_server->timeout);
-        cur_timeout = conn->base_server->timeout;
+     * signal_monitor event so we can take further action
+     */
+    SetEvent(globdat.service_init);
+
+    WaitForSingleObject(globdat.service_term, INFINITE);
+}
+
+
+static DWORD WINAPI service_nt_dispatch_thread(LPVOID nada)
+{
+    apr_status_t rv = APR_SUCCESS;
+
+    SERVICE_TABLE_ENTRY dispatchTable[] =
+    {
+        { "", service_nt_main_fn },
+        { NULL, NULL }
+    };
+
+    /* ###: utf-ize */
+    if (!StartServiceCtrlDispatcher(dispatchTable))
+    {
+        /* This is a genuine failure of the SCM. */
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "Error starting service control dispatcher");
     }
 
-    if (!r->assbackwards) {
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
+    return (rv);
+}
 
-        if (apr_table_get(r->headers_in, "Transfer-Encoding")
-            && apr_table_get(r->headers_in, "Content-Length")) {
-            /* 2616 section 4.4, point 3: "if both Transfer-Encoding
-             * and Content-Length are received, the latter MUST be
-             * ignored"; so unset it here to prevent any confusion
-             * later. */
-            apr_table_unset(r->headers_in, "Content-Length");
-        }
-    }
-    else {
-        if (r->header_only) {
-            /*
+
+apr_status_t mpm_service_set_name(apr_pool_t *p, const char **display_name,
+                                  const char *set_name)

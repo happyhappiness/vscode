@@ -1,1 +1,0 @@
-ERROR("Wrong signature in header\n");

@@ -1,1 +1,2 @@
-fprintf(stderr, "Rotation time must be > 0\n");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);

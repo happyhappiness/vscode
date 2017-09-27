@@ -1,13 +1,41 @@
+            rv = get_data(conn, (char *) farray, &readbuflen);
+            if (rv != APR_SUCCESS) {
+                break;
+            }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+            dump_header_to_log(r, farray, readbuflen);
+            
+            if (readbuflen != FCGI_HEADER_LEN) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "proxy: FCGI: Failed to read entire header "
+                             "got %" APR_SIZE_T_FMT " wanted %d", 
+                             readbuflen, FCGI_HEADER_LEN);
+                rv = APR_EINVAL;
+                break;
+            }
 
-    ap_hard_timeout("send headers", r);
+            fcgi_header_from_array(&header, farray);
 
-    ap_basic_http_header(r);
+            if (header.version != FCGI_VERSION) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "proxy: FCGI: Got bogus version %d",
+                             (int) header.version);
+                rv = APR_EINVAL;
+                break;
+            }
+
+            type = header.type;
+
+            rid = header.requestIdB1 << 8;
+            rid |= header.requestIdB0;
+
+            if (rid != request_id) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "proxy: FCGI: Got bogus rid %d, expected %d",
+                             rid, request_id);
+                rv = APR_EINVAL;
+                break;
+            }
+
+            clen = header.contentLengthB1 << 8;
+            clen |= header.contentLengthB0;

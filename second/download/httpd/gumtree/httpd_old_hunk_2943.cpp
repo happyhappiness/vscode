@@ -1,28 +1,29 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
+apr_status_t ajp_ilink_send(apr_socket_t *sock, ajp_msg_t *msg)
+{
+    char         *buf;
+    apr_status_t status;
+    apr_size_t   length;
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
+    if (sock == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_ilink_send(): NULL socket provided");
+        return AJP_EINVAL;
     }
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+    ajp_msg_end(msg);
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    length = msg->len;
+    buf    = (char *)msg->buf;
+
+    do {
+        apr_size_t written = length;
+
+        status = apr_socket_send(sock, buf, &written);
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                          "ajp_ilink_send(): send failed");
+            return status;
+        }
+        length -= written;
+        buf    += written;
+    } while (length);

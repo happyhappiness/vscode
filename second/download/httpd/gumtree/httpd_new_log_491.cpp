@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
-                     "Initialisation of global mutex %s in child process %"
-                     APR_PID_T_FMT
-                     " successful.",
-                     st->lock_file, getpid());
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);

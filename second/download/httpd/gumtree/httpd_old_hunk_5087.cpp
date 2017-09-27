@@ -1,13 +1,13 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
+     */
+    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
+        modssl_init_stapling(s, p, ptemp, mctx);
+    }
+#endif
 
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r->server,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
-
-    return HTTP_MOVED_PERMANENTLY;
+#ifndef OPENSSL_NO_SRP
+    /*
+     * TLS-SRP support
+     */
+    if (mctx->srp_vfile != NULL) {
+        int err;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02308)

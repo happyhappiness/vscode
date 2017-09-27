@@ -1,12 +1,13 @@
-                }
-            }
-        }
-        else if (strcmp(w, "ldap-group") == 0) {
-            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-            int i;
+                                            &ldap_module);
 
-            if (sec->group_attrib_is_dn) {
-                if (req->dn == NULL || strlen(req->dn) == 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
-                                  "user's DN has not been defined; failing authorisation",
+#if APR_HAS_SHARED_MEMORY
+            st_vhost->cache_shm = st->cache_shm;
+            st_vhost->cache_rmm = st->cache_rmm;
+            st_vhost->cache_file = st->cache_file;
+            st_vhost->util_ldap_cache = st->util_ldap_cache;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
+                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
+                         "for VHOST: %s", st->cache_shm, st->cache_rmm,
+                         s_vhost->server_hostname);
+#endif
+            st_vhost->lock_file = st->lock_file;

@@ -1,1 +1,0 @@
-total_results = lua_gettop(L);

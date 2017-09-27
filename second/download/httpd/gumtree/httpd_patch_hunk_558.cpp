@@ -1,34 +1,22 @@
-                          p_conn->name ? p_conn->name: "",
-                          c->remote_ip, c->remote_host ? c->remote_host: "");
-             return status;
-         }
+  * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+  *                         calling ap_setup_prelinked_modules
+  * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+  * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+  * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
+  * 20020903.13 (2.0.62-dev) Add *ftp_directory_charset to proxy_dir_conf
++ * 20020903.14 (2.0.64-dev) added ap_vhost_iterate_given_conn
+  */
  
-         apr_brigade_length(temp_brigade, 1, &bytes);
--        APR_BRIGADE_CONCAT(input_brigade, temp_brigade);
-         bytes_read += bytes;
+ #define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
  
-+        /*
-+         * Save temp_brigade in input_brigade. (At least) in the SSL case
-+         * temp_brigade contains transient buckets whose data would get
-+         * overwritten during the next call of ap_get_brigade in the loop.
-+         * ap_save_brigade ensures these buckets to be set aside.
-+         * Calling ap_save_brigade with NULL as filter is OK, because
-+         * input_brigade already has been created and does not need to get
-+         * created by ap_save_brigade.
-+         */
-+        status = ap_save_brigade(NULL, &input_brigade, &temp_brigade, p);
-+        if (status != APR_SUCCESS) {
-+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-+                         "proxy: processing prefetched request body failed"
-+                         " to %s from %s (%s)",
-+                         p_conn->name ? p_conn->name: "",
-+                         c->remote_ip, c->remote_host ? c->remote_host: "");
-+            return status;
-+        }
-+
-     /* Ensure we don't hit a wall where we have a buffer too small
-      * for ap_get_brigade's filters to fetch us another bucket,
-      * surrender once we hit 80 bytes less than MAX_MEM_SPOOL
-      * (an arbitrary value.)
-      */
-     } while ((bytes_read < MAX_MEM_SPOOL - 80) 
+ #ifndef MODULE_MAGIC_NUMBER_MAJOR
+ #define MODULE_MAGIC_NUMBER_MAJOR 20020903
+ #endif
+-#define MODULE_MAGIC_NUMBER_MINOR 13                    /* 0...n */
++#define MODULE_MAGIC_NUMBER_MINOR 14                    /* 0...n */
+ 
+ /**
+  * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+  * specified value.
+  * <pre>
+  * Useful for testing for features.

@@ -1,13 +1,18 @@
+                                                    conf->recv_buffer_size))) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "proxy: FTP: apr_socket_opt_set(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+                }
+#endif
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+                rv = apr_socket_opt_set(data_sock, APR_TCP_NODELAY, 1);
+                if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "apr_socket_opt_set(APR_TCP_NODELAY): Failed to set");
+                }
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+                /* make the connection */
+                apr_socket_addr_get(&data_addr, APR_REMOTE, sock);
+                apr_sockaddr_ip_get(&data_ip, data_addr);
+                apr_sockaddr_info_get(&epsv_addr, data_ip, connect_addr->family, data_port, 0, p);
+                rv = apr_socket_connect(data_sock, epsv_addr);
+                if (rv != APR_SUCCESS) {

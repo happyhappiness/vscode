@@ -1,13 +1,16 @@
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+    if (old_cl_val) {
+        char *endstr;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
+        
+        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "proxy: could not parse request Content-Length (%s)",
+                          old_cl_val);
+            return HTTP_BAD_REQUEST;
+        }
     }
+    terminate_headers(bucket_alloc, header_brigade);
+

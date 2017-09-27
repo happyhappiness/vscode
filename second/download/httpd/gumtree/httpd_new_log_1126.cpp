@@ -1,1 +1,1 @@
-fprintf(f, " %c -", i-8);
+fprintf(f, "%3d-", i-8);

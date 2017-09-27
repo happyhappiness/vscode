@@ -1,18 +1,42 @@
-	    hold_off_on_exponential_spawning = 10;
-	}
+static const authz_provider authz_method_provider =
+{
+    &method_check_authorization,
+    &method_parse_config,
+};
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+static authz_status expr_check_authorization(request_rec *r,
+                                             const char *require_line,
+                                             const void *parsed_require_line)
+{
+    const char *err = NULL;
+    const ap_expr_info_t *expr = parsed_require_line;
+    int rc = ap_expr_exec(r, expr, &err);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+    if (rc <= 0)
+        /* XXX: real error handling? */
+        return AUTHZ_DENIED;
+    else
+        return AUTHZ_GRANTED;
+}
+
+static const char *expr_parse_config(cmd_parms *cmd, const char *require_line,
+                                     const void **parsed_require_line)
+{
+    const char *expr_err = NULL;
+    ap_expr_info_t *expr = ap_expr_parse_cmd(cmd, require_line, 0, &expr_err,
+                                             NULL);
+
+    if (expr_err)
+        return "Cannot parse expression in require line";
+
+    *parsed_require_line = expr;
+
+    return NULL;
+}
+
+static const authz_provider authz_expr_provider =
+{
+    &expr_check_authorization,
+    &expr_parse_config,
+};
+

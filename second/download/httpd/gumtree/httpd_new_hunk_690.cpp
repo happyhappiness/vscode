@@ -1,35 +1,24 @@
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "apr_bucket_read()");
-            return rv;
-        }
 
-        /* Good cast, we just tested len isn't negative */
-        if (len > 0 &&
-            (rv = pass_data_to_filter(f, data, (apr_size_t)len, bb_tmp))
-                != APR_SUCCESS) {
-            return rv;
-        }
-    }
+                get_entry(neg->pool, &accept_info, body);
+                set_mime_fields(&mime_info, &accept_info);
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-length:", 15)) {
+                char *errp;
+                apr_off_t number;
 
-    apr_brigade_cleanup(bb);
-    APR_BRIGADE_CONCAT(bb, bb_tmp);
-    apr_brigade_destroy(bb_tmp);
-
-    if (eos) {
-        /* close the child's stdin to signal that no more data is coming;
-         * that will cause the child to finish generating output
-         */
-        if ((rv = apr_file_close(ctx->proc->in)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_close(child input)");
-            return rv;
-        }
-        /* since we've seen eos and closed the child's stdin, set the proper pipe
-         * timeout; we don't care if we don't return from apr_file_read() for a while...
-         */
-        rv = apr_file_pipe_timeout_set(ctx->proc->out,
-                                       r->server->timeout);
-        if (rv) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_pipe_timeout_set(child output)");
-            return rv;
-        }
+                if (apr_strtoff(&number, body, &errp, 10)
+                    || *errp || number < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Parse error in type map, Content-Length: "
+                                  "'%s' in %s is invalid.",
+                                  body, r->filename);
+                    break;
+                }
+                mime_info.bytes = number;
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-language:", 17)) {
+                mime_info.content_languages = do_languages_line(neg->pool,
+                                                                &body);
+                has_content = 1;

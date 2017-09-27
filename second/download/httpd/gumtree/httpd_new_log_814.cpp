@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-                r->uri);
+ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);

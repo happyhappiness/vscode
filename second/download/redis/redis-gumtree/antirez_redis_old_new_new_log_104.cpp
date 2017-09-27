@@ -1,1 +1,0 @@
-vsnprintf(fmtmsg,sizeof(fmtmsg),msg,ap);

@@ -1,12 +1,12 @@
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+        ap_unescape_url(arg_copy);
+        apr_table_setn(e, "QUERY_STRING_UNESCAPED",
+                       ap_escape_shell_cmd(r->pool, arg_copy));
+    }
+}
 
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
+static apr_status_t run_cgi_child(apr_file_t **script_out,
+                                  apr_file_t **script_in,
+                                  apr_file_t **script_err, 
+                                  const char *command,
+                                  const char * const argv[],
+                                  request_rec *r,

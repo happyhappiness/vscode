@@ -1,21 +1,30 @@
-                                    r);
-                 }
-             }
-             break;
  
-         case SATISFY_ANY:
--            if (((access_status = ap_run_access_checker(r)) != 0)
--                || !ap_auth_type(r)) {
-+            if (((access_status = ap_run_access_checker(r)) != 0)) {
-                 if (!ap_some_auth_required(r)) {
--                    return decl_die(access_status, ap_auth_type(r)
--                                  ? "check access"
--                                  : "perform authentication. AuthType not set!",
--                                  r);
-+                    return decl_die(access_status, "check access", r);
-                 }
+     rc = connect_to_daemon(&sd, info->r, info->conf);
+     if (rc != OK) {
+         return APR_EGENERAL;
+     }
  
-                 if (((access_status = ap_run_check_user_id(r)) != 0)
-                     || !ap_auth_type(r)) {
-                     return decl_die(access_status, ap_auth_type(r)
-                                   ? "check user.  No user file?"
++    /* we got a socket, and there is already a cleanup registered for it */
++
+     req.req_type = GETPID_REQ;
+     req.conn_id = info->r->connection->id;
+ 
+     stat = sock_write(sd, &req, sizeof(req));
+     if (stat != APR_SUCCESS) {
+-        close(sd);
+         return stat;
+     }
+ 
+     /* wait for pid of script */
+     stat = sock_read(sd, &pid, sizeof(pid));
+     if (stat != APR_SUCCESS) {
+-        close(sd);
+         return stat;
+     }
+-    close(sd);
+ 
+     if (pid == 0) {
+         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, info->r,
+                       "daemon couldn't find CGI process for connection %lu",
+                       info->conn_id);
+         return APR_EGENERAL;

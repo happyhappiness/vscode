@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation time UTC offset:    %12d\n", config->utc_offset);

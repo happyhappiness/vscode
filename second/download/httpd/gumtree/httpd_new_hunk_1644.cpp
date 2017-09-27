@@ -1,13 +1,13 @@
-    /* If we have added something to the brigade above, sent it */
-    if (!APR_BRIGADE_EMPTY(output_brigade))
-        ap_pass_brigade(r->output_filters, output_brigade);
+            if (rc != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                       "ajp_unmarshal_response: "
+                       "Null header name");
+                return rc;
+            }
+            ap_xlate_proto_from_ascii(stringname, strlen(stringname));
+        }
 
-    apr_brigade_destroy(output_brigade);
-
-    return rv;
-}
-
-/*
- * This handles ajp:// URLs
- */
-static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
+        rc = ajp_msg_get_string(msg, &value);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_unmarshal_response: "

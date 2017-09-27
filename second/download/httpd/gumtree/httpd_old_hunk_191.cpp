@@ -1,13 +1,12 @@
-                show_settings = 1;
-                display_settings();
-            }
+        if (rv != APR_SUCCESS) {
+            break;
         }
-        else {
-            show_settings = 0;
-            if (!strnicmp("HELP",&szcommandLine[iCommandLen],3))
-                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
-            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
-            printf("Commands:\n");
-            printf("\tDIRECTIVES - Show directives\n");
-            printf("\tHELP       - Display this help information\n");
-            printf("\tMODULES    - Show a list of the loaded modules\n");
+    }
+}
+
+static int cgi_handler(request_rec *r)
+{
+    int nph;
+    apr_size_t dbpos = 0;
+    const char *argv0;
+    const char *command;

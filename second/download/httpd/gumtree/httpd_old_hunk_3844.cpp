@@ -1,13 +1,17 @@
-    if (!method_restricted)
-	return OK;
-
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00144) "%s", msg);
+            exit(APEXIT_CHILDFATAL);
+        }
+    }
 }
 
-module MODULE_VAR_EXPORT auth_module =
+static void accept_mutex_off(void)
 {
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't release the accept mutex";
+
+        if (retained->my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf, APLOGNO(00145) "%s", msg);

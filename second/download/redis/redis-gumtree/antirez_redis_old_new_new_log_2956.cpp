@@ -1,1 +1,0 @@
-addReplyError(c,"Slot out of range");

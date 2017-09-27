@@ -1,15 +1,13 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
+        }
+        else {
+            lua_pushboolean(L, 0);
+        }
+        if (plen > 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                        "Websocket: Reading %lu bytes of PONG", plen);
+            return 1;
+        }
+        if (mask) {
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+            plen = 2;

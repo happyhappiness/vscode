@@ -1,17 +1,21 @@
-         if (no > 9) {                /* Ordinary character. */
-             if (c == '\\' && (*src == '$' || *src == '&'))
-                 src++;
-             len++;
-         }
-         else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
-+            if (UTIL_SIZE_MAX - len <= pmatch[no].rm_eo - pmatch[no].rm_so) {
-+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-+                             "integer overflow or out of memory condition." );
-+                return NULL;
-+            }
-             len += pmatch[no].rm_eo - pmatch[no].rm_so;
-         }
  
+     if (MODSSL_TMP_KEY_INIT_DH(s, 512) ||
+         MODSSL_TMP_KEY_INIT_DH(s, 1024)) {
+         return !OK;
      }
  
-     dest = dst = apr_pcalloc(p, len + 1);
++#ifndef OPENSSL_NO_EC
++    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
++                 "Init: Generating temporary EC parameters (256 bits)");
++
++    if (MODSSL_TMP_KEY_INIT_EC(s, 256)) {
++        return !OK;
++    }
++#endif
++
+     return OK;
+ }
+ 
+ /*
+  *  Per-module initialization
+  */

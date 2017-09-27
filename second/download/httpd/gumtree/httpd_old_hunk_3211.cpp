@@ -1,13 +1,42 @@
+static void ssl_dyn_lock_function(int mode, struct CRYPTO_dynlock_value *l,
+                           const char *file, int line)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+    apr_status_t rv;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    if (mode & CRYPTO_LOCK) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
+                      "Acquiring mutex %s:%d", l->file, l->line);
+        rv = apr_thread_mutex_lock(l->mutex);
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
+                      "Mutex %s:%d acquired!", l->file, l->line);
+    }
+    else {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
+                      "Releasing mutex %s:%d", l->file, l->line);
+        rv = apr_thread_mutex_unlock(l->mutex);
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
+                      "Mutex %s:%d released!", l->file, l->line);
+    }
+}
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+/*
+ * Dynamic lock destruction callback
+ */
+static void ssl_dyn_destroy_function(struct CRYPTO_dynlock_value *l, 
+                          const char *file, int line)
+{
+    apr_status_t rv;
+
+    ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
+                  "Destroying dynamic lock %s:%d", l->file, l->line);
+    rv = apr_thread_mutex_destroy(l->mutex);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, l->pool,
+                      "Failed to destroy mutex for dynamic lock %s:%d", 
+                      l->file, l->line);
+    }
+
+    /* Trust that whomever owned the CRYPTO_dynlock_value we were
+     * passed has no future use for it...
+     */
+    apr_pool_destroy(l->pool);

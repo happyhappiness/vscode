@@ -1,17 +1,19 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
-#endif
-
-    return NULL;
+                 modver, AP_SERVER_BASEVERSION, incver);
 }
 
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
+/*
+ *  Per-module initialization
+ */
+int ssl_init_Module(apr_pool_t *p, apr_pool_t *plog,
+                    apr_pool_t *ptemp,
+                    server_rec *base_server)
 {
+    SSLModConfigRec *mc = myModConfig(base_server);
+    SSLSrvConfigRec *sc;
+    server_rec *s;
+
+    if (SSLeay() < SSL_LIBRARY_VERSION) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01882)
+                     "Init: this version of mod_ssl was compiled against "
+                     "a newer library (%s, version currently loaded is %s)"
+                     " - may result in undefined or erroneous behavior",

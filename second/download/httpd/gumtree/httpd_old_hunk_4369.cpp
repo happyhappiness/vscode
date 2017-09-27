@@ -1,17 +1,35 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-		    isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
+static h2_ngn_entry *pop_detached(h2_req_engine *ngn)
+{
+    h2_ngn_entry *entry;
+    for (entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
+         entry != H2_REQ_ENTRIES_SENTINEL(&ngn->entries);
+         entry = H2_NGN_ENTRY_NEXT(entry)) {
+        if (h2_task_is_detached(entry->task) 
+            || (entry->task->engine == ngn)) {
+            /* The task hosting this engine can always be pulled by it.
+             * For other task, they need to become detached, e.g. no longer
+             * assigned to another worker. */
+            H2_NGN_ENTRY_REMOVE(entry);
+            return entry;
+        }
+    }
+    return NULL;
+}
+
+apr_status_t h2_ngn_shed_pull_task(h2_ngn_shed *shed, 
+                                   h2_req_engine *ngn, 
+                                   apr_uint32_t capacity, 
+                                   int want_shutdown,
+                                   h2_task **ptask)
+{   
+    h2_ngn_entry *entry;
+    
+    AP_DEBUG_ASSERT(ngn);
+    *ptask = NULL;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c, APLOGNO(03396)
+                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
+                  shed->c->id, ngn->id, want_shutdown);
+    if (shed->aborted) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c, APLOGNO(03397)
+                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
+                      shed->c->id, ngn->id);

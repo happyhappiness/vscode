@@ -1,52 +1,13 @@
- */
+#define APLOGctrace4(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE4)
+#define APLOGctrace5(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE5)
+#define APLOGctrace6(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE6)
+#define APLOGctrace7(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE7)
+#define APLOGctrace8(c)             APLOG_C_IS_LEVEL(c,APLOG_TRACE8)
 
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-{
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
+extern int AP_DECLARE_DATA ap_default_loglevel;
 
-    r->read_body = read_policy;
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
-    }
-
-    if ((r->read_body == REQUEST_NO_BODY) &&
-        (r->read_chunked || (r->remaining > 0))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "%s with body is not allowed for %s", r->method, r->uri);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-    }
-
-    return OK;
-}
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-{
-    /* First check if we have already read the request body */
+/**
+ * APLOG_MARK is a convenience macro for use as the first three parameters in
+ * ap_log_error() and related functions, i.e. file, line, and module_index.
+ *
+ * The module_index parameter was introduced in version 2.3.6. Before that

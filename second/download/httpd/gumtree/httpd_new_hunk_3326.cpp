@@ -1,36 +1,32 @@
+         * children which will then bind to another CPU.
+         */
+        int status = bindprocessor(BINDPROCESS, (int) getpid(),
+                                   PROCESSOR_CLASS_ANY);
+        if (status != OK)
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
+                         ap_server_conf, APLOGNO(00482)
+                         "processor unbind failed");
 #endif
+        RAISE_SIGSTOP(MAKE_CHILD);
 
-    ap_soft_timeout("send body", r);
+        apr_signal(SIGTERM, just_die);
+        child_main(slot);
+        /* NOTREACHED */
+    }
+    /* else */
+    if (ap_scoreboard_image->parent[slot].pid != 0) {
+        /* This new child process is squatting on the scoreboard
+         * entry owned by an exiting child process, which cannot
+         * exit until all active requests complete.
+         */
+        event_note_child_lost_slot(slot, pid);
+    }
+    ap_scoreboard_image->parent[slot].quiescing = 0;
+    ap_scoreboard_image->parent[slot].not_accepting = 0;
+    event_note_child_started(slot, pid);
+    return 0;
+}
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+/* start up a bunch of children */
+static void startup_children(int number_to_start)
+{

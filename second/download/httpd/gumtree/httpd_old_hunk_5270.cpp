@@ -1,13 +1,13 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
-    }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+    lua_pop(L, 1);
+
+    rft = apr_hash_get(dispatch, name, APR_HASH_KEY_STRING);
+    if (rft) {
+        switch (rft->type) {
+        case APL_REQ_FUNTYPE_TABLE:{
+                apr_table_t *rs;
+                req_field_apr_table_f func = (req_field_apr_table_f)rft->fun;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01486)
+                              "request_rec->dispatching %s -> apr table",
+                              name);
+                rs = (*func)(r);
+                ap_lua_push_apr_table(L, rs);

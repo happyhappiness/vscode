@@ -1,0 +1,1 @@
+printf("%3d Bra %d", (code[1] << 8) + code[2], *code - OP_BRA);

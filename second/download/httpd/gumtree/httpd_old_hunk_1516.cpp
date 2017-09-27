@@ -1,12 +1,13 @@
-        }
-        /* This should not fail, but if it does, we are in BIG trouble
-         * cause we just stomped all over the heap.
-         */
-        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
+    */
+
+    /* make sure that mod_ldap (util_ldap) is loaded */
+    if (ap_find_linked_module("util_ldap.c") == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
+                     "must be loaded in order for mod_auth_ldap to function properly");
+        return HTTP_INTERNAL_SERVER_ERROR;
+
     }
-    return APR_SUCCESS;
-}
-/**
- * Configuration and start-up
- */
-static int mem_cache_post_config(apr_pool_t *p, apr_pool_t *plog,
+
+    if (!charset_confname) {
+        return OK;

@@ -1,53 +1,13 @@
-    return process;
+    srand(seed);
+    return rv;
 }
 
-static void usage(process_rec *process)
+static void putline(apr_file_t *f, const char *l)
 {
-    const char *bin = process->argv[0];
-    char pad[MAX_STRING_LEN];
-    unsigned i;
+    apr_file_puts(l, f);
+}
 
-    for (i = 0; i < strlen(bin); i++) {
-        pad[i] = ' ';
-    }
-
-    pad[i] = '\0';
-
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL ,
-                 "Usage: %s [-R directory] [-D name] [-d directory] [-f file]",
-                 bin);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Usage: %s [-D name] [-d directory] [-f file]", bin);
-#endif
-
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-C \"directive\"] [-c \"directive\"]", pad);
-
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|graceful-stop|stop]",
-                 pad);
-#else
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|stop]",
-                 pad);
-#endif /* AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN */
-#endif
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Options:");
-
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory       : specify an alternate location for "
+/*
+ * Make a password record from the given information.  A zero return
+ * indicates success; failure means that the output buffer contains an
+ * error message instead.

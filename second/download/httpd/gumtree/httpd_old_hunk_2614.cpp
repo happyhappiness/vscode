@@ -1,20 +1,26 @@
-#endif
+        int is_remove;
+        apr_xml_elem *prop_group;
+        apr_xml_elem *one_prop;
 
-    ap_soft_timeout("send body", r);
+        /* Ignore children that are not set/remove */
+        if (child->ns != APR_XML_NS_DAV_ID
+            || (!(is_remove = strcmp(child->name, "remove") == 0)
+                && strcmp(child->name, "set") != 0)) {
+            continue;
+        }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+        /* make sure that a "prop" child exists for set/remove */
+        if ((prop_group = dav_find_child(child, "prop")) == NULL) {
+            dav_close_propdb(propdb);
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+            /* undo any auto-checkout */
+            dav_auto_checkin(r, resource, 1 /*undo*/, 0 /*unlock*/, &av_info);
+
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "A \"prop\" element is missing inside "
+                          "the propertyupdate command.");
+            return HTTP_BAD_REQUEST;
+        }
+
+        for (one_prop = prop_group->first_child; one_prop;

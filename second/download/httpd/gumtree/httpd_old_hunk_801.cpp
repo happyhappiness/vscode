@@ -1,13 +1,50 @@
-                                         apr_read_type_e block,
-                                         apr_off_t bytes)
+    const fnames *f1 = fn1;
+    const fnames *f2 = fn2;
+
+    return strcmp(f1->fname,f2->fname);
+}
+
+static void process_resource_config_nofnmatch(server_rec *s, const char *fname,
+                                              ap_directive_t **conftree,
+                                              apr_pool_t *p,
+                                              apr_pool_t *ptemp,
+                                              unsigned depth)
 {
-    struct modssl_buffer_ctx *ctx = f->ctx;
-    apr_status_t rv;
+    cmd_parms parms;
+    ap_configfile_t *cfp;
+    const char *errmsg;
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                  "read from buffered SSL brigade, mode %d, "
-                  "%" APR_OFF_T_FMT " bytes",
-                  mode, bytes);
+    if (ap_is_directory(p, fname)) {
+        apr_dir_t *dirp;
+        apr_finfo_t dirent;
+        int current;
+        apr_array_header_t *candidates = NULL;
+        fnames *fnew;
+        apr_status_t rv;
+        char errmsg[120], *path = apr_pstrdup(p, fname);
 
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return APR_ENOTIMPL;
+        if (++depth > AP_MAX_INCLUDE_DIR_DEPTH) {
+            fprintf(stderr, "%s: Directory %s exceeds the maximum include "
+                    "directory nesting level of %u. You have probably a "
+                    "recursion somewhere.\n", ap_server_argv0, path,
+                    AP_MAX_INCLUDE_DIR_DEPTH);
+            exit(1);
+        }
+
+        /*
+         * first course of business is to grok all the directory
+         * entries here and store 'em away. Recall we need full pathnames
+         * for this.
+         */
+        rv = apr_dir_open(&dirp, path, p);
+        if (rv != APR_SUCCESS) {
+            fprintf(stderr, "%s: could not open config directory %s: %s\n",
+                    ap_server_argv0, path,
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+            exit(1);
+        }
+
+        candidates = apr_array_make(p, 1, sizeof(fnames));
+        while (apr_dir_read(&dirent, APR_FINFO_DIRENT, dirp) == APR_SUCCESS) {
+            /* strip out '.' and '..' */
+            if (strcmp(dirent.name, ".")

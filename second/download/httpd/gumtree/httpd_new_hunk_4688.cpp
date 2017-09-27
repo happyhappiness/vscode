@@ -1,61 +1,25 @@
- */
+        ap_reclaim_child_processes(1, worker_note_child_killed);
 
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-{
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
-    unsigned long max_body;
-
-    r->read_body = read_policy;
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
-        }
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
+        return DONE;
     }
 
-    if ((r->read_body == REQUEST_NO_BODY) &&
-        (r->read_chunked || (r->remaining > 0))) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "%s with body is not allowed for %s", r->method, r->uri);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
+    /* we've been told to restart */
+    if (one_process) {
+        /* not worth thinking about */
+        return DONE;
     }
 
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->remaining > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-          "Request content-length of %s is larger than the configured "
-          "limit of %lu", lenp, max_body);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-    }
+    /* advance to the next generation */
+    /* XXX: we really need to make sure this new generation number isn't in
+     * use by any of the children.
+     */
+    ++retained->mpm->my_generation;
+    ap_scoreboard_image->global->running_generation = retained->mpm->my_generation;
 
-    return OK;
-}
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-{
-    /* First check if we have already read the request body */
+    if (!retained->mpm->is_ungraceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00297)
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        for (i = 0; i < num_buckets; i++) {
+            ap_mpm_podx_killpg(all_buckets[i].pod, ap_daemons_limit,
+                               AP_MPM_PODX_GRACEFUL);

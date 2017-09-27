@@ -1,20 +1,13 @@
-#endif
+{
+    while (*pic) {
+        ipaddr_chain *ic = *pic;
 
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+        if (ic->server == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, main_s,
+                         "NameVirtualHost %s:%u has no VirtualHosts",
+                         ic->sar->virthost, ic->sar->host_port);
+            *pic = ic->next;
+        }
+        else {
+            pic = &ic->next;
+        }

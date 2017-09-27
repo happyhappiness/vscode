@@ -1,13 +1,14 @@
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
-                      getpid());
-        return OK;
+    st->search_cache_size = atol(size);
+    if (st->search_cache_size < 0) {
+        st->search_cache_size = 0;
     }
 
-    if (!required_ldap || !sec->auth_authoritative) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise", getpid());
-        return DECLINED;
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting search cache size"
+                 " to %ld entries.", getpid(), st->search_cache_size);
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+    return NULL;
+}
+
+static const char *util_ldap_set_opcache_ttl(cmd_parms *cmd, void *dummy,
+                                             const char *ttl)

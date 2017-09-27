@@ -1,13 +1,14 @@
-        len = ap_getline(buffer, sizeof(buffer), rp, 0);
-        if (len == 0) {
-            /* handle one potential stray CRLF */
-            len = ap_getline(buffer, sizeof(buffer), rp, 0);
-        }
-        if (len <= 0) {
-            ap_proxy_http_cleanup(NULL, r, backend);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
-            return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                                 "Error reading from remote server");
-        }
+
+        apr_hash_set(table, key, klen, s);
+    }
+
+    if (conflict) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");
+    }
+}
+
+#ifdef SSLC_VERSION_NUMBER
+static int ssl_init_FindCAList_X509NameCmp(char **a, char **b)
+{

@@ -1,15 +1,15 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
+    }
+    else {
+        /* Single process mode - this lock doesn't even need to exist */
+        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix,
+                                   APR_LOCK_DEFAULT, s->process->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, APLOGNO(00452)
+                         "%s child: Unable to init the start_mutex.",
+                         service_name);
+            exit(APEXIT_CHILDINIT);
+        }
 
-	i = read(fd, line, 26);
+        /* Borrow the shutdown_even as our _child_ loop exit event */
+        exit_event = shutdown_event;
+    }

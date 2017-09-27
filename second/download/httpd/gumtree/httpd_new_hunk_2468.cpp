@@ -1,98 +1,39 @@
-	    }
-	}
-#endif
-	return (pid);
+
+
+    ulFlag = SO_TLS_ENABLE;
+    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long), NULL, 0, NULL, NULL, NULL);
+    if(rcode)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02126)
+                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_ENABLE)", WSAGetLastError());
+        goto ERR;
     }
-#else
-    if (ap_suexec_enabled
-	&& ((r->server->server_uid != ap_user_id)
-	    || (r->server->server_gid != ap_group_id)
-	    || (!strncmp("/~", r->uri, 2)))) {
 
-	char *execuser, *grpname;
-	struct passwd *pw;
-	struct group *gr;
 
-	if (!strncmp("/~", r->uri, 2)) {
-	    gid_t user_gid;
-	    char *username = ap_pstrdup(r->pool, r->uri + 2);
-	    char *pos = strchr(username, '/');
+    ulFlag = SO_TLS_SERVER;
+    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long),NULL, 0, NULL, NULL, NULL);
 
-	    if (pos) {
-		*pos = '\0';
-	    }
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
-	    if ((gr = getgrgid(user_gid)) == NULL) {
-	        if ((grpname = ap_palloc(r->pool, 16)) == NULL) {
-		    return (pid);
-		}
-		else {
-		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
-		}
-	    }
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-
-	if (shellcmd) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0,
-		   NULL, env);
-	}
-
-	else {
-	    execve(SUEXEC_BIN,
-		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
-			       argv0, r->args),
-		   env);
-	}
+    if(rcode)
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02127)
+                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
+        goto ERR;
     }
-    else {
-        if (shellcmd) {
-	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
-	}
 
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) {
-	    execle(r->filename, argv0, NULL, env);
-	}
+    loc2uni(UNI_LOCAL_DEFAULT, SASKey, key, 0, 0);
 
-	else {
-	    execve(r->filename,
-		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
-		   env);
-	}
-    }
-    return (pid);
-#endif
-}
-++ apache_1.3.1/src/main/util_uri.c	1998-07-16 07:49:13.000000000 +0800
+    /* setup the tlsserveropts struct */
+    sWS2Opts.wallet = SASKey;
+    sWS2Opts.walletlen = unilen(SASKey);
+    sWS2Opts.sidtimeout = 0;
+    sWS2Opts.sidentries = 0;
+    sWS2Opts.siddir = NULL;
+    sWS2Opts.options = &sNWTLSOpts;
+
+    /* setup the nwtlsopts structure */
+
+    sNWTLSOpts.walletProvider               = WAL_PROV_KMO;
+    sNWTLSOpts.keysList                     = NULL;
+    sNWTLSOpts.numElementsInKeyList         = 0;
+    sNWTLSOpts.reservedforfutureuse         = NULL;
+    sNWTLSOpts.reservedforfutureCRL         = NULL;

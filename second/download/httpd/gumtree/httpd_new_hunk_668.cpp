@@ -1,72 +1,85 @@
-        return ate + termch - head;
+                      info->conn_id);
+        return APR_EGENERAL;
     }
-    return ate;
+    return cleanup_nonchild_process(info->r, pid);
 }
 
-int APR_THREAD_FUNC WriteClient(isapi_cid    *cid,
-                                void         *buf_data,
-                                apr_uint32_t *size_arg,
-                                apr_uint32_t  flags)
+static int cgid_handler(request_rec *r)
 {
-    request_rec *r = cid->r;
     conn_rec *c = r->connection;
-    apr_uint32_t buf_size = *size_arg;
+    int retval, nph, dbpos = 0;
+    char *argv0, *dbuf = NULL;
     apr_bucket_brigade *bb;
     apr_bucket *b;
+    cgid_server_conf *conf;
+    int is_included;
+    int seen_eos, child_stopped_reading;
+    int sd;
+    char **env;
+    apr_file_t *tempsock;
+    struct cleanup_script_info *info;
     apr_status_t rv;
 
-    if (!cid->headers_set) {
-        /* It appears that the foxisapi module and other clients
-         * presume that WriteClient("headers\n\nbody") will work.
-         * Parse them out, or die trying.
-         */
-        apr_ssize_t ate;
-        ate = send_response_header(cid, NULL, (char*)buf_data,
-                                   0, buf_size);
-        if (ate < 0) {
-            SetLastError(ERROR_INVALID_PARAMETER);
-            return 0;
-        }
+    if (strcmp(r->handler,CGI_MAGIC_TYPE) && strcmp(r->handler,"cgi-script"))
+        return DECLINED;
 
-        (char*)buf_data += ate;
-        buf_size -= ate;
+    conf = ap_get_module_config(r->server->module_config, &cgid_module);
+    is_included = !strcmp(r->protocol, "INCLUDED");
+
+    if ((argv0 = strrchr(r->filename, '/')) != NULL)
+        argv0++;
+    else
+        argv0 = r->filename;
+
+    nph = !(strncmp(argv0, "nph-", 4));
+
+    argv0 = r->filename;
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "Options ExecCGI is off in this directory");
+    if (nph && is_included)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to include NPH CGI script");
+
+#if defined(OS2) || defined(WIN32)
+#error mod_cgid does not work on this platform.  If you teach it to, look
+#error at mod_cgi.c for required code in this path.
+#else
+    if (r->finfo.filetype == 0)
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "script not found or unable to stat");
+#endif
+    if (r->finfo.filetype == APR_DIR)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");
+
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info)
+    {
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "AcceptPathInfo off disallows user's path");
+    }
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                                   "file permissions deny server execution");
+    }
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    env = ap_create_environment(r->pool, r->subprocess_env);
+
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;
     }
 
-    if (buf_size) {
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        b = apr_bucket_transient_create(buf_data, buf_size, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        b = apr_bucket_flush_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        cid->response_sent = 1;
+    rv = send_req(sd, r, argv0, env, CGI_REQ);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "write to cgi daemon process");
     }
 
-    if ((flags & HSE_IO_ASYNC) && cid->completion) {
-        if (rv == OK) {
-            cid->completion(cid->ecb, cid->completion_arg,
-                            *size_arg, ERROR_SUCCESS);
-        }
-        else {
-            cid->completion(cid->ecb, cid->completion_arg,
-                            *size_arg, ERROR_WRITE_FAULT);
-        }
-    }
-    return (rv == OK);
-}
-
-int APR_THREAD_FUNC ServerSupportFunction(isapi_cid    *cid,
-                                          apr_uint32_t  HSE_code,
-                                          void         *buf_data,
-                                          apr_uint32_t *buf_size,
-                                          apr_uint32_t *data_type)
-{
-    request_rec *r = cid->r;
-    conn_rec *c = r->connection;
-    request_rec *subreq;
-
-    switch (HSE_code) {
-    case HSE_REQ_SEND_URL_REDIRECT_RESP:
-        /* Set the status to be returned when the HttpExtensionProc()
-         * is done.
-         * WARNING: Microsoft now advertises HSE_REQ_SEND_URL_REDIRECT_RESP
+    info = apr_palloc(r->pool, sizeof(struct cleanup_script_info));

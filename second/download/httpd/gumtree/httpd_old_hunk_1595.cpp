@@ -1,27 +1,25 @@
-            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
-            (*fpin) = procnew->in;
-            /* read handle to pipe not kept open, so no need to call
-             * close_handle_in_child()
-             */
-        }
-    }
+                               (long)req_time);
 
-    return rc;
-}
+                    ap_rprintf(r, "</td><td>%-1.1f</td><td>%-2.2f</td><td>%-2.2f\n",
+                               (float)conn_bytes / KBYTE, (float) my_bytes / MBYTE,
+                               (float)bytes / MBYTE);
 
-static int open_error_log(server_rec *s, apr_pool_t *p)
-{
-    const char *fname;
-    int rc;
+                    if (ws_record->status == SERVER_BUSY_READ)
+                        ap_rprintf(r,
+                                   "</td><td>?</td><td nowrap>?</td><td nowrap>..reading.. </td></tr>\n\n");
+                    else
+                        ap_rprintf(r,
+                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
+                                   ap_escape_html(r->pool,
+                                                  ws_record->client),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->vhost),
+                                   ap_escape_html(r->pool,
+                                                  ap_escape_logitem(r->pool, 
+                                                                    ws_record->request)));
+                } /* no_table_report */
+            } /* for (j...) */
+        } /* for (i...) */
 
-    if (*s->error_fname == '|') {
-        apr_file_t *dummy = NULL;
-
-        /* This starts a new process... */
-        rc = log_child (p, s->error_fname + 1, &dummy);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process");
-            return DONE;
-        }
-
+        if (!no_table_report) {
+            ap_rputs("</table>\n \

@@ -1,17 +1,33 @@
-         if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
-             e = apr_bucket_eos_create(f->c->bucket_alloc);
-             APR_BRIGADE_INSERT_TAIL(bb, e);
-         }
+                  "Configuring %s server certificate", type);
  
-         ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
--                      "buffered SSL brigade now exhausted; removing filter");
--        ap_remove_input_filter(f);
-+                      "buffered SSL brigade exhausted");
-+        /* Note that the filter must *not* be removed here; it may be
-+         * invoked again, see comment above. */
+     ptr = asn1->cpData;
+     if (!(cert = d2i_X509(NULL, &ptr, asn1->nData))) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                 "Unable to import %s server certificate", type);
+-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
++        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+         ssl_die();
      }
  
-     return APR_SUCCESS;
+     if (SSL_CTX_use_certificate(mctx->ssl_ctx, cert) <= 0) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                 "Unable to configure %s server certificate", type);
+-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
++        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+         ssl_die();
+     }
++  
++#ifdef HAVE_OCSP_STAPLING
++    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
++        if (!ssl_stapling_init_cert(s, mctx, cert)) {
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
++                         "Unable to configure server certificate for stapling");
++        }
++    }
++#endif
+ 
+     mctx->pks->certs[idx] = cert;
+ 
+     return TRUE;
  }
  
- static void ssl_io_input_add_filter(ssl_filter_ctx_t *filter_ctx, conn_rec *c,

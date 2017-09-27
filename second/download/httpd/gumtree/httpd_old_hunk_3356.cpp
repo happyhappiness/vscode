@@ -1,13 +1,22 @@
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* only report this condition once */
+            static int reported = 0;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+            if (!reported) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
+                    "server reached MaxClients setting, consider"
+                    " raising the MaxClients setting");
+                reported = 1;
+            }
+            idle_spawn_rate = 1;
+        }
+        else {
+            if (idle_spawn_rate >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                    "server seems busy, (you may need "
+                    "to increase StartServers, or Min/MaxSpareServers), "
+                    "spawning %d children, there are %d idle, and "
+                    "%d total children", idle_spawn_rate,
+                    idle_count, total_non_dead);
+            }

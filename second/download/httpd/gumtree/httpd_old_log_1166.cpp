@@ -1,1 +1,1 @@
-printf("    [^\\x%02x]", c);
+(isprint(i);

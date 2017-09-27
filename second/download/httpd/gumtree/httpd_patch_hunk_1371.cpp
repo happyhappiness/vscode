@@ -1,43 +1,46 @@
-                             APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                         }
-                         apr_brigade_length(output_brigade, 0, &bb_len);
-                         if (bb_len != -1)
-                             conn->worker->s->read += bb_len;
-                     }
--                    if (ap_pass_brigade(r->output_filters,
--                                        output_brigade) != APR_SUCCESS) {
--                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
--                                      "proxy: error processing body.%s",
--                                      r->connection->aborted ?
--                                      " Client aborted connection." : "");
--                        output_failed = 1;
-+                    if (headers_sent) {
-+                        if (ap_pass_brigade(r->output_filters,
-+                                            output_brigade) != APR_SUCCESS) {
-+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-+                                          "proxy: error processing body.%s",
-+                                          r->connection->aborted ?
-+                                          " Client aborted connection." : "");
-+                            output_failed = 1;
-+                        }
-+                        data_sent = 1;
-+                        apr_brigade_cleanup(output_brigade);
-                     }
--                    data_sent = 1;
--                    apr_brigade_cleanup(output_brigade);
-                 }
-                 else {
-                     backend_failed = 1;
-                 }
-                 break;
-             case CMD_AJP13_END_RESPONSE:
-+                status = ajp_parse_reuse(r, conn->data, &conn_reuse);
-+                if (status != APR_SUCCESS) {
-+                    backend_failed = 1;
-+                }
-                 e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                 APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                 if (ap_pass_brigade(r->output_filters,
-                                     output_brigade) != APR_SUCCESS) {
-                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "proxy: error processing end");
+         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                       "Depth must be \"infinity\" when moving a collection.");
+         return HTTP_BAD_REQUEST;
+     }
+ 
+     /*
+-     * Check If-Headers and existing locks for each resource in the source
+-     * if we are performing a MOVE. We will return a 424 response with a
+-     * DAV:multistatus body. The multistatus responses will contain the
+-     * information about any resource that fails the validation.
++     * Check If-Headers and existing locks for each resource in the source.
++     * We will return a 424 response with a DAV:multistatus body.
++     * The multistatus responses will contain the information about any
++     * resource that fails the validation.
+      *
+      * We check the parent resource, too, since this is a MOVE. Moving the
+      * resource effectively removes it from the parent collection, so we
+      * must ensure that we have met the appropriate conditions.
+      *
+      * If a problem occurs with the Request-URI itself, then a plain error
+      * (rather than a multistatus) will be returned.
+      */
+-    if (is_move
+-        && (err = dav_validate_request(r, resource, depth, NULL,
+-                                       &multi_response,
+-                                       DAV_VALIDATE_PARENT
+-                                       | DAV_VALIDATE_USE_424,
+-                                       NULL)) != NULL) {
++    if ((err = dav_validate_request(r, resource, depth, NULL,
++                                    &multi_response,
++                                    DAV_VALIDATE_PARENT
++                                    | DAV_VALIDATE_USE_424,
++                                    NULL)) != NULL) {
+         err = dav_push_error(r->pool, err->status, 0,
+                              apr_psprintf(r->pool,
+-                                          "Could not MOVE %s due to a failed "
++                                          "Could not %s %s due to a failed "
+                                           "precondition on the source "
+                                           "(e.g. locks).",
++                                          is_move ? "MOVE" : "COPY",
+                                           ap_escape_html(r->pool, r->uri)),
+                              err);
+         return dav_handle_err(r, err, multi_response);
+     }
+ 
+     /*

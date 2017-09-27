@@ -1,32 +1,33 @@
-         else if (c->bread != doclen) {
-             bad++;
-             err_length++;
          }
-         /* save out time */
-         if (done < requests) {
--            struct data s;
--            if ((done) && heartbeatres && !(done % heartbeatres)) {
--                fprintf(stderr, "Completed %ld requests\n", done);
-+            struct data *s = &stats[done++];
-+            c->done      = lasttime = apr_time_now();
-+            s->starttime = c->start;
-+            s->ctime     = ap_max(0, c->connect - c->start);
-+            s->time      = ap_max(0, c->done - c->start);
-+            s->waittime  = ap_max(0, c->beginread - c->endwrite);
-+            if (heartbeatres && !(done % heartbeatres)) {
-+                fprintf(stderr, "Completed %d requests\n", done);
-                 fflush(stderr);
-             }
--            c->done = apr_time_now();
--            s.read = c->read;
--            s.starttime = c->start;
--            s.ctime = ap_max(0, (c->connect - c->start) / 1000);
--            s.time = ap_max(0, (c->done - c->start) / 1000);
--            s.waittime = ap_max(0, (c->beginread - c->endwrite) / 1000);
--            stats[done++] = s;
+         else {
+             /* no way to know what type of error occurred */
+             ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                           "default_handler: ap_pass_brigade returned %i",
+                           status);
+-            return AP_FILTER_ERROR;
++            return HTTP_INTERNAL_SERVER_ERROR;
          }
      }
+     else {              /* unusual method (not GET or POST) */
+         if (r->method_number == M_INVALID) {
+-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+-                          "Invalid method in request %s", r->the_request);
++            /* See if this looks like an undecrypted SSL handshake attempt.
++             * It's safe to look a couple bytes into the_request if it exists, as it's
++             * always allocated at least MIN_LINE_ALLOC (80) bytes.
++             */
++            if (r->the_request
++                && r->the_request[0] == 0x16                                
++                && (r->the_request[1] == 0x2 || r->the_request[1] == 0x3)) {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                              "Invalid method in request %s - possible attempt to establish SSL connection on non-SSL port", r->the_request);
++            } else {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                              "Invalid method in request %s", r->the_request);
++            }
+             return HTTP_NOT_IMPLEMENTED;
+         }
  
-     {
-         apr_pollfd_t remove_pollfd;
-         remove_pollfd.desc_type = APR_POLL_SOCKET;
+         if (r->method_number == M_OPTIONS) {
+             return ap_send_http_options(r);
+         }

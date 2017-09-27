@@ -1,48 +1,20 @@
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-#ifdef CHARSET_EBCDIC
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-#endif
-
-    /* Get the request... */
-
-    ap_keepalive_timeout("read request line", r);
-    if (!read_request_line(r)) {
-        ap_kill_timeout(r);
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-        return NULL;
+    header->stat_retrieves_hit = 0;
+    header->stat_retrieves_miss = 0;
+    header->stat_removes_hit = 0;
+    header->stat_removes_miss = 0;
+    header->subcache_num = num_subcache;
+    /* Convert the subcache size (in bytes) to a value that is suitable for
+     * structure alignment on the host platform, by rounding down if necessary. */
+    header->subcache_size = (size_t)(shm_segsize / num_subcache);
+    if (header->subcache_size != APR_ALIGN_DEFAULT(header->subcache_size)) {
+        header->subcache_size = APR_ALIGN_DEFAULT(header->subcache_size) -
+                                APR_ALIGN_DEFAULT(1);
     }
-    if (!r->assbackwards) {
-        ap_hard_timeout("read request headers", r);
-        get_mime_headers(r);
-        ap_kill_timeout(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-    }
-    else {
-        ap_kill_timeout(r);
-    }
+    header->subcache_data_offset = ALIGNED_SUBCACHE_SIZE +
+                                   num_idx * ALIGNED_INDEX_SIZE;
+    header->subcache_data_size = header->subcache_size -
+                                 header->subcache_data_offset;
+    header->index_num = num_idx;
 
-    r->status = HTTP_OK;                         /* Until further notice. */
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read
-     */
+    /* Output trace info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00824)

@@ -1,47 +1,13 @@
-    else {
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
+        parser->http_status = atoi(&line[sindex]);
+        line[k] = keepchar;
+        parser->state = H2_RP_HEADER_LINE;
+        
+        return APR_SUCCESS;
     }
-#endif
-}
-    
-
-void ap_log_pid (pool *p, char *fname)
-{
-    FILE *pid_file;
-
-    if (!fname) return;
-    fname = ap_server_root_relative (p, fname);
-    if(!(pid_file = fopen(fname,"w"))) {
-	perror("fopen");
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-        exit(1);
-    }
-    fprintf(pid_file,"%ld\n",(long)getpid());
-    fclose(pid_file);
+    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, task->c, APLOGNO(03467)
+                  "h2_task(%s): unable to parse status line: %s", 
+                  task->id, line);
+    return APR_EINVAL;
 }
 
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, err);
-}
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-			      const char *msg, server_rec *s)
-{
-    ap_log_error(file, 0, APLOG_ERR, s, msg);
-}
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-{
-    char buf[MAX_STRING_LEN];
-    va_list args;
-    
-    va_start(args, fmt);
-    ap_vsnprintf(buf, sizeof(buf), fmt, args);
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, buf);
-    va_end(args);
-}
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+apr_status_t h2_from_h1_parse_response(h2_task *task, ap_filter_t *f, 

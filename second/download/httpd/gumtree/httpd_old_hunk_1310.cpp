@@ -1,13 +1,13 @@
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
-        return -1;
-    }
-
-    if (mutual) {
-        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
-
-        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
-            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
+        if (ap_process_config_tree(server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        apr_hook_sort_all();
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }

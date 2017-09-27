@@ -1,28 +1,13 @@
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %d\n", port);
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    printf("Document Length:        %d bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %d.%03d seconds\n",
-           timetaken / 1000, timetaken % 1000);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-               err_conn, err_length, err_except);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %d bytes\n", totalread);
-    printf("HTML transferred:       %d bytes\n", totalbread);
-
-    /* avoid divide by zero */
-    if (timetaken) {
-        printf("Requests per second:    %.2f\n", 1000 * (float) (done) / timetaken);
-        printf("Transfer rate:          %.2f kb/s\n",
-               (float) (totalread) / timetaken);
-    }
-
-    {
-        /* work out connection times */
+ */
+#ifdef DOXYGEN
+AP_DECLARE(void) ap_log_perror(const char *file, int line, int module_index,
+                               int level, apr_status_t status, apr_pool_t *p,
+                               const char *fmt, ...);
+#else
+#if defined(AP_HAVE_C99) && defined(APLOG_MAX_LOGLEVEL)
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_perror(...) ap_log_perror__(__VA_ARGS__)
+#define ap_log_perror__(file, line, mi, level, status, p, ...)            \
+    do { if ((level) <= APLOG_MAX_LOGLEVEL )                              \
+             ap_log_perror_(file, line, mi, level, status, p,             \
+                            __VA_ARGS__); } while(0)

@@ -1,13 +1,17 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+                /* Mark the backend connection for closing */
+                backend->close = 1;
+                /* Need to return OK to avoid sending an error message */
+                return OK;
+            }
+            else if (!c->keepalives) {
+                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01105)
+                                   "NOT Closing connection to client"
+                                   " although reading from backend server %s:%d"
+                                   " failed.",
+                                   backend->hostname, backend->port);
+            }
+            return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                                 "Error reading from remote server");
+        }
+        /* XXX: Is this a real headers length send from remote? */
+        backend->worker->s->read += len;

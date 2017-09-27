@@ -1,13 +1,54 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+            break;
     }
-    else {
+}
+
+static void h2_session_ev_local_goaway(h2_session *session, int arg, const char *msg)
+{
+    session->local.accepting = 0;
+    cleanup_streams(session);
+    switch (session->state) {
+        case H2_SESSION_ST_LOCAL_SHUTDOWN:
+            /* already did that? */
+            break;
+        case H2_SESSION_ST_IDLE:
+        case H2_SESSION_ST_REMOTE_SHUTDOWN:
+            /* all done */
+            transit(session, "local goaway", H2_SESSION_ST_DONE);
+            break;
+        default:
+            transit(session, "local goaway", H2_SESSION_ST_LOCAL_SHUTDOWN);
+            break;
+    }
+}
+
+static void h2_session_ev_remote_goaway(h2_session *session, int arg, const char *msg)
+{
+    session->remote.accepting = 0;
+    cleanup_streams(session);
+    switch (session->state) {
+        case H2_SESSION_ST_REMOTE_SHUTDOWN:
+            /* already received that? */
+            break;
+        case H2_SESSION_ST_IDLE:
+        case H2_SESSION_ST_LOCAL_SHUTDOWN:
+            /* all done */
+            transit(session, "remote goaway", H2_SESSION_ST_DONE);
+            break;
+        default:
+            transit(session, "remote goaway", H2_SESSION_ST_REMOTE_SHUTDOWN);
+            break;
+    }
+}
+
+static void h2_session_ev_conn_error(h2_session *session, int arg, const char *msg)
+{
+    switch (session->state) {
+        case H2_SESSION_ST_INIT:
+        case H2_SESSION_ST_DONE:
+        case H2_SESSION_ST_LOCAL_SHUTDOWN:
+            /* just leave */
+            transit(session, "conn error", H2_SESSION_ST_DONE);
+            break;
+        
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03401)

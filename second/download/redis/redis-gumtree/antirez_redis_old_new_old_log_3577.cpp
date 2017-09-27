@@ -1,1 +1,0 @@
-fprintf(stderr, "\nIf a pipe from standard input is detected this data is used as last argument.\n\n");

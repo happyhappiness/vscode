@@ -1,33 +1,14 @@
-     "USER_NAME=",
-     "TZ=",
-     NULL
- };
- 
- 
--static void err_output(const char *fmt, va_list ap)
-+static void err_output(int is_error, const char *fmt, va_list ap)
- {
- #ifdef AP_LOG_EXEC
-     time_t timevar;
-     struct tm *lt;
- 
-     if (!log) {
-         if ((log = fopen(AP_LOG_EXEC, "a")) == NULL) {
--            fprintf(stderr, "failed to open log file\n");
-+            fprintf(stderr, "suexec failure: could not open log file\n");
-             perror("fopen");
-             exit(1);
+         if (rc != APR_SUCCESS) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                          "process_socket: apr_pollset_add failure");
+             AP_DEBUG_ASSERT(rc == APR_SUCCESS);
          }
      }
+-    return 0;
++    return 1;
+ }
  
-+    if (is_error) {
-+        fprintf(stderr, "suexec policy violation: see suexec log for more "
-+                        "details\n");
-+    }
-+
-     time(&timevar);
-     lt = localtime(&timevar);
- 
-     fprintf(log, "[%d-%.2d-%.2d %.2d:%.2d:%.2d]: ",
-             lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
-             lt->tm_hour, lt->tm_min, lt->tm_sec);
+ /* requests_this_child has gone to zero or below.  See if the admin coded
+    "MaxRequestsPerChild 0", and keep going in that case.  Doing it this way
+    simplifies the hot path in worker_thread */
+ static void check_infinite_requests(void)

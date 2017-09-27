@@ -1,13 +1,20 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+            /*
+             * The group entry we want to attach our SGL to doesn't exist.
+             * We only got here if we verified this DN was actually a group
+             * based on the objectClass, but we can't call the compare function
+             * while we already hold the cache lock -- only the insert.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Cache entry for %s doesn't exist", dn);
+            the_compare_node.result = LDAP_COMPARE_TRUE;
+            util_ald_cache_insert(curl->compare_cache, &the_compare_node);
+            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                                 &the_compare_node);
+            if (compare_nodep == NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "util_ldap: Couldn't retrieve group entry "
+                              "for %s from cache",
+                              dn);
+            }
+        }
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))

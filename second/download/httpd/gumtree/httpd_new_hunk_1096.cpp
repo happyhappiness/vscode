@@ -1,13 +1,18 @@
-     *
-     * The tricky bit, they aren't really a per-dir sort of
-     * config, they will always be constant across every
-     * reference to the .dll no matter what context (vhost,
-     * location, etc) they apply to.
-     */
-    isa->report_version = 0x500; /* Revision 5.0 */
-    isa->timeout = 300 * 1000000; /* microsecs, not used */
+    int rc;
+    apr_ldap_url_desc_t *urld;
+    apr_ldap_err_t *result;
 
-    rv = apr_dso_load(&isa->handle, isa->filename, p);
-    if (rv)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+    authn_ldap_config_t *sec = config;
+
+    rc = apr_ldap_url_parse(cmd->pool, url, &(urld), &(result));
+    if (rc != APR_SUCCESS) {
+        return result->reason;
+    }
+    sec->url = apr_pstrdup(cmd->pool, url);
+
+    /* Set all the values, or at least some sane defaults */
+    if (sec->host) {
+        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
+        strcpy(p, urld->lud_host);
+        strcat(p, " ");
+        strcat(p, sec->host);

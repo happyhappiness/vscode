@@ -1,20 +1,13 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+            }
+
+            value += 2;         /* jump over the '..' that we found in the
+                                   value */
         }
-        return 0;
-    }
+        else if (directory) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "invalid directory name in map file: %s", r->uri);
+            return NULL;
+        }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+        if (!strncmp(value, "/../", 4) || !strcmp(value, "/..")) {
+            value++;            /* step over the '/' if there are more '..'

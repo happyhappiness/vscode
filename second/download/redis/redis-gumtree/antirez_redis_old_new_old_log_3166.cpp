@@ -1,1 +1,0 @@
-addReplyError(c,"Object is shared");

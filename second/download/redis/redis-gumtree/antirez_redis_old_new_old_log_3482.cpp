@@ -1,1 +1,0 @@
-addReplyError(c,"multi bulk protocol error");

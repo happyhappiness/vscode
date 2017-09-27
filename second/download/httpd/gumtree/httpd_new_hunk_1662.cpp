@@ -1,29 +1,36 @@
-        conn->addr = worker->cp->addr;
-        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-                         "proxy: unlock");
-        }
+    return NULL;
+}
+
+static proxy_worker *find_session_route(proxy_balancer *balancer,
+                                        request_rec *r,
+                                        char **route,
+                                        const char **sticky_used,
+                                        char **url)
+{
+    proxy_worker *worker = NULL;
+
+    if (!balancer->sticky)
+        return NULL;
+    /* Try to find the sticky route inside url */
+    *route = get_path_param(r->pool, *url, balancer->sticky_path, balancer->scolonsep);
+    if (*route) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: BALANCER: Found value %s for "
+                     "stickysession %s", *route, balancer->sticky_path);
+        *sticky_used =  balancer->sticky_path;
     }
     else {
-        conn->addr = worker->cp->addr;
-    }
-
-    if (err != APR_SUCCESS) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             apr_pstrcat(p, "DNS lookup failure for: ",
-                                         conn->hostname, NULL));
-    }
-
-    /* Get the server port for the Via headers */
-    {
-        server_port = ap_get_server_port(r);
-        if (ap_is_default_port(server_port, r)) {
-            strcpy(server_portstr,"");
-        }
-        else {
-            apr_snprintf(server_portstr, server_portstr_size, ":%d",
-                         server_port);
+        *route = get_cookie_param(r, balancer->sticky);
+        if (*route) {
+            *sticky_used =  balancer->sticky;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Found value %s for "
+                         "stickysession %s", *route, balancer->sticky);
         }
     }
-    /* check if ProxyBlock directive on this host */
-    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
+    /*
+     * If we found a value for sticksession, find the first '.' within.
+     * Everything after '.' (if present) is our route.
+     */
+    if ((*route) && ((*route = strchr(*route, '.')) != NULL ))
+        (*route)++;

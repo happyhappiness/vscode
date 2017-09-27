@@ -1,0 +1,1 @@
+apr_file_printf(out, "%s %s\n", dir->directive, dir->args);

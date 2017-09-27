@@ -1,0 +1,1 @@
+ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c, "%s", buf);

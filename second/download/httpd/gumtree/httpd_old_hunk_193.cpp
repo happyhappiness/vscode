@@ -1,12 +1,12 @@
-        /* Create the worker thread dispatch IOCP */
-        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                    NULL,
-                                                    0,
-                                                    0); /* CONCURRENT ACTIVE THREADS */
-        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+{
+    if (sig == SIGHUP) {
+        ++daemon_should_exit;
     }
+}
 
-    /* 
-     * Create the pool of worker threads
-     */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+static int cgid_server(void *data) 
+{ 
+    struct sockaddr_un unix_addr;
+    int sd, sd2, rc;
+    mode_t omask;
+    apr_socklen_t len;

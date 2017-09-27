@@ -1,21 +1,37 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
-    }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
+        default: {
+            /* oo-er! an error */
+            return rv;
+        }
+        }
     }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
+    /* if Cache-Control: only-if-cached, and not cached, return 504 */
+    if (cache->control_in.only_if_cached) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00696)
+                "cache: 'only-if-cached' requested and no cached entity, "
+                "returning 504 Gateway Timeout for: %s", r->uri);
+        return HTTP_GATEWAY_TIME_OUT;
+    }
 
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    return DECLINED;
+}
+
+apr_status_t cache_generate_key_default(request_rec *r, apr_pool_t* p,
+        const char **key)
+{
+    cache_server_conf *conf;
+    char *port_str, *hn, *lcs;
+    const char *hostname, *scheme;
+    int i;
+    char *path, *querystring;
+
+    if (*key) {
+        /*
+         * We have been here before during the processing of this request.
+         */
+        return APR_SUCCESS;
+    }
+
+    /*
+     * Get the module configuration. We need this for the CacheIgnoreQueryString
+     * option below.

@@ -1,14 +1,13 @@
-    return 0;
-}
 
-static void usage(void)
-{
-    apr_file_printf(errfile, "Usage:\n");
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
-    apr_file_printf(errfile, " -c  Create a new file.\n");
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
+	    if (APR_SUCCESS != (rv = apr_socket_opt_set(sock, APR_SO_REUSEADDR, one))) {
+		apr_socket_close(sock);
+#ifndef _OSD_POSIX              /* BS2000 has this option "always on" */
+		ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+			      "proxy: FTP: error setting reuseaddr option: apr_socket_opt_set(APR_SO_REUSEADDR)");
+                connect_addr = connect_addr->next;
+		continue;
+#endif                          /* _OSD_POSIX */
+	    }
+
+	    /* Set a timeout on the socket */
+	    if (conf->timeout_set == 1) {

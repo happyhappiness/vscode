@@ -1,24 +1,15 @@
+         APR_BRIGADE_INSERT_TAIL(bb, e);
      }
-     else {
-         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                      "proxy: got response from %pI (%s)",
-                      conn->worker->cp->addr,
-                      conn->worker->hostname);
--        rv = OK;
-+
-+        if (psf->error_override && ap_is_HTTP_ERROR(r->status)) {
-+            /* clear r->status for override error, otherwise ErrorDocument
-+             * thinks that this is a recursive error, and doesn't find the
-+             * custom error page
-+             */
-+            rv = r->status;
-+            r->status = HTTP_OK;
-+        } else {
-+            rv = OK;
-+        }
-     }
- 
-     if (backend_failed) {
+     apr_brigade_length(bb, 0, &transferred);
+     if (transferred != -1)
+         conn->worker->s->transferred += transferred;
+     status = ap_pass_brigade(origin->output_filters, bb);
++    /* Cleanup the brigade now to avoid buckets lifetime
++     * issues in case of error returned below. */
++    apr_brigade_cleanup(bb);
+     if (status != APR_SUCCESS) {
          ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                      "proxy: dialog to %pI (%s) failed",
-                      conn->worker->cp->addr,
+                      "proxy: pass request body failed to %pI (%s)",
+                      conn->addr, conn->hostname);
+         if (origin->aborted) {
+             const char *ssl_note;

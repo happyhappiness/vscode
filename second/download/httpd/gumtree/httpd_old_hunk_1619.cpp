@@ -1,16 +1,14 @@
-    return DECLINED;
+    st->compare_cache_size = atol(size);
+    if (st->compare_cache_size < 0) {
+        st->compare_cache_size = 0;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache size to %ld "
+                 "entries.", getpid(), st->compare_cache_size);
+
+    return NULL;
 }
 
-apr_status_t cache_generate_key_default(request_rec *r, apr_pool_t* p,
-                                        char**key)
-{
-    char *port_str, *hn, *lcs;
-    const char *hostname, *scheme;
-    int i;
 
-    /*
-     * Use the canonical name to improve cache hit rate, but only if this is
-     * not a proxy request or if this is a reverse proxy request.
-     * We need to handle both cases in the same manner as for the reverse proxy
-     * case we have the following situation:
-     *
+/**

@@ -1,167 +1,58 @@
-	else {
-	    cur = atol(str);
-	}
+    if (cur_timeout != conn->base_server->timeout) {
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
+
+    if (!r->assbackwards) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+
+        if (apr_table_get(r->headers_in, "Transfer-Encoding")
+            && apr_table_get(r->headers_in, "Content-Length")) {
+            /* 2616 section 4.4, point 3: "if both Transfer-Encoding
+             * and Content-Length are received, the latter MUST be
+             * ignored"; so unset it here to prevent any confusion
+             * later. */
+            apr_table_unset(r->headers_in, "Content-Length");
+        }
     }
     else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-		     "Invalid parameters for %s", cmd->cmd->name);
-	return;
-    }
-    
-    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
-	max = atol(str);
-    }
-
-    /* if we aren't running as root, cannot increase max */
-    if (geteuid()) {
-	limit->rlim_cur = cur;
-	if (max) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-			 "Must be uid 0 to raise maximum %s", cmd->cmd->name);
-	}
-    }
-    else {
-        if (cur) {
-	    limit->rlim_cur = cur;
-	}
-        if (max) {
-	    limit->rlim_max = max;
-	}
-    }
-}
-#endif
-
-#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
-static const char *no_set_limit(cmd_parms *cmd, core_dir_config *conf,
-				char *arg, char *arg2)
-{
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-		"%s not supported on this platform", cmd->cmd->name);
-    return NULL;
-}
-#endif
-
-#ifdef RLIMIT_CPU
-static const char *set_limit_cpu(cmd_parms *cmd, core_dir_config *conf, 
-				 char *arg, char *arg2)
-{
-    set_rlimit(cmd, &conf->limit_cpu, arg, arg2, RLIMIT_CPU);
-    return NULL;
-}
-#endif
-
-#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
-static const char *set_limit_mem(cmd_parms *cmd, core_dir_config *conf, 
-				 char *arg, char * arg2)
-{
-#if defined(RLIMIT_AS)
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2 ,RLIMIT_AS);
-#elif defined(RLIMIT_DATA)
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_DATA);
-#elif defined(RLIMIT_VMEM)
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_VMEM);
-#endif
-    return NULL;
-}
-#endif
-
-#ifdef RLIMIT_NPROC
-static const char *set_limit_nproc(cmd_parms *cmd, core_dir_config *conf,  
-				   char *arg, char * arg2)
-{
-    set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
-    return NULL;
-}
-#endif
-
-static const char *set_bind_address(cmd_parms *cmd, void *dummy, char *arg) 
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+        if (r->header_only) {
+            /*
+             * Client asked for headers only with HTTP/0.9, which doesn't send
+             * headers! Have to dink things just to make sure the error message
+             * comes through...
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);
+            r->header_only = 0;
+            r->status = HTTP_BAD_REQUEST;
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
     }
 
-    ap_bind_address.s_addr = ap_get_virthost_addr(arg, NULL);
-    return NULL;
-}
+    apr_brigade_destroy(tmp_bb);
 
-static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
-{
-    listen_rec *new;
-    char *ports;
-    unsigned short port;
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
+     */
+    ap_update_vhost_from_headers(r);
 
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    ports = strchr(ips, ':');
-    if (ports != NULL) {
-	if (ports == ips) {
-	    return "Missing IP address";
-	}
-	else if (ports[1] == '\0') {
-	    return "Address must end in :<port-number>";
-	}
-	*(ports++) = '\0';
-    }
-    else {
-	ports = ips;
-    }
-
-    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
-    new->local_addr.sin_family = AF_INET;
-    if (ports == ips) { /* no address */
-	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    }
-    else {
-	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
-    }
-    port = atoi(ports);
-    if (!port) {
-	return "Port must be numeric";
-    }
-    new->local_addr.sin_port = htons(port);
-    new->fd = -1;
-    new->used = 0;
-    new->next = ap_listeners;
-    ap_listeners = new;
-    return NULL;
-}
-
-static const char *set_listenbacklog(cmd_parms *cmd, void *dummy, char *arg) 
-{
-    int b;
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    b = atoi(arg);
-    if (b < 1) {
-        return "ListenBacklog must be > 0";
-    }
-    ap_listenbacklog = b;
-    return NULL;
-}
-
-static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
-{
-    struct stat finfo;
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    arg = ap_server_root_relative(cmd->pool, arg);
-    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
-	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
-			  " does not exist or is not a directory", NULL);
-    }
-    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
-    return NULL;
-}
-
-static const char *include_config (cmd_parms *cmd, void *dummy, char *name)
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);

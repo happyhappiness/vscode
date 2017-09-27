@@ -1,19 +1,12 @@
-	version_locked++;
-    }
-}
-
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-/* a clean exit from a child with proper cleanup */
-static void __attribute__((noreturn)) clean_child_exit(int code)
-{
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    exit(code);
-}
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
-{
+            else {
+                ctx->broken = 1;
+                ap_lua_release_state(L, ctx->spec, r);
+                ap_remove_output_filter(f);
+                apr_brigade_cleanup(pbbIn);
+                apr_brigade_cleanup(ctx->tmpBucket);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        /* If we've safely reached the end, do a final call to Lua to allow for any 
+        finishing moves by the script, such as appending a tail. */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(pbbIn))) {

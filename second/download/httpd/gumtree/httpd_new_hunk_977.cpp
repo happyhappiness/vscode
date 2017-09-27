@@ -1,14 +1,23 @@
+    t->index_initialized |= s->index_initialized;
 }
 
-static void join_start_thread(apr_thread_t *start_thread_id)
+APR_DECLARE(void) apr_table_overlap(apr_table_t *a, const apr_table_t *b,
+				    unsigned flags)
 {
-    apr_status_t rv, thread_rv;
+    if (a->a.nelts + b->a.nelts == 0) {
+        return;
+    }
 
-    start_thread_may_exit = 1; /* tell it to give up in case it is still
-                                * trying to take over slots from a
-                                * previous generation
-                                */
-    rv = apr_thread_join(&thread_rv, start_thread_id);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "apr_thread_join: unable to join the start "
+#if APR_POOL_DEBUG
+    /* Since the keys and values are not copied, it's required that
+     * b->a.pool has a lifetime at least as long as a->a.pool. */
+    if (!apr_pool_is_ancestor(b->a.pool, a->a.pool)) {
+        fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");
+        abort();
+    }
+#endif
+
+    apr_table_cat(a, b);
+
+    apr_table_compress(a, flags);
+}

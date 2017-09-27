@@ -1,1 +1,0 @@
-addReplyError(c,"radius cannot be negative");

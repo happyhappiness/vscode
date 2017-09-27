@@ -1,20 +1,22 @@
+ /* display copyright information */
+ static void copyright(void)
+ {
+     if (!use_html) {
+         printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.146 $> apache-2.0");
+         printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+-        printf("Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/\n");
++        printf("Copyright 2006 The Apache Software Foundation, http://www.apache.org/\n");
+         printf("\n");
+     }
+     else {
+         printf("<p>\n");
+         printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.146 $");
+         printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+-        printf(" Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/<br>\n");
++        printf(" Copyright 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
+         printf("</p>\n<p>\n");
+     }
+ }
  
-         zRC = Z_OK;
- 
-         while (ctx->stream.avail_in != 0) {
-             if (ctx->stream.avail_out == 0) {
- 
-+                if (!check_ratio(r, ctx, dc)) {
-+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
-+                            "Inflated content ratio is larger than the "
-+                            "configured limit %i by %i time(s)",
-+                            dc->ratio_limit, dc->ratio_burst);
-+                    return APR_EINVAL;
-+                }
-+
-                 ctx->stream.next_out = ctx->buffer;
-                 len = c->bufferSize - ctx->stream.avail_out;
- 
-                 ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                 b = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                            NULL, f->c->bucket_alloc);
+ /* display usage information */
+ static void usage(const char *progname)

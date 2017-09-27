@@ -1,21 +1,13 @@
-         */
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_EXTENSION_TRIGGER "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+    apr_rfc822_date(dates, r->request_time);
+    apr_table_setn(r->headers_out, "Date", dates);
+    apr_table_setn(r->headers_out, "Server", ap_get_server_version());
 
-    default:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction (%d) not supported: "
-                          "%s", HSE_code, r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+    /* set content-type */
+    if (dirlisting) {
+        ap_set_content_type(r, "text/html");
     }
-}
-
-/**********************************************************
- *
+    else {
+        if (r->content_type) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: Content-Type set to %s", r->content_type);
+        }

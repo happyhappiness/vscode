@@ -1,1 +1,0 @@
-serverLog(LL_DEBUG, "[PSYNC] Skipping: %lld", skip);

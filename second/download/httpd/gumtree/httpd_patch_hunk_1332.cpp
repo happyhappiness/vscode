@@ -1,24 +1,20 @@
-                                                     0,
-                                                     0); /* CONCURRENT ACTIVE THREADS */
-         apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-         qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-         if (!qwait_event) {
-             ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
--                         "Child %d: Failed to create a qwait event.", my_pid);
-+                         "Child %lu: Failed to create a qwait event.", my_pid);
-             exit(APEXIT_CHILDINIT);
-         }
+     disk_cache_object_t *dobj;
+ 
+     if (conf->cache_root == NULL) {
+         return DECLINED;
      }
  
-     /*
-      * Create the pool of worker threads
-      */
-     ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
--                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
-+                 "Child %lu: Starting %d worker threads.", my_pid, ap_threads_per_child);
-     child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(HANDLE));
-     apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
++    /* we don't support caching of range requests (yet) */
++    if (r->status == HTTP_PARTIAL_CONTENT) {
++        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++                     "disk_cache: URL %s partial content response not cached",
++                     key);
++        return DECLINED;
++    }
++
+     /* Allocate and initialize cache_object_t and disk_cache_object_t */
+     h->cache_obj = obj = apr_pcalloc(r->pool, sizeof(*obj));
+     obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
  
-     while (1) {
-         for (i = 0; i < ap_threads_per_child; i++) {
-             int *score_idx;
+     obj->key = apr_pstrdup(r->pool, key);
+ 

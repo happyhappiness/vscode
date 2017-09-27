@@ -1,13 +1,20 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
+            }
+        }
     }
+
+    for (i = 0; i < threads_per_child; i++) {
+        if (threads[i]) { /* if we ever created this thread */
+            if (mode != ST_GRACEFUL) {
+#ifdef HAVE_PTHREAD_KILL
+                apr_os_thread_t *worker_os_thread;
+
+                apr_os_thread_get(&worker_os_thread, threads[i]);
+                pthread_kill(*worker_os_thread, WORKER_SIGNAL);
+#endif
+            }
+
+            rv = apr_thread_join(&thread_rv, threads[i]);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00278)
+                             "apr_thread_join: unable to join worker "
+                             "thread %d",

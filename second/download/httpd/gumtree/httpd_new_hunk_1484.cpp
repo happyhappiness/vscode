@@ -1,33 +1,27 @@
-                backend_failed = 1;
-                break;
-        }
+#ifndef OPENSSL_NO_SSL2
+#define SSL2_HELP_MSG "SSL2, "
+#else
+#define SSL2_HELP_MSG ""
+#endif
 
-        /*
-         * If connection has been aborted by client: Stop working.
-         * Pretend we are done (data_sent) to avoid further processing.
-         */
-        if (r->connection->aborted) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "client connection aborted");
-            /* no response yet (or ever), set status for access log */
-            if (!headers_sent) {
-                r->status = HTTP_BAD_REQUEST;
-            }
-            client_failed = 1;
-            /* return DONE */
-            data_sent = 1;
-            break;
-        }
+#ifndef OPENSSL_NO_SSL3
+#define SSL3_HELP_MSG "SSL3, "
+#else
+#define SSL3_HELP_MSG ""
+#endif
 
-        /*
-         * We either have finished successfully or we failed.
-         * So bail out
-         */
-        if ((result == CMD_AJP13_END_RESPONSE)
-                || backend_failed || client_failed)
-            break;
+#ifdef HAVE_TLSV1_X
+#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
+#else
+#define TLS1_X_HELP_MSG ""
+#endif
 
-        /* read the response */
-        status = ajp_read_header(conn->sock, r, maxsize,
-                                 (ajp_msg_t **)&(conn->data));
-        if (status != APR_SUCCESS) {
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n"); 
+    fprintf(stderr, "                    (" SSL2_HELP_MSG SSL3_HELP_MSG "TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+#endif
+    exit(EINVAL);
+}
+
+/* ------------------------------------------------------- */
+

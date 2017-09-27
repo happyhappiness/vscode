@@ -1,1 +1,1 @@
-ap_rputs("></td><tr>\n<tr><td>Timeout:</td><td><input name=\"tm\" type=text ", r);
+ap_rputs("<table><tr>", r);

@@ -1,1 +1,0 @@
-addReplySds(c,sdscatprintf(sdsempty(),"-ERR invalid password\r\n"));

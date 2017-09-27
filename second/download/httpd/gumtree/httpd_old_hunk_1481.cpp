@@ -1,24 +1,12 @@
-                                                APR_BLOCK_READ,
-                                                maxsize - AJP_HEADER_SZ);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "ap_get_brigade failed");
-                            output_failed = 1;
-                            break;
-                        }
-                        bufsiz = maxsize;
-                        status = apr_brigade_flatten(input_brigade, buff,
-                                                     &bufsiz);
-                        apr_brigade_cleanup(input_brigade);
-                        if (status != APR_SUCCESS) {
-                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                         r->server,
-                                         "apr_brigade_flatten failed");
-                            output_failed = 1;
-                            break;
-                        }
-                    }
 
-                    ajp_msg_reset(msg);
-                    /* will go in ajp_send_data_msg */
+
+/*****************************************************************************
+ * run-time vhost matching functions
+ */
+
+/* Lowercase and remove any trailing dot and/or :port from the hostname,
+ * and check that it is sane.
+ *
+ * In most configurations the exact syntax of the hostname isn't
+ * important so strict sanity checking isn't necessary. However, in
+ * mass hosting setups (using mod_vhost_alias or mod_rewrite) where

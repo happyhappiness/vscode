@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+    char *fullpath;
+    apr_size_t dirpathlen;
+    char *ctype = "text/html";
+    char *charset;
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
+    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01275)
+                      "Can't open directory for index: %s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+    if (autoindex_conf->ctype) {
+        ctype = autoindex_conf->ctype;

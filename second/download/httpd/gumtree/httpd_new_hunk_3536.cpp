@@ -1,16 +1,22 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+
+AP_DECLARE_NONSTD(const char *)ap_set_name_virtual_host(cmd_parms *cmd,
+                                                        void *dummy,
+                                                        const char *arg)
+{
+    static int warnonce = 0;
+    if (++warnonce == 1) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE|APLOG_STARTUP, APR_SUCCESS, NULL, APLOGNO(00548)
+                     "NameVirtualHost has no effect and will be removed in the "
+                     "next release %s:%d",
+                     cmd->directive->filename,
+                     cmd->directive->line_num);
+    }
+
+    return NULL;
+}
+
+
+/* hash table statistics, keep this in here for the beta period so
+ * we can find out if the hash function is ok
+ */

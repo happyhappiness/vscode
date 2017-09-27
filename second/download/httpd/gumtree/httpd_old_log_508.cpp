@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	    "Warning: NetMask and IP-Addr disagree in %s/%ld\n",
-		inet_ntoa(This->addr), bits);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                             0, ap_server_conf,
+                             "child process %ld still did not exit, "
+                             "sending a SIGTERM",
+                             (long)pid);

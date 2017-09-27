@@ -1,31 +1,40 @@
-        result = apr_pstrdup(p, result);
-    if (result == NULL)
-        result = "";
-    return (char *)result;
+                     "or is incomplete",
+                     key);
+        return DECLINED;
+    }
+
+    /* Allocate and initialize cache_object_t and disk_cache_object_t */
+    obj = apr_pcalloc(r->pool, sizeof(*obj));
+    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
+
+    obj->key = apr_pstrdup(r->pool, key);
+    /* XXX Bad Temporary Cast - see cache_object_t notes */
+    obj->info.len = (apr_size_t) len;
+    obj->complete = 0;   /* Cache object is not complete */
+
+    dobj->name = obj->key;
+
+    /* open temporary file */
+    dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+    rv = apr_file_mktemp(&tmpfile, dobj->tempfile,
+                         APR_CREATE | APR_READ | APR_WRITE | APR_EXCL, r->pool);
+
+    if (rv == APR_SUCCESS) {
+        /* Populate the cache handle */
+        h->cache_obj = obj;
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Storing URL %s",  key);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Could not store URL %s [%d]", key, rv);
+
+        return DECLINED;
+    }
+
+    return OK;
 }
 
-
-static const command_rec nwssl_module_cmds[] =
+static int open_entity(cache_handle_t *h, request_rec *r, const char *key)
 {
-    AP_INIT_TAKE23("SecureListen", set_secure_listener, NULL, RSRC_CONF,
-      "specify an address and/or port with a key pair name.\n"
-      "Optional third parameter of MUTUAL configures the port for mutual authentication."),
-    AP_INIT_ITERATE("NWSSLTrustedCerts", set_trusted_certs, NULL, RSRC_CONF,
-        "Adds trusted certificates that are used to create secure connections to proxied servers"),
-    {NULL}
-};
-
-static void register_hooks(apr_pool_t *p)
-{
-    ap_hook_pre_config(nwssl_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_pre_connection(nwssl_pre_connection, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_post_config(nwssl_post_config, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_fixups(nwssl_hook_Fixup, NULL, NULL, APR_HOOK_MIDDLE);
-    ap_hook_http_method(nwssl_hook_http_method,   NULL,NULL, APR_HOOK_MIDDLE);
-    ap_hook_default_port  (nwssl_hook_default_port,  NULL,NULL, APR_HOOK_MIDDLE);
-
-    APR_REGISTER_OPTIONAL_FN(ssl_var_lookup);
-    
-    APR_REGISTER_OPTIONAL_FN(ssl_proxy_enable);
-    APR_REGISTER_OPTIONAL_FN(ssl_engine_disable);
-}

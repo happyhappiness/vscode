@@ -1,13 +1,21 @@
+        runtime->s->lbstatus -= total_factor;
+        runtime->s->elected++;
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+        *worker = runtime;
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
+    else if (route && (*balancer)->sticky_force) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: BALANCER: (%s). All workers are in error state for route (%s)",
+                     (*balancer)->name, route);
+        if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                         (*balancer)->name);
+        }
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
 
-/*****************************************************************
+    if ((rv = PROXY_THREAD_UNLOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Unlock failed for pre_request",
+                     (*balancer)->name);

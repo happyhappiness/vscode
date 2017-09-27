@@ -1,1 +1,1 @@
-apr_err("apr_pollset_create failed", status);
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");

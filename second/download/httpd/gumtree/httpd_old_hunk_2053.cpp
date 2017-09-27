@@ -1,9 +1,17 @@
-/* Automatically generated file - do not edit */
+    if (dmsg == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination msg is null");
+        return AJP_EINVAL;
+    }
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    if (smsg->len > AJP_MSG_BUFFER_SZ) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination buffer too "
+                     "small %" APR_SIZE_T_FMT ", max size is %d",
+                     smsg->len, AJP_MSG_BUFFER_SZ);
+        return  AJP_ETOSMALL;
+    }
+
+    memcpy(dmsg->buf, smsg->buf, smsg->len);
+    dmsg->len = smsg->len;
+    dmsg->pos = smsg->pos;

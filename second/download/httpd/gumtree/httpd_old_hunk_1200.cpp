@@ -1,19 +1,13 @@
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-            return HTTP_FORBIDDEN;
+         */
+        rv = cache->provider->store_body(cache->handle, r, in);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                         "cache: Cache provider's store_body failed!");
+            ap_remove_output_filter(f);
         }
+        return ap_pass_brigade(f->next, in);
+    }
 
-        if (ok != 1) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Access to %s denied for %s "
-                         "(requirement expression not fulfilled)",
-                         r->filename, r->connection->remote_ip);
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Failed expression: %s", req->cpExpr);
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled "
-                          "(see SSL logfile for more details)");
+    /*
+     * Setup Data in Cache
+     * -------------------

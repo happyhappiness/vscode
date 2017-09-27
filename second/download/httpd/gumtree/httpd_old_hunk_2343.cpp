@@ -1,14 +1,15 @@
-    ap_hard_timeout("send directory", r);
+    int i;
+    const char *te = NULL;
+    int original_status = r->status;
+    int proxy_status = OK;
+    const char *original_status_line = r->status_line;
+    const char *proxy_status_line = NULL;
 
-    /* Spew HTML preamble */
+    bb = apr_brigade_create(p, c->bucket_alloc);
+    pass_bb = apr_brigade_create(p, c->bucket_alloc);
 
-    title_endp = title_name + strlen(title_name) - 1;
+    /* Get response from the remote server, and pass it up the
+     * filter chain
+     */
 
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    rp = ap_proxy_make_fake_req(origin, r);

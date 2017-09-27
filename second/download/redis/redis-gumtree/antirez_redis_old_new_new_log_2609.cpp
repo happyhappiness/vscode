@@ -1,1 +1,0 @@
-addReplyError(c,"No scripts in execution right now.");

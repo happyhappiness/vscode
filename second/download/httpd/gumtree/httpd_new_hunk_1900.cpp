@@ -1,13 +1,24 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
+                             pidfile, getpid());
 
-    /* Run it. */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
+        }
+        return DONE;
+    } else if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        int active_children;
+        int index;
+        apr_time_t cutoff = 0;
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
+        /* Close our listeners, and then ask our children to do same */
+        ap_close_listeners();
+        ap_worker_pod_killpg(pod, ap_daemons_limit, TRUE);
+        ap_relieve_child_processes();
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);

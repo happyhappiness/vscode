@@ -1,17 +1,22 @@
+/*
+ * This routine is called when the -t command-line option is supplied.
+ * It executes only once, in the startup process, after the check_config
+ * phase and just before the process exits.  At this point the module
+ * may output any information useful in configuration testing.
+ *
+ * This is a VOID hook: all defined handlers get called.
+ */
+static void x_test_config(apr_pool_t *pconf, server_rec *s)
+{
+    apr_file_t *out = NULL;
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
+    apr_file_open_stderr(&out, pconf);
 
-    cache = c->fp;
+    apr_file_printf(out, "Example module configuration test routine\n");
 
-    c->hdrs = resp_hdrs;
+    trace_startup(pconf, s, NULL, "x_test_config()");
+}
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+/*
+ * This routine is called to perform any module-specific log file
+ * openings. It is invoked just before the post_config phase

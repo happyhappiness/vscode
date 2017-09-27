@@ -1,1 +1,2 @@
-rc = apr_file_puts(l, f);
+ap_log_error(APLOG_MARK, APLOG_CRIT, status, NULL,
+                         "The DBM driver could not be loaded");

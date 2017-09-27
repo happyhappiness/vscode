@@ -1,1 +1,0 @@
-serverLog(REDIS_VERBOSE,"Accepted cluster node %s:%d", cip, cport);

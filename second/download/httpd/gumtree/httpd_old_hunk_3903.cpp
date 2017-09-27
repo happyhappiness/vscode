@@ -1,40 +1,47 @@
-	return;
+            *readlen = n;
+        }
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    return APR_SUCCESS;
 }
 
-
-static void help_proxy_garbage_coll(request_rec *r)
+apr_status_t h2_session_read(h2_session *session, apr_read_type_e block)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    AP_DEBUG_ASSERT(session);
+    return h2_conn_io_read(&session->io, block, session_receive, session);
+}
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+apr_status_t h2_session_close(h2_session *session)
+{
+    AP_DEBUG_ASSERT(session);
+    return session->aborted? APR_SUCCESS : h2_conn_io_flush(&session->io);
+}
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+/* The session wants to send more DATA for the given stream.
+ */
+static ssize_t stream_data_cb(nghttp2_session *ng2s,
+                              int32_t stream_id,
+                              uint8_t *buf,
+                              size_t length,
+                              uint32_t *data_flags,
+                              nghttp2_data_source *source,
+                              void *puser)
+{
+    h2_session *session = (h2_session *)puser;
+    apr_size_t nread = length;
+    int eos = 0;
+    apr_status_t status;
+    h2_stream *stream;
+    AP_DEBUG_ASSERT(session);
+    
+    (void)ng2s;
+    (void)buf;
+    (void)source;
+    stream = h2_stream_set_get(session->streams, stream_id);
+    if (!stream) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_NOTFOUND, session->c,
+                      APLOGNO(02937) 
+                      "h2_stream(%ld-%d): data requested but stream not found",
+                      session->id, (int)stream_id);
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+    

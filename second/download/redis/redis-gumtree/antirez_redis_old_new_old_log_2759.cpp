@@ -1,1 +1,0 @@
-printf(" -l                 Loop. Run the tests forever\n");

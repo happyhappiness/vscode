@@ -1,22 +1,23 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s client stopped connection before %s completed",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s timed out for %s",
-			timeout_name ? timeout_name : "request",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-	}
-    }
+                                    function_name,
+                                    "mapped handler");
+            L = ap_lua_get_lua_state(pool, spec, r);
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+            if (!L) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
+                                "lua: Failed to obtain lua interpreter for %s %s",
+                                function_name, filename);
+                ap_lua_release_state(L, spec, r);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            if (function_name != NULL) {
+                lua_getglobal(L, function_name);
+                if (!lua_isfunction(L, -1)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
+                                    "lua: Unable to find function %s in %s",
+                                    function_name,
+                                    filename);
+                    ap_lua_release_state(L, spec, r);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+

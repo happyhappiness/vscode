@@ -1,1 +1,0 @@
-printf(" max chain length: %d\n", maxchainlen);

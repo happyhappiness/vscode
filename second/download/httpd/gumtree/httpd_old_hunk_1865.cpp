@@ -1,87 +1,49 @@
-	    }
-	}
-#endif
-	return (pid);
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO),
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);
+        }
+        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,
+                        &WSAProtocolInfo, 0, 0);
+        if (nsd == INVALID_SOCKET) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Child %lu: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
+
+        if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+            HANDLE hProcess = GetCurrentProcess();
+            HANDLE dup;
+            if (DuplicateHandle(hProcess, (HANDLE) nsd, hProcess, &dup,
+                                0, FALSE, DUPLICATE_SAME_ACCESS)) {
+                closesocket(nsd);
+                nsd = (SOCKET) dup;
+            }
+        }
+        else {
+            /* A different approach.  Many users report errors such as
+             * (32538)An operation was attempted on something that is not
+             * a socket.  : Parent: WSADuplicateSocket failed...
+             *
+             * This appears that the duplicated handle is no longer recognized
+             * as a socket handle.  SetHandleInformation should overcome that
+             * problem by not altering the handle identifier.  But this won't
+             * work on 9x - it's unsupported.
+             */
+            if (!SetHandleInformation((HANDLE)nsd, HANDLE_FLAG_INHERIT, 0)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "set_listeners_noninheritable: SetHandleInformation failed.");
+            }
+        }
+        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
     }
-#else
-    if (ap_suexec_enabled &&
-	((r->server->server_uid != ap_user_id) ||
-	 (r->server->server_gid != ap_group_id) ||
-	 (!strncmp("/~", r->uri, 2)))) {
 
-	char *execuser, *grpname;
-	struct passwd *pw;
-	struct group *gr;
-
-	if (!strncmp("/~", r->uri, 2)) {
-	    gid_t user_gid;
-	    char *username = ap_pstrdup(r->pool, r->uri + 2);
-	    char *pos = strchr(username, '/');
-
-	    if (pos)
-		*pos = '\0';
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
-	    if ((gr = getgrgid(user_gid)) == NULL) {
-		if ((grpname = ap_palloc(r->pool, 16)) == NULL)
-		    return (pid);
-		else
-		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
-	    }
-	    else
-		grpname = gr->gr_name;
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		            "getpwuid: invalid userid %ld",
-		            (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		            "getgrgid: invalid groupid %ld",
-		            (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-
-	if (shellcmd)
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0, NULL, env);
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '='))
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0, NULL, env);
-
-	else {
-	    execve(SUEXEC_BIN,
-		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
-			       argv0, r->args),
-		   env);
-	}
-    }
-    else {
-	if (shellcmd)
-	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '='))
-	    execle(r->filename, argv0, NULL, env);
-
-	else
-	    execve(r->filename,
-		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
-		   env);
-    }
-    return (pid);
-#endif
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %lu: retrieved %d listeners from parent", my_pid, lcnt);
 }
--- apache_1.3.0/src/main/util_uri.c	1998-05-30 09:54:30.000000000 +0800
+
+
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
+{

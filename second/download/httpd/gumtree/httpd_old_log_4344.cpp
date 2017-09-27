@@ -1,0 +1,1 @@
+ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);

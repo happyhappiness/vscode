@@ -1,30 +1,34 @@
-                        * children, then idle-loop until it detected that
-                        * the network is up again, and restart the children.
-                        * Ben Hyde noted that temporary ENETDOWN situations
-                        * occur in mobile IP.
-                        */
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
-                            "apr_accept: giving up.");
-                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, 
-                                         bucket_alloc);
-                }
-                else {
-                        ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                            "apr_accept: (client socket)");
-                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
-                }
-            }
-        }
 
-        ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
-        /*
-        * We now have a connection, so set it up with the appropriate
-        * socket options, file descriptors, and read/write buffers.
-        */
-        current_conn = ap_run_create_connection(ptrans, ap_server_conf, csd, 
-                                                my_worker_num, sbh,
-                                                bucket_alloc);
-        if (current_conn) {
-            ap_process_connection(current_conn, csd);
-            ap_lingering_close(current_conn);
+    setup_signal_names(apr_psprintf(pchild,"ap%d", parent_pid));
+
+    /* This is a child process, not in single process mode */
+    if (!one_process) {
+        /* Set up events and the scoreboard */
+        get_handles_from_parent(s, &exit_event, &start_mutex, 
+                                &ap_scoreboard_shm);
+
+        /* Set up the listeners */
+        get_listeners_from_parent(s);
+
+        /* Done reading from the parent, close that channel */
+        CloseHandle(pipe);
+
+        ap_my_generation = ap_scoreboard_image->global->running_generation;
+    }
+    else {
+        /* Single process mode - this lock doesn't even need to exist */
+        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix, 
+                                   APR_LOCK_DEFAULT, s->process->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                         "%s child %d: Unable to init the start_mutex.",
+                         service_name, my_pid);
+            exit(APEXIT_CHILDINIT);
         }
+        
+        /* Borrow the shutdown_even as our _child_ loop exit event */
+        exit_event = shutdown_event;
+    }
+}
+
+

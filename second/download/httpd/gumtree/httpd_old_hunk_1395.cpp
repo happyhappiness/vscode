@@ -1,53 +1,52 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "No SSL protocols available [hint: SSLProtocol]");
-        ssl_die();
+    fputs(prompt, stderr);
+    fgets((char *) &password, sizeof(password), stdin);
+
+    return (char *) &password;
+}
+
+#elif defined (HAVE_TERMIOS_H)
+#include <stdio.h>
+
+static char *get_password(const char *prompt)
+{
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
+
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+        return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);
+            fflush(stderr);
+            n = 0;
+        }
+    }
+ 
+    password[n] = '\0';
+    printf("\n");
+    if (n > (MAX_STRING_LEN - 1)) {
+        password[MAX_STRING_LEN - 1] = '\0';
     }
 
-    cp = apr_pstrcat(p,
-                     (protocol & SSL_PROTOCOL_SSLV2 ? "SSLv2, " : ""),
-                     (protocol & SSL_PROTOCOL_SSLV3 ? "SSLv3, " : ""),
-                     (protocol & SSL_PROTOCOL_TLSV1 ? "TLSv1, " : ""),
-                     NULL);
-    cp[strlen(cp)-2] = NUL;
+    attr.c_lflag |= ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &attr);
+    return (char*) &password;
+}
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Creating new SSL context (protocols: %s)", cp);
+#else
 
-#ifndef OPENSSL_NO_SSL2
-    if (protocol == SSL_PROTOCOL_SSLV2) {
-        method = mctx->pkp ?
-            SSLv2_client_method() : /* proxy */
-            SSLv2_server_method();  /* server */
-        ctx = SSL_CTX_new(method);  /* only SSLv2 is left */
-    }
-    else
-#endif
-    {
-        method = mctx->pkp ?
-            SSLv23_client_method() : /* proxy */
-            SSLv23_server_method();  /* server */
-        ctx = SSL_CTX_new(method); /* be more flexible */
-    }
+/*
+ * Windows lacks getpass().  So we'll re-implement it here.
+ */
 
-    mctx->ssl_ctx = ctx;
-
-    SSL_CTX_set_options(ctx, SSL_OP_ALL);
-
-    if (!(protocol & SSL_PROTOCOL_SSLV2)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
-    }
-
-    if (!(protocol & SSL_PROTOCOL_SSLV3)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv3);
-    }
-
-    if (!(protocol & SSL_PROTOCOL_TLSV1)) {
-        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1);
-    }
-
-#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-    if (sc->cipher_server_pref == TRUE) {
-        SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
-    }
-#endif
-
+static char *get_password(const char *prompt)

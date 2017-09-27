@@ -1,1 +1,0 @@
-addReplyLong(c,deleted);

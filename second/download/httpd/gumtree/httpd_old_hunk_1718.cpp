@@ -1,17 +1,33 @@
-         * Add the new connection entry to the linked list. Note that we
-         * don't actually establish an LDAP connection yet; that happens
-         * the first time authentication is requested.
-         */
-        /* create the details to the pool in st */
-        l = apr_pcalloc(st->pool, sizeof(util_ldap_connection_t));
-#if APR_HAS_THREADS
-        apr_thread_mutex_create(&l->lock, APR_THREAD_MUTEX_DEFAULT, st->pool);
-        apr_thread_mutex_lock(l->lock);
-#endif
-        l->pool = st->pool;
-        l->bound = 0;
-        l->host = apr_pstrdup(st->pool, host);
-        l->port = port;
-        l->deref = deref;
-        util_ldap_strdup((char**)&(l->binddn), binddn);
-        util_ldap_strdup((char**)&(l->bindpw), bindpw);
+    void *sconf = s->module_config;
+    proxy_server_conf *conf =
+        (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+
+    if (conn->sock) {
+        if (!(connected = is_socket_connected(conn->sock))) {
+            /* This clears conn->scpool (and associated data), so backup and
+             * restore any ssl_hostname for this connection set earlier by
+             * ap_proxy_determine_connection().
+             */
+            char ssl_hostname[PROXY_WORKER_RFC1035_NAME_SIZE];
+            if (!conn->ssl_hostname ||
+                    conn->ssl_hostname[apr_cpystrn(ssl_hostname,
+                                                   conn->ssl_hostname,
+                                                   sizeof ssl_hostname) -
+                                       ssl_hostname]) {
+                ssl_hostname[0] = '\0';
+            }
+
+            socket_cleanup(conn);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: %s: backend socket is disconnected.",
+                         proxy_function);
+
+            if (ssl_hostname[0]) {
+                conn->ssl_hostname = apr_pstrdup(conn->scpool, ssl_hostname);
+            }
+        }
+    }
+    while (backend_addr && !connected) {
+        if ((rv = apr_socket_create(&newsock, backend_addr->family,
+                                SOCK_STREAM, APR_PROTO_TCP,
+                                conn->scpool)) != APR_SUCCESS) {

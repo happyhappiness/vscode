@@ -1,24 +1,32 @@
-        /* uncomment this to see how the tree a built:
-         *
-         * DEBUG_DUMP_TREE(ctx, root);
-         */
-        CREATE_NODE(ctx, new);
+    int access_status;
 
-        was_unmatched = get_ptoken(ctx->dpool, &parse, &new->token);
-        if (!parse) {
-            break;
+    access_status = proxy_run_pre_request(worker, balancer, r, conf, url);
+    if (access_status == DECLINED && *balancer == NULL) {
+        *worker = ap_proxy_get_worker(r->pool, conf, *url);
+        if (*worker) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: %s: found worker %s for %s",
+                           (*worker)->scheme, (*worker)->name, *url);
+
+            *balancer = NULL;
+            access_status = OK;
         }
-
-        DEBUG_DUMP_UNMATCHED(ctx, was_unmatched);
-        DEBUG_DUMP_TOKEN(ctx, &new->token);
-
-        if (!current) {
-            switch (new->token.type) {
-            case TOKEN_STRING:
-            case TOKEN_NOT:
-            case TOKEN_LBRACE:
-                root = current = new;
-                continue;
-
-            default:
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,
+        else if (r->proxyreq == PROXYREQ_PROXY) {
+            if (conf->forward) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "proxy: *: found forward proxy worker for %s",
+                               *url);
+                *balancer = NULL;
+                *worker = conf->forward;
+                access_status = OK;
+            }
+        }
+        else if (r->proxyreq == PROXYREQ_REVERSE) {
+            if (conf->reverse) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "proxy: *: found reverse proxy worker for %s",
+                               *url);
+                *balancer = NULL;
+                *worker = conf->reverse;
+                access_status = OK;
+            }

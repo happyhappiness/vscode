@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
-    }
-    else {
+            else {
+                if ((access_status = ap_run_check_user_id(r)) != OK) {
+                    return decl_die(access_status, "check user", r);
+                }
+                if (r->user == NULL) {
+                    /* don't let buggy authn module crash us in authz */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Buggy authn provider failed to set user for %s",
+                                  r->uri);
+                    access_status = HTTP_INTERNAL_SERVER_ERROR;
+                    return decl_die(access_status, "check user", r);
+                }
+                if ((access_status = ap_run_auth_checker(r)) != OK) {

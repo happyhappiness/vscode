@@ -1,13 +1,12 @@
-            exit(ERR_OVERFLOW);
-        }
-        if (strcmp(pwi, pwc) != 0) {
-            fprintf(stderr, "Password verification error\n");
-            exit(ERR_PWMISMATCH);
-        }
-            
-        h->userpass = apr_pstrdup(pool,  pwi);
+        r->status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
     }
-    if (need_cmnt && pwd_supplied)
-        h->comment = apr_pstrdup(pool, argv[i+3]);
-    else if (need_cmnt)
-        h->comment = apr_pstrdup(pool, argv[i+2]);
+
+    if (r->status != HTTP_OK) {
+        ap_send_error_response(r, 0);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        return r;
+    }

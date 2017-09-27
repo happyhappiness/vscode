@@ -1,1 +1,0 @@
-sprintf(types[RDB_TYPE_HASH], "HASH");

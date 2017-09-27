@@ -1,14 +1,12 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+         *  Apply the current rule.
+         */
+        ctx->vary = NULL;
+        rc = apply_rewrite_rule(p, ctx);
 
-
-static const handler_rec autoindex_handlers[] =
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
+        if (rc) {
+            /* Regardless of what we do next, we've found a match. Check to see
+             * if any of the request header fields were involved, and add them
+             * to the Vary field of the response.
+             */
+            if (ctx->vary) {
+                apr_table_merge(r->headers_out, "Vary", ctx->vary);

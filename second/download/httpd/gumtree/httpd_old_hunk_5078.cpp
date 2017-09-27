@@ -1,34 +1,35 @@
-		    }   
-		}
-	    }
-	    break;
-	}
+{
+    /* Request IDs are arbitrary numbers that we assign to a
+     * single request. This would allow multiplex/pipelinig of
+     * multiple requests to the same FastCGI connection, but
+     * we don't support that, and always use a value of '1' to
+     * keep things simple. */
+    int request_id = 1;
+    apr_status_t rv;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+    /* Step 1: Send FCGI_BEGIN_REQUEST */
+    rv = send_begin_request(conn, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01073)
+                      "Failed Writing Request to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+    /* Step 2: Send Environment via FCGI_PARAMS */
+    rv = send_environment(conn, r, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
+                      "Failed writing Environment to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
+
+    /* Step 3: Read records from the back end server and handle them. */
+    rv = dispatch(conn, conf, r, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
+                      "Error dispatching request to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
+    }

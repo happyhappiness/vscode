@@ -1,13 +1,13 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+                    }
+                    return rv;
+                }
+                /* remove the data we've just read */
+                rv = apr_brigade_partition(bb, bytes, &bstart);
+                while (b = APR_BRIGADE_FIRST(bb), b != bstart) {
+                    apr_bucket_delete(b);
+                }
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r, APLOGNO(01438)
+                              "xml2enc: consuming %" APR_SIZE_T_FMT
+                              " bytes flattened", bytes);
+            }
+            else {

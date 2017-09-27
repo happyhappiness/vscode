@@ -1,16 +1,36 @@
+    APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_socket_create(sd, c->bucket_alloc));
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    line = get_line(tmpbb, bb, c, p);
+    if (!line || strncmp(line, "HTTP/", 5)
+        || (line = ap_strchr(line, ' ')) == NULL
+        || (code = apr_atoi64(++line)) < 200 || code > 299) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "bad response from OCSP server: %s",
+                      line ? line : "(none)");
+        return NULL;
+    }
+
+    /* Read till end of headers; don't have to even bother parsing the
+     * Content-Length since the server is obliged to close the
+     * connection after the response anyway for HTTP/1.0. */
+    count = 0;
+    while ((line = get_line(tmpbb, bb, c, p)) != NULL && line[0]
+           && ++count < MAX_HEADERS) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "OCSP response header: %s", line);
+    }
+
+    if (count == MAX_HEADERS) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "could not read response headers from OCSP server, "
+                      "exceeded maximum count (%u)", MAX_HEADERS);
+        return NULL;
+    }
+    else if (!line) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "could not read response header from OCSP server");
+        return NULL;
+    }
+
+    /* Read the response body into the memory BIO. */
+    count = 0;

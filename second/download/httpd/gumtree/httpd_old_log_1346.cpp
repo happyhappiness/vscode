@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                             r->server,
-                             "Changed client verification type will force "
-                             "%srenegotiation",
-                             renegotiate_quick ? "quick " : "");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                        "Not accepted by client!?");

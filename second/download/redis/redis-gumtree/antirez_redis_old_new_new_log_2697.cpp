@@ -1,1 +1,0 @@
-(cmd.io.buffer.ptr;

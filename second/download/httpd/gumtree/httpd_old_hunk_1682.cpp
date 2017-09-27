@@ -1,32 +1,23 @@
-
-APR_DECLARE(apr_status_t) apr_file_puts(const char *str, apr_file_t *thefile)
-{
-    return apr_file_write_full(thefile, str, strlen(str), NULL);
-}
-
-APR_DECLARE(apr_status_t) apr_file_flush(apr_file_t *thefile)
-{
-    if (thefile->buffered) {
-        apr_int64_t written = 0;
-
-        if (thefile->direction == 1 && thefile->bufpos) {
-            do {
-                written = write(thefile->filedes, thefile->buffer, thefile->bufpos);
-            } while (written == (apr_int64_t)-1 && errno == EINTR);
-            if (written == (apr_int64_t)-1) {
-                return errno;
-            }
-            thefile->filePtr += written;
-            thefile->bufpos = 0;
-        }
+        apr_cpystrn(message, cmd, sizeof(message));
+        if ((crlf = strchr(message, '\r')) != NULL ||
+            (crlf = strchr(message, '\n')) != NULL)
+            *crlf = '\0';
+        if (strncmp(message,"PASS ", 5) == 0)
+            strcpy(&message[5], "****");
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy:>FTP: %s", message);
     }
-    /* There isn't anything to do if we aren't buffering the output
-     * so just return success.
-     */
-    return APR_SUCCESS; 
-}
 
-APR_DECLARE(apr_status_t) apr_file_gets(char *str, int len, apr_file_t *thefile)
-{
-    apr_status_t rv = APR_SUCCESS; /* get rid of gcc warning */
-    apr_size_t nbytes;
+    rc = ftp_getrc_msg(ftp_ctrl, bb, message, sizeof message);
+    if (rc == -1 || rc == 421)
+        strcpy(message,"<unable to read result>");
+    if ((crlf = strchr(message, '\r')) != NULL ||
+        (crlf = strchr(message, '\n')) != NULL)
+        *crlf = '\0';
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy:<FTP: %3.3u %s", rc, message);
+
+    if (pmessage != NULL)
+        *pmessage = apr_pstrdup(r->pool, message);
+
+    return rc;

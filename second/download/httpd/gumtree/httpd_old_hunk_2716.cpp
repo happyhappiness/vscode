@@ -1,46 +1,44 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
     }
 
-/* set request */
-    len = decodeenc(path);
+    apr_socket_timeout_set(ccfg->socket, saved_sock_timeout);
+
+out:
+    if (APR_STATUS_IS_TIMEUP(rv)) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                      "Request %s read timeout", ccfg->type);
+        /*
+         * If we allow a normal lingering close, the client may keep this
+         * process/thread busy for another 30s (MAX_SECS_TO_LINGER).
+         * Therefore we tell ap_lingering_close() to shorten this period to
+         * 2s (SECONDS_TO_LINGER).
+         */
+        apr_table_setn(f->c->notes, "short-lingering-close", "1");
+    }
+    return rv;
+}
+
+static int reqtimeout_init(conn_rec *c)
+{
+    reqtimeout_con_cfg *ccfg;
+    reqtimeout_srv_cfg *cfg;
+
+    cfg = ap_get_module_config(c->base_server->module_config,
+                               &reqtimeout_module);
+    AP_DEBUG_ASSERT(cfg != NULL);
+    if (cfg->header_timeout <= 0 && cfg->body_timeout <= 0) {
+        /* not configured for this vhost */
+        return DECLINED;
+    }
+
+    ccfg = apr_pcalloc(c->pool, sizeof(reqtimeout_con_cfg));
+    ccfg->new_timeout = cfg->header_timeout;
+    ccfg->new_max_timeout = cfg->header_max_timeout;
+    ccfg->type = "header";
+    ccfg->min_rate = cfg->header_min_rate;
+    ccfg->rate_factor = cfg->header_rate_factor;
+    ap_set_module_config(c->conn_config, &reqtimeout_module, ccfg);
+
+    ap_add_input_filter("reqtimeout", ccfg, NULL, c);
+    /* we are not handling the connection, we just do initialization */
+    return DECLINED;
+}

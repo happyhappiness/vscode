@@ -1,26 +1,17 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+    rv = dbd_init(r, conf->insertlabel, &dbd, &statement);
+    if (rv) {
+        return rv;
+    }
+    rv = apr_dbd_pvbquery(dbd->driver, r->pool, dbd->handle, &rows, statement,
+                          val, &expiry, newkey, NULL);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01859)
+                      "query execution error inserting session '%s' "
+                      "in database with '%s': %s", newkey, conf->insertlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+        return APR_EGENERAL;
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
-
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    /*
+     * if some rows were inserted it means a session was inserted, so we are

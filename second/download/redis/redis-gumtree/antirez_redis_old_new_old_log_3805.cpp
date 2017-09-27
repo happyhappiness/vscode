@@ -1,1 +1,0 @@
-fprintf(stderr, "\nDICT LIBRARY PANIC: ");

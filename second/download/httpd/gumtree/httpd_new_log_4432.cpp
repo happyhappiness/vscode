@@ -1,0 +1,1 @@
+ap_rvputs(r, "value ='", bsel->s->sticky, NULL);

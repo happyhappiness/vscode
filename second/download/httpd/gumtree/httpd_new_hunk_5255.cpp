@@ -1,38 +1,74 @@
-    i = ap_proxy_cache_update(c, resp_hdrs, !backasswards, nocache);
-    if (i != DECLINED) {
-	ap_bclose(f);
-	return i;
-    }
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+            continue;
+        }
 
-    ap_hard_timeout("proxy receive", r);
+        /* read */
+        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        if (!len) {
+            apr_bucket_delete(e);
+            continue;
+        }
+        if (len > INT_MAX) {
+            apr_bucket_split(e, INT_MAX);
+            apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        }
 
-/* write status line */
-    if (!r->assbackwards)
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-    if (c != NULL && c->fp != NULL &&
-	ap_bvputs(c->fp, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
-	c = ap_proxy_cache_error(c);
+        /* first bucket contains zlib header */
+        if (ctx->header_len < sizeof(ctx->header)) {
+            apr_size_t rem;
 
-/* send headers */
-    tdo.req = r;
-    tdo.cache = c;
-    ap_table_do(ap_proxy_send_hdr_line, &tdo, resp_hdrs, NULL);
+            rem = sizeof(ctx->header) - ctx->header_len;
+            if (len < rem) {
+                memcpy(ctx->header + ctx->header_len, data, len);
+                ctx->header_len += len;
+                apr_bucket_delete(e);
+                continue;
+            }
+            memcpy(ctx->header + ctx->header_len, data, rem);
+            ctx->header_len += rem;
+            {
+                int zlib_method;
+                zlib_method = ctx->header[2];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01404)
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
+                }
+                if (ctx->header[0] != deflate_magic[0] ||
+                    ctx->header[1] != deflate_magic[1]) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01405)
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
+                }
+                ctx->zlib_flags = ctx->header[3];
+                if ((ctx->zlib_flags & RESERVED)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02620)
+                                  "inflate: bad flags %02x",
+                                  ctx->zlib_flags);
+                    return APR_EGENERAL;
+                }
+            }
+            if (len == rem) {
+                apr_bucket_delete(e);
+                continue;
+            }
+            data += rem;
+            len -= rem;
+        }
 
-    if (!r->assbackwards)
-	ap_rputs(CRLF, r);
-    if (c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1)
-	c = ap_proxy_cache_error(c);
+        if (ctx->zlib_flags) {
+            rv = consume_zlib_flags(ctx, &data, &len);
+            if (rv == APR_SUCCESS) {
+                ctx->zlib_flags = 0;
+            }
+            if (!len) {
+                apr_bucket_delete(e);
+                continue;
+            }
+        }
 
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-    r->sent_bodyct = 1;
-/* Is it an HTTP/0.9 respose? If so, send the extra data */
-    if (backasswards) {
-	ap_bwrite(r->connection->client, buffer, len);
-	if (c != NULL && c->fp != NULL && ap_bwrite(c->fp, buffer, len) != len)
-	    c = ap_proxy_cache_error(c);
-    }
-    ap_kill_timeout(r);
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
 
-#ifdef CHARSET_EBCDIC
-    /* What we read/write after the header should not be modified
-     * (i.e., the cache copy is ASCII, not EBCDIC, even for text/html)

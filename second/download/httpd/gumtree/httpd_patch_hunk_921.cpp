@@ -1,25 +1,27 @@
-                  * to 'leak' storage. I don't think this is worth fixing...
-                  */
-                 apr_allocator_t *allocator;
+         }
+         else {
+             if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                 != APR_SUCCESS) {
+                 int level = APLOG_EMERG;
  
-                 apr_thread_mutex_lock(child_lock);
-                 context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
--  
-+
-                 context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-                 if (context->Overlapped.hEvent == NULL) {
-                     /* Hopefully this is a temporary condition ... */
-                     ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
-                                  "mpm_get_completion_context: CreateEvent failed.");
- 
-                     apr_thread_mutex_unlock(child_lock);
-                     return NULL;
+-                if (ap_scoreboard_image->parent[process_slot].generation != 
++                if (ap_scoreboard_image->parent[process_slot].generation !=
+                     ap_scoreboard_image->global->running_generation) {
+                     level = APLOG_DEBUG; /* common to get these at restart time */
                  }
-- 
-+
-                 /* Create the tranaction pool */
-                 apr_allocator_create(&allocator);
-                 apr_allocator_max_free_set(allocator, ap_max_mem_free);
-                 rv = apr_pool_create_ex(&context->ptrans, pchild, NULL, allocator);
-                 if (rv != APR_SUCCESS) {
-                     ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
+                 ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                              "apr_proc_mutex_unlock failed. Attempting to "
+                              "shutdown process gracefully.");
+                 signal_threads(ST_GRACEFUL);
+             }
+             break;
+         }
+     }
+ 
++    ap_close_listeners();
+     ap_queue_term(worker_queue);
+     dying = 1;
+     ap_scoreboard_image->parent[process_slot].quiescing = 1;
+ 
+     /* wake up the main thread */
+     kill(ap_my_pid, SIGTERM);

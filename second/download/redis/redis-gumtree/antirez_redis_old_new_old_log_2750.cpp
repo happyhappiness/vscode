@@ -1,1 +1,0 @@
-printf(" -k <boolean>       1=keep alive 0=reconnect (default 1)\n");

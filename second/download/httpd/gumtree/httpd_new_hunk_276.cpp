@@ -1,22 +1,16 @@
-                                            r, r->connection);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+		"AcceptMutex: %s (default: %s)",
+		apr_proc_mutex_name(accept_mutex),
+		apr_proc_mutex_defname());
+#endif
+    restart_pending = shutdown_pending = 0;
+    mpm_state = AP_MPMQ_RUNNING;
 
-                return DECLINED;
-            }
-            /* else if non-conditional request */
-            else {
-                /* Temporarily hack this to work the way it had been. Its broken,
-                 * but its broken the way it was before. I'm working on figuring
-                 * out why the filter add in the conditional filter doesn't work. pjr
-                 *
-                 * info = &(cache->handle->cache_obj->info);
-                 *
-                 * Uncomment the above when the code in cache_conditional_filter_handle
-                 * is properly fixed...  pjr
-                 */
-                
-                /* fudge response into a conditional */
-                if (info && info->etag) {
-                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - fudge conditional "
-                                 "by etag");
+    server_main_loop(remaining_children_to_start);
+    mpm_state = AP_MPMQ_STOPPING;
+
+    if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         * (By "gracefully" we don't mean graceful in the same sense as 
+         * "apachectl graceful" where we allow old connections to finish.)

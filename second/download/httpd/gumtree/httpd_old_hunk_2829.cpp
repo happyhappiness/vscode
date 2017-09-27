@@ -1,14 +1,26 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+    if (*cfg->logname == '|') {
+        piped_log *pl;
+        const char *pname = ap_server_root_relative(p, cfg->logname + 1);
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
+        pl = ap_open_piped_log(p, pname);
+        if (pl == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "couldn't spawn forensic log pipe %s", cfg->logname);
+            return 0;
+        }
+        cfg->fd = ap_piped_log_write_fd(pl);
+    }
+    else {
+        const char *fname = ap_server_root_relative(p, cfg->logname);
+        apr_status_t rv;
+
+        if ((rv = apr_file_open(&cfg->fd, fname,
+                                APR_WRITE | APR_APPEND | APR_CREATE,
+                                APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "could not open forensic log file %s.", fname);
+            return 0;
+        }
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+    return 1;

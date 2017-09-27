@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"!!! Software Failure. Press left mouse button to continue");

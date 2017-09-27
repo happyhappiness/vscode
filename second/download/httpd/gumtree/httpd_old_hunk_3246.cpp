@@ -1,20 +1,24 @@
-#endif
+        while (modp && modp->next != m) {
+            modp = modp->next;
+        }
 
-    ap_soft_timeout("send body", r);
+        if (!modp) {
+            /* Uh-oh, this module doesn't exist */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "Cannot remove module %s: not found in module list",
+                         m->name);
+            return;
+        }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+        /* Eliminate us from the module list */
+        modp->next = modp->next->next;
+    }
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    free(ap_module_short_names[m->module_index]);
+    ap_module_short_names[m->module_index] = NULL;
+
+    m->module_index = -1; /* simulate being unloaded, should
+                           * be unnecessary */
+    dynamic_modules--;
+    total_modules--;
+}

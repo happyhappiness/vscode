@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
+apr_file_printf(errfile, "Usage: htdigest [-c] passwordfile realm username\n");

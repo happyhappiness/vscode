@@ -1,13 +1,29 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+        return APR_SUCCESS;
+    }
+
+    ap_ssi_get_tag_and_value(ctx, &tag, &expr, SSI_VALUE_RAW);
+
+    if (strcmp(tag, "expr")) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag if in %s", tag, r->filename);
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    if (!expr) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "missing expr value for if "
+                      "element in %s", r->filename);
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    DEBUG_PRINTF((ctx, "****    if expr=\"%s\"\n", expr));
+
+    expr_ret = ap_expr_evalstring(r, expr, &was_error, &ctx->intern->re,
+                                  ssi_parse_string, ctx->intern->access_func);
+
+    if (was_error) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+

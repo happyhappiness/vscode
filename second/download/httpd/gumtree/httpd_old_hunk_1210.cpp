@@ -1,18 +1,13 @@
-{
-    const char *fname;
-    int rc;
-
-    if (*s->error_fname == '|') {
-        apr_file_t *dummy = NULL;
-
-        /* Spawn a new child logger.  If this is the main server_rec,
-         * the new child must use a dummy stderr since the current
-         * stderr might be a pipe to the old logger.  Otherwise, the
-         * child inherits the parents stderr. */
-        rc = log_child(p, s->error_fname + 1, &dummy, is_main);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process");
-            return DONE;
-        }
-
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
+                    }
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body");
+                        output_failed = 1;
+                    }
+                    data_sent = 1;
+                    apr_brigade_cleanup(output_brigade);
+                }
+                else {

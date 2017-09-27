@@ -1,0 +1,1 @@
+fprintf(stderr, "Closing file %s\n", logfile->name);

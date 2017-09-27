@@ -1,16 +1,63 @@
-#define APLOG_MARK	__FILE__,__LINE__
+                             "%sHealth check DISABLING %s", (thread ? "Threaded " : ""),
+                             worker->s->name);
+            }
+        }
+    }
+    worker->s->updated = now;
+    apr_pool_destroy(ptemp);
+    return NULL;
+}
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+static apr_status_t hc_watchdog_callback(int state, void *data,
+                                         apr_pool_t *pool)
+{
+    apr_status_t rv = APR_SUCCESS;
+    apr_time_t now = apr_time_now();
+    proxy_balancer *balancer;
+    sctx_t *ctx = (sctx_t *)data;
+    server_rec *s = ctx->s;
+    proxy_server_conf *conf;
+    switch (state) {
+        case AP_WATCHDOG_STATE_STARTING:
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03258)
+                         "%s watchdog started.",
+                         HCHECK_WATHCHDOG_NAME);
+#if HC_USE_THREADS
+            if (ctx->tpsize) {
+                rv =  apr_thread_pool_create(&ctx->hctp, ctx->tpsize,
+                                             ctx->tpsize, ctx->p);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, APLOGNO(03312)
+                                 "apr_thread_pool_create() with %d threads failed",
+                                 ctx->tpsize);
+                    /* we can continue on without the threadpools */
+                    ctx->hctp = NULL;
+                } else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(03313)
+                                 "apr_thread_pool_create() with %d threads succeeded",
+                                 ctx->tpsize);
+                }
+            } else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(03314)
+                             "Skipping apr_thread_pool_create()");
+                ctx->hctp = NULL;
+            }
 
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+#endif
+            break;
+
+        case AP_WATCHDOG_STATE_RUNNING:
+            /* loop thru all workers */
+            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
+                         "Run of %s watchdog.",
+                         HCHECK_WATHCHDOG_NAME);
+            if (s) {
+                int i;
+                conf = (proxy_server_conf *) ap_get_module_config(s->module_config, &proxy_module);
+                balancer = (proxy_balancer *)conf->balancers->elts;
+                for (i = 0; i < conf->balancers->nelts; i++, balancer++) {
+                    int n;
+                    proxy_worker **workers;
+                    proxy_worker *worker;
+                    /* Have any new balancers or workers been added dynamically? */
+                    ap_proxy_sync_balancer(balancer, s, conf);

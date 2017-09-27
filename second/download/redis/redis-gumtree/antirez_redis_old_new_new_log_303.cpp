@@ -1,1 +1,0 @@
-printf("[info] %lu keys read\n", rdbstate.keys);

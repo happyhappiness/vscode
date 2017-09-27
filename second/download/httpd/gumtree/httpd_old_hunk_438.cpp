@@ -1,17 +1,12 @@
-                            const char *description)
-{
-    apr_file_t *stderr_log;
-    char errbuf[200];
-
-    apr_file_open_stderr(&stderr_log, pool);
-    apr_file_printf(stderr_log,
-                    "(%d)%s: %s\n",
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-                    description);
+    if (!shutdown_in_progress) {
+        /* Yow, hit an irrecoverable error! Tell the child to die. */
+        SetEvent(exit_event);
+    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Accept thread exiting.", my_pid);
 }
 
-static apr_status_t run_cgi_child(apr_file_t **script_out,
-                                  apr_file_t **script_in,
-                                  apr_file_t **script_err, 
-                                  const char *command,
+
+static PCOMP_CONTEXT winnt_get_connection(PCOMP_CONTEXT context)
+{
+    int rc;

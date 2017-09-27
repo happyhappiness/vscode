@@ -1,14 +1,30 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+    void *sconf = s->module_config;
+    proxy_server_conf *conf =
+        (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+
+    if (conn->sock) {
+        if (!(connected = is_socket_connected(conn->sock))) {
+            /* This clears conn->scpool (and associated data), so backup and
+             * restore any ssl_hostname for this connection set earlier by
+             * ap_proxy_determine_connection().
+             */
+            char ssl_hostname[PROXY_WORKER_RFC1035_NAME_SIZE];
+            if (!conn->ssl_hostname || PROXY_STRNCPY(ssl_hostname,
+                                                     conn->ssl_hostname)) {
+                ssl_hostname[0] = '\0';
+            }
+
+            socket_cleanup(conn);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00951)
+                         "%s: backend socket is disconnected.",
+                         proxy_function);
+
+            if (ssl_hostname[0]) {
+                conn->ssl_hostname = apr_pstrdup(conn->scpool, ssl_hostname);
+            }
+        }
+    }
+    while ((backend_addr || conn->uds_path) && !connected) {
+#if APR_HAVE_SYS_UN_H
+        if (conn->uds_path)
+        {

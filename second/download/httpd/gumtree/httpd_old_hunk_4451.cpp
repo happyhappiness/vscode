@@ -1,13 +1,12 @@
+    }
+    else {
+        len = alias_match(r->uri, fake);
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
+        if (len != 0) {
+            if ((real[0] == '!') && (real[1] == '\0')) {
+                return DECLINED;
             }
-            else {
-                ap_rputs("(none)", r);
+            if (nocanon && len != alias_match(r->unparsed_uri, ent->fake)) {
+                mismatch = 1;
+                use_uri = r->uri;
+            }

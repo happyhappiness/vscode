@@ -1,21 +1,13 @@
-}
-
-static void register_hooks(apr_pool_t *p)
-{
-    ap_hook_pre_config(header_pre_config,NULL,NULL,APR_HOOK_MIDDLE);
-    ap_hook_insert_filter(ap_headers_insert_output_filter, NULL, NULL, APR_HOOK_LAST);
-    ap_hook_fixups(ap_headers_fixup, NULL, NULL, APR_HOOK_LAST);
-    ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
-                              NULL, AP_FTYPE_CONTENT_SET);
-}
-
-module AP_MODULE_DECLARE_DATA headers_module =
-{
-    STANDARD20_MODULE_STUFF,
-    create_headers_dir_config,  /* dir config creater */
-    merge_headers_config,       /* dir merger --- default is to override */
-    create_headers_config,      /* server config */
-    merge_headers_config,       /* merge server configs */
-    headers_cmds,               /* command apr_table_t */
-    register_hooks		/* register hooks */
-};
+            int *score_idx;
+            int status = ap_scoreboard_image->servers[0][i].status;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
+            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
+            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE) worker_main,
+                                                       (void *) i, 0, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
+                             my_pid, threads_created, ap_threads_per_child);

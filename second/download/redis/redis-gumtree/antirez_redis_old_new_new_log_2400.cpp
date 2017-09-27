@@ -1,1 +1,0 @@
-redisLogFromHandler(REDIS_WARNING,log);

@@ -1,1 +1,0 @@
-printf("Connection error: can't allocate redis context\n");

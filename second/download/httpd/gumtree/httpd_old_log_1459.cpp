@@ -1,4 +1,2 @@
-r(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "Incoming request is asking for a uncached version of "
-                     "%s, but we know better and are ignoring it",
-                     r->unparsed_uri);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Failed to create a max_requests event.", my_pid);

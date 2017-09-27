@@ -1,12 +1,13 @@
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: ajp_msg_get_byte failed");
+        return rc;
     }
-    else if (r->no_cache) {
-        /* or we've been asked not to cache it above */
-        reason = "r->no_cache present";
+    if (result != CMD_AJP13_SEND_BODY_CHUNK) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: wrong type %02x expecting 0x03", result);
+        return AJP_EBAD_HEADER;
     }
-
-    if (reason) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache: %s not cached. Reason: %s", r->unparsed_uri,
-                     reason);
-
-        /* remove this filter from the chain */
+    rc = ajp_msg_get_uint16(msg, len);
+    if (rc != APR_SUCCESS) {
+        return rc;
+    }

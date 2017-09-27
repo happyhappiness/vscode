@@ -1,14 +1,25 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+    ajp_msg_t *msg;
+    apr_size_t bufsiz;
+    char *buff;
+    apr_uint16_t size;
+    const char *tenc;
+    int havebody = 1;
+    int isok = 1;
+    apr_off_t bb_len;
+    int data_sent = 0;
+    int rv = 0;
+    apr_int32_t conn_poll_fd;
+    apr_pollfd_t *conn_poll;
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+    /*
+     * Send the AJP request to the remote server
+     */
+
+    /* send request headers */
+    status = ajp_send_header(conn->sock, r, uri);
+    if (status != APR_SUCCESS) {
+        conn->close++;
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: AJP: request failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

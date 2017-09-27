@@ -1,3 +1,4 @@
-apr_file_printf(errfile,
-            "The SHA algorithm does not use a salt and is less secure than "
-            "the MD5 algorithm." NL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                          "proxy: error processing body.%s",
+                                          r->connection->aborted ?
+                                          " Client aborted connection." : "");

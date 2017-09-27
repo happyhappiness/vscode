@@ -1,13 +1,22 @@
-	return ap_proxyerror(r, err);	/* give up */
+                 * walk is done.
+                 */
+                thisinfo.filetype = APR_NOFILE;
+                break;
+            }
+            else if (APR_STATUS_IS_EACCES(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s denied", r->uri);
+                return r->status = HTTP_FORBIDDEN;
+            }
+            else if ((rv != APR_SUCCESS && rv != APR_INCOMPLETE)
+                     || !(thisinfo.valid & APR_FINFO_TYPE)) {
+                /* If we hit ENOTDIR, we must have over-optimized, deny
+                 * rather than assume not found.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s failed", r->uri);
+                return r->status = HTTP_FORBIDDEN;
+            }
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+            /* Fix up the path now if we have a name, and they don't agree
+             */

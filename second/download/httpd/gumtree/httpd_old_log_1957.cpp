@@ -1,2 +1,3 @@
-printf("Connect:    " CONF_FMT_STRING,
-                       mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "mod_rewrite: could not open reliable pipe "
+                         "to RewriteLog filter %s", fname);

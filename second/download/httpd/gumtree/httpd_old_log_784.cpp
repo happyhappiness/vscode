@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Read content-length of %" APR_OFF_T_FMT 
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "mod_rewrite: maximum number of internal redirects "
+                      "reached. Assuming configuration error. Use "
+                      "'RewriteOptions MaxRedirects' to increase the limit "
+                      "if neccessary.");

@@ -1,1 +1,1 @@
-printf(" Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/<br>\n");
+fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);

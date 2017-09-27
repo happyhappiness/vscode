@@ -1,13 +1,13 @@
-         */
-        rv = cache->provider->store_body(cache->handle, r, in);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                         "cache: Cache provider's store_body failed!");
-            ap_remove_output_filter(f);
-        }
-        return ap_pass_brigade(f->next, in);
+        cleanup_tempfile_and_exit(1);
     }
+    pw = pwin;
+    apr_file_printf(f, "%s:%s:", user, realm);
 
-    /*
-     * Setup Data in Cache
-     * -------------------
+    /* Do MD5 stuff */
+    sprintf(string, "%s:%s:%s", user, realm, pw);
+
+    apr_md5_init(&context);
+#if APR_CHARSET_EBCDIC
+    apr_md5_set_xlate(&context, to_ascii);
+#endif
+    apr_md5_update(&context, (unsigned char *) string, strlen(string));

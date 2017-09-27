@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                         c->base_server,
-                         "SSL Proxy connect failed");
+ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
+                             "SSL filter error shutting down I/O");

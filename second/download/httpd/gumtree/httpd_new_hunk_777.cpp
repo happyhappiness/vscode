@@ -1,23 +1,17 @@
-                    "Unable to configure verify locations "
-                    "for client authentication");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
-            ssl_die();
-        }
+         */
+        prompt = "Enter pass phrase:";
 
-        if (mctx->pks && (mctx->pks->ca_name_file || mctx->pks->ca_name_path)) {
-            ca_list = ssl_init_FindCAList(s, ptemp,
-                                          mctx->pks->ca_name_file,
-                                          mctx->pks->ca_name_path);
-        } else
-            ca_list = ssl_init_FindCAList(s, ptemp,
-                                          mctx->auth.ca_cert_file,
-                                          mctx->auth.ca_cert_path);
-        if (!ca_list) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                    "Unable to determine list of acceptable "
-                    "CA certificates for client authentication");
-            ssl_die();
-        }
-
-        SSL_CTX_set_client_CA_list(ctx, (STACK *)ca_list);
-    }
+        for (;;) {
+            apr_file_puts(prompt, writetty);
+            if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            }
+            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
+            }
+            if (i != 0) {
+                PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                memset(buf, 0, (unsigned int)bufsize);
+                return (-1);
+            }
+            len = strlen(buf);

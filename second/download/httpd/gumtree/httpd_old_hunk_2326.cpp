@@ -1,13 +1,15 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+    if (!st->util_ldap_cache_lock) return;
+
+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock,
+              apr_global_mutex_lockfile(st->util_ldap_cache_lock), p);
+    if (sts != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
+                     "Failed to initialise global mutex %s in child process %"
+                     APR_PID_T_FMT ".",
+                     ldap_cache_mutex_type, getpid());
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+}
+
+static const command_rec util_ldap_cmds[] = {
+    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes,
+                  NULL, RSRC_CONF,

@@ -1,2 +1,5 @@
-fprintf(stderr, "%s: Cannot use concurrency level greater than "
-                "total number of requests\n", argv[0]);
+apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+#if defined(WIN32) || defined(TPF) || defined(NETWARE)
+        " (default)"
+#endif
+        "." NL);

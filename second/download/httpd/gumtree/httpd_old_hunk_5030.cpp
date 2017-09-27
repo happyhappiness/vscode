@@ -1,24 +1,39 @@
-    buff[35] = ' ';
-    ap_proxy_sec2hex(c->len, buff + 36);
-    buff[44] = '\n';
-    buff[45] = '\0';
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                if (!(mask & APHTP_DELUSER)) {
+                    /* We found the user we were looking for.
+                     * Add him to the file.
+                    */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, ctx.out);
+                    found++;
+                }
+                else {
+                    /* We found the user we were looking for.
+                     * Delete them from the file.
+                     */
+                    apr_file_printf(errfile, "Deleting ");
+                    found++;
+                }
+            }
+        }
+        apr_file_close(fpw);
+    }
+    if (!found && !(mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, ctx.out);
+    }
+    else if (!found && (mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "User %s not found" NL, user);
+        exit(0);
+    }
+    apr_file_printf(errfile, "password for user %s" NL, user);
 
-/* if file not modified */
-    if (r->status == 304) {
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-		if (curpos == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    Explain0("Remote document not modified, use local copy");
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {

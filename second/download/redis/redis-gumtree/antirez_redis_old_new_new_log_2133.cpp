@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt TCP_KEEPIDLE: %s\n", strerror(errno));

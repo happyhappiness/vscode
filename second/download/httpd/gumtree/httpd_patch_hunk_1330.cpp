@@ -1,14 +1,14 @@
-     ht = apr_hash_make(pchild);
  
-     /* Initialize the child_events */
-     max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-     if (!max_requests_per_child_event) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
--                     "Child %d: Failed to create a max_requests event.", my_pid);
-+                     "Child %lu: Failed to create a max_requests event.", my_pid);
-         exit(APEXIT_CHILDINIT);
+     if (r->proto_num < 1001) {
+         /* don't send interim response to HTTP/1.0 Client */
+         return;
      }
-     child_events[0] = exit_event;
-     child_events[1] = max_requests_per_child_event;
+     if (!ap_is_HTTP_INFO(r->status)) {
+-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
++        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                       "Status is %d - not sending interim response", r->status);
+         return;
+     }
  
-     allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);
+     /* if we send an interim response, we're no longer in a state of
+      * expecting one.  Also, this could feasibly be in a subrequest,

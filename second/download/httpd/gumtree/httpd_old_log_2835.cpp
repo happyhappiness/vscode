@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation time must be > 0\n");

@@ -1,1 +1,0 @@
-printf("AOF is not valid\n");

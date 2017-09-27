@@ -1,50 +1,15 @@
+             apr_status_t rv;
  
-         modssl_set_cert_info(info, x509, pkey);
- 
-         return TRUE;
-     }
- 
-+    ca_cert_chains = sc->proxy->pkp->ca_certs;
-     for (i = 0; i < sk_X509_NAME_num(ca_list); i++) {
-         ca_name = sk_X509_NAME_value(ca_list, i);
- 
-         for (j = 0; j < sk_X509_INFO_num(certs); j++) {
-             info = sk_X509_INFO_value(certs, j);
-             issuer = X509_get_issuer_name(info->x509);
- 
-+            /* Search certs (by issuer name) one by one*/
-             if (X509_NAME_cmp(issuer, ca_name) == 0) {
-                 modssl_proxy_info_log(s, info, "found acceptable cert");
- 
-                 modssl_set_cert_info(info, x509, pkey);
- 
-                 return TRUE;
+             /* flush the remaining data from the zlib buffers */
+             zRC = flush_libz_buffer(ctx, c, f->c->bucket_alloc, deflate,
+                                     Z_SYNC_FLUSH, NO_UPDATE_CRC);
+             if (zRC != Z_OK) {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                              "Zlib error %d flushing zlib output buffer (%s)",
++                              zRC, ctx->stream.msg);
+                 return APR_EGENERAL;
              }
--        }
-+
-+            if (ca_cert_chains) {
-+                /*
-+                 * Failed to find direct issuer - search intermediates
-+                 * (by issuer name), if provided.
-+                 */
-+                ca_certs = ca_cert_chains[j];
-+                for (k = 0; k < sk_X509_num(ca_certs); k++) {
-+                    ca_cert = sk_X509_value(ca_certs, k);
-+                    ca_issuer = X509_get_issuer_name(ca_cert);
-+
-+                    if(X509_NAME_cmp(ca_issuer, ca_name) == 0 ) {
-+                        modssl_proxy_info_log(s, info, "found acceptable cert by intermediate CA");
-+
-+                        modssl_set_cert_info(info, x509, pkey);
-+
-+                        return TRUE;
-+                    }
-+                } /* end loop through chained certs */
-+            }
-+        } /* end loop through available certs */
-     }
  
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  SSLPROXY_CERT_CB_LOG_FMT
-                  "no client certificate found!?", sc->vhost_id);
- 
+             /* Remove flush bucket from old brigade anf insert into the new. */
+             APR_BUCKET_REMOVE(e);
+             APR_BRIGADE_INSERT_TAIL(ctx->bb, e);

@@ -1,1 +1,0 @@
-serverLogRaw(level|REDIS_LOG_RAW,buf);

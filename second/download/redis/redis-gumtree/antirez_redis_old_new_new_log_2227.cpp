@@ -1,1 +1,0 @@
-notifyKeyspaceEvent("del",c->argv[1],c->db->id);

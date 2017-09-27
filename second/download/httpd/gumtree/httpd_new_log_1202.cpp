@@ -1,1 +1,1 @@
-BIO_printf(bio_err, "SSL write failed - closing connection\n");
+printf("Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/\n");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Syntax error in -C/-c directive:" APR_EOL_STR "%s",
-                     errmsg);
+ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+                     "connect to listener");

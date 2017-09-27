@@ -1,15 +1,13 @@
-		errstr[len-1] = ' ';
-	    }
-	}
-    }
-#endif
-
-    va_start(args, fmt);
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-    va_end(args);
-
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, APLOGNO(01474) "got a vm!");
+        lua_getglobal(L, "handle");
+        if (!lua_isfunction(L, -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
+                          "lua: Unable to find function %s in %s",
+                          "handle",
+                          spec->file);
+            ap_lua_release_state(L, spec, r);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_lua_run_lua_request(L, r);

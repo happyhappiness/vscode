@@ -1,26 +1,29 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    t = require_args;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require user: authorization successful", getpid());
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require user: authorization failed [%s][%s]",
+                              getpid(), ldc->reason, ldap_err2string(result));
+            }
+        }
+    }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize user: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
 
-	if (!strcasecmp(w, "Content-type")) {
+    return AUTHZ_DENIED;
+}
 
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+static authz_status ldapgroup_check_authorization(request_rec *r,
+                                             const char *require_args)

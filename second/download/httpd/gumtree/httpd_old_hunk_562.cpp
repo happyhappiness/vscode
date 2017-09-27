@@ -1,12 +1,12 @@
-         * hence the debug level
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                      "apr_socket_opt_set(APR_TCP_NODELAY)");
-    }
-#endif
-    net->c = c;
-    net->in_ctx = NULL;
-    net->out_ctx = NULL;
-    net->client_socket = csd;
+            p_conn->close += 1;
+        }
 
-    ap_set_module_config(net->c->conn_config, &core_module, csd);
+        if ( r->status != HTTP_CONTINUE ) {
+            received_continue = 0;
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                         "proxy: HTTP: received 100 CONTINUE");
+        }
+
+        /* we must accept 3 kinds of date, but generate only 1 kind of date */
+        if ((buf = apr_table_get(r->headers_out, "Date")) != NULL) {

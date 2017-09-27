@@ -1,2 +1,1 @@
-ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");

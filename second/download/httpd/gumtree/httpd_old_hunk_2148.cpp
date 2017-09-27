@@ -1,13 +1,12 @@
+    else {
+        proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
+        if (!worker) {
+            const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        }
+        PROXY_COPY_CONF_PARAMS(worker, conf);
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+        for (i = 0; i < arr->nelts; i++) {
+            const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                               elts[i].val);

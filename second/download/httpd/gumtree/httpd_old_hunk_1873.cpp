@@ -1,13 +1,32 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+                             "Parent: Cannot create restart event %s", signal_restart_name);
+                CleanNullACL((void *)sa);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            CleanNullACL((void *)sa);
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+            /* Now that we are flying at 15000 feet...
+             * wipe out the Win95 service console,
+             * signal the SCM the WinNT service started, or
+             * if not a service, setup console handlers instead.
+             */
+            if (!strcasecmp(signal_arg, "runservice"))
+            {
+                if (osver.dwPlatformId != VER_PLATFORM_WIN32_NT)
+                {
+                    rv = mpm_service_to_start(&service_name,
+                                              s->process->pool);
+                    if (rv != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                     "%s: Unable to start the service manager.",
+                                     service_name);
+                        return HTTP_INTERNAL_SERVER_ERROR;
+                    }
+                }
+            }
+
+            /* Create the start mutex, as an unnamed object for security.
+             * Ths start mutex is used during a restart to prevent more than
+             * one child process from entering the accept loop at once.
+             */
+            rv =  apr_proc_mutex_create(&start_mutex, NULL,
+                                        APR_LOCK_DEFAULT,

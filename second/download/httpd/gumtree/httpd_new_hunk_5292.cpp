@@ -1,26 +1,34 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+ * Canonicalize scgi-like URLs.
+ */
+static int scgi_canon(request_rec *r, char *url)
+{
+    char *host, sport[sizeof(":65535")];
+    const char *err, *path;
+    apr_port_t port, def_port;
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+    if (strncasecmp(url, SCHEME "://", sizeof(SCHEME) + 2)) {
+        return DECLINED;
+    }
+    url += sizeof(SCHEME); /* Keep slashes */
+
+    port = def_port = SCGI_DEF_PORT;
+
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00857)
+                      "error parsing URL %s: %s", url, err);
+        return HTTP_BAD_REQUEST;
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    if (port != def_port) {
+        apr_snprintf(sport, sizeof(sport), ":%u", port);
+    }
+    else {
+        sport[0] = '\0';
+    }
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    if (ap_strchr(host, ':')) { /* if literal IPv6 address */
+        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
+    }
+
+    path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,

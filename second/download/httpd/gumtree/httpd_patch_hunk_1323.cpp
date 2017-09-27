@@ -1,13 +1,13 @@
-         if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
-             ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                           "SSL Proxy connect failed");
-             ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-             /* ensure that the SSL structures etc are freed, etc: */
-             ssl_filter_io_shutdown(filter_ctx, c, 1);
-+            apr_table_set(c->notes, "SSL_connect_rv", "err");
-             return HTTP_BAD_GATEWAY;
-         }
+         ap_replace_stderr_log(process->pool, temp_error_log);
+     }
+     server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+     if (!server_conf) {
+         destroy_and_exit_process(process, 1);
+     }
++    /* sort hooks here to make sure pre_config hooks are sorted properly */
+     apr_hook_sort_all();
  
-         if (sc->proxy_ssl_check_peer_expire == SSL_ENABLED_TRUE) {
-             cert = SSL_get_peer_certificate(filter_ctx->pssl);
-             if (!cert
+     if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+         ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                      NULL, "Pre-configuration failed");
+         destroy_and_exit_process(process, 1);

@@ -1,26 +1,42 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+ * Various utility functions which are common to a whole lot of
+ * script-type extensions mechanisms, and might as well be gathered
+ * in one place (if only to avoid creating inter-module dependancies
+ * where there don't have to be).
+ */
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+#define MALFORMED_MESSAGE "malformed header from script. Bad header="
+#define MALFORMED_HEADER_LENGTH_TO_SHOW 30
 
-	if (!strcasecmp(w, "Content-type")) {
+APLOG_USE_MODULE(core);
 
-	    /* Nuke trailing whitespace */
+static char *http2env(apr_pool_t *a, const char *w)
+{
+    char *res = (char *)apr_palloc(a, sizeof("HTTP_") + strlen(w));
+    char *cp = res;
+    char c;
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
+    *cp++ = 'H';
+    *cp++ = 'T';
+    *cp++ = 'T';
+    *cp++ = 'P';
+    *cp++ = '_';
 
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    while ((c = *w++) != 0) {
+        if (!apr_isalnum(c)) {
+            *cp++ = '_';
+        }
+        else {
+            *cp++ = apr_toupper(c);
+        }
+    }
+    *cp = 0;
+
+    return res;
+}
+
+AP_DECLARE(char **) ap_create_environment(apr_pool_t *p, apr_table_t *t)
+{
+    const apr_array_header_t *env_arr = apr_table_elts(t);
+    const apr_table_entry_t *elts = (const apr_table_entry_t *) env_arr->elts;
+    char **env = (char **) apr_palloc(p, (env_arr->nelts + 2) * sizeof(char *));
+    int i, j;

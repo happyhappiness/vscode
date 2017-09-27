@@ -1,30 +1,24 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(send_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", send_pw) != NULL)
-		   && (strpbrk(".", send_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			send_pw ? send_pw : "\'none\'");
-	}
-	return OK;
+    ssl_rand_seed(base_server, ptemp, SSL_RSCTX_STARTUP, "Init: ");
+
+#ifdef HAVE_FIPS
+    if(sc->fips) {
+        if (!FIPS_mode()) {
+            if (FIPS_mode_set(1)) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                             "Operating in SSL FIPS mode");
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, "FIPS mode failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die();
+            }
+        }
     }
     else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			send_pw ? send_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "SSL FIPS mode disabled");
     }
+#endif
 
-    return DECLINED;
--- apache_1.3.0/src/modules/standard/mod_auth.c	1998-04-11 20:00:44.000000000 +0800
+    /*
+     * read server private keys/public certs into memory.

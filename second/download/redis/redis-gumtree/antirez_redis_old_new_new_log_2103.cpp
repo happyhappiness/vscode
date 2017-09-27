@@ -1,1 +1,0 @@
-addReplyError(c,"I can only replicate a master, not a slave.");

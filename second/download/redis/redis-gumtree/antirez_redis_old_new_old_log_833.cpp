@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"(forcing SIGSEGV to print the bug report.)");

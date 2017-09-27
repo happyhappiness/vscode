@@ -1,34 +1,17 @@
- 
- AP_DECLARE(apr_status_t) unixd_accept(void **accepted, ap_listen_rec *lr,
-                                         apr_pool_t *ptrans)
- {
-     apr_socket_t *csd;
-     apr_status_t status;
-+#ifdef _OSD_POSIX
-+    int sockdes;
-+#endif
- 
-     *accepted = NULL;
--    status = apr_accept(&csd, lr->sd, ptrans);
--    if (status == APR_SUCCESS) { 
-+    status = apr_socket_accept(&csd, lr->sd, ptrans);
-+    if (status == APR_SUCCESS) {
-         *accepted = csd;
-+#ifdef _OSD_POSIX
-+        apr_os_sock_get(&sockdes, csd);
-+        if (sockdes >= FD_SETSIZE) {
-+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-+                         "new file descriptor %d is too large; you probably need "
-+                         "to rebuild Apache with a larger FD_SETSIZE "
-+                         "(currently %d)",
-+                         sockdes, FD_SETSIZE);
-+            apr_socket_close(csd);
-+            return APR_EINTR;
-+        }
-+#endif
-         return APR_SUCCESS;
+     printf("   Listening on port(s):");
+     lr = ap_listeners;
+     do {
+        printf(" %d", lr->bind_addr->port);
+        lr = lr->next;
+     } while(lr && lr != ap_listeners);
+-    
++
+     /* Display dynamic modules loaded */
+-    printf("\n");    
++    printf("\n");
+     for (m = ap_loaded_modules; *m != NULL; m++) {
+         if (((module*)*m)->dynamic_load_handle) {
+             printf("   Loaded dynamic module %s\n", ((module*)*m)->name);
+         }
      }
- 
-     if (APR_STATUS_IS_EINTR(status)) {
-         return status;
-     }
+ }

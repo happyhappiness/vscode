@@ -1,23 +1,25 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
-
-    /* cleanup pid file on normal shutdown */
+    if (AP_LDAP_IS_SERVER_DOWN(result))
     {
-	const char *pidfile = NULL;
-	pidfile = ap_server_root_relative (pparent, ap_pid_fname);
-	if ( pidfile != NULL && unlink(pidfile) == 0)
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			 server_conf,
-			 "httpd: removed PID file %s (pid=%ld)",
-			 pidfile, (long)getpid());
+        ldc->reason = "DN Comparison ldap_search_ext_s() "
+                      "failed with server down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
     }
-
-    if (pparent) {
-	ap_destroy_pool(pparent);
+    if (result == LDAP_TIMEOUT && failures == 0) {
+        /*
+         * we are reusing a connection that doesn't seem to be active anymore
+         * (firewall state drop?), let's try a new connection.
+         */
+        ldc->reason = "DN Comparison ldap_search_ext_s() "
+                      "failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
     }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+    if (result != LDAP_SUCCESS) {
+        /* search for reqdn failed - no match */
+        ldc->reason = "DN Comparison ldap_search_ext_s() failed";
+        return result;

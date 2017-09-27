@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: CONNECT: declining URL %s", url);

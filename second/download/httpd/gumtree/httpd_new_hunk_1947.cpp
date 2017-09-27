@@ -1,46 +1,24 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
+            ufrag = 1;
+        }
+        apr_file_printf(errfile, "unsolicited size %d.%d%c" APR_EOL_STR,
+                        (int)(unsolicited), (int)(ufrag), utype);
+     }
+     apr_file_printf(errfile, "size limit %d.0%c" APR_EOL_STR,
+                     (int)(s->max), mtype);
+     apr_file_printf(errfile, "total size was %d.%d%c, total size now "
+                              "%d.%d%c" APR_EOL_STR,
+                     (int)(s->total), (int)(tfrag), ttype,
+                     (int)(s->sum), (int)(sfrag), stype);
+     apr_file_printf(errfile, "total entries was %d, total entries now %d"
+                              APR_EOL_STR, (int)(s->etotal),
+                              (int)(s->entries));
+     apr_file_printf(errfile, "%d entries deleted (%d from future, %d "
+                              "expired, %d fresh)" APR_EOL_STR,
+                     (int)(s->etotal - s->entries), (int)(s->dfuture),
+                     (int)(s->dexpired), (int)(s->dfresh));
+}
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
-    }
-
-/* set request */
-    len = decodeenc(path);
+/*
+ * delete a single file
+ */
+static void delete_file(char *path, char *basename, apr_pool_t *pool)

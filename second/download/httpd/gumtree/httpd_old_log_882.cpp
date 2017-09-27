@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, inctx->rc, c->base_server,
-                                "SSL input filter read failed.");
+ap_log_error(APLOG_MARK, APLOG_INFO, rc, c->base_server,
+                         "SSL handshake interrupted by system "
+                         "[Hint: Stop button pressed in browser?!]");

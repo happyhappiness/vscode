@@ -1,50 +1,123 @@
-     * this on Win32, though, since we haven't fork()'d.
+
+/* shared by service.c as global, although
+ * perhaps it should be private.
+ */
+apr_pool_t *pconf;
+
+
+/* definitions from child.c */
+void child_main(apr_pool_t *pconf);
+
+/* used by parent to signal the child to start and exit
+ * NOTE: these are not sophisticated enough for multiple children
+ * so they ultimately should not be shared with child.c
+ */
+extern apr_proc_mutex_t *start_mutex;
+extern HANDLE exit_event;
+
+/* Only one of these, the pipe from our parent, ment only for
+ * one child worker's consumption (not to be inherited!)
+ * XXX: decorate this name for the trunk branch, was left simplified
+ *      only to make the 2.2 patch trivial to read.
+ */
+static HANDLE pipe;
+
+/*
+ * Command processors
+ */
+
+static const char *set_threads_per_child (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_threads_per_child = atoi(arg);
+    if (ap_threads_per_child > thread_limit) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d threads,", ap_threads_per_child,
+                     thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " ThreadLimit directive.");
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+        ap_threads_per_child = 1;
+    }
+    return NULL;
+}
+static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    int tmp_thread_limit;
+
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    tmp_thread_limit = atoi(arg);
+    /* you cannot change ThreadLimit across a restart; ignore
+     * any such attempts
      */
-    r->server->error_log = stderr;
-#endif
+    if (first_thread_limit &&
+        tmp_thread_limit != thread_limit) {
+        /* how do we log a message?  the error log is a bit bucket at this
+         * point; we'll just have to set a flag so that ap_mpm_run()
+         * logs a warning later
+         */
+        changed_limit_at_restart = 1;
+        return NULL;
+    }
+    thread_limit = tmp_thread_limit;
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL)
-	if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set CPU usage limit");
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL)
-	if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set process limit");
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_AS): failed to set memory usage limit");
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_DATA): failed to set memory usage limit");
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_VMEM): failed to set memory usage limit");
-#endif
+    if (thread_limit > MAX_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: ThreadLimit of %d exceeds compile time limit "
+                    "of %d threads,", thread_limit, MAX_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+       thread_limit = MAX_THREAD_LIMIT;
+    }
+    else if (thread_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+        thread_limit = 1;
+    }
+    return NULL;
+}
+static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+    if (use_acceptex) {
+        use_acceptex = 0;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+                     "Disabled use of AcceptEx() WinSock2 API");
+    }
+    return NULL;
+}
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope this is large enough for the interpreter path */
-	FILE *program;
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+static const command_rec winnt_cmds[] = {
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF,
+  "Number of threads each child creates" ),
+AP_INIT_TAKE1("ThreadLimit", set_thread_limit, NULL, RSRC_CONF,
+  "Maximum worker threads in a server for this run of Apache"),
+AP_INIT_NO_ARGS("Win32DisableAcceptEx", set_disable_acceptex, NULL, RSRC_CONF,
+  "Disable use of the high performance AcceptEx WinSock2 API to work around buggy VPN or Firewall software"),
+
+{ NULL }
+};
+
+
+/*
+ * Signalling Apache on NT.

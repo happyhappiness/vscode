@@ -1,26 +1,24 @@
 
-    /* Pass one --- direct matches */
+    /* we use a sub-pool for the prepared statements for each connection so
+     * that they will be cleaned up first, before the connection is closed
+     */
+    rv = apr_pool_create(&prepared_pool, rec->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
+                     "DBD: Failed to create memory pool");
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
 
-    /* Pass two --- wildcard matches */
+    rv = dbd_prepared_init(prepared_pool, cfg, rec);
+    if (rv != APR_SUCCESS) {
+        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                     "DBD: failed to prepare SQL statements: %s",
+                     (errmsg ? errmsg : "[???]"));
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
 
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800

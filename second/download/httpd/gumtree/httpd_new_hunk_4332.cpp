@@ -1,15 +1,39 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    } else {
-		/* Directory is not empty. Account for its size: */
-		add_long61(&curbytes, ROUNDUP2BLOCKS(buf.st_size));
-	    }
-	    continue;
-	}
-#endif
 
-	i = read(fd, line, 26);
+    if (err->desc != NULL) {
+        /* ### should move this namespace somewhere (with the others!) */
+        ap_rputs(" xmlns:m=\"http://apache.org/dav/xmlns\"", r);
+    }
+
+    if (err->childtags) {
+        if (err->namespace != NULL) {
+            ap_rprintf(r,
+                    " xmlns:C=\"%s\">" DEBUG_CR
+                    "<C:%s>%s</C:%s>" DEBUG_CR,
+                    err->namespace,
+                    err->tagname, err->childtags, err->tagname);
+        }
+        else {
+            ap_rprintf(r,
+                    ">" DEBUG_CR
+                    "<D:%s>%s</D:%s>" DEBUG_CR,
+                    err->tagname, err->childtags, err->tagname);
+        }
+    }
+    else {
+        if (err->namespace != NULL) {
+            ap_rprintf(r,
+                    " xmlns:C=\"%s\">" DEBUG_CR
+                    "<C:%s/>" DEBUG_CR,
+                    err->namespace, err->tagname);
+        }
+        else {
+            ap_rprintf(r,
+                    ">" DEBUG_CR
+                    "<D:%s/>" DEBUG_CR, err->tagname);
+        }
+    }
+
+    /* here's our mod_dav specific tag: */
+    if (err->desc != NULL) {
+        ap_rprintf(r,
+                   "<m:human-readable errcode=\"%d\">" DEBUG_CR

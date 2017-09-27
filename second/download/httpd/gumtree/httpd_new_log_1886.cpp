@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create or access scoreboard \"%s\" "
-                     "(name-based shared memory failure)", fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "Timeout during reading request entity data");

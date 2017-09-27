@@ -1,1 +1,1 @@
-printf("Matching error %d\n", rc);
+printf("\n");

@@ -1,24 +1,27 @@
-		ap_proxy_send_headers(r, c->resp_line, c->hdrs);
-		ap_kill_timeout(r);
-	    }
-	    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-	    r->sent_bodyct = 1;
-	    if (!r->header_only)
-		ap_proxy_send_fb(c->fp, r, NULL, NULL);
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
+                       option));
+}
 
-		if (curpos == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    return OK;
-	}
+static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
+{
+    apr_status_t status;
+    char errmsg[120];
+    pid_t mypid = getpid();
+
+    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
+                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
+                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
+                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
+        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
+    }
+    else {
+        if (errfile) {
+            apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename,
+                            apr_strerror(status, errmsg, sizeof errmsg));
+        }
+        exit(1);
+    }
+}
+
+/*

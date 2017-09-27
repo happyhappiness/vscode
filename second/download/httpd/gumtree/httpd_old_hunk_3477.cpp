@@ -1,12 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
+            status = apr_psprintf(pconf,
+                                  "httpd (pid %" APR_PID_T_FMT "?) not running",
+                                  otherpid);
+        }
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+
+    if (!strcmp(dash_k_arg, "start")) {
+        if (running) {
+            printf("%s\n", status);
+            return 1;
+        }
+    }
+

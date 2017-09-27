@@ -1,18 +1,40 @@
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
-                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
-            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-            return 0;
-        }
+    int one = 1;
+    char addr[MAX_ADDRESS];
+    struct sslserveropts opts;
+    unsigned int optParam;
+    WSAPROTOCOL_INFO SecureProtoInfo;
+    int no = 1;
+    
+    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
+        apr_snprintf(addr, sizeof(addr), "address %s port %d",
+            inet_ntoa(server->sin_addr), ntohs(server->sin_port));
+    else
+        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
+
+    /* note that because we're about to slack we don't use psocket */
+    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
+
+    SecureProtoInfo.iAddressFamily = AF_INET;
+    SecureProtoInfo.iSocketType = SOCK_STREAM;
+    SecureProtoInfo.iProtocol = IPPROTO_TCP;   
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
+
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
+            
+    if (s == INVALID_SOCKET) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: failed to get a socket for %s", 
+                     addr);
+        return -1;
+    }
         
-        /* Presume the handle was opened with the CORRECT semantics
-         * for TransmitFile 
-         */
-        if ((rv = apr_os_file_put(&fd, &tf->hFile, 
-                                  APR_READ | APR_XTHREAD, r->pool)) 
-                != APR_SUCCESS) {
-            return 0;
-        }
-        if (tf->BytesToWrite) {
-            fsize = tf->BytesToWrite;
-        }
+    if (!mutual) {
+        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
+		    
+        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;

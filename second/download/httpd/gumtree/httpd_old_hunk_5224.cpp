@@ -1,34 +1,13 @@
-		    }   
-		}
-	    }
-	    break;
-	}
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+    va_start(va, r);
+    while (1) {
+        s = va_arg(va, const char *);
+        if (s == NULL)
+            break;
+        len = strlen(s);
+        ascii_s = apr_pstrndup(r->pool, s, len);
+        ap_xlate_proto_to_ascii(ascii_s, len);
+        if (ap_rputs(ascii_s, r) < 0)
+            return -1;
+        written += len;
+    }
+    va_end(va);

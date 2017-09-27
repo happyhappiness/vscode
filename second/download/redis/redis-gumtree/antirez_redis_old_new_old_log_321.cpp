@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset, "Error reading double value");

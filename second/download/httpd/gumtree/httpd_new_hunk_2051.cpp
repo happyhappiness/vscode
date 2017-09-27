@@ -1,24 +1,17 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
+        return AJP_EBAD_SIGNATURE;
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
+    msglen  = ((head[2] & 0xff) << 8);
+    msglen += (head[3] & 0xFF);
+
+    if (msglen > msg->max_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_check_msg_header() incoming message is "
+                     "too big %" APR_SIZE_T_FMT ", max is %" APR_SIZE_T_FMT,
+                     msglen, msg->max_size);
+        return AJP_ETOBIG;
     }
 
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+    msg->len = msglen + AJP_HEADER_LEN;
+    msg->pos = AJP_HEADER_LEN;
+    *len     = msglen;

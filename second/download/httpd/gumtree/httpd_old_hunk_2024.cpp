@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+            instance of the nlm, then handle it. */
+        if (!strnicmp("RESTART",&szcommandLine[iCommandLen],3)) {
+            printf("Restart Requested...\n");
+            restart();
+        }
+        else if (!strnicmp("VERSION",&szcommandLine[iCommandLen],3)) {
+            printf("Server version: %s\n", ap_get_server_version());
+            printf("Server built:   %s\n", ap_get_server_built());
+        }
+        else if (!strnicmp("MODULES",&szcommandLine[iCommandLen],3)) {
+            ap_show_modules();
+        }
+        else if (!strnicmp("DIRECTIVES",&szcommandLine[iCommandLen],3)) {

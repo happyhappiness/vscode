@@ -1,13 +1,14 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    proxy_worker *worker = conn->worker;
+
+    /*
+     * If the connection pool is NULL the worker
+     * cleanup has been run. Just return.
+     */
+    if (!worker->cp)
+        return APR_SUCCESS;
+
+#if APR_HAS_THREADS
+    /* Sanity check: Did we already return the pooled connection? */
+    if (conn->inreslist) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool,
+                      "proxy: Pooled connection 0x%pp for worker %s has been"

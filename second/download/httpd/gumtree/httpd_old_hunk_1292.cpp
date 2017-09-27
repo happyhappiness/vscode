@@ -1,14 +1,12 @@
-{
-    if (error) {
-    	apr_file_printf(errfile, "%s error: %s\n", shortname, error);
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
     }
-	apr_file_printf(errfile,
-    "%s -- program for cleaning the disk cache."                             NL
-    "Usage: %s [-Dvtrn] -pPATH -lLIMIT"                                      NL
-    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT"                             NL
-                                                                             NL
-    "Options:"                                                               NL
-    "  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."     NL
-    "       This option is mutually exclusive with the -D, -v and -r"        NL
-    "       options."                                                        NL
-                                                                             NL
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
+
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.

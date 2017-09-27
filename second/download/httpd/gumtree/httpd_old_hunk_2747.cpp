@@ -1,18 +1,39 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    connect_tries = 0;
+    sliding_timer = 100000; /* 100 milliseconds */
+    while (1) {
+        ++connect_tries;
+        if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+            return log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   "unable to create socket to cgi daemon");
+        }
+        if (connect(sd, (struct sockaddr *)server_addr, server_addr_len) < 0) {
+            if (errno == ECONNREFUSED && connect_tries < DEFAULT_CONNECT_ATTEMPTS) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, errno, r,
+                              "connect #%d to cgi daemon failed, sleeping before retry",
+                              connect_tries);
+                close(sd);
+                apr_sleep(sliding_timer);
+                if (sliding_timer < apr_time_from_sec(2)) {
+                    sliding_timer *= 2;
+                }
+            }
+            else {
+                close(sd);
+                return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
+                                       "unable to connect to cgi daemon after multiple tries");
+            }
+        }
+        else {
+            apr_pool_cleanup_register(r->pool, (void *)((long)sd),
+                                      close_unix_socket, apr_pool_cleanup_null);
+            break; /* we got connected! */
+        }
+        /* gotta try again, but make sure the cgid daemon is still around */
+        if (kill(daemon_pid, 0) != 0) {
+            return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
+                                   "cgid daemon is gone; is Apache terminating?");
+        }
+    }
+    *sdptr = sd;
+    return OK;
+}

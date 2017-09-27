@@ -1,13 +1,13 @@
-#define STANDALONE_MAIN standalone_main
-
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
-
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-
-    ap_standalone = 1;
-
-    is_graceful = 0;
+            else {
+                if (!(mask & APHTP_DELUSER)) {
+                    /* We found the user we were looking for.
+                     * Add him to the file.
+                    */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, ctx.out);
+                    found++;
+                }
+                else {
+                    /* We found the user we were looking for.
+                     * Delete them from the file.
+                     */

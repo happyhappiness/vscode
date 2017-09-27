@@ -1,1 +1,2 @@
-fprintf(stderr, "SSL not compiled in; no https support\n");
+apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");

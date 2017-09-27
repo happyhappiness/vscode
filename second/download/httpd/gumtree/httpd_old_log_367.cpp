@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "Faking HTTP Basic Auth header: \"Authorization: %s\"", buf1);
+fprintf(stderr, "Interrupted.\n");

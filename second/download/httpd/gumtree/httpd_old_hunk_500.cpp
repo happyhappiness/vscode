@@ -1,13 +1,21 @@
-    /* create a temporary pool for the socket.  pconf stays around too long */
-    rv = apr_pool_create(&p, pod->p);
-    if (rv != APR_SUCCESS) {
-        return rv;
-    }
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-    rv = apr_socket_create(&sock, pod->sa->family, SOCK_STREAM, p);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "get socket to connect to listener");
-        return rv;
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
     }
+}
 
+/**********************************************************
+ *

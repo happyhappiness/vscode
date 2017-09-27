@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with OpenLDAP LDAP SDK" );
+ap_fputstrs(output, bb,
+                DEBUG_CR "<D:href>",
+                dav_xml_escape_uri(pool, response->href),
+                "</D:href>" DEBUG_CR,
+                NULL);

@@ -1,12 +1,19 @@
+{
+    int file_req = (r->main && r->filename);
+    int access_status;
 
-    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
-                               ap_accept_lock_mech, _pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock");
-        return 1;
+    /* Ignore embedded %2F's in path for proxy requests */
+    if (!r->proxyreq && r->parsed_uri.path) {
+        access_status = ap_unescape_url(r->parsed_uri.path);
+        if (access_status) {
+            if (access_status == HTTP_NOT_FOUND) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "found %%2f (encoded '/') in URI "
+                              "(decoded='%s'), returning 404",
+                              r->parsed_uri.path);
+            }
+            return access_status;
+        }
     }
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
-        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+    ap_getparents(r->uri);     /* OK --- shrinking transformations... */

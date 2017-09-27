@@ -1,22 +1,13 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s client stopped connection before %s completed",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s timed out for %s",
-			timeout_name ? timeout_name : "request",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-	}
-    }
-
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+        }
+        if ((val = apr_table_get(params, "b_wyes")) &&
+            (*val == '1' && *(val+1) == '\0') &&
+            (val = apr_table_get(params, "b_nwrkr"))) {
+            char *ret;
+            proxy_worker *nworker;
+            nworker = ap_proxy_get_worker(conf->pool, bsel, conf, val);
+            if (!nworker && storage->num_free_slots(bsel->wslot)) {
+                if ((rv = PROXY_GLOBAL_LOCK(bsel)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01194)
+                                  "%s: Lock failed for adding worker",
+                                  bsel->s->name);
+                }

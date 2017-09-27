@@ -1,22 +1,15 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+                                         NULL));
+    }
+    if (!uri->port) {
+        uri->port = apr_uri_port_of_scheme(uri->scheme);
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connecting %s to %s:%d", *url, uri->hostname,
+                 uri->port);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    /*
+     * allocate these out of the specified connection pool
+     * The scheme handler decides if this is permanent or
+     * short living pool.
+     */

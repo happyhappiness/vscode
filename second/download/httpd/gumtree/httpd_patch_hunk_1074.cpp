@@ -1,33 +1,35 @@
-     apr_terminate();
- #ifdef NETWARE
-     pressanykey();
- #endif
- }
+      * If the connection pool is NULL the worker
+      * cleanup has been run. Just return.
+      */
+     if (!worker->cp)
+         return APR_SUCCESS;
  
--static void htdbm_terminate(htdbm_t *htdbm) 
-+static void htdbm_terminate(htdbm_t *htdbm)
- {
-     if (htdbm->dbm)
-         apr_dbm_close(htdbm->dbm);
-     htdbm->dbm = NULL;
- }
- 
- static htdbm_t *h;
--  
--static void htdbm_interrupted(void) 
+-    /* deterimine if the connection need to be closed */
++#if APR_HAS_THREADS
++    /* Sanity check: Did we already return the pooled connection? */
++    if (conn->inreslist) {
++        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool,
++                      "proxy: Pooled connection 0x%pp for worker %s has been"
++                      " already returned to the connection pool.", conn,
++                      worker->name);
++        return APR_SUCCESS;
++    }
++#endif
 +
-+static void htdbm_interrupted(void)
- {
-     htdbm_terminate(h);
-     fprintf(stderr, "htdbm Interrupted !\n");
-     exit(ERR_INTERRUPTED);
- }
- 
--static apr_status_t htdbm_init(apr_pool_t **pool, htdbm_t **hdbm) 
-+static apr_status_t htdbm_init(apr_pool_t **pool, htdbm_t **hdbm)
- {
- 
- #if APR_CHARSET_EBCDIC
-     apr_status_t rv;
++    /* determine if the connection need to be closed */
+     if (conn->close_on_recycle || conn->close) {
+         apr_pool_t *p = conn->pool;
+         apr_pool_clear(conn->pool);
+         memset(conn, 0, sizeof(proxy_conn_rec));
+         conn->pool = p;
+         conn->worker = worker;
+     }
+ #if APR_HAS_THREADS
+     if (worker->hmax && worker->cp->res) {
++        conn->inreslist = 1;
+         apr_reslist_release(worker->cp->res, (void *)conn);
+     }
+     else
  #endif
- 
+     {
+         worker->cp->conn = conn;

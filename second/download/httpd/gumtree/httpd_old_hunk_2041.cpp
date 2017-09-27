@@ -1,13 +1,12 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
-
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+        apr_size_t nbytes;
+        char *obuf;
+        if (apr_bucket_read(b, &buf, &nbytes, APR_BLOCK_READ) == APR_SUCCESS) {
+            if (nbytes) {
+                obuf = malloc(nbytes+1);    /* use pool? */
+                memcpy(obuf, buf, nbytes);
+                obuf[nbytes] = '\0';
+                ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server,
+                     "mod_dumpio:  %s (%s-%s): %s",
+                     f->frec->name,
+                     (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                     b->type->name,

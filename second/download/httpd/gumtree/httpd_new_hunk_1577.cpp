@@ -1,29 +1,38 @@
-                                       proxy_server_conf *conf)
-{
-    apr_status_t rv;
+    b->type = &bucket_type_cgi;
+    b->length = (apr_size_t)(-1);
+    b->start = -1;
 
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Lock failed for post_request",
-            balancer->name);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    /* Create the pollset */
+    rv = apr_pollset_create(&data->pollset, 2, r->pool, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_create(); check system or user limits");
+        return NULL;
     }
-    /* TODO: calculate the bytes transferred
-     * This will enable to elect the worker that has
-     * the lowest load.
-     * The bytes transferred depends on the protocol
-     * used, so each protocol handler should keep the
-     * track on that.
-     */
 
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+    fd.desc_type = APR_POLL_FILE;
+    fd.reqevents = APR_POLLIN;
+    fd.p = r->pool;
+    fd.desc.f = out; /* script's stdout */
+    fd.client_data = (void *)1;
+    rv = apr_pollset_add(data->pollset, &fd);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_add(); check system or user limits");
+        return NULL;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-    return OK;
+    fd.desc.f = err; /* script's stderr */
+    fd.client_data = (void *)2;
+    rv = apr_pollset_add(data->pollset, &fd);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_add(); check system or user limits");
+        return NULL;
+    }
+
+    data->r = r;
+    b->data = data;
+    return b;
 }
 

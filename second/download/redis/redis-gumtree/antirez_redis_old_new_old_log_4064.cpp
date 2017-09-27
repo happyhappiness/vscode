@@ -1,1 +1,0 @@
-printf("First invalid operation at offset %ld\n", pos);

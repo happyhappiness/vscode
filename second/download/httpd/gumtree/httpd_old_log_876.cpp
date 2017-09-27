@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "%s compiled against Server: %s, Library: %s",
-                 modver, AP_SERVER_BASEVERSION, incver);
+ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                     "failed to write %d of %d bytes (%s)",
+                     len - (apr_size_t)res, len, reason);

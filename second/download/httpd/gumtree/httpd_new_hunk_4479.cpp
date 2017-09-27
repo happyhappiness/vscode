@@ -1,22 +1,24 @@
-#define APLOG_MARK	__FILE__,__LINE__
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        for (i = 0; i < num_buckets; i++) {
+            ap_mpm_podx_killpg(all_buckets[i].pod, active_daemons_limit,
+                               AP_MPM_PODX_RESTART);
+        }
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-			     const request_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+        ap_reclaim_child_processes(1,  /* Start with SIGTERM */
+                                   event_note_child_killed);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00494)
+                     "SIGHUP received.  Attempting to restart");
+    }
 
-void ap_log_pid (pool *p, char *fname);
-/* These are for legacy code, new code should use ap_log_error,
- * or ap_log_rerror.
- */
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
-++ apache_1.3.2/src/include/http_protocol.h	1998-08-09 22:33:10.000000000 +0800
+    active_daemons = 0;
+
+    return OK;
+}
+
+static void setup_slave_conn(conn_rec *c, void *csd) 
+{
+    event_conn_state_t *mcs;

@@ -1,12 +1,17 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-}
-
-
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+         */
+        else if (!strcasecmp(w, "Status")) {
+            r->status = cgi_status = atoi(l);
+            if (!ap_is_HTTP_VALID_RESPONSE(cgi_status))
+                ap_log_rerror(SCRIPT_LOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                              "Invalid status line from script '%s': %s",
+                              apr_filepath_name_get(r->filename), w);
+            else
+                ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE1, 0, r,
+                              "Status line from script '%s': %s",
+                              apr_filepath_name_get(r->filename), w);
+            r->status_line = apr_pstrdup(r->pool, l);
+        }
+        else if (!strcasecmp(w, "Location")) {
+            apr_table_set(r->headers_out, w, l);
+        }
+        else if (!strcasecmp(w, "Content-Length")) {

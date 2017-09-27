@@ -1,13 +1,13 @@
-	}
+    if (mode == AP_MODE_READBYTES) {
+        apr_bucket *e;
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+        /* Partition the buffered brigade. */
+        rv = apr_brigade_partition(ctx->bb, bytes, &e);
+        if (rv && rv != APR_INCOMPLETE) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not partition buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
 
-	if (!(l = strchr(w, ':'))) {
- 	    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                "malformed header in meta file: %s", r->filename);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && apr_isspace(*l))
-	    ++l;
+        /* If the buffered brigade contains less then the requested

@@ -1,40 +1,13 @@
-                                      "authorisation failed [%s][%s]",
-                                      getpid(), t, ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
-        }
-        else if (strcmp(w, "ldap-attribute") == 0) {
-            while (t[0]) {
-                w = ap_getword(r->pool, &t, '=');
-                value = ap_getword_conf(r->pool, &t);
+        argv0++;
+    else
+        argv0 = r->filename;
+ 
+    nph = !(strncmp(argv0, "nph-", 4)); 
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: checking attribute"
-                              " %s has value %s", getpid(), w, value);
-                result = util_ldap_cache_compare(r, ldc, sec->url, req->dn,
-                                                 w, value);
-                switch(result) {
-                    case LDAP_COMPARE_TRUE: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
-                                      0, r, "[%d] auth_ldap authorise: "
-                                      "require attribute: authorisation "
-                                      "successful", getpid());
-                        return OK;
-                    }
-                    default: {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
-                                      0, r, "[%d] auth_ldap authorise: "
-                                      "require attribute: authorisation "
-                                      "failed [%s][%s]", getpid(), 
-                                      ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
-        }
-    }
+    argv0 = r->filename; 
 
-    if (!method_restricted) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
-                      getpid());
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r)) 
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, 
+                               "Options ExecCGI is off in this directory"); 
+    if (nph && is_included) 
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, 

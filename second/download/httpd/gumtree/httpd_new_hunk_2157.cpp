@@ -1,65 +1,15 @@
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter_ctx, NULL, c);
 
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);
 
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
+    /* We insert a clogging input filter. Let the core know. */
+    c->clogging_input_filters = 1;
+    
+    ssl_io_input_add_filter(filter_ctx, c, ssl);
 
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
+    SSL_set_bio(ssl, filter_ctx->pbioRead, filter_ctx->pbioWrite);
+    filter_ctx->pssl            = ssl;
 
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    }
-    else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
-    }
-
-    /* Add extra strings to array. */
-    n = n + 2;
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+    apr_pool_cleanup_register(c->pool, (void*)filter_ctx,

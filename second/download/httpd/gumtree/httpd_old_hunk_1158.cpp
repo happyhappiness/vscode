@@ -1,20 +1,18 @@
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                         "mod_rewrite: could not init rewrite_mapr_lock_acquire"
-                         " in child");
-        }
-    }
+{
+    apr_procattr_t *procattr;
+    apr_proc_t *procnew = NULL;
+    apr_status_t status;
 
-#ifndef REWRITELOG_DISABLED
-    rv = apr_global_mutex_child_init(&rewrite_log_lock, NULL, p);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not init rewrite log lock in child");
-    }
-#endif
-
-    /* create the lookup cache */
-    if (!init_cache(p)) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not init map cache in child");
-    }
-}
+    if (((status = apr_procattr_create(&procattr, pl->p)) != APR_SUCCESS) ||
+        ((status = apr_procattr_cmdtype_set(procattr,
+                                            APR_SHELLCMD_ENV)) != APR_SUCCESS) ||
+        ((status = apr_procattr_child_in_set(procattr,
+                                             ap_piped_log_read_fd(pl),
+                                             ap_piped_log_write_fd(pl)))
+        != APR_SUCCESS) ||
+        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
+        /* Something bad happened, give up and go away. */
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,

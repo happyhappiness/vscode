@@ -1,29 +1,62 @@
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+            continue;
+        }
 
-    while (!APR_BRIGADE_EMPTY(bb))
-    {
-        const char *data;
-        apr_bucket *b;
-        apr_size_t len;
+        /* read */
+        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
 
-        e = APR_BRIGADE_FIRST(bb);
+        /* first bucket contains zlib header */
+        if (!ctx->inflate_init++) {
+            if (len < 10) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Insufficient data for inflate");
+                return APR_EGENERAL;
+            }
+            else  {
+                zlib_method = data[2];
+                zlib_flags = data[3];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
+                }
+                if (data[0] != deflate_magic[0] ||
+                    data[1] != deflate_magic[1] ||
+                    (zlib_flags & RESERVED) != 0) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
+                }
+                data += 10 ;
+                len -= 10 ;
+           }
+           if (zlib_flags & EXTRA_FIELD) {
+               unsigned int bytes = (unsigned int)(data[0]);
+               bytes += ((unsigned int)(data[1])) << 8;
+               bytes += 2;
+               if (len < bytes) {
+                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                 "inflate: extra field too big (not "
+                                 "supported)");
+                   return APR_EGENERAL;
+               }
+               data += bytes;
+               len -= bytes;
+           }
+           if (zlib_flags & ORIG_NAME) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & COMMENT) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & HEAD_CRC) {
+                len -= 2;
+                data += 2;
+           }
+        }
 
-        if (APR_BUCKET_IS_EOS(e)) {
-            char *buf;
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
 
-            ctx->stream.avail_in = 0; /* should be zero already anyway */
-            /* flush the remaining data from the zlib buffers */
-            flush_libz_buffer(ctx, c, f->c->bucket_alloc, deflate, Z_FINISH,
-                              NO_UPDATE_CRC);
-
-            buf = apr_palloc(r->pool, VALIDATION_SIZE);
-            putLong((unsigned char *)&buf[0], ctx->crc);
-            putLong((unsigned char *)&buf[4], ctx->stream.total_in);
-
-            b = apr_bucket_pool_create(buf, VALIDATION_SIZE, r->pool,
-                                       f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Compressed %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
-
-            /* leave notes for logging */

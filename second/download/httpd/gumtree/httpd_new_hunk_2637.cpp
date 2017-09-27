@@ -1,46 +1,43 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
+        /* Get a single line of input from the client */
+        if (((rv = ap_get_brigade(c->input_filters, bb, AP_MODE_GETLINE,
+                                  APR_BLOCK_READ, 0)) != APR_SUCCESS)) {
+            apr_brigade_cleanup(bb);
+            if (!APR_STATUS_IS_EOF(rv) && ! APR_STATUS_IS_TIMEUP(rv))
+                ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01611)
+                             "ProtocolEcho: Failure reading from %s",
+                             c->client_ip);
+            break;
+        }
 
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
+        /* Something horribly wrong happened.  Someone didn't block! */
+        if (APR_BRIGADE_EMPTY(bb)) {
+            apr_brigade_cleanup(bb);
+            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01612)
+                         "ProtocolEcho: Error - read empty brigade from %s!",
+                         c->client_ip);
+            break;
+        }
 
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
+        if (!csd) {
+            csd = ap_get_conn_socket(c);
+            apr_socket_timeout_set(csd, c->base_server->keep_alive_timeout);
+        }
 
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+        update_echo_child_status(c->sbh, SERVER_BUSY_WRITE, NULL, bb);
+
+        /* Make sure the data is flushed to the client */
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(c->output_filters, bb);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01613)
+                         "ProtocolEcho: Failure writing to %s",
+                         c->client_ip);
+            break;
+        }
+        apr_brigade_cleanup(bb);
+
+        /* Announce our intent to loop */
+        update_echo_child_status(c->sbh, SERVER_BUSY_KEEPALIVE, NULL, NULL);
     }
-
-/* set request */
-    len = decodeenc(path);

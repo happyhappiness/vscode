@@ -1,12 +1,12 @@
-        if (d_uri.path) {
-            ap_unescape_url(d_uri.path);
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
         }
-        if (d_uri.query) {
-            ap_unescape_url(d_uri.query);
-        }
+    }
 
-        if (r->method_number == M_CONNECT) {
-            if (strcmp(resp->uri, r_uri.hostinfo)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Digest: uri mismatch - <%s> does not match "
-                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
+                      getpid());

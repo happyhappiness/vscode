@@ -1,13 +1,37 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+#include "mod_core.h"
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+#define ASIS_MAGIC_TYPE "httpd/send-as-is"
+
+static int asis_handler(request_rec *r)
+{
+    conn_rec *c = r->connection;
+    apr_file_t *f = NULL;
+    apr_status_t rv;
+    const char *location;
+
+    if(strcmp(r->handler,ASIS_MAGIC_TYPE) && strcmp(r->handler,"send-as-is"))
+        return DECLINED;
+
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
+    if (r->finfo.filetype == APR_NOFILE) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "File does not exist: %s", r->filename);
+        return HTTP_NOT_FOUND;
+    }
+
+    if ((rv = apr_file_open(&f, r->filename, APR_READ,
+                APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                    "file permissions deny server access: %s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
+
+    ap_scan_script_header_err(r, f, NULL);
+    location = apr_table_get(r->headers_out, "Location");
+
+    if (location && location[0] == '/' &&
+        ((r->status == HTTP_OK) || ap_is_HTTP_REDIRECT(r->status))) {
+
+        apr_file_close(f);

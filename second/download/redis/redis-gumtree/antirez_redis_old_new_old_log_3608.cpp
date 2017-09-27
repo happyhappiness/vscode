@@ -1,1 +1,0 @@
-printf("{offset %ld, header %u, payload %u} ",p-zl,entry.headersize,entry.len);

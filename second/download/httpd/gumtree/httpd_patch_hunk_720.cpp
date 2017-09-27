@@ -1,22 +1,39 @@
-                 if (sliding_timer < apr_time_from_sec(2)) {
-                     sliding_timer *= 2;
-                 }
-             }
-             else {
-                 close(sd);
--                return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno, 
-+                return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
-                                        "unable to connect to cgi daemon after multiple tries");
-             }
-         }
-         else {
--            apr_pool_cleanup_register(r->pool, (void *)sd, close_unix_socket,
--                                      apr_pool_cleanup_null);
-+            apr_pool_cleanup_register(r->pool, (void *)((long)sd),
-+                                      close_unix_socket, apr_pool_cleanup_null);
-             break; /* we got connected! */
-         }
-         /* gotta try again, but make sure the cgid daemon is still around */
-         if (kill(daemon_pid, 0) != 0) {
-             return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
-                                    "cgid daemon is gone; is Apache terminating?");
+     sc->proxy->pkp->cert_path = arg;
+ 
+     return NULL;
+ }
+ 
+ 
+-const char *ssl_cmd_SSLUserName(cmd_parms *cmd, void *dcfg, 
++const char *ssl_cmd_SSLUserName(cmd_parms *cmd, void *dcfg,
+ 				const char *arg)
+ {
+     SSLDirConfigRec *dc = (SSLDirConfigRec *)dcfg;
+     dc->szUserName = arg;
+     return NULL;
+ }
++
++void ssl_hook_ConfigTest(apr_pool_t *pconf, server_rec *s)
++{
++    if (!ap_exists_config_define("DUMP_CERTS")) {
++        return;
++    }
++
++    /* Dump the filenames of all configured server certificates to
++     * stdout. */
++    while (s) {
++        SSLSrvConfigRec *sc = mySrvConfig(s);
++
++        if (sc && sc->server && sc->server->pks) {
++            modssl_pk_server_t *const pks = sc->server->pks;
++            int i;
++
++            for (i = 0; (i < SSL_AIDX_MAX) && pks->cert_files[i]; i++) {
++                printf("%s\n", pks->cert_files[i]);
++            }
++        }
++
++        s = s->next;
++    }
++
++}

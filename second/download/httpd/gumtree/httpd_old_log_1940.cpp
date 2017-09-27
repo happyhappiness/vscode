@@ -1,1 +1,0 @@
-printf("Complete requests:      %ld\n", done);

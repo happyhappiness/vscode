@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+    lua_Debug dbg;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    lua_getstack(L, 1, &dbg);
+    lua_getinfo(L, "Sl", &dbg);
+
+    msg = luaL_checkstring(L, 2);
+    ap_log_error(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0, cmd->server, msg);
+    return 0;
+}
+
+/* r:debug(String) and friends which use apache logging */
+static int cmd_emerg(lua_State *L)
+{

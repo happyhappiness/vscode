@@ -1,1 +1,0 @@
-fprintf(stderr, "It looks like the database is empty!\n");

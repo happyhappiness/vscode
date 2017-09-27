@@ -1,33 +1,34 @@
-                  */
-                 ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                              "couldn't create child process: %d: %s", rc, 
-                              apr_filename_of_pathname(r->filename));
-             }
-             else {
--                apr_hash_set(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id), 
-+                /* We don't want to leak storage for the key, so only allocate
-+                 * a key if the key doesn't exist yet in the hash; there are
-+                 * only a limited number of possible keys (one for each
-+                 * possible thread in the server), so we can allocate a copy
-+                 * of the key the first time a thread has a cgid request.
-+                 * Note that apr_hash_set() only uses the storage passed in
-+                 * for the key if it is adding the key to the hash for the
-+                 * first time; new key storage isn't needed for replacing the
-+                 * existing value of a key.
-+                 */
-+                void *key;
-+
-+                if (apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id))) {
-+                    key = &cgid_req.conn_id;
-+                }
-+                else {
-+                    key = apr_pcalloc(pcgi, sizeof(cgid_req.conn_id));
-+                    memcpy(key, &cgid_req.conn_id, sizeof(cgid_req.conn_id));
-+                }
-+                apr_hash_set(script_hash, key, sizeof(cgid_req.conn_id),
-                              (void *)procnew->pid);
-             }
          }
-     } 
-     return -1; 
- } 
+ 
+         /*
+          * Verify the signature on this CRL
+          */
+         pubkey = X509_get_pubkey(cert);
+-        if (X509_CRL_verify(crl, pubkey) <= 0) {
++        rc = X509_CRL_verify(crl, pubkey);
++#ifdef OPENSSL_VERSION_NUMBER
++        /* Only refcounted in OpenSSL */
++        if (pubkey)
++            EVP_PKEY_free(pubkey);
++#endif
++        if (rc <= 0) {
+             ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                          "Invalid signature on CRL");
+ 
+             X509_STORE_CTX_set_error(ctx, X509_V_ERR_CRL_SIGNATURE_FAILURE);
+             X509_OBJECT_free_contents(&obj);
+-            if (pubkey)
+-                EVP_PKEY_free(pubkey);
+-
+             return FALSE;
+         }
+ 
+-        if (pubkey)
+-            EVP_PKEY_free(pubkey);
+-
+         /*
+          * Check date of CRL to make sure it's not expired
+          */
+         i = X509_cmp_current_time(X509_CRL_get_nextUpdate(crl));
+ 
+         if (i == 0) {

@@ -1,13 +1,13 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
-    }
+
+        /* Verify authentication of the whole salt+IV+ciphertext by computing
+         * the MAC and comparing it (timing safe) with the one in the payload.
+         */
+        compute_auth(slider, len, passphrase, passlen, auth);
+        if (!ap_crypto_equals(auth, decoded, AP_SIPHASH_DSIZE)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(10006)
+                    "auth does not match, skipping");
+            continue;
+        }
+
+        /* encrypt using the first passphrase in the list */
+        res = apr_crypto_passphrase(&key, &ivSize, passphrase, passlen,

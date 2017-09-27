@@ -1,2 +1,1 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout.\n");
+apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);

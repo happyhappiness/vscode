@@ -1,22 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
-
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+apr_status_t h2_stream_submit_pushes(h2_stream *stream)
+{
+    apr_status_t status = APR_SUCCESS;
+    apr_array_header_t *pushes;
+    int i;
+    
+    pushes = h2_push_collect(stream->pool, stream->request, stream->response);
+    if (pushes && !apr_is_empty_array(pushes)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      "h2_stream(%ld-%d): found %d push candidates",
+                      stream->session->id, stream->id, pushes->nelts);
+        for (i = 0; i < pushes->nelts; ++i) {
+            h2_push *push = APR_ARRAY_IDX(pushes, i, h2_push*);

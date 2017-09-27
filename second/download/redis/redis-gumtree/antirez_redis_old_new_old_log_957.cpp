@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Replication failed, can't BGSAVE");

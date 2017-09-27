@@ -1,24 +1,25 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
+            doRotate(&config, &status);
         }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
-#endif
 
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
+        nWrite = nRead;
+        rv = apr_file_write_full(status.current.fd, buf, nWrite, &nWrite);
+        if (nWrite != nRead) {
+            apr_off_t cur_offset;
 
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
+            cur_offset = 0;
+            if (apr_file_seek(status.current.fd, APR_CUR, &cur_offset) != APR_SUCCESS) {
+                cur_offset = -1;
+            }
+            status.nMessCount++;
+            apr_snprintf(status.errbuf, sizeof status.errbuf,
+                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
+                         "%10d messages lost (%pm)\n",
+                         rv, cur_offset, status.nMessCount, &rv);
 
+            truncate_and_write_error(&status);
+        }
+        else {
+            status.nMessCount++;
+        }
+        if (config.echo) {
+            if (apr_file_write_full(f_stdout, buf, nRead, &nWrite)) {

@@ -1,1 +1,0 @@
-printf("Can't resolve %s\n", argv[i]);

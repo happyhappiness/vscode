@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+        return DECLINED;
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    r->allowed |= (AP_METHOD_BIT << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+
+    ap_rputs(DOCTYPE_XHTML_1_0T
+             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
+             "<head>\n"
+             "  <title>Server Information</title>\n" "</head>\n", r);
+    ap_rputs("<body><h1 style=\"text-align: center\">"

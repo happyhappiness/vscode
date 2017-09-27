@@ -1,14 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                    apr_bucket* b;
+                    apr_bucket* bstart;
+                    rv = apr_brigade_partition(ctx->bbsave, (p-ctx->buf),
+                                               &bstart);
+                    ap_assert(rv == APR_SUCCESS);
+                    while (b = APR_BRIGADE_FIRST(ctx->bbsave), b != bstart) {
+                        apr_bucket_delete(b);
+                    }
+                    ctx->bytes -= (p-ctx->buf);
+                    ctx->buf = p ;
+                    found = 1;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01428)
+                                  "Skipped to first <%s> element",

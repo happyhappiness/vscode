@@ -1,1 +1,0 @@
-printf("Function at 0x%lx is %s\n",target,info.dli_sname);

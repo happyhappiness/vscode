@@ -1,12 +1,31 @@
-}
+         */
+        if (!r->filename) {
+            return DECLINED;
+        }
+    }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    /* Allocate and initialize cache_object_t */
+    obj = calloc(1, sizeof(*obj));
+    if (!obj) {
+        return DECLINED;
+    }
+    key_len = strlen(key) + 1;
+    obj->key = malloc(key_len);
+    if (!obj->key) {
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+    memcpy((void*)obj->key, key, key_len);
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    /* Allocate and init mem_cache_object_t */
+    mobj = calloc(1, sizeof(*mobj));
+    if (!mobj) {
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+
+    /* Finish initing the cache object */
+    apr_atomic_set32(&obj->refcount, 1);
+    mobj->total_refs = 1;
+    obj->complete = 0;
+    obj->vobj = mobj;

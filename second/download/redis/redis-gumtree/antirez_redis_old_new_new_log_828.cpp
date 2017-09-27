@@ -1,1 +1,0 @@
-notifyKeyspaceEvent(NOTIFY_GENERIC,"expire",key,c->db->id);

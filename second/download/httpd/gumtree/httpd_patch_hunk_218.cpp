@@ -1,18 +1,16 @@
-      */
-     if (!ok) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                      "Certificate Verification: Error (%d): %s",
-                      errnum, X509_verify_cert_error_string(errnum));
- 
-+        if (sslconn->client_cert) {
-+            X509_free(sslconn->client_cert);
-+            sslconn->client_cert = NULL;
-+        }
-         sslconn->client_dn = NULL;
--        sslconn->client_cert = NULL;
-         sslconn->verify_error = X509_verify_cert_error_string(errnum);
-     }
- 
-     /*
-      * Finally check the depth of the certificate verification
-      */
+                 }
+             }
+             else if (s->type == MAPTYPE_DBM) {
+                 if ((rv = apr_stat(&st, s->checkfile,
+                                    APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                     ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+-                                 "mod_rewrite: can't access DBM RewriteMap "
+-                                 "file %s", s->checkfile);
++                                  "mod_rewrite: can't access DBM RewriteMap "
++                                  "file %s", s->checkfile);
+                     rewritelog(r, 1, "can't open DBM RewriteMap file, "
+                                "see error log");
+                     return NULL;
+                 }
+                 value = get_cache_string(cachep, s->name, CACHEMODE_TS,
+                                          st.mtime, key);

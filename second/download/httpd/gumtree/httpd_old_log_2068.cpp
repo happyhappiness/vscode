@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "now only have %u sessions",
-                         shmcb_get_safe_uint(queue->pos_count));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                  "proxy: ap_proxy_set_scoreboard_lb(%d) failed in child %" APR_PID_T_FMT " for worker %s",
+                  worker->id, getpid(), worker->name);

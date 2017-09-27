@@ -1,29 +1,42 @@
-        return AJP_EBAD_HEADER;
-    }
-    rc = ajp_msg_get_uint16(msg, len);
-    if (rc != APR_SUCCESS) {
-        return rc;
-    }
-    /*
-     * msg->len contains the complete length of the message including all
-     * headers. So the expected length for a CMD_AJP13_SEND_BODY_CHUNK is
-     * msg->len minus the sum of
-     * AJP_HEADER_LEN    : The length of the header to every AJP message.
-     * AJP_HEADER_SZ_LEN : The header giving the size of the chunk.
-     * 1                 : The CMD_AJP13_SEND_BODY_CHUNK indicator byte (0x03).
-     * 1                 : The last byte of this message always seems to be
-     *                     0x00 and is not part of the chunk.
-     */
-    expected_len = msg->len - (AJP_HEADER_LEN + AJP_HEADER_SZ_LEN + 1 + 1);
-    if (*len != expected_len) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: Wrong chunk length. Length of chunk is %i,"
-               " expected length is %i.", *len, expected_len);
-        return AJP_EBAD_HEADER;
-    }
-    *ptr = (char *)&(msg->buf[msg->pos]);
-    return APR_SUCCESS;
+
+    return 1;
 }
 
-/*
- * Allocate a msg to send data
+int ssl_init_ssl_connection(conn_rec *c)
+{
+    SSLSrvConfigRec *sc;
+    SSL *ssl;
+    SSLConnRec *sslconn = myConnConfig(c);
+    char *vhost_md5;
+    modssl_ctx_t *mctx;
+    server_rec *server;
+
+    if (!sslconn) {
+        sslconn = ssl_init_connection_ctx(c);
+    }
+    server = sslconn->server;
+    sc = mySrvConfig(server);
+
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
+     */
+    ssl_rand_seed(server, c->pool, SSL_RSCTX_CONNECT, "");
+
+    mctx = sslconn->is_proxy ? sc->proxy : sc->server;
+
+    /*
+     * Create a new SSL connection with the configured server SSL context and
+     * attach this to the socket. Additionally we register this attachment
+     * so we can detach later.
+     */
+    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to create a new SSL connection from the SSL "
+                      "context");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, server);
+
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */
+    }
+

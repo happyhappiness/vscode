@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+             * group or we wouldn't be here.
+             */
+            if (compare_nodep->sgl_processed) {
+                if (compare_nodep->subgroupList) {
+                    /* Make a local copy of the subgroup list */
+                    int i;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01288)
+                                  "Making local copy of SGL for "
+                                  "group (%s)(objectClass=%s) ",
+                                  dn, (char *)sgc_ents[base_sgcIndex].name);
+                    tmp_local_sgl = apr_pcalloc(r->pool,
+                                                sizeof(util_compare_subgroup_t));
+                    tmp_local_sgl->len = compare_nodep->subgroupList->len;

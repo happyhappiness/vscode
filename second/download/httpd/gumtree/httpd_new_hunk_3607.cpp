@@ -1,14 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+            fb = apr_bucket_flush_create(ba);
+            APR_BRIGADE_INSERT_TAIL(bb, fb);
+            rv = ap_pass_brigade(f->next, bb);
 
+            if (rv != APR_SUCCESS) {
+                ctx->state = RATE_ERROR;
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, f->r, APLOGNO(01455)
+                              "rl: full speed brigade pass failed.");
+            }
+        }
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+        while (ctx->state == RATE_LIMIT && !APR_BRIGADE_EMPTY(bb)) {
+            for (e = APR_BRIGADE_FIRST(bb);

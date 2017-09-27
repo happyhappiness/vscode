@@ -1,62 +1,19 @@
-                         ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                      "proxy: APR_BUCKET_IS_EOS");
-                     } else {
-                         status = ap_get_brigade(r->input_filters, input_brigade,
-                                                 AP_MODE_READBYTES,
-                                                 APR_BLOCK_READ,
--                                                AJP13_MAX_SEND_BODY_SZ);
-+                                                maxsize - AJP_HEADER_SZ);
-                         if (status != APR_SUCCESS) {
-                             ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                          r->server,
-                                          "ap_get_brigade failed");
-+                            output_failed = 1;
-                             break;
-                         }
--                        bufsiz = AJP13_MAX_SEND_BODY_SZ;
-+                        bufsiz = maxsize;
-                         status = apr_brigade_flatten(input_brigade, buff,
-                                                      &bufsiz);
-                         apr_brigade_cleanup(input_brigade);
-                         if (status != APR_SUCCESS) {
-                             ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
-                                          r->server,
-                                          "apr_brigade_flatten failed");
-+                            output_failed = 1;
-                             break;
-                         }
-                     }
+     const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
  
-                     ajp_msg_reset(msg);
-                     /* will go in ajp_send_data_msg */
-                     status = ajp_send_data_msg(conn->sock, msg, bufsiz);
-                     if (status != APR_SUCCESS) {
-                         ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                                      "ajp_send_data_msg failed");
-+                        backend_failed = 1;
-                         break;
-                     }
-                     conn->worker->s->transferred += bufsiz;
-                 } else {
-                     /*
-                      * something is wrong TC asks for more body but we are
-                      * already at the end of the body data
-                      */
-                     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                  "ap_proxy_ajp_request error read after end");
--                    isok = 0;
-+                    backend_failed = 1;
-                 }
-                 break;
-             case CMD_AJP13_SEND_HEADERS:
-                 /* AJP13_SEND_HEADERS: process them */
-                 status = ajp_parse_header(r, conf, conn->data);
-                 if (status != APR_SUCCESS) {
--                    isok = 0;
-+                    backend_failed = 1;
-                 }
-                 break;
-             case CMD_AJP13_SEND_BODY_CHUNK:
-                 /* AJP13_SEND_BODY_CHUNK: piece of data */
-                 status = ajp_parse_data(r, conn->data, &size, &buff);
-                 if (status == APR_SUCCESS) {
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                          "Into ajp_marshal_into_msgb");
+ 
+     if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+-               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
++        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
++               "ajp_marshal_into_msgb - No such method %s",
+                r->method);
+-        method = SC_M_JK_STORED;
++        return AJP_EBAD_METHOD;
+     }
+ 
+     is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
+ 
+     if (r->headers_in && apr_table_elts(r->headers_in)) {
+         const apr_array_header_t *t = apr_table_elts(r->headers_in);

@@ -1,13 +1,15 @@
-#define STANDALONE_MAIN standalone_main
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+        child = child->next;
+    }
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
+    if (ret != OK) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, APR_SUCCESS, s, APLOGNO(01624)
+                     "%s directive contains only negative authorization directives",
+                     is_conf ? "<Directory>, <Location>, or similar"
+                             : format_authz_command(p, section));
+    }
 
-    ap_standalone = 1;
+    return ret;
+}
 
-    is_graceful = 0;
+static int authz_core_pre_config(apr_pool_t *p, apr_pool_t *plog,

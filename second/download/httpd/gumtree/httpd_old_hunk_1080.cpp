@@ -1,28 +1,41 @@
-            htdbm_list(h);
-            break;
-        default:
-            htdbm_make(h);
-            break;
 
-    }    
-    if (need_file && !h->rdonly) {
-        if ((rv = htdbm_save(h, &changed)) != APR_SUCCESS) {
-            apr_strerror(rv, errbuf, sizeof(errbuf));
-            exit(ERR_FILEPERM);
+            if (rc == 0)
+                thefile->bufpos = 0;
         }
-        fprintf(stdout, "Database %s %s.\n", h->filename, 
-                h->create ? "created" : (changed ? "modified" : "updated"));
+
+        return rc;
+    } else {
+        FlushFileBuffers(thefile->filehand);
+        return APR_SUCCESS;
     }
-    if (cmd == HTDBM_NOFILE) {
-        if (!need_cmnt) {
-            fprintf(stderr, "%s:%s\n", h->username, h->userpass);
-        }
-        else {
-            fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
-                    h->comment);
-        }
-    }
-    htdbm_terminate(h);
-    
-    return 0; /* Suppress compiler warning. */
 }
+
+static int printf_flush(apr_vformatter_buff_t *vbuff)
+{
+    /* I would love to print this stuff out to the file, but I will
+     * get that working later.  :)  For now, just return.
+     */
+    return -1;
+}
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    int cc;
+    va_list ap;
+    char *buf;
+    int len;
+
+    buf = malloc(HUGE_STRING_LEN);
+    if (buf == NULL) {
+        return 0;
+    }
+    va_start(ap, format);
+    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
+    cc = apr_file_puts(buf, fptr);
+    va_end(ap);
+    free(buf);
+    return (cc == APR_SUCCESS) ? len : -1;
+}
+
+

@@ -1,28 +1,40 @@
-     *  Initialise list of loaded modules
-     */
-    ap_loaded_modules = (module **)apr_palloc(process->pool,
-        sizeof(module *) * (total_modules + DYNAMIC_MODULE_LIMIT + 1));
 
-    if (ap_loaded_modules == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Ouch!  Out of memory in ap_setup_prelinked_modules()!");
-    }
+#ifdef TPF
+int tpf_child = 0;
+char tpf_server_name[INETD_SERVNAME_LENGTH+1];
+#endif /* TPF */
 
-    for (m = ap_preloaded_modules, m2 = ap_loaded_modules; *m != NULL; )
-        *m2++ = *m++;
+static int die_now = 0;
 
-    *m2 = NULL;
-
-    /*
-     *   Initialize chain of linked (=activate) modules
-     */
-    for (m = ap_prelinked_modules; *m != NULL; m++)
-        ap_add_module(*m, process->pconf);
-
-    apr_hook_sort_all();
-}
-
-AP_DECLARE(const char *) ap_find_module_name(module *m)
+#ifdef GPROF
+/* 
+ * change directory for gprof to plop the gmon.out file
+ * configure in httpd.conf:
+ * GprofDir $RuntimeDir/   -> $ServerRoot/$RuntimeDir/gmon.out
+ * GprofDir $RuntimeDir/%  -> $ServerRoot/$RuntimeDir/gprof.$pid/gmon.out
+ */
+static void chdir_for_gprof(void)
 {
-    return m->name;
-}
+    core_server_config *sconf = 
+	ap_get_module_config(ap_server_conf->module_config, &core_module);    
+    char *dir = sconf->gprof_dir;
+    const char *use_dir;
+
+    if(dir) {
+        apr_status_t res;
+	char buf[512];
+	int len = strlen(sconf->gprof_dir) - 1;
+	if(*(dir + len) == '%') {
+	    dir[len] = '\0';
+	    apr_snprintf(buf, sizeof(buf), "%sgprof.%d", dir, (int)getpid());
+	} 
+	use_dir = ap_server_root_relative(pconf, buf[0] ? buf : dir);
+	res = apr_dir_make(use_dir, 0755, pconf);
+	if(res != APR_SUCCESS && !APR_STATUS_IS_EEXIST(res)) {
+	    ap_log_error(APLOG_MARK, APLOG_ERR, errno, ap_server_conf,
+			 "gprof: error creating directory %s", dir);
+	}
+    }
+    else {
+	use_dir = ap_server_root_relative(pconf, DEFAULT_REL_RUNTIMEDIR);
+    }

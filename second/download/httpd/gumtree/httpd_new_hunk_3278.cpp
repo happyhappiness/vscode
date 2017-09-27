@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+    apr_file_t *fd;
+    apr_size_t file_length;
+    apr_off_t file_offset;
+    apr_size_t bytes_written = 0;
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
-
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+    if (!APR_BUCKET_IS_FILE(bucket)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server, APLOGNO(00006)
+                     "core_filter: sendfile_nonblocking: "
+                     "this should never happen");
+        return APR_EGENERAL;
+    }
+    file_bucket = (apr_bucket_file *)(bucket->data);
+    fd = file_bucket->fd;

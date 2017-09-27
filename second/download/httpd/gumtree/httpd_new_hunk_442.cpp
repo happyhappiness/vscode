@@ -1,14 +1,24 @@
-        /* set no timeout */
-        apr_socket_timeout_set(p_conn->sock, 0);
-        socket_status = apr_recv(p_conn->sock, test_buffer, &buffer_len);
-        /* put back old timeout */
-        apr_socket_timeout_set(p_conn->sock, current_timeout);
-        if ( APR_STATUS_IS_EOF(socket_status) ) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
-                         "proxy: previous connection is closed, creating a new connection.");
-            new = 1;
-        }
     }
-    if (new) {
 
-        /* create a new socket */
+    /* Create a pipe to send handles to the child */
+    if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
+                                  APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
+
+    /* Open a null handle to soak info from the child */
+    if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE, 
+                             APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
+        || ((rv = apr_procattr_child_out_set(attr, child_out, NULL)) 
+                != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to connect child stdout to NUL.");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
+
+    /* Connect the child's initial stderr to our main server error log 
+     * or share our own stderr handle.

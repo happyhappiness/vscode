@@ -1,20 +1,13 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    for (i = 0; i < conf->balancers->nelts; i++) {
+        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
+        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
+        ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
+                 "</tr>\n<tr>", r);
+        ap_rvputs(r, "<td>", balancer->sticky, NULL);
+        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                   apr_time_sec(balancer->timeout));
+        ap_rprintf(r, "<td>%s</td>\n",
+                   balancer->lbmethod->name);
+        ap_rputs("</table>\n", r);
+        ap_rputs("\n\n<table border=\"0\"><tr>"

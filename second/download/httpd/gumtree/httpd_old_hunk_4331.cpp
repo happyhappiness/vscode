@@ -1,22 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
+
+    return rv;
 }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
+static void socache_mc_status(ap_socache_instance_t *ctx, request_rec *r, int flags)
 {
+    /* TODO: Make a mod_status handler. meh. */
+}
+
+static apr_status_t socache_mc_iterate(ap_socache_instance_t *instance,
+                                       server_rec *s, void *userctx,
+                                       ap_socache_iterator_t *iterator,
+                                       apr_pool_t *pool)

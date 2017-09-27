@@ -1,24 +1,59 @@
-    buff[35] = ' ';
-    ap_proxy_sec2hex(c->len, buff + 36);
-    buff[44] = '\n';
-    buff[45] = '\0';
+    for (i = 0; i < SSL_AIDX_MAX; i++) {
+        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
+    }
 
-/* if file not modified */
-    if (r->status == HTTP_NOT_MODIFIED) {
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-		if (curpos == -1)
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    Explain0("Remote document not modified, use local copy");
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
+    have_rsa = ssl_server_import_key(s, mctx, rsa_id, SSL_AIDX_RSA);
+    have_dsa = ssl_server_import_key(s, mctx, dsa_id, SSL_AIDX_DSA);
+#ifdef HAVE_ECC
+    have_ecc = ssl_server_import_key(s, mctx, ecc_id, SSL_AIDX_ECC);
+#endif
+
+    if (!(have_rsa || have_dsa
+#ifdef HAVE_ECC
+        || have_ecc
+#endif
+          )) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01911)
+                "Oops, no " KEYTYPES " server private key found?!");
+        ssl_die(s);
+    }
+
+    /*
+     * Try to read DH parameters from the (first) SSLCertificateFile
+     */
+    if ((mctx->pks->cert_files[0] != NULL) &&
+        (dhparams = ssl_dh_GetParamFromFile(mctx->pks->cert_files[0]))) {
+        SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id,
+                     mctx->pks->cert_files[0]);
+    }
+
+#ifdef HAVE_ECC
+    /*
+     * Similarly, try to read the ECDH curve name from SSLCertificateFile...
+     */
+    if ((mctx->pks->cert_files[0] != NULL) &&
+        (ecparams = ssl_ec_GetParamFromFile(mctx->pks->cert_files[0])) &&
+        (nid = EC_GROUP_get_curve_name(ecparams)) &&
+        (eckey = EC_KEY_new_by_curve_name(nid))) {
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
+                     "ECDH curve %s for %s specified in %s",
+                     OBJ_nid2sn(nid), vhost_id, mctx->pks->cert_files[0]);
+    }
+    /*
+     * ...otherwise, configure NIST P-256 (required to enable ECDHE)
+     */
+    else {
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx,
+                             EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+    }
+#endif
+}
+
+#ifdef HAVE_TLS_SESSION_TICKETS
+static void ssl_init_ticket_key(server_rec *s,
+                                apr_pool_t *p,
+                                apr_pool_t *ptemp,

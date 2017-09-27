@@ -1,1 +1,1 @@
-ap_rputs("</dt>", r);
+ap_rputs(" -D APR_HAS_MMAP\n", r);

@@ -1,14 +1,24 @@
-                ap_rputs("Ok", r);
-            else
-                ap_rputs("-", r);
-            ap_rvputs(r, "</td><td>", worker->s->route, NULL);
-            ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
-            ap_rprintf(r, "</td><td>%d</td>", worker->s->lbfactor);
-            ap_rprintf(r, "<td>%d</td>", worker->s->lbset);
-            ap_rprintf(r, "<td>%" APR_SIZE_T_FMT "</td><td>", worker->s->elected);
-            ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);
-            ap_rputs("</td><td>", r);
-            ap_rputs(apr_strfsize(worker->s->read, fbuf), r);
-            ap_rputs("</td>\n", r);
+        return apr_pstrcat(cmd->pool, "Invalid ScriptSock path",
+                           arg, NULL);
+    }
 
-            /* TODO: Add the rest of dynamic worker data */
+    return NULL;
+}
+
+static const command_rec cgid_cmds[] =
+{
+    AP_INIT_TAKE1("ScriptLog", set_scriptlog, NULL, RSRC_CONF,
+                  "the name of a log for script debugging info"),
+    AP_INIT_TAKE1("ScriptLogLength", set_scriptlog_length, NULL, RSRC_CONF,
+                  "the maximum length (in bytes) of the script debug log"),
+    AP_INIT_TAKE1("ScriptLogBuffer", set_scriptlog_buffer, NULL, RSRC_CONF,
+                  "the maximum size (in bytes) to record of a POST request"),
+    AP_INIT_TAKE1("ScriptSock", set_script_socket, NULL, RSRC_CONF,
+                  "the name of the socket to use for communication with "
+                  "the cgi daemon."),
+    {NULL}
+};
+
+static int log_scripterror(request_rec *r, cgid_server_conf * conf, int ret,
+                           apr_status_t rv, char *error)
+{

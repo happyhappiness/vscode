@@ -1,30 +1,26 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
-    }
-
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+        result = uldap_cache_compare(r, ldc, url, group, attrib, value);
+        if (result == LDAP_COMPARE_TRUE) {
+            /*
+             * 4.A. We found the user in the subgroup. Return
+             * LDAP_COMPARE_TRUE.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Found user %s in a subgroup (%s) at level %d of %d.",
+                          r->user, group, cur_subgroup_depth+1,
+                          max_subgroup_depth);
+        }
+        else {
+            /*
+             * 4.B. We didn't find the user in this subgroup, so recurse into
+             * it and keep looking.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "User %s not found in subgroup (%s) at level %d of "
+                          "%d.", r->user, group, cur_subgroup_depth+1,
+                          max_subgroup_depth);
+            result = uldap_cache_check_subgroups(r, ldc, url, group, attrib,
+                                                 value, subgroupAttrs,
+                                                 subgroupclasses,
+                                                 cur_subgroup_depth+1,
+                                                 max_subgroup_depth);
+        }

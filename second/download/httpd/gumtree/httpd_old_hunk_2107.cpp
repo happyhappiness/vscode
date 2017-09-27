@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
+    timetaken = ((float)apr_time_sec(timetakenusec)) +
+        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    printf("\n\n");
+    printf("Server Software:        %s\n", servername);
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %hd\n", port);
+#ifdef USE_SSL
+    if (is_ssl && ssl_info) {
+        printf("SSL/TLS Protocol:       %s\n", ssl_info);
+    }
+#endif
+    printf("\n");

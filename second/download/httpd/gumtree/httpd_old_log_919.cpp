@@ -1,1 +1,1 @@
-apr_file_printf(writetty, "\n");
+fprintf(stderr, "Shifting token %d (%s), ", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);

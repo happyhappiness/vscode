@@ -1,26 +1,13 @@
-    apr_file_close(f);
-    return ret;
-}
+                           | APR_READ | APR_BINARY | APR_XTHREAD | APR_FILE_NOCLEANUP);
+            rv = apr_file_open(&tmpfile, name, mobj->flags,
+                               APR_OS_DEFAULT, r->pool);
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+            apr_file_unset_inherit(tmpfile);
+            apr_os_file_get(&(mobj->fd), tmpfile);
 
-/* Soak up stderr from a script and redirect it to the error log. 
- */
-static void log_script_err(request_rec *r, apr_file_t *script_err)
-{
-    char argsbuffer[HUGE_STRING_LEN];
-    char *newline;
-
-    while (apr_file_gets(argsbuffer, HUGE_STRING_LEN,
-                         script_err) == APR_SUCCESS) {
-        newline = strchr(argsbuffer, '\n');
-        if (newline) {
-            *newline = '\0';
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                      "%s", argsbuffer);            
-    }
-}
-
-static int log_script(request_rec *r, cgi_server_conf * conf, int ret,
-                      char *dbuf, const char *sbuf, apr_bucket_brigade *bb, 
-                      apr_file_t *script_err)
-{
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached file: %s with key: %s", name, obj->key);
+            obj->complete = 1;

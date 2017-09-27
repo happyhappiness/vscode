@@ -1,13 +1,15 @@
-
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-            exit(1);
-        }
-        apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
-                    argv[4], argv[3]);
-        add_password(argv[4], argv[3], f);
-        apr_file_close(f);
-        exit(0);
     }
-    else if (argc != 4)
+
+    if (d->style_sheet != NULL) {
+        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
+                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
+    }
+    if (d->head_insert != NULL) {
+        ap_rputs(d->head_insert, r);
+    }
+    ap_rvputs(r, " </head>\n <body>\n", NULL);
+}
+
+static void push_item(apr_array_header_t *arr, char *type, const char *to,
+                      const char *path, const char *data)
+{

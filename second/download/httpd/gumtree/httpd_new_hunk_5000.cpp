@@ -1,13 +1,14 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
+            worker->cp->conn = conn;
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00931)
+                 "initialized single connection worker in child %" APR_PID_T_FMT " for (%s)",
+                 getpid(), worker->s->hostname);
+        }
+        apr_global_mutex_unlock(proxy_mutex);
+
     }
+    if (rv == APR_SUCCESS) {
+        worker->s->status |= (PROXY_WORKER_INITIALIZED);
+        worker->local_status |= (PROXY_WORKER_INITIALIZED);
+    }
+    return rv;

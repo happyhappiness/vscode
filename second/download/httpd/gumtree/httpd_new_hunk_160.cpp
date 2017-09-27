@@ -1,28 +1,61 @@
+                      "[%d] ldap cache: Setting operation cache size to %ld entries.", 
+                      getpid(), st->compare_cache_size);
+
+    return NULL;
+}
+
+static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
 {
-    if (sig == SIGHUP) {
-        ++daemon_should_exit;
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
     }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file - %s", 
+                       file);
+
+    st->cert_auth_file = ap_server_root_relative(cmd->pool, file);
+
+    return(NULL);
 }
 
-static void cgid_child_errfn(apr_pool_t *pool, apr_status_t err,
-                             const char *description)
+
+const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
 {
-    request_rec *r;
-    void *vr;
+    util_ldap_state_t *st = 
+    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+                                              &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
-    r = vr;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file type - %s", 
+                       Type);
 
-    /* sure we got r, but don't call ap_log_rerror() because we don't
-     * have r->headers_in and possibly other storage referenced by
-     * ap_log_rerror()
-     */
-    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+    if (0 == strcmp("DER_FILE", Type))
+        st->cert_file_type = LDAP_CA_TYPE_DER;
+
+    else if (0 == strcmp("BASE64_FILE", Type))
+        st->cert_file_type = LDAP_CA_TYPE_BASE64;
+
+    else if (0 == strcmp("CERT7_DB_PATH", Type))
+        st->cert_file_type = LDAP_CA_TYPE_CERT7_DB;
+
+    else
+        st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
+
+    return(NULL);
 }
 
-static int cgid_server(void *data) 
-{ 
-    struct sockaddr_un unix_addr;
-    int sd, sd2, rc;
-    mode_t omask;
-    apr_socklen_t len;
+
+void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
+

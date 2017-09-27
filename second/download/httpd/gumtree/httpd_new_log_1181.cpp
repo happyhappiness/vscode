@@ -1,0 +1,1 @@
+(namecount <= 0;

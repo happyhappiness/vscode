@@ -1,22 +1,12 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
-    }
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
+    ap_scoreboard_image->parent[process_slot].not_accepting = 1;
 }
 
-
-static int check_symlinks(char *d, int opts)
+static void enable_listensocks(int process_slot)
 {
-#if defined(__EMX__) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+    int i;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
+                 "Accepting new connections again: "
+                 "%u active conns (%u lingering/%u clogged/%u suspended), "
+                 "%u idle workers",
+                 apr_atomic_read32(&connection_count),
+                 apr_atomic_read32(&lingering_count),

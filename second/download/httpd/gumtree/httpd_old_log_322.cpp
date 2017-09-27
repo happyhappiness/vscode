@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABRT)");
+printf("\tRESTART    - Reread the configurtion file and restart Apache\n");

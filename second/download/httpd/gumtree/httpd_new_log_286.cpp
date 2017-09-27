@@ -1,1 +1,1 @@
-ap_rputs(">", r);
+printf("enabled)\n");

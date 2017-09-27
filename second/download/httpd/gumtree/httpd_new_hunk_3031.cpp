@@ -1,13 +1,14 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    /* 550 Requested action not taken. */
+    if (rc == -1 || rc == 421) {
+        return ftp_proxyerror(r, backend, HTTP_BAD_GATEWAY,
+                              "Error reading from remote server");
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+    if (rc == 550) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "RETR failed, trying LIST instead");
+
+        /* Directory Listings should always be fetched in ASCII mode */
+        dirlisting = 1;
+        ftp_set_TYPE('A', r, origin, bb, NULL);
+
+        rc = proxy_ftp_command(apr_pstrcat(p, "CWD ",

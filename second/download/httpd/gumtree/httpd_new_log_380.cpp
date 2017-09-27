@@ -1,2 +1,1 @@
-fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
-                argv[0], MAX_CONCURRENCY);
+apr_file_printf(errfile, " -D  Delete the specified user.\n");

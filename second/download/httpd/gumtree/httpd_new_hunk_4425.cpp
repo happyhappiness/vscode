@@ -1,18 +1,23 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+/*RR*/{  0, 0, 0, 1, 0, 0, 0 },
+/*CI*/{  1, 1, 0, 0, 1, 0, 0 },
+/*CO*/{  1, 1, 0, 0, 0, 1, 0 },
+/*CL*/{  1, 1, 0, 0, 1, 1, 1 },
+};
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+static void H2_STREAM_OUT_LOG(int lvl, h2_stream *s, const char *tag)
+{
+    if (APLOG_C_IS_LEVEL(s->session->c, lvl)) {
+        conn_rec *c = s->session->c;
+        char buffer[4 * 1024];
+        const char *line = "(null)";
+        apr_size_t len, bmax = sizeof(buffer)/sizeof(buffer[0]);
+        
+        len = h2_util_bb_print(buffer, bmax, tag, "", s->out_buffer);
+        ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
+                      c->log_id, len? buffer : line);
+    }
+}
+
+static int set_state(h2_stream *stream, h2_stream_state_t state)
+{
+    int allowed = state_transition[state][stream->state];

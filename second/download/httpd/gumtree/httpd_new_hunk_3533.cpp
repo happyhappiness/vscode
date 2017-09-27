@@ -1,13 +1,13 @@
-}
+            if (status != APR_SUCCESS) {
+                goto read_error;
+            }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+            total_read += len;
+            if (limit_xml_body && total_read > limit_xml_body) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00539)
+                              "XML request body is larger than the configured "
+                              "limit of %lu", (unsigned long)limit_xml_body);
+                result = HTTP_REQUEST_ENTITY_TOO_LARGE;
+                goto read_error;
+            }
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

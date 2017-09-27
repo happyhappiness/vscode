@@ -1,41 +1,66 @@
-	    return cond_status;
-	}
+        return DECLINED;
+    }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    rv = get_socket_from_path(r->pool, url, &sock);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "proxy: FD: Failed to connect to '%s'",
+                      url);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+    {
+        int status;
+        const char *flush_method = worker->flusher ? worker->flusher : "flush";
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+        proxy_fdpass_flush *flush = ap_lookup_provider(PROXY_FDPASS_FLUSHER,
+                                                       flush_method, "0");
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+        if (!flush) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: FD: Unable to find configured flush "
+                          "provider '%s'", flush_method);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-	if (!strcasecmp(w, "Content-type")) {
+        status = flush->flusher(r);
+        if (status) {
+            return status;
+        }
+    }
 
-	    /* Nuke trailing whitespace */
+    /* XXXXX: THIS IS AN EVIL HACK */
+    /* There should really be a (documented) public API for this ! */
+    clientsock = ap_get_module_config(r->connection->conn_config, &core_module);
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
+    rv = send_socket(r->pool, sock, clientsock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "proxy: FD: send_socket failed:");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    {
+        apr_socket_t *dummy;
+        /* Create a dummy unconnected socket, and set it as the one we were 
+         * connected to, so that when the core closes it, it doesn't close 
+         * the tcp connection to the client.
+         */
+        rv = apr_socket_create(&dummy, APR_INET, SOCK_STREAM, APR_PROTO_TCP,
+                               r->connection->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: FD: failed to create dummy socket");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_set_module_config(r->connection->conn_config, &core_module, dummy);
+    }
+    
+    
+    return OK;
+}
+
+static int standard_flush(request_rec *r)
+{
+    int status;

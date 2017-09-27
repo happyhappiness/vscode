@@ -1,31 +1,18 @@
+    }
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+    lockfile = apr_global_mutex_lockfile(mc->stapling_mutex);
+    if ((rv = apr_global_mutex_child_init(&mc->stapling_mutex,
+                                          lockfile, p)) != APR_SUCCESS) {
+        if (lockfile) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01946)
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_STAPLING_MUTEX_TYPE, lockfile);
         }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01947)
+                         "Cannot reinit %s mutex", SSL_STAPLING_MUTEX_TYPE);
+        }
+        return FALSE;
     }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    return TRUE;
+}

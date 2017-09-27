@@ -1,20 +1,19 @@
+             continue;
+         }
+         if (!(map->argv[0]) || !*(map->argv[0]) || map->fpin || map->fpout) {
+             continue;
+         }
  
- /*
-  * Build the ajp header message and send it
-  */
- apr_status_t ajp_send_header(apr_socket_t *sock,
-                              request_rec *r,
-+                             apr_size_t buffsize,
-                              apr_uri_t *uri)
- {
-     ajp_msg_t *msg;
-     apr_status_t rc;
- 
--    rc = ajp_msg_create(r->pool, &msg);
-+    rc = ajp_msg_create(r->pool, buffsize, &msg);
-     if (rc != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                "ajp_send_header: ajp_msg_create failed");
-         return rc;
-     }
- 
+-        if (!lock_warning_issued && (!lockname || !*lockname)) {
+-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+-                         "mod_rewrite: Running external rewrite maps "
+-                         "without defining a RewriteLock is DANGEROUS!");
+-            ++lock_warning_issued;
+-        }
+-
+         rc = rewritemap_program_child(p, map->argv[0], map->argv,
+                                       &fpout, &fpin);
+         if (rc != APR_SUCCESS || fpin == NULL || fpout == NULL) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                          "mod_rewrite: could not start RewriteMap "
+                          "program %s", map->checkfile);

@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
-
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    /*
+     * CACHE_OUT must go into the filter chain after a possible DEFLATE
+     * filter to ensure that already compressed cache objects do not
+     * get compressed again. Incrementing filter type by 1 ensures
+     * his happens.
+     */
+    cache_out_filter_handle =
+        ap_register_output_filter("CACHE_OUT",
+                                  cache_out_filter,
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET+1);

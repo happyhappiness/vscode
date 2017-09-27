@@ -1,13 +1,14 @@
-         */
-        hold_off_on_exponential_spawning = 10;
+        return DECLINED;
+
+    if (strcmp(r->handler, "ldap-status")) {
+        return DECLINED;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "%s configured -- resuming normal operations",
-                ap_get_server_description());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                "AcceptMutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+
+    if (r->header_only)
+        return OK;
+
+    ap_rputs(DOCTYPE_HTML_3_2
+             "<html><head><title>LDAP Cache Information</title></head>\n", r);
+    ap_rputs("<body bgcolor='#ffffff'><h1 align=center>LDAP Cache Information"

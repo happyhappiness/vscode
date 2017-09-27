@@ -1,20 +1,18 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+/* Child init hook.                                                         */
+/* Create watchdog threads and initializes Mutexes in child                 */
+/*                                                                          */
+/*--------------------------------------------------------------------------*/
+static void wd_child_init_hook(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t rv;
+    const apr_array_header_t *wl;
+
+    if (!wd_server_conf->child_workers) {
+        /* We don't have anything configured, bail out.
+         */
+        return;
     }
-
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    if ((wl = ap_list_provider_names(p, AP_WATCHDOG_PGROUP,
+                                        AP_WATCHDOG_CVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;

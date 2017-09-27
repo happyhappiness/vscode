@@ -1,37 +1,15 @@
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /*
-     * Get the SSL connection structure and perform the
-     * delayed interlinking from SSL back to request_rec
-     */
-    ssl = sslconn->ssl;
-    if (!ssl) {
-        return DECLINED;
+    expires = base + additional;
+    if (expires < r->request_time) {
+        expires = r->request_time;
     }
-    SSL_set_app_data2(ssl, r);
-
-    /*
-     * Log information about incoming HTTPS requests
-     */
-    if (r->server->loglevel >= APLOG_INFO && ap_is_initial_req(r)) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "%s HTTPS request received for child %ld (server %s)",
-                     (r->connection->keepalives <= 0 ?
-                     "Initial (No.1)" :
-                     apr_psprintf(r->pool, "Subsequent (No.%d)",
-                                  r->connection->keepalives+1)),
-                     r->connection->id,
-                     ssl_util_vhostid(r->pool, r->server));
-    }
-
-    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
-     * so they won't change across keepalive requests
-     */
-    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
-        ssl_configure_env(r, sslconn);
-    }
-
-    return DECLINED;
-}
-
-/*
+    apr_table_mergen(t, "Cache-Control",
+                     apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
+                                  apr_time_sec(expires - r->request_time)));
+    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+    apr_rfc822_date(timestr, expires);
+    apr_table_setn(t, "Expires", timestr);

@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Can't create readable event for SYNC");

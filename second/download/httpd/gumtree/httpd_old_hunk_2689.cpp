@@ -1,20 +1,65 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+            memcpy((char *) finfo, (const char *) &rr->finfo,
+                   sizeof(rr->finfo));
+            ap_destroy_sub_req(rr);
+            return 0;
         }
-        return 0;
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unable to get "
+                          "information about \"%s\" in parsed file %s",
+                          tag_val, r->filename);
+            ap_destroy_sub_req(rr);
+            return -1;
+        }
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag %s in %s", tag, directive, r->filename);
+        return -1;
+    }
+}
+
+/*
+ * <!--#include virtual|file="..." [virtual|file="..."] ... -->
+ */
+static apr_status_t handle_include(include_ctx_t *ctx, ap_filter_t *f,
+                                   apr_bucket_brigade *bb)
+{
+    request_rec *r = f->r;
+
+    if (!ctx->argc) {
+        ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for include element in %s",
+                      r->filename);
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+        return APR_SUCCESS;
+    }
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    if (!ctx->argc) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    while (1) {
+        char *tag     = NULL;
+        char *tag_val = NULL;
+        request_rec *rr = NULL;
+        char *error_fmt = NULL;
+        char *parsed_string;
+
+        ap_ssi_get_tag_and_value(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
+        if (!tag || !tag_val) {
+            break;
+        }
+
+        if (strcmp(tag, "virtual") && strcmp(tag, "file")) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" to tag include in %s", tag, r->filename);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+            break;
+        }
+
+        parsed_string = ap_ssi_parse_string(ctx, tag_val, NULL, 0,

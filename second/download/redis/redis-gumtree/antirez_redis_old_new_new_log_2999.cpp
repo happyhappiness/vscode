@@ -1,1 +1,0 @@
-addReplyError(c,"Syntax error. Try OBJECT (refcount|encoding|idletime)");

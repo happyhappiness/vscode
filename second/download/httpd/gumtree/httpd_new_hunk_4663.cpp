@@ -1,30 +1,24 @@
 
-	errmsg = ap_srm_command_loop(&parms, dc);
+static void just_die(int sig)
+{
+    clean_child_exit(0);
+}
 
-	ap_cfg_closefile(f);
+/* volatile because it's updated from a signal handler */
+static int volatile die_now = 0;
 
-	if (errmsg) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r, "%s: %s",
-                        filename, errmsg);
-	    ap_table_setn(r->notes, "error-notes", errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
+static void stop_listening(int sig)
+{
+    retained->mpm->mpm_state = AP_MPMQ_STOPPING;
+    ap_close_listeners_ex(my_bucket->listeners);
 
-	*result = dc;
-    }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    ap_table_setn(r->notes, "error-notes",
-			  "Server unable to read htaccess file, denying "
-			  "access to be safe");
-	    return HTTP_FORBIDDEN;
-	}
-    }
+    /* For a graceful stop, we want the child to exit when done */
+    die_now = 1;
+}
 
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+/*****************************************************************
+ * Child process main loop.
+ * The following vars are static to avoid getting clobbered by longjmp();
+ * they are really private to child_main.
+ */
+

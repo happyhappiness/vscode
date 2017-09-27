@@ -1,5 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "%s: Alert: %s:%s:%s\n",
-                         SSL_LIBRARY_NAME, str,
-                         SSL_alert_type_string_long(rc),
-                         SSL_alert_desc_string_long(rc));
+ap_log_error(APLOG_MARK, APLOG_ALERT,
+                         0, ap_server_conf,
+                         "Child %" APR_PID_T_FMT
+                         " returned a Fatal error..." APR_EOL_STR
+                         "Apache is exiting!",
+                         pid->pid);

@@ -1,15 +1,14 @@
-    ap_hard_timeout("send directory", r);
+{
+    ap_regex_t *compiled;
+    backref_t *re = ctx->intern->re;
 
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/') {
-	*title_endp-- = '\0';
+    compiled = ap_pregcomp(ctx->dpool, rexp, AP_REG_EXTENDED);
+    if (!compiled) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02667)
+                      "unable to compile pattern \"%s\"", rexp);
+        return -1;
     }
 
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    if (!re) {
+        re = ctx->intern->re = apr_palloc(ctx->pool, sizeof(*re));
+    }

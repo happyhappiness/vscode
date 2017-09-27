@@ -1,17 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
+#if APR_HAS_OTHER_CHILD
+            }
+            else if (apr_proc_other_child_alert(&pid, APR_OC_REASON_DEATH, status) == APR_SUCCESS) {
+                /* handled */
 #endif
-
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+            }
+            else if (retained->is_graceful) {
+                /* Great, we've probably just lost a slot in the
+                 * scoreboard.  Somehow we don't know about this
+                 * child.
+                 */
+                ap_log_error(APLOG_MARK, APLOG_WARNING,
+                            0, ap_server_conf, APLOGNO(00167)

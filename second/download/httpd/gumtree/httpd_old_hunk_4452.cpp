@@ -1,12 +1,12 @@
+            /* mod_proxy_http needs to be told.  Different module. */
+            apr_table_setn(r->notes, "proxy-nocanon", "1");
+        }
+        if (ent->flags & PROXYPASS_NOQUERY) {
+            apr_table_setn(r->notes, "proxy-noquery", "1");
+        }
+        return OK;
+    }
+
+    return DONE;
 }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

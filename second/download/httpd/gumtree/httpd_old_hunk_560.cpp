@@ -1,47 +1,32 @@
-            break;
+                                 "Error reading from remote server");
         }
-    }
-}
+        if (rc != 229 && rc != 500 && rc != 501 && rc != 502) {
+            return ap_proxyerror(r, HTTP_BAD_GATEWAY, ftpmessage);
+        }
+        else if (rc == 229) {
+            char *pstr;
+            char *tok_cntx;
 
-/*
- *  URL Translation Handler
- */
-int ssl_hook_Translate(request_rec *r)
-{
-    SSLConnRec *sslconn = myConnConfig(r->connection);
+            pstr = ftpmessage;
+            pstr = apr_strtok(pstr, " ", &tok_cntx);    /* separate result code */
+            if (pstr != NULL) {
+                if (*(pstr + strlen(pstr) + 1) == '=') {
+                    pstr += strlen(pstr) + 2;
+                }
+                else {
+                    pstr = apr_strtok(NULL, "(", &tok_cntx);    /* separate address &
+                                                                 * port params */
+                    if (pstr != NULL)
+                        pstr = apr_strtok(NULL, ")", &tok_cntx);
+                }
+            }
 
-    if (!(sslconn && sslconn->ssl)) {
-        return DECLINED;
-    }
+            if (pstr) {
+                apr_sockaddr_t *epsv_addr;
+                data_port = atoi(pstr + 3);
 
-    /*
-     * Log information about incoming HTTPS requests
-     */
-    if (r->server->loglevel >= APLOG_INFO && ap_is_initial_req(r)) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "%s HTTPS request received for child %ld (server %s)",
-                     (r->connection->keepalives <= 0 ?
-                     "Initial (No.1)" :
-                     apr_psprintf(r->pool, "Subsequent (No.%d)",
-                                  r->connection->keepalives+1)),
-                     r->connection->id,
-                     ssl_util_vhostid(r->pool, r->server));
-    }
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                       "proxy: FTP: EPSV contacting remote host on port %d",
+                             data_port);
 
-    /* SetEnvIf ssl-*-shutdown flags can only be per-server,
-     * so they won't change across keepalive requests
-     */
-    if (sslconn->shutdown_type == SSL_SHUTDOWN_TYPE_UNSET) {
-        ssl_configure_env(r, sslconn);
-    }
-
-    return DECLINED;
-}
-
-/*
- *  Access Handler
- */
-int ssl_hook_Access(request_rec *r)
-{
-    SSLDirConfigRec *dc = myDirConfig(r);
-    SSLSrvConfigRec *sc = mySrvConfig(r->server);
+                if ((rv = apr_socket_create(&data_sock, connect_addr->family, SOCK_STREAM, r->pool)) != APR_SUCCESS) {

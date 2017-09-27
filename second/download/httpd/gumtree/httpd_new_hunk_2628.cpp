@@ -1,21 +1,30 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+        ctx.label_op = DAV_LABEL_SET;
+    }
+    else if ((child = dav_find_child(doc->root, "remove")) != NULL) {
+        ctx.label_op = DAV_LABEL_REMOVE;
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00611)
+                      "The \"label\" element does not contain "
+                      "an \"add\", \"set\", or \"remove\" element.");
+        return HTTP_BAD_REQUEST;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+    /* get the label string */
+    if ((child = dav_find_child(child, "label-name")) == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00612)
+                      "The label command element does not contain "
+                      "a \"label-name\" element.");
+        return HTTP_BAD_REQUEST;
+    }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    apr_xml_to_text(r->pool, child, APR_XML_X2T_INNER, NULL, NULL,
+                    &ctx.label, &tsize);
+    if (tsize == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00613)
+                      "A \"label-name\" element does not contain "
+                      "a label name.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* do the label operation walk */

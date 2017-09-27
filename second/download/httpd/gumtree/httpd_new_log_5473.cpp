@@ -1,0 +1,1 @@
+worker_note_child_lost_slot(slot, pid);

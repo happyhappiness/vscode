@@ -1,2 +1,4 @@
-printf("%sdebug: state %d, reading %d (%s)\n",
-                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "streamline session data size too large: %d > "
+                     "%" APR_SIZE_T_FMT,
+                     nData, sizeof(ucaData));

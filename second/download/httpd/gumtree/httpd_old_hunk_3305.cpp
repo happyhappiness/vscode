@@ -1,14 +1,29 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);
+    }
+
+    if ( ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Configuration Failed");
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_destroy(ptemp);
+
+    for (;;) {
+        apr_hook_deregister_all();
+        apr_pool_clear(pconf);
+        ap_clear_auth_internal();
+
+        for (mod = ap_prelinked_modules; *mod != NULL; mod++) {
+            ap_register_hooks(*mod, pconf);
+        }
+
+        /* This is a hack until we finish the code so that it only reads
+         * the config file once and just operates on the tree already in

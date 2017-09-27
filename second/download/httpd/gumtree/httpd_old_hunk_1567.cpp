@@ -1,13 +1,13 @@
-    int max_daemons, forked, threaded;
+    ap_hook_post_config(include_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
+    ap_hook_fixups(include_fixup, NULL, NULL, APR_HOOK_LAST);
+    ap_register_output_filter("INCLUDES", includes_filter, includes_setup,
+                              AP_FTYPE_RESOURCE);
+}
 
-    ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
-    ap_rprintf(r,
-               "<dl><dt><strong>Server Version:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_version());
-    ap_rprintf(r,
-               "<dt><strong>Server Built:</strong> "
-               "<font size=\"+1\"><tt>%s</tt></font></dt>\n",
-               ap_get_server_built());
-    ap_rprintf(r,
-               "<dt><strong>Module Magic Number:</strong> "
+module AP_MODULE_DECLARE_DATA include_module =
+{
+    STANDARD20_MODULE_STUFF,
+    create_includes_dir_config,   /* dir config creater */
+    NULL,                         /* dir merger --- default is to override */
+    create_includes_server_config,/* server config */
+    NULL,                         /* merge server config */

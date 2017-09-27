@@ -1,13 +1,17 @@
+                                   really href's */
+    }
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    else if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    else if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+    }
+    return;
+}
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+static void menu_directive(request_rec *r, char *menu, char *href, char *text)

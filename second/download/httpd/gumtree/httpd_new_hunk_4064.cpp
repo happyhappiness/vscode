@@ -1,49 +1,35 @@
-	    return cond_status;
-	}
+                apr_brigade_flatten(bb, buffer, &len);
+                buffer[len] = 0;
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_task_input(%s): getline: %s",
+                              input->task->id, buffer);
+            }
+        }
+        else {
+            /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
+             * to support it. Seems to work. */
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
+                          APLOGNO(02942) 
+                          "h2_task_input, unsupported READ mode %d", mode);
+            status = APR_ENOTIMPL;
+        }
+        
+        if (APLOGctrace1(f->c)) {
+            apr_brigade_length(bb, 0, &bblen);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                          "h2_task_input(%s): return %ld data bytes",
+                          input->task->id, (long)bblen);
+        }
+        return status;
+    }
+    
+    if (is_aborted(f)) {
+        return APR_ECONNABORTED;
+    }
+    
+    status = (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                  "h2_task_input(%s): no data", input->task->id);
+    return status;
+}
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {

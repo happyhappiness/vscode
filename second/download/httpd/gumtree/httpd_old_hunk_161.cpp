@@ -1,18 +1,42 @@
-               */
-              ((rc = apr_procattr_child_err_set(procattr, r->server->error_log, NULL)) != APR_SUCCESS) ||
-              ((rc = apr_procattr_child_in_set(procattr, inout, NULL)) != APR_SUCCESS))) ||
-            ((rc = apr_procattr_child_out_set(procattr, inout, NULL)) != APR_SUCCESS) ||
-            ((rc = apr_procattr_dir_set(procattr,
-                                  ap_make_dirstr_parent(r->pool, r->filename))) != APR_SUCCESS) ||
-            ((rc = apr_procattr_cmdtype_set(procattr, cmd_type)) != APR_SUCCESS)) {
-            /* Something bad happened, tell the world. */
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                      "couldn't set child process attributes: %s", r->filename);
-        }
-        else {
-            argv = (const char * const *)create_argv(r->pool, NULL, NULL, NULL, argv0, r->args);
 
-           /* We want to close sd2 for the new CGI process too.
-            * If it is left open it'll make ap_pass_brigade() block
-            * waiting for EOF if CGI forked something running long.
-            * close(sd2) here should be okay, as CGI channel
+    st->cache_bytes = 100000;
+    st->search_cache_ttl = 600000000;
+    st->search_cache_size = 1024;
+    st->compare_cache_ttl = 600000000;
+    st->compare_cache_size = 1024;
+
+    st->connections = NULL;
+#ifdef APU_HAS_LDAP_NETSCAPE_SSL
+    st->have_certdb = 0;
+#endif
+
+    return st;
+}
+
+static void util_ldap_init_module(apr_pool_t *pool, server_rec *s)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)ap_get_module_config(s->module_config, 
+						  &ldap_module);
+
+    apr_status_t result = util_ldap_cache_init(pool, st->cache_bytes);
+    char buf[MAX_STRING_LEN];
+
+    apr_strerror(result, buf, sizeof(buf));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
+                      "[%d] ldap cache init: %s", 
+                      getpid(), buf);
+}
+
+
+command_rec util_ldap_cmds[] = {
+    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
+                  "Sets the size of the shared memory cache in bytes. "
+                  "Zero means disable the shared memory cache. Defaults to 100KB."),
+
+    AP_INIT_TAKE1("LDAPCacheEntries", util_ldap_set_cache_entries, NULL, RSRC_CONF,
+                  "Sets the maximum number of entries that are possible in the LDAP "
+                  "search cache. "
+                  "Zero means no limit; -1 disables the cache. Defaults to 1024 entries."),
+
+    AP_INIT_TAKE1("LDAPCacheTTL", util_ldap_set_cache_ttl, NULL, RSRC_CONF,

@@ -1,12 +1,15 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
-    }
-}
-
-#else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+            /* Shared memory already created for this proxy_server_conf.
+             */
+            s = s->next;
+            continue;
+        }
+        if (conf->bal_persist) {
+            type = AP_SLOTMEM_TYPE_PREGRAB | AP_SLOTMEM_TYPE_PERSIST;
+        } else {
+            type = AP_SLOTMEM_TYPE_PREGRAB;
+        }
+        if (conf->balancers->nelts) {
+            conf->max_balancers = conf->balancers->nelts + conf->bgrowth;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01178) "Doing balancers create: %d, %d (%d)",
+                         (int)ALIGNED_PROXY_BALANCER_SHARED_SIZE,
+                         (int)conf->balancers->nelts, conf->max_balancers);

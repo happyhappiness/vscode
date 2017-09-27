@@ -1,25 +1,37 @@
-                      "sigaction(SIGHUP)");
-     if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-         ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                      "sigaction(" AP_SIG_GRACEFUL_STRING ")");
- #else
-     if (!one_process) {
--        apr_signal(SIGSEGV, sig_coredump);
--#ifdef SIGBUS
--        apr_signal(SIGBUS, sig_coredump);
--#endif /* SIGBUS */
--#ifdef SIGABORT
--        apr_signal(SIGABORT, sig_coredump);
--#endif /* SIGABORT */
--#ifdef SIGABRT
--        apr_signal(SIGABRT, sig_coredump);
--#endif /* SIGABRT */
--#ifdef SIGILL
--        apr_signal(SIGILL, sig_coredump);
--#endif /* SIGILL */
- #ifdef SIGXCPU
-         apr_signal(SIGXCPU, SIG_DFL);
- #endif /* SIGXCPU */
- #ifdef SIGXFSZ
-         apr_signal(SIGXFSZ, SIG_DFL);
- #endif /* SIGXFSZ */
+ 	getword(x, l, ':');
+ 	if (strcmp(user, w) || strcmp(realm, x)) {
+ 	    putline(tfp, line);
+ 	    continue;
+ 	}
+ 	else {
+-	    printf("Changing password for user %s in realm %s\n", user, realm);
++            apr_file_printf(errfile, "Changing password for user %s in realm %s\n", 
++                    user, realm);
+ 	    add_password(user, realm, tfp);
+ 	    found = 1;
+ 	}
+     }
+     if (!found) {
+-	printf("Adding user %s in realm %s\n", user, realm);
++        apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
+ 	add_password(user, realm, tfp);
+     }
+     apr_file_close(f);
+-#if defined(OS2) || defined(WIN32)
+-    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
+-#else
+-    sprintf(command, "cp %s %s", tn, argv[1]);
+-#endif
+-    system(command);
++
++    /* The temporary file has all the data, just copy it to the new location.
++     */
++    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
++                APR_SUCCESS) {
++        apr_file_printf(errfile, "%s: unable to update file %s\n", 
++                        argv[0], argv[1]);
++    }
+     apr_file_close(tfp);
++
+     return 0;
+ }

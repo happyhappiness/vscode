@@ -1,1 +1,0 @@
-gp[i].member = sdscatprintf(sdsempty(), "%llu", zr->val.v);

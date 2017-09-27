@@ -1,20 +1,17 @@
-        }
-    }
+                "<th>Worker URL</th>"
+                "<th>Route</th><th>RouteRedir</th>"
+                "<th>Factor</th><th>Set</th><th>Status</th>"
+                "<th>Elected</th><th>To</th><th>From</th>"
+                "</tr>\n", r);
 
-    if (SSL_X509_getCN(ptemp, cert, &cn)) {
-        int fnm_flags = APR_FNM_PERIOD|APR_FNM_CASE_BLIND;
-
-        if (apr_fnmatch_test(cn)) {
-            if (apr_fnmatch(cn, s->server_hostname,
-                            fnm_flags) == APR_FNM_NOMATCH) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                             "%s server certificate wildcard CommonName "
-                             "(CN) `%s' does NOT match server name!?",
-                             ssl_asn1_keystr(type), cn);
-            }
-        }
-        else if (strNE(s->server_hostname, cn)) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "%s server certificate CommonName (CN) `%s' "
-                         "does NOT match server name!?",
-                         ssl_asn1_keystr(type), cn);
+            workers = (proxy_worker **)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                char fbuf[50];
+                worker = *workers;
+                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);
+                ap_rvputs(r, worker->name, "</a></td>", NULL);
+                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),

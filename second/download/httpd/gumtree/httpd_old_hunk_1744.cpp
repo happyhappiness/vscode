@@ -1,12 +1,24 @@
+            else /* if (ssl_err == SSL_ERROR_SSL) */ {
+                /*
+                 * Log SSL errors and any unexpected conditions.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, mySrvFromConn(c));
 
-        apr_rfc822_date(datestr, mod_time);
-        apr_table_setn(r->headers_out, "Last-Modified", datestr);
+            }
+            if (inctx->rc == APR_SUCCESS) {
+                inctx->rc = APR_EGENERAL;
+            }
+            break;
+        }
     }
+    return inctx->rc;
 }
 
-AP_IMPLEMENT_HOOK_RUN_ALL(int,post_read_request,
-                          (request_rec *r), (r), OK, DECLINED)
-AP_IMPLEMENT_HOOK_RUN_ALL(int,log_transaction,
-                          (request_rec *r), (r), OK, DECLINED)
-AP_IMPLEMENT_HOOK_RUN_FIRST(const char *,http_scheme,
-                            (const request_rec *r), (r), NULL)
+static apr_status_t ssl_io_input_getline(bio_filter_in_ctx_t *inctx,
+                                         char *buf,
+                                         apr_size_t *len)
+{
+    const char *pos = NULL;
+    apr_status_t status;

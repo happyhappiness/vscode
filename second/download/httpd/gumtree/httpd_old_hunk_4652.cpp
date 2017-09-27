@@ -1,13 +1,13 @@
-            if (!res) {
-                res = file_walk(rnew);
+                             "setting");
+                retained->maxclients_reported = 1;
             }
+            retained->idle_spawn_rate[child_bucket] = 1;
+        }
+        else if (free_length == 0) { /* scoreboard is full, can't fork */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO()
+                         "scoreboard is full, not at MaxRequestWorkers."
+                         "Increase ServerLimit.");
+            retained->idle_spawn_rate[child_bucket] = 1;
         }
         else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew->server,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+            if (free_length > retained->idle_spawn_rate[child_bucket]) {

@@ -1,28 +1,20 @@
-                 != APR_SUCCESS) {
-                 int level = APLOG_EMERG;
+ }
  
-                 if (listener_may_exit) {
-                     break;
-                 }
--                if (ap_scoreboard_image->parent[process_slot].generation != 
-+                if (ap_scoreboard_image->parent[process_slot].generation !=
-                     ap_scoreboard_image->global->running_generation) {
-                     level = APLOG_DEBUG; /* common to get these at restart time */
-                 }
-                 ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
-                              "apr_proc_mutex_unlock failed. Attempting to "
-                              "shutdown process gracefully.");
-                 signal_threads(ST_GRACEFUL);
-             }
-             if (csd != NULL) {
-                 rv = ap_queue_push(worker_queue, csd, ptrans);
-                 if (rv) {
-                     /* trash the connection; we couldn't queue the connected
--                     * socket to a worker 
-+                     * socket to a worker
-                      */
-                     apr_socket_close(csd);
-                     ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                                  "ap_queue_push failed");
-                 }
-                 else {
+ APR_DECLARE(apr_table_t *) apr_table_copy(apr_pool_t *p, const apr_table_t *t)
+ {
+     apr_table_t *new = apr_palloc(p, sizeof(apr_table_t));
+ 
+-#ifdef POOL_DEBUG
++#if APR_POOL_DEBUG
+     /* we don't copy keys and values, so it's necessary that t->a.pool
+      * have a life span at least as long as p
+      */
+     if (!apr_pool_is_ancestor(t->a.pool, p)) {
+-	fprintf(stderr, "copy_table: t's pool is not an ancestor of p\n");
++	fprintf(stderr, "apr_table_copy: t's pool is not an ancestor of p\n");
+ 	abort();
+     }
+ #endif
+     make_array_core(&new->a, p, t->a.nalloc, sizeof(apr_table_entry_t), 0);
+     memcpy(new->a.elts, t->a.elts, t->a.nelts * sizeof(apr_table_entry_t));
+     new->a.nelts = t->a.nelts;

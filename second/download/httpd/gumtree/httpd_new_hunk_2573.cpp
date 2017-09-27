@@ -1,38 +1,51 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-				ap_escape_html(scratch,
-					       ap_os_escape_path(scratch, t,
-								 0)),
-				"\">", NULL);
-	}
+    apr_status_t rv;
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs(anchor, r);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
-			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-			  "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			       d->icon_height, d->icon_width);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
+    rv = apr_socket_create(&ctx->sock, ctx->mcast_addr->family,
+                           SOCK_DGRAM, APR_PROTO_UDP, ctx->p);
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02068)
+                     "Failed to create listening socket.");
+        return rv;
+    }
+
+    rv = apr_socket_opt_set(ctx->sock, APR_SO_REUSEADDR, 1);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02069)
+                     "Failed to set APR_SO_REUSEADDR to 1 on socket.");
+        return rv;
+    }
+
+
+    rv = apr_socket_opt_set(ctx->sock, APR_SO_NONBLOCK, 1);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02070)
+                     "Failed to set APR_SO_NONBLOCK to 1 on socket.");
+        return rv;
+    }
+
+    rv = apr_socket_bind(ctx->sock, ctx->mcast_addr);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02071)
+                     "Failed to bind on socket.");
+        return rv;
+    }
+
+    rv = apr_mcast_join(ctx->sock, ctx->mcast_addr, NULL, NULL);
+
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02072)
+                     "Failed to join multicast group");
+        return rv;
+    }
+
+    rv = apr_mcast_loopback(ctx->sock, 1);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02073)
+                     "Failed to accept localhost mulitcast on socket.");
+        return rv;
+    }
+
+    return APR_SUCCESS;
+}
+

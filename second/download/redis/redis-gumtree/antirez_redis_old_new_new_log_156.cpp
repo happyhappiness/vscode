@@ -1,1 +1,0 @@
-setProtocolError("invalid mbulk count",c,pos);

@@ -1,14 +1,59 @@
- {
-     unsigned char tempasn[SSL_SESSION_MAX_DER];
-     SHMCBIndex *idx;
-     SHMCBHeader *header;
-     SSL_SESSION *pSession = NULL;
-     unsigned int curr_pos, loop, count;
--    unsigned char *ptr;
-+    MODSSL_D2I_SSL_SESSION_CONST unsigned char *ptr;
-     time_t now;
  
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "entering shmcb_lookup_session_id");
+     case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
+         if (cid->dconf.log_unsupported)
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction "
+                           "HSE_REQ_GET_CERT_INFO_EX "
+-                          "is not supported: %s", r->filename);        
++                          "is not supported: %s", r->filename);
+         apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+         return 0;
  
-     /* If there are entries to expire, ditch them first thing. */
+     case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
+     {
+         HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
+ 
+         /*  Ignore shi->fKeepConn - we don't want the advise
+          */
+-        apr_ssize_t ate = send_response_header(cid, shi->pszStatus, 
++        apr_ssize_t ate = send_response_header(cid, shi->pszStatus,
+                                                shi->pszHeader,
+-                                               shi->cchStatus, 
++                                               shi->cchStatus,
+                                                shi->cchHeader);
+         if (ate < 0) {
+             apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+             return 0;
+         }
+         else if ((apr_size_t)ate < shi->cchHeader) {
+             apr_bucket_brigade *bb;
+             apr_bucket *b;
+             bb = apr_brigade_create(cid->r->pool, c->bucket_alloc);
+-	    b = apr_bucket_transient_create(shi->pszHeader + ate, 
++            b = apr_bucket_transient_create(shi->pszHeader + ate,
+                                             shi->cchHeader - ate,
+                                             c->bucket_alloc);
+ 	    APR_BRIGADE_INSERT_TAIL(bb, b);
+             b = apr_bucket_flush_create(c->bucket_alloc);
+ 	    APR_BRIGADE_INSERT_TAIL(bb, b);
+-	    ap_pass_brigade(cid->r->output_filters, bb);
++            rv = ap_pass_brigade(cid->r->output_filters, bb);
+             cid->response_sent = 1;
+-        }
++            if (rv != APR_SUCCESS)
++                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
++                              "ISAPI: ServerSupport function "
++                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
++                              "ap_pass_brigade failed: %s", r->filename);
++            return (rv == APR_SUCCESS);
++        }
++        /* Deliberately hold off sending 'just the headers' to begin to
++         * accumulate the body and speed up the overall response, or at
++         * least wait for the end the session.
++         */
+         return 1;
+     }
+ 
+     case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+         if (cid->dconf.log_unsupported)
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,

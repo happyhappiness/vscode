@@ -1,1 +1,2 @@
-ap_rputs("</tt></dd>\n", r);
+ap_rputs("<dt><strong>Configuration Phase Participation:</strong>\n",
+                      r);

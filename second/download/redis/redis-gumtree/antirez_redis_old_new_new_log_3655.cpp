@@ -1,1 +1,0 @@
-addReplyMultiBulkLen(c,c->mstate.count);

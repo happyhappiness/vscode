@@ -1,16 +1,43 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+    ap_log_command_line(plog, s);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "Accept mutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());
+    restart_pending = shutdown_pending = 0;
+
+    mpm_state = AP_MPMQ_RUNNING;
+
+    while (!restart_pending && !shutdown_pending) {
+        int child_slot;
+        apr_exit_why_e exitwhy;
+        int status, processed_status;
+        /* this is a memory leak, but I'll fix it later. */
+        apr_proc_t pid;
+
+        ap_wait_or_timeout(&exitwhy, &status, &pid, pconf, ap_server_conf);
+
+        /* XXX: if it takes longer than 1 second for all our children
+         * to start up and get into IDLE state then we may spawn an
+         * extra child
+         */
+        if (pid.pid != -1) {
+            processed_status = ap_process_child_status(&pid, exitwhy, status);
+            if (processed_status == APEXIT_CHILDFATAL) {
+                mpm_state = AP_MPMQ_STOPPING;
+                return DONE;
+            }
+
+            /* non-fatal death... note that it's gone in the scoreboard. */
+            child_slot = ap_find_child_by_pid(&pid);
+            if (child_slot >= 0) {
+                (void) ap_update_child_status_from_indexes(child_slot, 0, SERVER_DEAD,
+                                                           (request_rec *) NULL);
+                if (processed_status == APEXIT_CHILDSICK) {
+                    /* child detected a resource shortage (E[NM]FILE, ENOBUFS, etc)
+                     * cut the fork rate to the minimum

@@ -1,13 +1,12 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+                r->err_headers_out = apr_table_overlay(r->pool,
+                    r->err_headers_out, cookie_table);
+            }
+            return cond_status;
+        }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+        /* if we see a bogus header don't ignore it. Shout and scream */
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+#if APR_CHARSET_EBCDIC
+            /* Chances are that we received an ASCII header text instead of
+             * the expected EBCDIC header lines. Try to auto-detect:
+             */

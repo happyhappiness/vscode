@@ -1,22 +1,25 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                 */
+                thisinfo.filetype = APR_NOFILE;
+                break;
+            }
+            else if (APR_STATUS_IS_EACCES(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s denied (filesystem path '%s') "
+                              "because search permissions are missing on a "
+                              "component of the path", r->uri, r->filename);
+                return r->status = HTTP_FORBIDDEN;
+            }
+            else if ((rv != APR_SUCCESS && rv != APR_INCOMPLETE)
+                     || !(thisinfo.valid & APR_FINFO_TYPE)) {
+                /* If we hit ENOTDIR, we must have over-optimized, deny
+                 * rather than assume not found.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s failed (filesystem path '%s')", 
+                              r->uri, r->filename);
+                return r->status = HTTP_FORBIDDEN;
+            }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+            /* Fix up the path now if we have a name, and they don't agree
+             */
+            if ((thisinfo.valid & APR_FINFO_NAME)

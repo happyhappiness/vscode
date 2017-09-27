@@ -1,13 +1,20 @@
-	states fresh;		/* states for a fresh start */
-	states tmp;		/* temporary */
-	states empty;		/* empty set of states */
-};
 
-#include "engine.ih"
-#include "ap_ctype.h"
-
-#ifdef REDEBUG
-#define	SP(t, s, c)	print(m, t, s, c, stdout)
-#define	AT(t, p1, p2, s1, s2)	at(m, t, p1, p2, s1, s2)
-#define	NOTE(str)	{ if (m->eflags&REG_TRACE) printf("=%s\n", (str)); }
-#else
+            if (cur->desc.s == sock) {
+                pollevent = cur->rtnevents;
+                if (pollevent & (APR_POLLIN | APR_POLLHUP)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02446)
+                                  "sock was readable");
+                    done |= ap_proxy_transfer_between_connections(r, backconn,
+                                                                  c,
+                                                                  header_brigade,
+                                                                  bb, "sock",
+                                                                  NULL,
+                                                                  AP_IOBUFSIZE,
+                                                                  0)
+                                                                 != APR_SUCCESS;
+                }
+                else if (pollevent & APR_POLLERR) {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02447)
+                            "error on backconn");
+                    backconn->aborted = 1;
+                    done = 1;

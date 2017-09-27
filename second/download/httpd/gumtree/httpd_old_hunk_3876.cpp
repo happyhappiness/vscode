@@ -1,109 +1,50 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <VirtualHost> section", NULL);
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Limit> section", NULL);
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Directory/Location/Files> section", NULL);
-    
-    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
-	    || cmd->end_token == end_directorymatch_section)) ||
-	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
-	    || cmd->end_token == end_locationmatch_section)) ||
-	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
-	    || cmd->end_token == end_filesmatch_section)))
-	
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <", cmd->end_token+2,
-		       " section", NULL);
-
-    return NULL;
-}
-
-static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
-
-static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory (arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
+                break;
+            }
+        }
+        
+    }
+    else {
+        status = apr_brigade_write(io->output, flush_out, io, buf, length);
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->connection,
+                          "h2_conn_io: write error");
+        }
     }
     
-    conf->ap_document_root = arg;
-    return NULL;
+    return status;
 }
 
-static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
-				char *line)
+
+apr_status_t h2_conn_io_flush(h2_conn_io *io)
 {
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) return err;
-
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-  
-    w = ap_getword_conf_nc (cmd->pool, &line);
-    error_number = atoi(w);
-
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
-        index_number = idx500;
-    else if ((index_number = ap_index_of_response(error_number)) == idx500)
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
-                
-    /* Store it... */
-
-    if( conf->response_code_strings == NULL ) {
-	conf->response_code_strings = ap_pcalloc(cmd->pool,
-	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
+    if (io->unflushed) {
+        apr_status_t status; 
+        if (io->buflen > 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                          "h2_conn_io: flush, flushing %ld bytes", (long)io->buflen);
+            bucketeer_buffer(io);
+            io->buflen = 0;
+        }
+        /* Append flush.
+         */
+        APR_BRIGADE_INSERT_TAIL(io->output,
+                                apr_bucket_flush_create(io->output->bucket_alloc));
+        
+        /* Send it out through installed filters (TLS) to the client */
+        status = flush_out(io->output, io);
+        
+        if (status == APR_SUCCESS) {
+            /* These are all fine and no reason for concern. Everything else
+             * is interesting. */
+            io->unflushed = 0;
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->connection,
+                          "h2_conn_io: flush error");
+        }
+        
+        return status;
     }
-    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
-
-    return NULL;
+    return APR_SUCCESS;
 }
 
-/* access.conf commands...
- *

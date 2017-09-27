@@ -1,13 +1,12 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+            /* We need to copy the output headers and treat them as input
+             * headers as well.  BUT, we need to do this before we remove
+             * TE, so that they are preserved accordingly for
+             * ap_http_filter to know where to end.
+             */
+            rp->headers_in = apr_table_copy(r->pool, r->headers_out);
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+            apr_table_unset(r->headers_out,"Transfer-Encoding");
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: start body send");
+

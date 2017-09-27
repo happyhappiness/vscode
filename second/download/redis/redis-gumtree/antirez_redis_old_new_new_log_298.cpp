@@ -1,1 +1,0 @@
-vsnprintf(rdbstate.error, sizeof(rdbstate.error), fmt, ap);

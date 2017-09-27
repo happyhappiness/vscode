@@ -1,12 +1,12 @@
-        return ap_pass_brigade(f->next, bb);
-    }
+{
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Initializing %s library", SSL_LIBRARY_NAME);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                 "cache: running CACHE_OUT filter");
+    SSL_load_error_strings();
+    SSL_library_init();
+}
 
-    /* recall_headers() was called in cache_select_url() */
-    cache->provider->recall_body(cache->handle, r->pool, bb);
-
-    /* This filter is done once it has served up its content */
-    ap_remove_output_filter(f);
+/*
+ * Handle the Temporary RSA Keys and DH Params
+ */
 

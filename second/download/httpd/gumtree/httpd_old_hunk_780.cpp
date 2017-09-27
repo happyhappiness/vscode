@@ -1,13 +1,14 @@
-     * Some information about the certificate(s)
-     */
+    UCHAR *ucp;
+    apr_status_t rv;
 
-    if (SSL_X509_isSGC(cert)) {
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "%s server certificate enables "
-                     "Server Gated Cryptography (SGC)", 
-                     ssl_asn1_keystr(type));
+    /* streamline session data */
+    if ((nData = i2d_SSL_SESSION(sess, NULL)) > sizeof(ucaData)) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "streamline session data size too large: %d > %d",
+                 nData, sizeof(ucaData));
+        return FALSE;
     }
+    ucp = ucaData;
+    i2d_SSL_SESSION(sess, &ucp);
 
-    if (SSL_X509_getBC(cert, &is_ca, &pathlen)) {
-        if (is_ca) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+    /* be careful: do not try to store too much bytes in a DBM file! */

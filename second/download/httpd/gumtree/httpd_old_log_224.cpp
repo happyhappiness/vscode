@@ -1,1 +1,1 @@
-ap_rputs("<D:responsedescription>", r);
+ap_rputs(" />", r);

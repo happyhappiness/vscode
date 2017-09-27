@@ -1,40 +1,40 @@
-	return;
+            ngn->shutdown = 1;
+        }
+        return ngn->shutdown? APR_EOF : APR_EAGAIN;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    
+    if ((entry = pop_detached(ngn))) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c,
+                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
+                      shed->c->id, entry->task->id, ngn->id);
+        ngn->no_live++;
+        *ptask = entry->task;
+        entry->task->assigned = ngn;
+        return APR_SUCCESS;
+    }
+    
+    if (1) {
+        h2_ngn_entry *entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
+                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
+                      shed->c->id, entry->task->id);
+    }
+    return APR_EAGAIN;
 }
-
-
-static void help_proxy_garbage_coll(request_rec *r)
+                                 
+static apr_status_t ngn_done_task(h2_ngn_shed *shed, h2_req_engine *ngn, 
+                                  h2_task *task, int waslive, int aborted)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
+                  "h2_ngn_shed(%ld): task %s %s by %s", 
+                  shed->c->id, task->id, aborted? "aborted":"done", ngn->id);
+    ngn->no_finished++;
+    if (waslive) ngn->no_live--;
+    ngn->no_assigned--;
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    return APR_SUCCESS;
+}
+                                
+apr_status_t h2_ngn_shed_done_task(h2_ngn_shed *shed, 
+                                    struct h2_req_engine *ngn, h2_task *task)
+{

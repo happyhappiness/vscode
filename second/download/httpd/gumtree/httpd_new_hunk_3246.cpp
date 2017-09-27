@@ -1,36 +1,25 @@
-#endif
+        while (modp && modp->next != m) {
+            modp = modp->next;
+        }
 
-    ap_soft_timeout("send body", r);
+        if (!modp) {
+            /* Uh-oh, this module doesn't exist */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(00525)
+                         "Cannot remove module %s: not found in module list",
+                         m->name);
+            return;
+        }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+        /* Eliminate us from the module list */
+        modp->next = modp->next->next;
+    }
 
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    free(ap_module_short_names[m->module_index]);
+    ap_module_short_names[m->module_index] = NULL;
+    merger_func_cache[m->module_index] = NULL;
+
+    m->module_index = -1; /* simulate being unloaded, should
+                           * be unnecessary */
+    dynamic_modules--;
+    total_modules--;
+}

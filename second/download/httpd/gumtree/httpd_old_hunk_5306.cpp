@@ -1,13 +1,20 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-	exit(1);
+        keylen = EVP_PKEY_bits(pkey);
     }
 
-    return server_hostname;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                  "handing out built-in DH parameters for %d-bit authenticated connection", keylen);
+
+    if (keylen >= 4096)
+        return get_dh4096();
+    else if (keylen >= 3072)
+        return get_dh3072();
+    else if (keylen >= 2048)
+        return get_dh2048();
+    else
+        return get_dh1024();
 }
 
+/*
+ * This OpenSSL callback function is called when OpenSSL
+ * does client authentication and verifies the certificate chain.
+ */

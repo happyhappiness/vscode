@@ -1,76 +1,153 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
     }
+    return APR_SUCCESS;
 }
 
-#elif defined(USE_OS2SEM_SERIALIZED_ACCEPT)
-
-static HMTX lock_sem = -1;
-
-static void accept_mutex_cleanup(void *foo)
+static void htdbm_usage(void)
 {
-    DosReleaseMutexSem(lock_sem);
-    DosCloseMutexSem(lock_sem);
+    fprintf(stderr,
+        "htdbm -- program for manipulating DBM password databases.\n\n"
+        "Usage: htdbm   [-cimBdpstvx] [-C cost] [-TDBTYPE] database username\n"
+        "                -b[cmBdptsv] [-C cost] [-TDBTYPE] database username password\n"
+        "                -n[imBdpst]  [-C cost] username\n"
+        "                -nb[mBdpst]  [-C cost] username password\n"
+        "                -v[imBdps]   [-C cost] [-TDBTYPE] database username\n"
+        "                -vb[mBdps]   [-C cost] [-TDBTYPE] database username password\n"
+        "                -x                     [-TDBTYPE] database username\n"
+        "                -l                     [-TDBTYPE] database\n"
+        "Options:\n"
+        "   -c   Create a new database.\n"
+        "   -n   Don't update database; display results on stdout.\n"
+        "   -b   Use the password from the command line rather than prompting for it.\n"
+        "   -i   Read password from stdin without verification (for script usage).\n"
+        "   -m   Force MD5 encryption of the password (default).\n"
+        "   -B   Force BCRYPT encryption of the password (very secure).\n"
+        "   -C   Set the computing time used for the bcrypt algorithm\n"
+        "        (higher is more secure but slower, default: %d, valid: 4 to 31).\n"
+        "   -d   Force CRYPT encryption of the password (8 chars max, insecure).\n"
+        "   -s   Force SHA encryption of the password (insecure).\n"
+        "   -p   Do not encrypt the password (plaintext, insecure).\n"
+        "   -T   DBM Type (SDBM|GDBM|DB|default).\n"
+        "   -l   Display usernames from database on stdout.\n"
+        "   -v   Verify the username/password.\n"
+        "   -x   Remove the username record from database.\n"
+        "   -t   The last param is username comment.\n"
+        "The SHA algorithm does not use a salt and is less secure than the "
+        "MD5 algorithm.\n",
+        BCRYPT_DEFAULT_COST);
+    exit(ERR_SYNTAX);
 }
 
-/*
- * Initialize mutex lock.
- * Done by each child at it's birth
- */
-static void accept_mutex_child_init(pool *p)
+int main(int argc, const char * const argv[])
 {
-    int rc = DosOpenMutexSem(NULL, &lock_sem);
+    apr_pool_t *pool;
+    apr_status_t rv;
+    char errbuf[MAX_STRING_LEN];
+    int  need_file = 1;
+    int  need_user = 1;
+    int  need_pwd  = 1;
+    int  need_cmnt = 0;
+    int  changed = 0;
+    int  cmd = HTDBM_MAKE;
+    int  i, ret, args_left = 2;
+    apr_getopt_t *state;
+    char opt;
+    const char *opt_arg;
 
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "Child cannot open lock semaphore");
-	clean_child_exit(APEXIT_CHILDINIT);
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate);
+
+    if ((rv = htdbm_init(&pool, &h)) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
+        apr_strerror(rv, errbuf, sizeof(errbuf));
+        exit(1);
     }
-}
 
-/*
- * Initialize mutex lock.
- * Must be safe to call this on a restart.
- */
-static void accept_mutex_init(pool *p)
-{
-    int rc = DosCreateMutexSem(NULL, &lock_sem, DC_SEM_SHARED, FALSE);
+    rv = apr_getopt_init(&state, pool, argc, argv);
+    if (rv != APR_SUCCESS)
+        exit(ERR_SYNTAX);
 
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "Parent cannot create lock semaphore");
-	exit(APEXIT_INIT);
+    while ((rv = apr_getopt(state, "cnmspdBbDivxlC:T:", &opt, &opt_arg)) == APR_SUCCESS) {
+        switch (opt) {
+        case 'c':
+            h->create = 1;
+            break;
+        case 'n':
+            need_file = 0;
+            cmd = HTDBM_NOFILE;
+                args_left--;
+            break;
+        case 'l':
+            need_pwd = 0;
+            need_user = 0;
+            cmd = HTDBM_LIST;
+            h->rdonly = 1;
+            args_left--;
+            break;
+        case 't':
+            need_cmnt = 1;
+            args_left++;
+            break;
+        case 'T':
+            h->type = apr_pstrdup(h->ctx.pool, opt_arg);
+            break;
+        case 'v':
+            h->rdonly = 1;
+            cmd = HTDBM_VERIFY;
+            break;
+        case 'x':
+            need_pwd = 0;
+            cmd = HTDBM_DELETE;
+            break;
+        default:
+            ret = parse_common_options(&h->ctx, opt, opt_arg);
+            if (ret) {
+                fprintf(stderr, "Error: %s\n", h->ctx.errstr);
+                exit(ret);
+            }
+        }
     }
-
-    ap_register_cleanup(p, NULL, accept_mutex_cleanup, ap_null_cleanup);
-}
-
-static void accept_mutex_on(void)
-{
-    int rc = DosRequestMutexSem(lock_sem, SEM_INDEFINITE_WAIT);
-
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d getting accept lock. Exiting!", rc);
-	clean_child_exit(APEXIT_CHILDFATAL);
+    if (h->ctx.passwd_src == PW_ARG) {
+            need_pwd = 0;
+            args_left++;
     }
-}
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).
+     */
+    i = state->ind;
+    if (rv != APR_EOF || argc - i != args_left)
+        htdbm_usage();
 
-static void accept_mutex_off(void)
-{
-    int rc = DosReleaseMutexSem(lock_sem);
-    
-    if (rc != 0) {
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "OS2SEM: Error %d freeing accept lock. Exiting!", rc);
-	clean_child_exit(APEXIT_CHILDFATAL);
+    if (need_file) {
+        h->filename = apr_pstrdup(h->ctx.pool, argv[i++]);
+        if ((rv = htdbm_open(h)) != APR_SUCCESS) {
+            fprintf(stderr, "Error opening database %s\n", h->filename);
+            apr_strerror(rv, errbuf, sizeof(errbuf));
+            fprintf(stderr,"%s\n",errbuf);
+            exit(ERR_FILEPERM);
+        }
     }
-}
+    if (need_user) {
+        h->username = apr_pstrdup(pool, argv[i++]);
+        if (htdbm_valid_username(h) != APR_SUCCESS)
+            exit(ERR_BADUSER);
+    }
+    if (h->ctx.passwd_src == PW_ARG)
+        h->ctx.passwd = apr_pstrdup(pool, argv[i++]);
 
-#else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+    if (need_pwd) {
+        ret = get_password(&h->ctx);
+        if (ret) {
+            fprintf(stderr, "Error: %s\n", h->ctx.errstr);
+            exit(ret);
+        }
+    }
+    if (need_cmnt)
+        h->comment = apr_pstrdup(pool, argv[i++]);
+
+    switch (cmd) {
+        case HTDBM_VERIFY:
+            if ((rv = htdbm_verify(h)) != APR_SUCCESS) {
+                if (APR_STATUS_IS_ENOENT(rv)) {
+                    fprintf(stderr, "The user '%s' could not be found in database\n", h->username);

@@ -1,15 +1,13 @@
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
-                      getpid());
-        return OK;
-    }
+        proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
+        if (!worker) {
+            const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);
+        }
+        PROXY_COPY_CONF_PARAMS(worker, conf);
 
-    if (!sec->auth_authoritative) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (not authoritative)", getpid());
-        return DECLINED;
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());
-    ap_note_basic_auth_failure (r);
+        for (i = 0; i < arr->nelts; i++) {
+            const char *err = set_worker_param(cmd->pool, worker, elts[i].key,

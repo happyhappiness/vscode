@@ -1,1 +1,0 @@
-addReplyError(c,"SWAPDB is not allowed in cluster mode");

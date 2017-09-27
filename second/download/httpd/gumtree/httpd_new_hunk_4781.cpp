@@ -1,13 +1,13 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
-
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
+    n = SSL_CTX_use_certificate_chain(mctx->ssl_ctx,
+                                      (char *)chain,
+                                      skip_first, NULL);
+    if (n < 0) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01903)
+                "Failed to configure CA certificate chain!");
+        ssl_die(s);
     }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01904)
+                 "Configuring server certificate chain "
+                 "(%d CA certificate%s)",
+                 n, n == 1 ? "" : "s");

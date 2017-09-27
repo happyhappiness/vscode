@@ -1,1 +1,0 @@
-sprintf(body, "Error trace (%s: %s)", types[e->type], tmp);

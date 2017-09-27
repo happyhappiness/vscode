@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Sorted set size: %d", (int) zsetLength(o));

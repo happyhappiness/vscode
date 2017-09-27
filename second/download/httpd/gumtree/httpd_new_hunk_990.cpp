@@ -1,30 +1,34 @@
- * This permits the MPM to skip the poll when there is only one listening
- * socket, because it provides a alternate way to unblock an accept() when
- * the pod is used.
- */
-static apr_status_t dummy_connection(ap_pod_t *pod)
-{
-    char *srequest;
-    apr_status_t rv;
-    apr_socket_t *sock;
-    apr_pool_t *p;
-    apr_size_t len;
-
-    /* create a temporary pool for the socket.  pconf stays around too long */
-    rv = apr_pool_create(&p, pod->p);
-    if (rv != APR_SUCCESS) {
-        return rv;
     }
 
-    rv = apr_socket_create(&sock, ap_listeners->bind_addr->family,
-                           SOCK_STREAM, 0, p);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "get socket to connect to listener");
-        apr_pool_destroy(p);
-        return rv;
+  while ((nextfile = readdirectory(dir)) != NULL)
+    {
+    int frc;
+    sprintf(buffer, "%.512s%c%.128s", filename, sep, nextfile);
+    frc = grep_or_recurse(buffer, dir_recurse, TRUE, FALSE);
+    if (frc == 0 && rc == 1) rc = 0;
     }
 
-    /* on some platforms (e.g., FreeBSD), the kernel won't accept many
-     * queued connections before it starts blocking local connects...
-     * we need to keep from blocking too long and instead return an error,
+  closedirectory(dir);
+  return rc;
+  }
+
+/* If the file is not a directory, or we are not recursing, scan it. If this is
+the first and only argument at top level, we don't show the file name (unless
+we are only showing the file name). Otherwise, control is via the
+show_filenames variable. */
+
+in = fopen(filename, "r");
+if (in == NULL)
+  {
+  fprintf(stderr, "pcregrep: Failed to open %s: %s\n", filename, strerror(errno));
+  return 2;
+  }
+
+rc = pcregrep(in, (filenames_only || (show_filenames && !only_one_at_top))?
+  filename : NULL);
+fclose(in);
+return rc;
+}
+
+
+

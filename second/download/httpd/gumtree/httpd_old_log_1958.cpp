@@ -1,2 +1,3 @@
-printf("Processing: " CONF_FMT_STRING,
-               mind, (int) (meand + 0.5), sdd, mediand, maxd);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                         "mod_rewrite: Invalid RewriteLog "
+                         "path %s", conf->rewritelogfile);

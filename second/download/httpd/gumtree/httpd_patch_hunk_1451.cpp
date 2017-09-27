@@ -1,33 +1,42 @@
-                     }
+     apr_status_t rv;
  
-                     if (lastmod) {
-                         apr_table_set(r->headers_in, "If-Modified-Since",
-                                       lastmod);
-                     }
--                    cache->stale_handle = h;
--                }
--                else {
--                    int irv;
--
-                     /*
--                     * The copy isn't fresh enough, but we cannot revalidate.
--                     * So it is the same case as if there had not been a cached
--                     * entry at all. Thus delete the entry from cache.
-+                     * Do not do Range requests with our own conditionals: If
-+                     * we get 304 the Range does not matter and otherwise the
-+                     * entity changed and we want to have the complete entity
-                      */
--                    irv = cache->provider->remove_url(h, r->pool);
--                    if (irv != OK) {
--                        ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
--                                     "cache: attempt to remove url from cache unsuccessful.");
--                    }
-+                    apr_table_unset(r->headers_in, "Range");
-                 }
--
-                 return DECLINED;
-             }
+     fprintf(stderr,"Starting the %s service\n", mpm_display_name);
  
-             /* Okay, this response looks okay.  Merge in our stuff and go. */
-             ap_cache_accept_headers(h, r, 0);
+     if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+     {
+-        CHAR **start_argv;
+         SC_HANDLE   schService;
+         SC_HANDLE   schSCManager;
  
+         schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                      SC_MANAGER_CONNECT);
+         if (!schSCManager) {
+             rv = apr_get_os_error();
+             ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                          "Failed to open the WinNT service manager");
+             return (rv);
+         }
+ 
+-        /* ###: utf-ize */
+-        schService = OpenService(schSCManager, mpm_service_name,
+-                                 SERVICE_START | SERVICE_QUERY_STATUS);
++#if APR_HAS_UNICODE_FS
++        IF_WIN_OS_IS_UNICODE
++        {
++            schService = OpenServiceW(schSCManager, mpm_service_name_w,
++                                     SERVICE_START | SERVICE_QUERY_STATUS);
++        }
++#endif /* APR_HAS_UNICODE_FS */
++#if APR_HAS_ANSI_FS
++        ELSE_WIN_OS_IS_ANSI
++        {
++            schService = OpenService(schSCManager, mpm_service_name,
++                                     SERVICE_START | SERVICE_QUERY_STATUS);
++        }
++#endif
+         if (!schService) {
+             rv = apr_get_os_error();
+             ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                          "%s: Failed to open the service.", mpm_display_name);
+             CloseServiceHandle(schSCManager);
+             return (rv);

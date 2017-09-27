@@ -1,13 +1,13 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
-    }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+                 "\"<b><code>K</code></b>\" Keepalive (read), \n"
+                 "\"<b><code>D</code></b>\" DNS Lookup,<br />\n"
+                 "\"<b><code>C</code></b>\" Closing connection, \n"
+                 "\"<b><code>L</code></b>\" Logging, \n"
+                 "\"<b><code>G</code></b>\" Gracefully finishing,<br /> \n"
+                 "\"<b><code>I</code></b>\" Idle cleanup of worker, \n"
+                 "\"<b><code>.</code></b>\" Open slot with no current process,<br />\n"
+                 "<p />\n", r);
+        if (!ap_extended_status) {
+            int j;
+            int k = 0;
+            ap_rputs("PID Key: <br />\n"
+                     "<pre>\n", r);

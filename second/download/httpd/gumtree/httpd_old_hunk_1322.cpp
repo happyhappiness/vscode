@@ -1,19 +1,12 @@
-                     NULL);
-    cp[strlen(cp)-2] = NUL;
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Creating new SSL context (protocols: %s)", cp);
-
-    if (protocol == SSL_PROTOCOL_SSLV2) {
-        method = mctx->pkp ?
-            SSLv2_client_method() : /* proxy */
-            SSLv2_server_method();  /* server */
-        ctx = SSL_CTX_new(method);  /* only SSLv2 is left */
-    }
-    else {
-        method = mctx->pkp ?
-            SSLv23_client_method() : /* proxy */
-            SSLv23_server_method();  /* server */
-        ctx = SSL_CTX_new(method); /* be more flexible */
-    }
-
+        conn->close++;
+        apr_brigade_destroy(input_brigade);
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: read response failed from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        /*
+         * This is only non fatal when we have not sent (parts) of a possible
+         * request body so far (we do not store it and thus cannot sent it
+         * again) and the method is idempotent. In this case we can dare to
+         * retry it with a different worker if we are a balancer member.
+         */

@@ -1,17 +1,19 @@
-static const char *util_ldap_set_cache_bytes(cmd_parms *cmd, void *dummy,
-                                             const char *bytes)
-{
-    util_ldap_state_t *st =
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                                  &ldap_module);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+         * back end since they would in part be interpreted
+         * as another request!  If nothing is sent, then
+         * just send nothing.
+         *
+         * Prevents HTTP Response Splitting.
+         */
+        if (bytes_streamed > cl_val) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: read more bytes of request body than expected "
+                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
+                          bytes_streamed, cl_val);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-    if (err != NULL) {
-        return err;
-    }
-
-    st->cache_bytes = atol(bytes);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "[%" APR_PID_T_FMT "] ldap cache: Setting shared memory "
-                 " cache size to %" APR_SIZE_T_FMT " bytes.",
+        if (header_brigade) {
+            /* we never sent the header brigade, so go ahead and
+             * take care of that now
+             */
+            bb = header_brigade;

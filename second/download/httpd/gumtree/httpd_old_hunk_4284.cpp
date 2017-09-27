@@ -1,25 +1,192 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+    if (status == APR_SUCCESS && !*peos && !*plen) {
+        return APR_EAGAIN;
     }
-    return;
+    return status;
 }
 
-static void rewritelock_open(server_rec *s, pool *p)
+void h2_util_bb_log(conn_rec *c, int stream_id, int level, 
+                    const char *tag, apr_bucket_brigade *bb)
 {
-    rewrite_server_conf *conf;
+    char buffer[16 * 1024];
+    const char *line = "(null)";
+    apr_size_t bmax = sizeof(buffer)/sizeof(buffer[0]);
+    int off = 0;
+    apr_bucket *b;
+    
+    if (bb) {
+        memset(buffer, 0, bmax--);
+        for (b = APR_BRIGADE_FIRST(bb); 
+             bmax && (b != APR_BRIGADE_SENTINEL(bb));
+             b = APR_BUCKET_NEXT(b)) {
+            
+            if (APR_BUCKET_IS_METADATA(b)) {
+                if (APR_BUCKET_IS_EOS(b)) {
+                    off += apr_snprintf(buffer+off, bmax-off, "eos ");
+                }
+                else if (APR_BUCKET_IS_FLUSH(b)) {
+                    off += apr_snprintf(buffer+off, bmax-off, "flush ");
+                }
+                else if (AP_BUCKET_IS_EOR(b)) {
+                    off += apr_snprintf(buffer+off, bmax-off, "eor ");
+                }
+                else {
+                    off += apr_snprintf(buffer+off, bmax-off, "meta(unknown) ");
+                }
+            }
+            else {
+                const char *btype = "data";
+                if (APR_BUCKET_IS_FILE(b)) {
+                    btype = "file";
+                }
+                else if (APR_BUCKET_IS_PIPE(b)) {
+                    btype = "pipe";
+                }
+                else if (APR_BUCKET_IS_SOCKET(b)) {
+                    btype = "socket";
+                }
+                else if (APR_BUCKET_IS_HEAP(b)) {
+                    btype = "heap";
+                }
+                else if (APR_BUCKET_IS_TRANSIENT(b)) {
+                    btype = "transient";
+                }
+                else if (APR_BUCKET_IS_IMMORTAL(b)) {
+                    btype = "immortal";
+                }
+#if APR_HAS_MMAP
+                else if (APR_BUCKET_IS_MMAP(b)) {
+                    btype = "mmap";
+                }
+#endif
+                else if (APR_BUCKET_IS_POOL(b)) {
+                    btype = "pool";
+                }
+                
+                off += apr_snprintf(buffer+off, bmax-off, "%s[%ld] ", 
+                                    btype, 
+                                    (long)(b->length == ((apr_size_t)-1)? 
+                                           -1 : b->length));
+            }
+        }
+        line = *buffer? buffer : "(empty)";
+    }
+    /* Intentional no APLOGNO */
+    ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
+                  c->id, stream_id, tag, line);
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+}
 
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
+apr_status_t h2_ltransfer_brigade(apr_bucket_brigade *to,
+                                 apr_bucket_brigade *from, 
+                                 apr_pool_t *p,
+                                 apr_off_t *plen,
+                                 int *peos)
+{
+    apr_bucket *e;
+    apr_off_t len = 0, remain = *plen;
+    apr_status_t rv;
 
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    *peos = 0;
+    
+    while (!APR_BRIGADE_EMPTY(from)) {
+        e = APR_BRIGADE_FIRST(from);
+        
+        if (APR_BUCKET_IS_METADATA(e)) {
+            if (APR_BUCKET_IS_EOS(e)) {
+                *peos = 1;
+            }
+        }
+        else {        
+            if (remain > 0 && e->length == ((apr_size_t)-1)) {
+                const char *ign;
+                apr_size_t ilen;
+                rv = apr_bucket_read(e, &ign, &ilen, APR_BLOCK_READ);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+            }
+            
+            if (remain < e->length) {
+                if (remain <= 0) {
+                    return APR_SUCCESS;
+                }
+                apr_bucket_split(e, remain);
+            }
+        }
+        
+        rv = apr_bucket_setaside(e, p);
+        
+        /* If the bucket type does not implement setaside, then
+         * (hopefully) morph it into a bucket type which does, and set
+         * *that* aside... */
+        if (rv == APR_ENOTIMPL) {
+            const char *s;
+            apr_size_t n;
+            
+            rv = apr_bucket_read(e, &s, &n, APR_BLOCK_READ);
+            if (rv == APR_SUCCESS) {
+                rv = apr_bucket_setaside(e, p);
+            }
+        }
+        
+        if (rv != APR_SUCCESS) {
+            /* Return an error but still save the brigade if
+             * ->setaside() is really not implemented. */
+            if (rv != APR_ENOTIMPL) {
+                return rv;
+            }
+        }
+        
+        APR_BUCKET_REMOVE(e);
+        APR_BRIGADE_INSERT_TAIL(to, e);
+        len += e->length;
+        remain -= e->length;
+    }
+    
+    *plen = len;
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_transfer_brigade(apr_bucket_brigade *to,
+                                 apr_bucket_brigade *from, 
+                                 apr_pool_t *p)
+{
+    apr_bucket *e;
+    apr_status_t rv;
+
+    while (!APR_BRIGADE_EMPTY(from)) {
+        e = APR_BRIGADE_FIRST(from);
+        
+        rv = apr_bucket_setaside(e, p);
+        
+        /* If the bucket type does not implement setaside, then
+         * (hopefully) morph it into a bucket type which does, and set
+         * *that* aside... */
+        if (rv == APR_ENOTIMPL) {
+            const char *s;
+            apr_size_t n;
+            
+            rv = apr_bucket_read(e, &s, &n, APR_BLOCK_READ);
+            if (rv == APR_SUCCESS) {
+                rv = apr_bucket_setaside(e, p);
+            }
+        }
+        
+        if (rv != APR_SUCCESS) {
+            /* Return an error but still save the brigade if
+             * ->setaside() is really not implemented. */
+            if (rv != APR_ENOTIMPL) {
+                return rv;
+            }
+        }
+        
+        APR_BUCKET_REMOVE(e);
+        APR_BRIGADE_INSERT_TAIL(to, e);
+    }
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_append_brigade(apr_bucket_brigade *to,
+                               apr_bucket_brigade *from, 
+                               apr_off_t *plen,
+                               int *peos)

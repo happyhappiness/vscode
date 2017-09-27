@@ -1,28 +1,15 @@
-    }
 
-    /*
-     *  only do something under runtime if the engine is really enabled,
-     *  for this directory, else return immediately!
-     */
-    if (dconf->state == ENGINE_DISABLED) {
-        return DECLINED;
-    }
+/*
+ * This routine puts the standard HTML header at the top of the index page.
+ * We include the DOCTYPE because we may be using features therefrom (i.e.,
+ * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
+ */
+static void emit_preamble(request_rec *r, int xhtml, const char *title)
+{
+    ap_rvputs(r, xhtml ? DOCTYPE_XHTML_1_0T : DOCTYPE_HTML_3_2,
+              "<html>\n <head>\n  <title>Index of ", title,
+              "</title>\n </head>\n <body>\n", NULL);
+}
 
-    /*
-     *  Do the Options check after engine check, so
-     *  the user is able to explicitely turn RewriteEngine Off.
-     */
-    if (!(ap_allow_options(r) & (OPT_SYM_LINKS | OPT_SYM_OWNER))) {
-        /* FollowSymLinks is mandatory! */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
-                     "which implies that RewriteRule directive is forbidden: "
-                     "%s", r->filename);
-        return HTTP_FORBIDDEN;
-    }
-
-    /*
-     *  remember the current filename before rewriting for later check
-     *  to prevent deadlooping because of internal redirects
-     *  on final URL/filename which can be equal to the inital one.
-     */
+static void push_item(apr_array_header_t *arr, char *type, const char *to,
+                      const char *path, const char *data)

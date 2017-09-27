@@ -1,12 +1,12 @@
-                         "LDAP: SSL support unavailable" );
-    }
-    
-    return(OK);
+    else
+        st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
+
+    return(NULL);
 }
 
 
-command_rec util_ldap_cmds[] = {
-    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
-                  "Sets the size of the shared memory cache in bytes. "
-                  "Zero means disable the shared memory cache. Defaults to 100KB."),
+void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+{
+    util_ldap_state_t *st = 
+        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
 

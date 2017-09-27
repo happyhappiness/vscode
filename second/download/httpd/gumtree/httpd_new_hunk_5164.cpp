@@ -1,14 +1,25 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			     "proxy: error creating cache directory %s",
-			     c->filename);
-	    *p = '/';
-	    ++p;
-	}
-#if defined(OS2) || defined(WIN32)
-	/* Under OS/2 use rename. */
-	if (rename(c->tempfile, c->filename) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			 "proxy: error renaming cache file %s to %s",
-			 c->tempfile, c->filename);
+ * def_port is the default port for this scheme.
+ */
+static int proxy_fcgi_canon(request_rec *r, char *url)
+{
+    char *host, sport[7];
+    const char *err, *path;
+    apr_port_t port, def_port;
+
+    if (strncasecmp(url, "fcgi:", 5) == 0) {
+        url += 5;
     }
-++ apache_1.3.2/src/modules/proxy/proxy_connect.c	1998-09-15 00:30:42.000000000 +0800
+    else {
+        return DECLINED;
+    }
+
+    port = def_port = ap_proxy_port_of_scheme("fcgi");
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                 "canonicalising URL %s", url);
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01059)
+                      "error parsing URL %s: %s", url, err);
+        return HTTP_BAD_REQUEST;
+    }

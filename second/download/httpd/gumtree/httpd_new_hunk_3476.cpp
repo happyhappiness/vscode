@@ -1,17 +1,16 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
+    const char *status;
+
+    *exit_status = 0;
+
+    rv = ap_read_pid(pconf, ap_pid_fname, &otherpid);
+    if (rv != APR_SUCCESS) {
+        if (!APR_STATUS_IS_ENOENT(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL, APLOGNO(00058)
+                         "Error retrieving pid file %s", ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00059)
+                         "Remove it before continuing if it is corrupted.");
+            *exit_status = 1;
+            return 1;
+        }
+        status = "httpd (no pid file) not running";
     }

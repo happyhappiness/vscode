@@ -1,55 +1,74 @@
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+            continue;
+        }
 
-    while (!APR_BRIGADE_EMPTY(bb))
-    {
-        const char *data;
-        apr_bucket *b;
-        apr_size_t len;
-        int done = 0;
+        /* read */
+        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        if (!len) {
+            apr_bucket_delete(e);
+            continue;
+        }
+        if (len > APR_INT32_MAX) {
+            apr_bucket_split(e, APR_INT32_MAX);
+            apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        }
 
-        e = APR_BRIGADE_FIRST(bb);
+        /* first bucket contains zlib header */
+        if (ctx->header_len < sizeof(ctx->header)) {
+            apr_size_t rem;
 
-        if (APR_BUCKET_IS_EOS(e)) {
-            char *buf;
-            unsigned int deflate_len;
-
-            ctx->stream.avail_in = 0; /* should be zero already anyway */
-            for (;;) {
-                deflate_len = c->bufferSize - ctx->stream.avail_out;
-
-                if (deflate_len != 0) {
-                    b = apr_bucket_heap_create((char *)ctx->buffer,
-                                               deflate_len, NULL,
-                                               f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
-                    ctx->stream.next_out = ctx->buffer;
-                    ctx->stream.avail_out = c->bufferSize;
+            rem = sizeof(ctx->header) - ctx->header_len;
+            if (len < rem) {
+                memcpy(ctx->header + ctx->header_len, data, len);
+                ctx->header_len += len;
+                apr_bucket_delete(e);
+                continue;
+            }
+            memcpy(ctx->header + ctx->header_len, data, rem);
+            ctx->header_len += rem;
+            {
+                int zlib_method;
+                zlib_method = ctx->header[2];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
                 }
-
-                if (done) {
-                    break;
+                if (ctx->header[0] != deflate_magic[0] ||
+                    ctx->header[1] != deflate_magic[1]) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
                 }
-
-                zRC = deflate(&ctx->stream, Z_FINISH);
-
-                if (deflate_len == 0 && zRC == Z_BUF_ERROR) {
-                    zRC = Z_OK;
-                }
-
-                done = (ctx->stream.avail_out != 0 || zRC == Z_STREAM_END);
-
-                if (zRC != Z_OK && zRC != Z_STREAM_END) {
-                    break;
+                ctx->zlib_flags = ctx->header[3];
+                if ((ctx->zlib_flags & RESERVED)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "inflate: bad flags %02x",
+                                  ctx->zlib_flags);
+                    return APR_EGENERAL;
                 }
             }
+            if (len == rem) {
+                apr_bucket_delete(e);
+                continue;
+            }
+            data += rem;
+            len -= rem;
+        }
 
-            buf = apr_palloc(r->pool, 8);
-            putLong((unsigned char *)&buf[0], ctx->crc);
-            putLong((unsigned char *)&buf[4], ctx->stream.total_in);
+        if (ctx->zlib_flags) {
+            rv = consume_zlib_flags(ctx, &data, &len);
+            if (rv == APR_SUCCESS) {
+                ctx->zlib_flags = 0;
+            }
+            if (!len) {
+                apr_bucket_delete(e);
+                continue;
+            }
+        }
 
-            b = apr_bucket_pool_create(buf, 8, r->pool, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Compressed %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
 
-            /* leave notes for logging */

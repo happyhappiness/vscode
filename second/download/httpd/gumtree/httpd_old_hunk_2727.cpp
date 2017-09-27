@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
+    while ((rv = apr_file_gets(argsbuffer, HUGE_STRING_LEN,
+                               script_err)) == APR_SUCCESS) {
+        newline = strchr(argsbuffer, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s", argsbuffer);
+    }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    return rv;
 }
 
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

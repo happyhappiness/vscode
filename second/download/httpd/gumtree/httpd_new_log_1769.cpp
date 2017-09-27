@@ -1,1 +1,2 @@
-fprintf(stderr, "Could not open log file '%s' (%s)\n", buf2, error);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");

@@ -1,1 +1,1 @@
-fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+printf(" /* ");

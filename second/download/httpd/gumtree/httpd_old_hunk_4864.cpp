@@ -1,13 +1,12 @@
-            if (result != DECLINED)
-                return result;
-        }
+                   ap_state_query(AP_SQ_CONFIG_GEN));
+        ap_rprintf(r, "<dt>Parent Server MPM Generation: %d</dt>\n",
+                   (int)mpm_generation);
+        ap_rputs("<dt>Server uptime: ", r);
+        show_time(r, up_time);
+        ap_rputs("</dt>\n", r);
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+    if (ap_extended_status) {
+        if (short_report) {
+            ap_rprintf(r, "Total Accesses: %lu\nTotal kBytes: %"
+                       APR_OFF_T_FMT "\n",

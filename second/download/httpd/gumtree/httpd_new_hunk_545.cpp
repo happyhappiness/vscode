@@ -1,13 +1,12 @@
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
+    }
 
-    case HSE_REQ_GET_SSPI_INFO:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                           "is not supported: %s", r->filename);
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
-        
-    case HSE_APPEND_LOG_PARAMETER:
-        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
-         */
-        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+    /* Create the child_ready_event */
+    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!waitlist[waitlist_ready]) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Parent: Could not create ready event for child process");
+        apr_pool_destroy (ptemp);

@@ -1,21 +1,23 @@
-         printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
-            "<td colspan=2 %s>%d</td></tr>\n",
-            trstring, tdstring, tdstring, doneka);
-     printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
-        "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-        trstring, tdstring, tdstring, totalread);
--    if (posting > 0)
-+    if (posting == 1)
-         printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
-            "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
-            trstring, tdstring, tdstring, totalposted);
-+    if (posting == 2)
-+        printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
-+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
-+           trstring, tdstring, tdstring, totalposted);
-     printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
-        "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-        trstring, tdstring, tdstring, totalbread);
+                     return decl_die(access_status, "check access", r);
+                 }
  
-     /* avoid divide by zero */
-     if (timetaken) {
+                 if (((access_status = ap_run_check_user_id(r)) != 0)
+                     || !ap_auth_type(r)) {
+                     return decl_die(access_status, ap_auth_type(r)
+-                                  ? "check user.  No user file?"
++                                  ? "check user.  Check your authn provider!"
+                                   : "perform authentication. AuthType not set!",
+                                   r);
+                 }
+ 
+                 if (((access_status = ap_run_auth_checker(r)) != 0)
+                     || !ap_auth_type(r)) {
+                     return decl_die(access_status, ap_auth_type(r)
+-                                  ? "check access.  No groups file?"
++                                  ? "check access.  Check your 'Require' directive"
+                                   : "perform authentication. AuthType not set!",
+                                   r);
+                 }
+             }
+             break;
+         }

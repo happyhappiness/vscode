@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD Pool: failed to initialise");

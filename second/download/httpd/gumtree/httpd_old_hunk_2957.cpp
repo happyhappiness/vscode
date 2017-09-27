@@ -1,13 +1,20 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
     }
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+    if (openslots > 0) {
+        apr_uint32_t c = 0;
+        apr_uint32_t pick = 0;
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+        rv = random_pick(&pick, 0, openslots);
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "lb_heartbeat: failed picking a random number. how random.");
+            apr_pool_destroy(tpool);
+            return NULL;
+        }
+
+        for (i = 0; i < up_servers->nelts; i++) {
+            server = APR_ARRAY_IDX(up_servers, i, hb_server_t *);
+            if (pick >= c && pick <= c + server->ready) {
+                mycandidate = server->worker;
+            }

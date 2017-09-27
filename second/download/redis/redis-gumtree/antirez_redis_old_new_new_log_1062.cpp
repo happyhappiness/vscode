@@ -1,1 +1,0 @@
-serverLogRaw(LL_NOTICE|LL_RAW,buf);

@@ -1,20 +1,25 @@
- *                         ap_finalize_sub_req_protocol on Win32 and NetWare
- * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
- *                         calling ap_setup_prelinked_modules
- * 20020903.10 (2.0.55-dev) add ap_log_cerror()
- * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
- * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
- */
+                      "Digest: unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
 
-#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
+    if (!conf->pwfile) {
+        return DECLINED;
+    }
 
-#ifndef MODULE_MAGIC_NUMBER_MAJOR
-#define MODULE_MAGIC_NUMBER_MAJOR 20020903
-#endif
-#define MODULE_MAGIC_NUMBER_MINOR 12                    /* 0...n */
+    if (!(conf->ha1 = get_hash(r, r->user, conf->realm, conf->pwfile))) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' not found: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
 
-/**
- * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
- * specified value.
- * <pre>
- * Useful for testing for features.
+    
+    if (resp->message_qop == NULL) {
+        /* old (rfc-2069) style digest */
+        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: user %s: password mismatch: %s", r->user,
+                          r->uri);

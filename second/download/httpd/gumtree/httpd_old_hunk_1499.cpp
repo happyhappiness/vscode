@@ -1,39 +1,86 @@
-/* service_nt_main_fn is outside of the call stack and outside of the
- * primary server thread... so now we _really_ need a placeholder!
- * The winnt_rewrite_args has created and shared mpm_new_argv with us.
- */
-extern apr_array_header_t *mpm_new_argv;
 
-/* ###: utf-ize */
-static void __stdcall service_nt_main_fn(DWORD argc, LPTSTR *argv)
+    cleanup_tables(NULL);
+}
+
+#if APR_HAS_SHARED_MEMORY
+
+static void initialize_tables(server_rec *s, apr_pool_t *ctx)
 {
-    const char *ignored;
+    unsigned long idx;
+    apr_status_t   sts;
 
-    /* args and service names live in the same pool */
-    mpm_service_set_name(mpm_new_argv->pool, &ignored, argv[0]);
+    /* set up client list */
 
-    memset(&globdat.ssStatus, 0, sizeof(globdat.ssStatus));
-    globdat.ssStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-    globdat.ssStatus.dwCurrentState = SERVICE_START_PENDING;
-    globdat.ssStatus.dwCheckPoint = 1;
-
-    /* ###: utf-ize */
-    if (!(globdat.hServiceStatus = RegisterServiceCtrlHandler(argv[0], service_nt_ctrl)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
-                     NULL, "Failure registering service handler");
+    sts = apr_shm_create(&client_shm, shmem_size, tmpnam(NULL), ctx);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create shared memory segments", sts, s);
         return;
     }
 
-    /* Report status, no errors, and buy 3 more seconds */
-    ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 30000);
+    client_list = apr_rmm_malloc(client_rmm, sizeof(*client_list) +
+                                            sizeof(client_entry*)*num_buckets);
+    if (!client_list) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return;
+    }
+    client_list->table = (client_entry**) (client_list + 1);
+    for (idx = 0; idx < num_buckets; idx++) {
+        client_list->table[idx] = NULL;
+    }
+    client_list->tbl_len     = num_buckets;
+    client_list->num_entries = 0;
 
-    /* We need to append all the command arguments passed via StartService()
-     * to our running service... which just got here via the SCM...
-     * but we hvae no interest in argv[0] for the mpm_new_argv list.
-     */
-    if (argc > 1)
-    {
-        char **cmb_data;
+    tmpnam(client_lock_name);
+    /* FIXME: get the client_lock_name from a directive so we're portable
+     * to non-process-inheriting operating systems, like Win32. */
+    sts = apr_global_mutex_create(&client_lock, client_lock_name,
+                                  APR_LOCK_DEFAULT, ctx);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
+        return;
+    }
 
-        mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
+
+    /* setup opaque */
+
+    opaque_cntr = apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr));
+    if (opaque_cntr == NULL) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return;
+    }
+    *opaque_cntr = 1UL;
+
+    tmpnam(opaque_lock_name);
+    /* FIXME: get the opaque_lock_name from a directive so we're portable
+     * to non-process-inheriting operating systems, like Win32. */
+    sts = apr_global_mutex_create(&opaque_lock, opaque_lock_name,
+                                  APR_LOCK_DEFAULT, ctx);
+    if (sts != APR_SUCCESS) {
+        log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
+        return;
+    }
+
+
+    /* setup one-time-nonce counter */
+
+    otn_counter = apr_rmm_malloc(client_rmm, sizeof(*otn_counter));
+    if (otn_counter == NULL) {
+        log_error_and_cleanup("failed to allocate shared memory", -1, s);
+        return;
+    }
+    *otn_counter = 0;
+    /* no lock here */
+
+
+    /* success */
+    return;
+}
+
+#endif /* APR_HAS_SHARED_MEMORY */
+
+
+static int initialize_module(apr_pool_t *p, apr_pool_t *plog,
+                             apr_pool_t *ptemp, server_rec *s)
+{
+    void *data;
+    const char *userdata_key = "auth_digest_init";

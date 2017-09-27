@@ -1,1 +1,0 @@
-fprintf(stderr,"Error reading bulk length while SYNCing\n");

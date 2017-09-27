@@ -1,29 +1,92 @@
-                 status = apr_pollset_poll(pollset, -1, &numdesc, &pdesc);
-                 if (status != APR_SUCCESS) {
-                     if (APR_STATUS_IS_EINTR(status)) {
-                         if (one_process && shutdown_pending) {
-                             return;
-                         }
-+                        else if (die_now) {
-+                            /* In graceful stop/restart; drop the mutex
-+                             * and terminate the child. */
-+                            SAFE_ACCEPT(accept_mutex_off());
-+                            clean_child_exit(0);
-+                        }
-                         continue;
-                     }
-                     /* Single Unix documents select as returning errnos
-                      * EBADF, EINTR, and EINVAL... and in none of those
-                      * cases does it make sense to continue.  In fact
-                      * on Linux 2.0.x we seem to end up with EFAULT
-                      * occasionally, and we'd loop forever due to it.
-                      */
-                     ap_log_error(APLOG_MARK, APLOG_ERR, status,
-                                  ap_server_conf, "apr_pollset_poll: (listen)");
-+                    SAFE_ACCEPT(accept_mutex_off());
-                     clean_child_exit(1);
-                 }
+ /*
+  * Prints the SSL library error information.
+  */
+ void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+ {
+     unsigned long e;
++    const char *data;
++    int flags;
  
-                 /* We can always use pdesc[0], but sockets at position N
-                  * could end up completely starved of attention in a very
-                  * busy server. Therefore, we round-robin across the
+-    while ((e = ERR_get_error())) {
++    while ((e = ERR_peek_error_line_data(NULL, NULL, &data, &flags))) {
+         const char *annotation;
+         char err[256];
+ 
++        if (!(flags & ERR_TXT_STRING)) {
++            data = NULL;
++        }
++
+         ERR_error_string_n(e, err, sizeof err);
+         annotation = ssl_log_annotation(err);
+ 
+-        if (annotation) {
+-            ap_log_error(file, line, level, 0, s,
+-                         "SSL Library Error: %lu %s %s",
+-                         e, err, annotation);
+-        }
+-        else {
+-            ap_log_error(file, line, level, 0, s,
+-                         "SSL Library Error: %lu %s",
+-                         e, err);
+-        }
++        ap_log_error(file, line, APLOG_MODULE_INDEX, level, 0, s,
++                     "SSL Library Error: %s%s%s%s%s%s",
++                     /* %s */
++                     err, 
++                     /* %s%s%s */
++                     data ? " (" : "", data ? data : "", data ? ")" : "", 
++                     /* %s%s */
++                     annotation ? " -- " : "",
++                     annotation ? annotation : "");
++
++        /* Pop the error off the stack: */
++        ERR_get_error();
++    }
++}
++
++void ssl_log_cxerror(const char *file, int line, int level, 
++                     apr_status_t rv, conn_rec *c, X509 *cert,
++                     const char *format, ...)
++{
++    va_list ap;
++    char buf[HUGE_STRING_LEN];
++    char *sname, *iname, *serial;
++    BIGNUM *bn;
++    
++    if (APLOG_IS_LEVEL(mySrvFromConn(c),level)) {
++        /* Bail early since the rest of this function is expensive. */
++        return;
++    }
++
++    sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
++    iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
++    bn = ASN1_INTEGER_to_BN(X509_get_serialNumber(cert), NULL);
++    serial = bn && !BN_is_zero(bn) ? BN_bn2hex(bn) : NULL;
++    
++    va_start(ap, format);
++    apr_vsnprintf(buf, sizeof buf, format, ap);
++    va_end(ap);
++
++    ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c,
++                  "%s [subject: %s, issuer: %s, serial: %s]",
++                  buf,
++                  sname ? sname : "-unknown-",
++                  iname ? iname : "-unknown-",
++                  serial ? serial : "-unknown-");
++
++    if (sname) {
++        modssl_free(sname);
++    }
++    
++    if (iname) {
++        modssl_free(iname);
++    }
++    
++    if (serial) {
++        modssl_free(serial);
++    }
++
++    if (bn) {
++        BN_free(bn);
+     }
+ }

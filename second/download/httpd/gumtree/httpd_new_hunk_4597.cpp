@@ -1,13 +1,13 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
+    lua_Debug dbg;
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
-    }
+    lua_getstack(L, 1, &dbg);
+    lua_getinfo(L, "Sl", &dbg);
+
+    msg = luaL_checkstring(L, 2);
+    /* Intentional no APLOGNO */
+    ap_log_error(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0,
+                 cmd->server, "%s", msg);
+    return 0;
+}
+
+/* r:debug(String) and friends which use apache logging */

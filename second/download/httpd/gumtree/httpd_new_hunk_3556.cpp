@@ -1,17 +1,15 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+            intelligent = 1;
+            dowork = 1;
+            break;
+        }
+
+        if (dowork && !interrupted) {
+            apr_off_t nodes = 0;
+            if (!process_dir(path, instance, &nodes) && !interrupted) {
+                purge(path, instance, max, inodes, nodes, round);
+            }
+            else if (!isdaemon && !interrupted) {
+                apr_file_printf(errfile, "An error occurred, cache cleaning "
+                                         "aborted." APR_EOL_STR);
+                return 1;
+            }

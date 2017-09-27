@@ -1,13 +1,20 @@
-static const char *add_env_module_vars_passed(cmd_parms *cmd, void *sconf_,
-                                              const char *arg)
-{
-    env_dir_config_rec *sconf = sconf_;
-    apr_table_t *vars = sconf->vars;
-    const char *env_var;
 
-    env_var = getenv(arg);
-    if (env_var != NULL) {
-        apr_table_setn(vars, arg, apr_pstrdup(cmd->pool, env_var));
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+    return;
+}
+
+void ssl_io_filter_register(apr_pool_t *p)
+{
+    /* This filter MUST be after the HTTP_HEADER filter, but it also must be
+     * a resource-level filter so it has the request_rec.
+     */
+    ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);
+
+    ap_register_input_filter  (ssl_io_filter, ssl_io_filter_input,  NULL, AP_FTYPE_CONNECTION + 5);
+    ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);
+
+    ap_register_input_filter  (ssl_io_buffer, ssl_io_filter_buffer, NULL, AP_FTYPE_PROTOCOL - 1);
+
+    return;
+}
+
+/*  _________________________________________________________________

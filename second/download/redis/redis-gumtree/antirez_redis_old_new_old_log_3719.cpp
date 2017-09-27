@@ -1,1 +1,0 @@
-addReplySds(c, sdscatprintf(sdsempty(), "-ERR %s\r\n", msg));

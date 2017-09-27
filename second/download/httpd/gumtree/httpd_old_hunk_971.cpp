@@ -1,24 +1,49 @@
-                             " shutdown process gracefully.");
-                signal_threads(ST_GRACEFUL);
-                break;
-            }
-            have_idle_worker = 1;
-        }
-            
-        /* We've already decremented the idle worker count inside
-         * ap_queue_info_wait_for_idler. */
+#endif /* APR_CHARSET_EBCDIC */
 
-        if ((rv = SAFE_ACCEPT(apr_proc_mutex_lock(accept_mutex)))
-            != APR_SUCCESS) {
-            int level = APLOG_EMERG;
+#define MAX_STRING_LEN 256
 
-            if (listener_may_exit) {
-                break;
-            }
-            if (ap_scoreboard_image->parent[process_slot].generation != 
-                ap_scoreboard_image->global->running_generation) {
-                level = APLOG_DEBUG; /* common to get these at restart time */
-            }
-            ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
-                         "apr_proc_mutex_lock failed. Attempting to shutdown "
-                         "process gracefully.");
+#define ERR_OVERFLOW 5
+
+#if !defined(HAVE_GETPASS) && !defined(HAVE_GETPASSPHRASE) && !defined(HAVE_GETPASS_R)
+
+/* MPE, Win32, NetWare and BeOS all lack a native getpass() */
+
+#if !defined(HAVE_TERMIOS_H) && !defined(WIN32) && !defined(NETWARE)
+/*
+ * MPE lacks getpass() and a way to suppress stdin echo.  So for now, just
+ * issue the prompt and read the results with echo.  (Ugh).
+ */
+
+static char *get_password(const char *prompt)
+{
+    static char password[MAX_STRING_LEN];
+
+    fputs(prompt, stderr);
+    fgets((char *) &password, sizeof(password), stdin);
+
+    return (char *) &password;
+}
+
+#elif defined (HAVE_TERMIOS_H)
+#include <stdio.h>
+
+static char *get_password(const char *prompt)
+{
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
+
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+        return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);

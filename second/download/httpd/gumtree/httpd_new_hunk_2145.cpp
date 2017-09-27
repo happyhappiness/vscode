@@ -1,31 +1,49 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                 * which may be confusing.
+                 */
+                if (found && strcmp(found, ent[i].real)) {
+                    found = apr_pstrcat(r->pool, "proxy:", found, NULL);
+                }
+                else {
+                    found = apr_pstrcat(r->pool, "proxy:", ent[i].real,
+                                        use_uri, NULL);
+                }
+            }
+        }
+        else {
+            len = alias_match(r->uri, ent[i].fake);
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+            if (len > 0) {
+                if ((ent[i].real[0] == '!') && (ent[i].real[1] == '\0')) {
+                    return DECLINED;
+                }
+                if (nocanon
+                    && len != alias_match(r->unparsed_uri, ent[i].fake)) {
+                    mismatch = 1;
+                    use_uri = r->uri;
+                }
+                found = apr_pstrcat(r->pool, "proxy:", ent[i].real,
+                                    use_uri + len, NULL);
+            }
+        }
+        if (mismatch) {
+            /* We made a reducing transformation, so we can't safely use
+             * unparsed_uri.  Safe fallback is to ignore nocanon.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unescaped URL path matched ProxyPass; ignoring unsafe nocanon");
+        }
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
+        if (found) {
+            r->filename = found;
+            r->handler = "proxy-server";
+            r->proxyreq = PROXYREQ_REVERSE;
+            if (nocanon && !mismatch) {
+                /* mod_proxy_http needs to be told.  Different module. */
+                apr_table_setn(r->notes, "proxy-nocanon", "1");
+            }
+            return OK;
+        }
     }
+    return DECLINED;
+}
 
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();

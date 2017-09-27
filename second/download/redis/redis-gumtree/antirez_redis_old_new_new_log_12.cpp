@@ -1,1 +1,0 @@
-printf("%lld,%lld,%.2f,%lld\n", min, max, avg, count);

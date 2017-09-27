@@ -1,1 +1,0 @@
-printf("0x%08llx - %s\n", errors.offset[i], errors.error[i]);

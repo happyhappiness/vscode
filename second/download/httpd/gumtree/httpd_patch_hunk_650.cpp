@@ -1,14 +1,14 @@
- #error APR random number support is missing; you probably need to install the truerand library.
- #endif
+     apr_file_printf(f, "%%error\n%s\n", error);
  
-     if (status != APR_SUCCESS) {
-         char buf[120];
-         ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
--                     "Digest: error generating secret: %s", 
-+                     "Digest: error generating secret: %s",
-                      apr_strerror(status, buf, sizeof(buf)));
-         return status;
-     }
+     apr_file_close(f);
+     return ret;
+ }
  
-     ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, "Digest: done");
- 
+-/* Soak up stderr from a script and redirect it to the error log. 
++/* Soak up stderr from a script and redirect it to the error log.
+  */
+ static apr_status_t log_script_err(request_rec *r, apr_file_t *script_err)
+ {
+     char argsbuffer[HUGE_STRING_LEN];
+     char *newline;
+     apr_status_t rv;

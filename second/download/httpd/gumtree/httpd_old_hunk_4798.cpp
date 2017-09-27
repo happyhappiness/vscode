@@ -1,13 +1,13 @@
-    return res;
-}
+            if (pPrivateKey == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02247)
+                            "Init: Unable to read server private key from "
+                            "file %s [Hint: Perhaps it is in a separate file? "
+                            "  See SSLCertificateKeyFile]", szPath);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die();
+            }
 
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Done with config file %s", fp->name);
-#endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-}
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {
+            /*
+             * check algorithm type of private key and make
+             * sure only one private key per type is used.
+             */

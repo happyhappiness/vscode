@@ -1,1 +1,0 @@
-serverLogFromHandler(LL_WARNING, "You insist... exiting now.");

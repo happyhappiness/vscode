@@ -1,1 +1,0 @@
-fprintf(stderr, "Reading from socket: %s\n", strerror(errno));

@@ -1,24 +1,12 @@
-    buff[35] = ' ';
-    ap_proxy_sec2hex(c->len, buff + 36);
-    buff[44] = '\n';
-    buff[45] = '\0';
-
-/* if file not modified */
-    if (r->status == 304) {
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-		if (curpos == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    Explain0("Remote document not modified, use local copy");
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
+                 "<h1>Apache Server Status for ", r);
+        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  " (via ", r->connection->local_ip,
+                  ")</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl><hr /><dl>\n", NULL);
+        ap_rvputs(r, "<dt>Current Time: ",
+                  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),
+                             "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Restart Time: ",

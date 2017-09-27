@@ -1,37 +1,14 @@
-/* ------------------------------------------------------- */
-
-/* read data to POST from file, save contents and length */
-
-static int open_postfile(const char *pfile)
-{
-    apr_file_t *postfd;
-    apr_finfo_t finfo;
-    apr_status_t rv;
-    char errmsg[120];
-
-    rv = apr_file_open(&postfd, pfile, APR_READ, APR_OS_DEFAULT, cntxt);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "ab: Could not open POST data file (%s): %s\n", pfile,
-                apr_strerror(rv, errmsg, sizeof errmsg));
-	return rv;
-    }
-
-    apr_file_info_get(&finfo, APR_FINFO_NORM, postfd);
-    postlen = (apr_size_t)finfo.size;
-    postdata = malloc(postlen);
-    if (!postdata) {
-        fprintf(stderr, "ab: Could not allocate POST data buffer\n");
-	return APR_ENOMEM;
-    }
-    rv = apr_file_read_full(postfd, postdata, postlen, NULL);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "ab: Could not read POST data file: %s\n",
-                apr_strerror(rv, errmsg, sizeof errmsg));
-	return rv;
-    }
-    apr_file_close(postfd);
-    return 0;
-}
-
-/* ------------------------------------------------------- */
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing body");
+                    isok = 0;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                break;
+            default:
+                isok = 0;
+                break;
+        }
 

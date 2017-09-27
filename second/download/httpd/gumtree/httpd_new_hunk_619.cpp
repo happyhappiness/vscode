@@ -1,69 +1,82 @@
-                sk_X509_pop_free(cert_stack, X509_free);
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            sent = tf->HeadLength;
+        }
+
+        sent += (apr_uint32_t)fsize;
+#if APR_HAS_LARGE_FILES
+        if (r->finfo.size > AP_MAX_SENDFILE) {
+            /* APR_HAS_LARGE_FILES issue; must split into mutiple buckets,
+             * no greater than MAX(apr_size_t), and more granular than that
+             * in case the brigade code/filters attempt to read it directly.
+             */
+            b = apr_bucket_file_create(fd, tf->Offset, AP_MAX_SENDFILE,
+                                       r->pool, c->bucket_alloc);
+            while (fsize > AP_MAX_SENDFILE) {
+                apr_bucket *bc;
+                apr_bucket_copy(b, &bc);
+                APR_BRIGADE_INSERT_TAIL(bb, bc);
+                b->start += AP_MAX_SENDFILE;
+                fsize -= AP_MAX_SENDFILE;
+            }
+            b->length = (apr_size_t)fsize; /* Resize just the last bucket */
+        }
+        else
+#endif
+            b = apr_bucket_file_create(fd, tf->Offset, (apr_size_t)fsize,
+                                       r->pool, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        if (tf->pTail && tf->TailLength) {
+            sent += tf->TailLength;
+            b = apr_bucket_transient_create((char*)tf->pTail,
+                                            tf->TailLength, c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+        }
+
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+
+        /* Use tf->pfnHseIO + tf->pContext, or if NULL, then use cid->fnIOComplete
+         * pass pContect to the HseIO callback.
+         */
+        if (tf->dwFlags & HSE_IO_ASYNC) {
+            if (tf->pfnHseIO) {
+                if (rv == OK) {
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_SUCCESS, sent);
+                }
+                else {
+                    tf->pfnHseIO(cid->ecb, tf->pContext,
+                                 ERROR_WRITE_FAULT, sent);
+                }
+            }
+            else if (cid->completion) {
+                if (rv == OK) {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_SUCCESS);
+                }
+                else {
+                    cid->completion(cid->ecb, cid->completion_arg,
+                                    sent, ERROR_WRITE_FAULT);
+                }
             }
         }
-        else {
-            request_rec *id = r->main ? r->main : r;
+        return (rv == OK);
+    }
 
-            /* Additional mitigation for CVE-2009-3555: At this point,
-             * before renegotiating, an (entire) request has been read
-             * from the connection.  An attacker may have sent further
-             * data to "prefix" any subsequent request by the victim's
-             * client after the renegotiation; this data may already
-             * have been read and buffered.  Forcing a connection
-             * closure after the response ensures such data will be
-             * discarded.  Legimately pipelined HTTP requests will be
-             * retried anyway with this approach. */
-            if (has_buffered_data(r)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "insecure SSL re-negotiation required, but "
-                              "a pipelined request is present; keepalive "
-                              "disabled");
-                r->connection->keepalive = AP_CONN_CLOSE;
-            }
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-            /* Perform a full renegotiation. */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Performing full renegotiation: complete handshake "
-                          "protocol (%s support secure renegotiation)",
-#if defined(SSL_get_secure_renegotiation_support)
-                          SSL_get_secure_renegotiation_support(ssl) ? 
-                          "client does" : "client does not"
-#else
-                          "server does not"
-#endif
-                );
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
 
-            SSL_set_session_id_context(ssl,
-                                       (unsigned char *)&id,
-                                       sizeof(id));
-
-            /* Toggle the renegotiation state to allow the new
-             * handshake to proceed. */
-            sslconn->reneg_state = RENEG_ALLOW;
-            
-            SSL_renegotiate(ssl);
-            SSL_do_handshake(ssl);
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation request failed");
-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
-
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Awaiting re-negotiation handshake");
-
-            SSL_set_state(ssl, SSL_ST_ACCEPT);
-            SSL_do_handshake(ssl);
-
-            sslconn->reneg_state = RENEG_REJECT;
-
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                        "Not accepted by client!?");
-
-                r->connection->aborted = 1;

@@ -1,77 +1,39 @@
- * It returns the substituted string, or NULL on error.
- *
- * Parts of this code are based on Henry Spencer's regsub(), from his
- * AT&T V8 regexp package.
- */
-
-static apr_status_t regsub_core(apr_pool_t *p, char **result,
-                                const char *input,
-                                const char *source, apr_size_t nmatch,
-                                ap_regmatch_t pmatch[], apr_size_t maxlen)
-{
-    const char *src = input;
-    char *dst;
-    char c;
-    apr_size_t no;
-    apr_size_t len = 0;
-
-    AP_DEBUG_ASSERT(result && p);
-    if (!source || nmatch>AP_MAX_REG_MATCH)
-        return APR_EINVAL;
-    if (!nmatch) {
-        len = strlen(src);
-        if (maxlen > 0 && len >= maxlen)
-            return APR_ENOMEM;
-        *result = apr_pstrmemdup(p, src, len);
-        return APR_SUCCESS;
+             */
+            rv = HTTP_SERVICE_UNAVAILABLE;
+        } else {
+            rv = HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    else if (client_failed) {
+        int level = (r->connection->aborted) ? APLOG_DEBUG : APLOG_ERR;
+        ap_log_error(APLOG_MARK, level, status, r->server,
+                     "dialog with client %pI failed",
+                     r->connection->remote_addr);
+        if (rv == OK) {
+            rv = HTTP_BAD_REQUEST;
+        }
     }
 
-    /* First pass, find the size */
-    while ((c = *src++) != '\0') {
-        if (c == '&')
-            no = 0;
-        else if (c == '$' && apr_isdigit(*src))
-            no = *src++ - '0';
-        else
-            no = AP_MAX_REG_MATCH;
-
-        if (no >= AP_MAX_REG_MATCH) {  /* Ordinary character. */
-            if (c == '\\' && (*src == '$' || *src == '&'))
-                src++;
-            len++;
-        }
-        else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
-            if (UTIL_SIZE_MAX - len <= pmatch[no].rm_eo - pmatch[no].rm_so) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                             "integer overflow or out of memory condition." );
-                return APR_ENOMEM;
-            }
-            len += pmatch[no].rm_eo - pmatch[no].rm_so;
-        }
-
+    /*
+     * Ensure that we sent an EOS bucket thru the filter chain, if we already
+     * have sent some data. Maybe ap_proxy_backend_broke was called and added
+     * one to the brigade already (no longer making it empty). So we should
+     * not do this in this case.
+     */
+    if (data_sent && !r->eos_sent && !r->connection->aborted
+            && APR_BRIGADE_EMPTY(output_brigade)) {
+        e = apr_bucket_eos_create(r->connection->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
     }
 
-    if (len >= maxlen && maxlen > 0)
-        return APR_ENOMEM;
+    /* If we have added something to the brigade above, send it */
+    if (!APR_BRIGADE_EMPTY(output_brigade)
+        && ap_pass_brigade(r->output_filters, output_brigade) != APR_SUCCESS) {
+        rv = AP_FILTER_ERROR;
+    }
 
-    *result = dst = apr_palloc(p, len + 1);
+    apr_brigade_destroy(output_brigade);
 
-    /* Now actually fill in the string */
+    return rv;
+}
 
-    src = input;
-
-    while ((c = *src++) != '\0') {
-        if (c == '&')
-            no = 0;
-        else if (c == '$' && apr_isdigit(*src))
-            no = *src++ - '0';
-        else
-            no = AP_MAX_REG_MATCH;
-
-        if (no >= AP_MAX_REG_MATCH) {  /* Ordinary character. */
-            if (c == '\\' && (*src == '$' || *src == '&'))
-                c = *src++;
-            *dst++ = c;
-        }
-        else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
-            len = pmatch[no].rm_eo - pmatch[no].rm_so;

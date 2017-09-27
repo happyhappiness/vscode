@@ -1,12 +1,14 @@
-#define ERRMSGSZ        128
+    }
 
-#ifndef MAX_PATH
-#define MAX_PATH        1024
-#endif
+    SSL_set_shutdown(ssl, shutdown_type);
+    SSL_smart_shutdown(ssl);
 
-int main (int argc, const char * const argv[])
-{
-    char buf[BUFSIZE], buf2[MAX_PATH], errbuf[ERRMSGSZ];
-    int tLogEnd = 0, tRotation = 0, utc_offset = 0;
-    unsigned int sRotation = 0;
-    int nMessCount = 0;
+    /* and finally log the fact that we've closed the connection */
+    if (mySrvFromConn(c)->loglevel >= APLOG_INFO) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, mySrvFromConn(c)));
+    }
+
+    /* deallocate the SSL connection */

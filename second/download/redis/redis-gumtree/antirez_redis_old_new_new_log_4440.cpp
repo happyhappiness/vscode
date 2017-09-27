@@ -1,1 +1,0 @@
-fprintf(fp,"%s %c ",buf,c[level]);

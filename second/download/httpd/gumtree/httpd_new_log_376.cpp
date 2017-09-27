@@ -1,1 +1,1 @@
-printf("\tRESTART    - Reread the configuration file and restart Apache\n");
+apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);

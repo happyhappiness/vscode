@@ -1,39 +1,20 @@
-
-    *url = apr_pstrcat(r->pool, worker->name, path, NULL);
-
-    return OK;
-}
-
-static void force_recovery(proxy_balancer *balancer, server_rec *s)
-{
-    int i;
-    int ok = 0;
-    proxy_worker *worker;
-
-    worker = (proxy_worker *)balancer->workers->elts;
-    for (i = 0; i < balancer->workers->nelts; i++, worker++) {
-        if (!(worker->s->status & PROXY_WORKER_IN_ERROR)) {
-            ok = 1;
-            break;    
-        }
-    }
-    if (!ok) {
-        /* If all workers are in error state force the recovery.
+         * that the client replies to a Hello Request). But because we insist
+         * on a reply (anything else is an error for us) we have to go to the
+         * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
+         * here because it resets too much of the connection.  So we set the
+         * state explicitly and continue the handshake manually.
          */
-        worker = (proxy_worker *)balancer->workers->elts;
-        for (i = 0; i < balancer->workers->nelts; i++, worker++) {
-            ++worker->s->retries;
-            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
-                         balancer->name, worker->hostname);
-        }
-    }
-}
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "Requesting connection re-negotiation");
 
-static int proxy_balancer_pre_request(proxy_worker **worker,
-                                      proxy_balancer **balancer,
-                                      request_rec *r,
-                                      proxy_server_conf *conf, char **url)
-{
-    int access_status;
+        if (renegotiate_quick) {
+            STACK_OF(X509) *cert_stack;
+
+            /* perform just a manual re-verification of the peer */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                         "Performing quick renegotiation: "
+                         "just re-verifying the peer");
+
+            cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
+
+            cert = SSL_get_peer_certificate(ssl);

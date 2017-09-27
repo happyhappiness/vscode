@@ -1,26 +1,26 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
-
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+    rs = ap_global_mutex_create(&lua_ivm_mutex, NULL, "lua-ivm-shm", NULL,
+                            s, pconf, 0);
+    if (APR_SUCCESS != rs) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    /* Create shared memory space, anonymous first if possible. */
+    rs = apr_shm_create(&lua_ivm_shm, sizeof pool, NULL, pconf);
+    if (APR_STATUS_IS_ENOTIMPL(rs)) {
+        /* Fall back to filename-based; nuke any left-over first. */
+        lua_ivm_shmfile = ap_runtime_dir_relative(pconf, DEFAULT_LUA_SHMFILE);
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+        apr_shm_remove(lua_ivm_shmfile, pconf);
+        
+        rs = apr_shm_create(&lua_ivm_shm, sizeof pool, lua_ivm_shmfile, pconf);
+    }
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile ? lua_ivm_shmfile : "(anonymous)");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    pool = (apr_pool_t **)apr_shm_baseaddr_get(lua_ivm_shm);
+    apr_pool_create(pool, pconf);
+    apr_pool_cleanup_register(pconf, NULL, shm_cleanup_wrapper,
+                          apr_pool_cleanup_null);

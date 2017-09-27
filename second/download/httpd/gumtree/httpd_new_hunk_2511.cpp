@@ -1,24 +1,30 @@
+                    if (etag) {
+                        apr_table_set(r->headers_in, "If-None-Match", etag);
+                    }
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+                    if (lastmod) {
+                        apr_table_set(r->headers_in, "If-Modified-Since",
+                                lastmod);
+                    }
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
-    }
+                    /*
+                     * Do not do Range requests with our own conditionals: If
+                     * we get 304 the Range does not matter and otherwise the
+                     * entity changed and we want to have the complete entity
+                     */
+                    apr_table_unset(r->headers_in, "Range");
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
+                }
 
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
+                /* ready to revalidate, pretend we were never here */
+                return DECLINED;
+            }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+            /* Okay, this response looks okay.  Merge in our stuff and go. */
+            cache_accept_headers(h, r, 0);
+
+            cache->handle = h;
+            return OK;
+        }
+        case DECLINED: {
+            /* try again with next cache type */

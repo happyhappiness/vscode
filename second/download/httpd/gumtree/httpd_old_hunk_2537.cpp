@@ -1,20 +1,14 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    char *location = ap_table_get(r->headers_out, "Location");
-
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
-
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+         * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
+         */
+        if ((rc = apr_mmap_create(&new_file->mm, fd, 0,
+                                  (apr_size_t)new_file->finfo.size,
+                                  APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) {
+            apr_file_close(fd);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                         "mod_file_cache: unable to mmap %s, skipping", filename);
+            return;
+        }
+        apr_file_close(fd);
+        new_file->is_mmapped = TRUE;
+    }
+#endif

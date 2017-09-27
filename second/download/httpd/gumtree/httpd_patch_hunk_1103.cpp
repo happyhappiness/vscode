@@ -1,14 +1,29 @@
-         int res;
-         if (!cid->dconf.fake_async) {
-             if (cid->dconf.log_unsupported)
-                 ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                             "ISAPI: asynchronous I/O not supported: %s",
-                             r->filename);
--            SetLastError(ERROR_INVALID_PARAMETER);
-+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-             return 0;
-         }
+                            level,
+                            perdir ? "[perdir " : "",
+                            perdir ? perdir : "",
+                            perdir ? "] ": "",
+                            text);
  
-         if (r->remaining < *buf_size) {
-             *buf_size = (apr_size_t)r->remaining;
-         }
+-    rv = apr_global_mutex_lock(rewrite_log_lock);
+-    if (rv != APR_SUCCESS) {
+-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+-                      "apr_global_mutex_lock(rewrite_log_lock) failed");
+-        /* XXX: Maybe this should be fatal? */
+-    }
+-
+     nbytes = strlen(logline);
+     apr_file_write(conf->rewritelogfp, logline, &nbytes);
+ 
+-    rv = apr_global_mutex_unlock(rewrite_log_lock);
+-    if (rv != APR_SUCCESS) {
+-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+-                      "apr_global_mutex_unlock(rewrite_log_lock) failed");
+-        /* XXX: Maybe this should be fatal? */
+-    }
+-
+     return;
+ }
+ #endif /* !REWRITELOG_DISABLED */
+ 
+ 
+ /*

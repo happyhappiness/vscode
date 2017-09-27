@@ -1,26 +1,35 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+                       APR_OS_DEFAULT, ptemp);
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
+                     "Failed to open ticket key file %s: (%d) %pm",
+                     path, rv, &rv);
+        ssl_die(s);
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
+                     "Failed to read %d bytes from %s: (%d) %pm",
+                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
+        ssl_die(s);
+    }
+
+    memcpy(ticket_key->key_name, buf, 16);
+    memcpy(ticket_key->hmac_secret, buf + 16, 16);
+    memcpy(ticket_key->aes_key, buf + 32, 16);
+
+    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
+                                          ssl_callback_SessionTicket)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
+                     "Unable to initialize TLS session ticket key callback "
+                     "(incompatible OpenSSL version?)");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+        ssl_die(s);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);
+}

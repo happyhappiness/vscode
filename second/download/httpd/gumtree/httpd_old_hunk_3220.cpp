@@ -1,24 +1,30 @@
+    BOOL rv;
+    apr_time_t expiry;
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+    resp_derlen = i2d_OCSP_RESPONSE(rsp, NULL) + 1;
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+    if (resp_derlen <= 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "OCSP stapling response encode error??");
+        return FALSE;
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
+    if (resp_derlen > sizeof resp_der) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "OCSP stapling response too big (%u bytes)", resp_derlen);
+        return FALSE;
     }
 
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
+    p = resp_der;
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+    /* TODO: potential optimization; _timeout members as apr_interval_time_t */
+    if (ok == TRUE) {
+        *p++ = 1;
+        expiry = apr_time_from_sec(mctx->stapling_cache_timeout);
+    } 
+    else {
+        *p++ = 0;
+        expiry = apr_time_from_sec(mctx->stapling_errcache_timeout);
+    }
+
+    expiry += apr_time_now();

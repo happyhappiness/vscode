@@ -1,13 +1,28 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+        else if (strcEQ(w, "all")) {
+            thisopt = SSL_PROTOCOL_ALL;
+        }
+        else {
+            return apr_pstrcat(parms->temp_pool,
+                               parms->cmd->name,
+                               ": Illegal protocol '", w, "'", NULL);
+        }
+
+        if (action == '-') {
+            *options &= ~thisopt;
+        }
+        else if (action == '+') {
+            *options |= thisopt;
+        }
+        else {
+            if (*options != SSL_PROTOCOL_NONE) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, parms->server, APLOGNO(02532)
+                             "%s: Protocol '%s' overrides already set parameter(s). "
+                             "Check if a +/- prefix is missing.",
+                             parms->cmd->name, w);
+            }
+            *options = thisopt;
+        }
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+    return NULL;
+}

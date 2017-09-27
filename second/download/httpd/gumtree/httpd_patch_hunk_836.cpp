@@ -1,28 +1,28 @@
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                      "SSLSessionCache required");
-         ssl_die();
+            at a time so we need to fall on our sword... */
+         ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                      "Couldn't create accept lock");
+         return 1;
      }
  
-     /* Use anonymous shm by default, fall back on name-based. */
--    rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
--                        mc->nSessionCacheDataSize, 
-+    rv = apr_shm_create(&(mc->pSessionCacheDataMM),
-+                        mc->nSessionCacheDataSize,
-                         NULL, mc->pPool);
+-    /* worker_thread_count_mutex
+-     * locks the worker_thread_count so we have ana ccurate count...
+-     */
+-    rv = apr_thread_mutex_create(&worker_thread_count_mutex, 0, pconf);
+-    if (rv != APR_SUCCESS) {
+-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+-                     "Couldn't create worker thread count lock");
+-        return 1;
+-    }
+-
+     /*
+-     * Startup/shutdown... 
++     * Startup/shutdown...
+      */
 -    
 +
-     if (APR_STATUS_IS_ENOTIMPL(rv)) {
--        rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
--                            mc->nSessionCacheDataSize, 
-+        /* For a name-based segment, remove it first in case of a
-+         * previous unclean shutdown. */
-+        apr_shm_remove(mc->szSessionCacheDataFile, mc->pPool);
-+
-+        rv = apr_shm_create(&(mc->pSessionCacheDataMM),
-+                            mc->nSessionCacheDataSize,
-                             mc->szSessionCacheDataFile,
-                             mc->pPool);
-     }
+     if (!is_graceful) {
+         /* setup the scoreboard shared memory */
+         if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+             return 1;
+         }
  
-     if (rv != APR_SUCCESS) {
-         char buf[100];

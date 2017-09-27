@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, "Pre-configuration failed");
+apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);

@@ -1,13 +1,13 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
-    }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+    void *sconf = r->server->module_config;
+    proxy_server_conf *conf = (proxy_server_conf *)
+        ap_get_module_config(sconf, &proxy_module);
+    proxy_balancer *balancer = NULL;
+    proxy_worker **worker = NULL;
+
+    if ((flags & AP_STATUS_SHORT) || conf->balancers->nelts == 0 ||
+        conf->proxy_status == status_off)
+        return OK;
+
+    balancer = (proxy_balancer *)conf->balancers->elts;
+    for (i = 0; i < conf->balancers->nelts; i++) {
+        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);

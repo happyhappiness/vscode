@@ -1,1 +1,0 @@
-printf("Pop head: %s (length %ld)\n", s, sdslen(s));

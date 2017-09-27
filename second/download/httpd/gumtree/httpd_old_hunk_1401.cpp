@@ -1,26 +1,23 @@
-            ap_run_test_config(pconf, server_conf);
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
-            destroy_and_exit_process(process, 0);
+                }
+            }
+
+            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
+
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
         }
+
+        apr_bucket_delete(e);
     }
 
-    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
-    if (signal_server) {
-        int exit_status;
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
+}
 
-        if (signal_server(&exit_status, pconf) != 0) {
-            destroy_and_exit_process(process, exit_status);
-        }
-    }
-
-    /* If our config failed, deal with that here. */
-    if (rv != OK) {
-        destroy_and_exit_process(process, 1);
-    }
-
-    apr_pool_clear(plog);
-
-    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs");
-        destroy_and_exit_process(process, 1);
+/* This is the deflate input filter (inflates).  */
+static apr_status_t deflate_in_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb,
+                                      ap_input_mode_t mode,
+                                      apr_read_type_e block,
+                                      apr_off_t readbytes)

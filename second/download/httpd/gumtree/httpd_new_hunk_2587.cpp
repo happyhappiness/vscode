@@ -1,16 +1,13 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-	return 0;
+        return apr_pstrcat(cmd->pool, "Cannot load ", szModuleFile,
+                          " into server: ",
+                          apr_dso_error(modhandle, my_error, sizeof(my_error)),
+                          NULL);
     }
-    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
+    ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool, APLOGNO(01575)
+                 "loaded module %s", modname);
 
-    /* perform sub-request for the file name without the suffix */
+    /*
+     * Retrieve the pointer to the module structure through the module name:
+     * First with the hidden variant (prefix `AP_') and then with the plain
+     * symbol name.

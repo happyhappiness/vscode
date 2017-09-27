@@ -1,1 +1,0 @@
-ERROR("Cannot check dump files >2GB on a 32-bit platform\n");

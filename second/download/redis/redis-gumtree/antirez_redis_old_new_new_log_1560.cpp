@@ -1,1 +1,0 @@
-buferror(get_errno(), buf, sizeof(buf));

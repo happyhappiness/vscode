@@ -1,18 +1,13 @@
-    provider_ctx *pctx;
-    int err;
-    ap_filter_rec_t *filter = f->frec;
-
-    harness_ctx *fctx = apr_pcalloc(f->r->pool, sizeof(harness_ctx));
-    for (p = filter->providers; p; p = p->next) {
-        if (p->frec->filter_init_func == filter_init) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
-                          "Chaining of FilterProviders not supported");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        else if (p->frec->filter_init_func) {
-            f->ctx = NULL;
-            if ((err = p->frec->filter_init_func(f)) != OK) {
-                ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c,
-                              "filter_init for %s failed", p->frec->name);
-                return err;   /* if anyone errors out here, so do we */
-            }
+            uri_addr = src_uri_addr;
+            while (uri_addr) {
+                char *conf_ip;
+                char *uri_ip;
+                apr_sockaddr_ip_get(&conf_ip, conf_addr);
+                apr_sockaddr_ip_get(&uri_ip, uri_addr);
+                ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                             "proxy: ProxyBlock comparing %s and %s", conf_ip, uri_ip);
+                if (!apr_strnatcasecmp(conf_ip, uri_ip)) {
+                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                                 "proxy: connect to remote machine %s blocked: IP %s matched", uri_addr->hostname, conf_ip);
+                    return HTTP_FORBIDDEN;
+                }

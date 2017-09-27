@@ -1,49 +1,68 @@
-                    return;
-                }
+	    for (i = 0; i < requests; i++) {
+                apr_time_t diff = stats[i].time - stats[i].ctime;
 
-                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
-                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
-                    apr_table_setn(r->notes, "error-notes",
-                                   apr_psprintf(r->pool,
-                                               "Request header field is "
-                                               "missing ':' separator.<br />\n"
-                                                "<pre>\n%.*s</pre>\n",
-                                                (int)LOG_NAME_MAX_LEN,
-                                                ap_escape_html(r->pool,
-                                                               last_field)));
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header field is missing ':' "
-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
-                                  last_field);
-                    return;
-                }
-                
-                tmp_field = value - 1; /* last character of field-name */
+		sttime = stats[i].starttime;
+		(void) apr_ctime(tmstring, sttime);
+		fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
+			tmstring,
+			sttime,
+			stats[i].ctime,
+			diff,
+			stats[i].time,
+			stats[i].waittime);
+	    }
+	    fclose(out);
+	}
+    /*
+     * XXX: what is better; this hideous cast of the compradre function; or
+     * the four warnings during compile ? dirkx just does not know and
+     * hates both/
+     */
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compradre);
+	if ((requests > 1) && (requests % 2))
+        mediancon = (stats[requests / 2].ctime + stats[requests / 2 + 1].ctime) / 2;
+	else
+        mediancon = stats[requests / 2].ctime;
 
-                *value++ = '\0'; /* NUL-terminate at colon */
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compri);
+	if ((requests > 1) && (requests % 2))
+        mediand = (stats[requests / 2].time + stats[requests / 2 + 1].time \
+	    -stats[requests / 2].ctime - stats[requests / 2 + 1].ctime) / 2;
+	else
+        mediand = stats[requests / 2].time - stats[requests / 2].ctime;
 
-                while (*value == ' ' || *value == '\t') {
-                    ++value;            /* Skip to start of value   */
-                }
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) compwait);
+	if ((requests > 1) && (requests % 2))
+        medianwait = (stats[requests / 2].waittime + stats[requests / 2 + 1].waittime) / 2;
+	else
+        medianwait = stats[requests / 2].waittime;
 
-                /* Strip LWS after field-name: */
-                while (tmp_field > last_field 
-                       && (*tmp_field == ' ' || *tmp_field == '\t')) {
-                    *tmp_field-- = '\0';
-                }
-                
-                /* Strip LWS after field-value: */
-                tmp_field = last_field + last_len - 1;
-                while (tmp_field > value
-                       && (*tmp_field == ' ' || *tmp_field == '\t')) {
-                    *tmp_field-- = '\0';
-                }
+	qsort(stats, requests, sizeof(struct data),
+	      (int (*) (const void *, const void *)) comprando);
+	if ((requests > 1) && (requests % 2))
+        mediantot = (stats[requests / 2].time + stats[requests / 2 + 1].time) / 2;
+	else
+        mediantot = stats[requests / 2].time;
 
-                apr_table_addn(r->headers_in, last_field, value);
-                
-                /* reset the alloc_len so that we'll allocate a new
-                 * buffer if we have to do any more folding: we can't
-                 * use the previous buffer because its contents are
-                 * now part of r->headers_in
-                 */
-                alloc_len = 0;
+	printf("\nConnection Times (ms)\n");
+
+	if (confidence) {
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4d %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
+	    printf("              min  mean[+/-sd] median   max\n");
+	    printf("Connect:    " CONF_FMT_STRING, 
+                   mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
+	    printf("Processing: " CONF_FMT_STRING,
+		   mind, (int) (meand + 0.5), sdd, mediand, maxd);
+	    printf("Waiting:    " CONF_FMT_STRING,
+	           minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);
+	    printf("Total:      " CONF_FMT_STRING,
+		   mintot, (int) (meantot + 0.5), sdtot, mediantot, maxtot);
+#undef CONF_FMT_STRING
+
+#define     SANE(what,mean,median,sd) \
+              { \
+                double d = (double)mean - median; \
+                if (d < 0) d = -d; \

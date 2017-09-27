@@ -1,65 +1,30 @@
+        printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, doneka);
+    printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalread);
+    if (send_body)
+        printf("<tr %s><th colspan=2 %s>Total body sent:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring,
+           tdstring, totalposted);
+    printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);
 
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
-}
-
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f,
-					  char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
-}
-
-static int getsfunc_BUFF(char *w, int len, void *fb)
-{
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
-}
-
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					       char *buffer)
-{
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
-}
-
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
-{
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1) {
-	ap_rputs("    -", r);
-    }
-    else if (!size) {
-	ap_rputs("   0k", r);
-    }
-    else if (size < 1024) {
-	ap_rputs("   1k", r);
-    }
-    else if (size < 1048576) {
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    }
-    else if (size < 103809024) {
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    }
-    else {
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
-    }
-}
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++) {
-        if (args[x] == '+') {
-	    ++n;
-	}
-    }
-
-    /* Add extra strings to array. */
-    n = n + 2;
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;
+    /* avoid divide by zero */
+    if (timetaken) {
+        printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
+           "<td colspan=2 %s>%.2f</td></tr>\n",
+           trstring, tdstring, tdstring, (double) done / timetaken);
+        printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
+           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
+           trstring, tdstring, tdstring, (double) totalread / timetaken);
+        if (send_body) {
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) totalposted / timetaken);
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",

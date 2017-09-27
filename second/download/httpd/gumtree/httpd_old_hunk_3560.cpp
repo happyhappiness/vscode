@@ -1,20 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+
+    if (argc <= 1) {
+        usage();
+        return 1;
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    while ((rv = apr_getopt(opt, "vf::i::o::", &ch, &optarg)) == APR_SUCCESS) {
+        switch (ch) {
+        case 'v':
+            if (verbose) {
+                apr_file_printf(errfile, "Error: -v can only be passed once" NL NL);
+                usage();
+                return 1;

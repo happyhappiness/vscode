@@ -1,13 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+
+    while (top->prev || top->main) {
+        if (top->prev) {
+            if (++redirects >= rlimit) {
+                /* uuh, too much. */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00124)
+                              "Request exceeded the limit of %d internal "
+                              "redirects due to probable configuration error. "
+                              "Use 'LimitInternalRecursion' to increase the "
+                              "limit if necessary. Use 'LogLevel debug' to get "
+                              "a backtrace.", rlimit);
+

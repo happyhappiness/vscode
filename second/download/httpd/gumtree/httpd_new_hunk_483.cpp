@@ -1,13 +1,14 @@
+    my_info->sd = 0;
+    rv = apr_thread_create(&ts->listener, thread_attr, listener_thread,
+                           my_info, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create listener thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
     }
-
-    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
-                                        (request_rec *) NULL);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+    apr_os_thread_get(&listener_os_thread, ts->listener);
 }
 
-
-static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
-{
-    int i;
+/* XXX under some circumstances not understood, children can get stuck
+ *     in start_threads forever trying to take over slots which will

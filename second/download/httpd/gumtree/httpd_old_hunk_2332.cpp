@@ -1,13 +1,14 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+    case MAPTYPE_TXT:
+        rv = apr_stat(&st, s->checkfile, APR_FINFO_MIN, r->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "mod_rewrite: can't access text RewriteMap file %s",
+                          s->checkfile);
+            rewritelog((r, 1, NULL,
+                        "can't open RewriteMap file, see error log"));
+            return NULL;
+        }
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+        value = get_cache_value(s->cachename, st.mtime, key, r->pool);
+        if (!value) {
+            rewritelog((r, 6, NULL,

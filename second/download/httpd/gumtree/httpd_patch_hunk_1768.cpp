@@ -1,25 +1,17 @@
-                 char *template;
+             SSL_renegotiate(ssl);
+             SSL_do_handshake(ssl);
  
-                 status = apr_temp_dir_get(&temp_dir, p);
-                 if (status != APR_SUCCESS) {
-                     ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                  "proxy: search for temporary directory failed");
--                    return status;
-+                    return HTTP_INTERNAL_SERVER_ERROR;
-                 }
-                 apr_filepath_merge(&template, temp_dir,
-                                    "modproxy.tmp.XXXXXX",
-                                    APR_FILEPATH_NATIVE, p);
-                 status = apr_file_mktemp(&tmpfile, template, 0, p);
-                 if (status != APR_SUCCESS) {
-                     ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                  "proxy: creation of temporary file in directory %s failed",
-                                  temp_dir);
--                    return status;
-+                    return HTTP_INTERNAL_SERVER_ERROR;
-                 }
+             if (SSL_get_state(ssl) != SSL_ST_OK) {
+                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                               "Re-negotiation request failed");
+-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
++                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
+ 
+-                r->connection->aborted = 1;
++                r->connection->keepalive = AP_CONN_CLOSE;
+                 return HTTP_FORBIDDEN;
              }
-             for (e = APR_BRIGADE_FIRST(input_brigade);
-                  e != APR_BRIGADE_SENTINEL(input_brigade);
-                  e = APR_BUCKET_NEXT(e)) {
-                 const char *data;
+ 
+             ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                           "Awaiting re-negotiation handshake");
+ 

@@ -1,14 +1,25 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+}
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
+static int on_frame_recv(nghttp2_session *ngh2, const nghttp2_frame *frame,
+                         void *user_data) 
+{
+    h2_proxy_session *session = user_data;
+    int n;
+    
+    if (APLOGcdebug(session->c)) {
+        char buffer[256];
+        
+        h2_util_frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03341)
+                      "h2_proxy_session(%s): recv FRAME[%s]",
+                      session->id, buffer);
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+    switch (frame->hd.type) {
+        case NGHTTP2_HEADERS:
+            break;
+        case NGHTTP2_PUSH_PROMISE:
+            break;
+        case NGHTTP2_SETTINGS:
+            if (frame->settings.niv > 0) {
+                n = nghttp2_session_get_remote_settings(ngh2, NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS);

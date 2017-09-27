@@ -1,39 +1,13 @@
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
+            required_ldap = 1;
 
-    return 1;
-}
-
-int ssl_init_ssl_connection(conn_rec *c)
-{
-    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
-    SSL *ssl;
-    SSLConnRec *sslconn = myConnConfig(c);
-    char *vhost_md5;
-    modssl_ctx_t *mctx;
-
-    /*
-     * Seed the Pseudo Random Number Generator (PRNG)
-     */
-    ssl_rand_seed(c->base_server, c->pool, SSL_RSCTX_CONNECT, "");
-
-    if (!sslconn) {
-        sslconn = ssl_init_connection_ctx(c);
-    }
-
-    mctx = sslconn->is_proxy ? sc->proxy : sc->server;
-
-    /*
-     * Create a new SSL connection with the configured server SSL context and
-     * attach this to the socket. Additionally we register this attachment
-     * so we can detach later.
-     */
-    if (!(ssl = SSL_new(mctx->ssl_ctx))) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "Unable to create a new SSL connection from the SSL "
-                      "context");
-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
-
-        c->aborted = 1;
-
-        return DECLINED; /* XXX */
-    }
-
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                  "user's DN has not been defined; failing authorisation",

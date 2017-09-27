@@ -1,24 +1,13 @@
-    opts.sidtimeout = 0;
-    opts.sidentries = 0;
-    opts.siddir = NULL;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: %s not cached. Reason: %s", url, reason);
+        /* remove this object from the cache 
+         * BillS Asks.. Why do we need to make this call to remove_url?
+         * leave it in for now..
+         */
+        cache_remove_url(r, url);
 
-    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
-        NULL, 0, NULL, NULL, NULL) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
-        return -1;
-    }
+        /* remove this filter from the chain */
+        ap_remove_output_filter(f);
 
-    if (mutual) {
-        optParam = 0x07;  // SO_SSL_AUTH_CLIENT
-
-        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
-            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
-            return -1;
-        }
-    }
-
+        /* ship the data up the stack */
+        return ap_pass_brigade(f->next, in);

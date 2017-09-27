@@ -1,15 +1,12 @@
+    p = db ? db->pool : p;
+
+    /* There might not be a <db> if we had problems creating it. */
+    if (db == NULL) {
+        errcode = 1;
+        errstr = "Could not open property database.";
     }
     else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
+        (void) apr_dbm_geterror(db->file, &errcode, errbuf, sizeof(errbuf));
+        errstr = apr_pstrdup(p, errbuf);
     }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+

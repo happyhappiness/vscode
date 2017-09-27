@@ -1,25 +1,21 @@
+	apr_size_t space = CBUFFSIZE - c->cbx - 1; /* -1 allows for \0 term */
+	int tocopy = (space < r) ? space : r;
+#ifdef NOT_ASCII
+	apr_size_t inbytes_left = space, outbytes_left = space;
 
-    status = apr_file_open(&file, name, APR_READ | APR_BUFFERED,
-                           APR_OS_DEFAULT, p);
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                "Opening config file %s (%s)",
-                name, (status != APR_SUCCESS) ?
-                apr_strerror(status, buf, sizeof(buf)) : "successful");
-#endif
-    if (status != APR_SUCCESS)
-        return status;
-
-    status = apr_file_info_get(&finfo, APR_FINFO_TYPE, file);
-    if (status != APR_SUCCESS)
-        return status;
-
-    if (finfo.filetype != APR_REG &&
-#if defined(WIN32) || defined(OS2) || defined(NETWARE)
-        strcasecmp(apr_filepath_name_get(name), "nul") != 0) {
+	status = apr_xlate_conv_buffer(from_ascii, buffer, &inbytes_left,
+                           c->cbuff + c->cbx, &outbytes_left);
+	if (status || inbytes_left || outbytes_left) {
+	    fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
+                status, inbytes_left, outbytes_left);
+	    exit(1);
+	}
 #else
-        strcmp(name, "/dev/null") != 0) {
-#endif /* WIN32 || OS2 */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                     "Access to file %s denied by server: not a regular file",
-                     name);
+	memcpy(c->cbuff + c->cbx, buffer, space);
+#endif              /* NOT_ASCII */
+	c->cbx += tocopy;
+	space -= tocopy;
+	c->cbuff[c->cbx] = 0;	/* terminate for benefit of strstr */
+        if (verbosity >= 2) {
+	    printf("LOG: header received:\n%s\n", c->cbuff);
+	}

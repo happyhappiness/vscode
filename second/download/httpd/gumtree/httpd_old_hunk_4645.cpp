@@ -1,17 +1,13 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
-        }
+
+#if APR_TCP_NODELAY_INHERITED
+    ap_sock_disable_nagle(s);
+#endif
+
+#if defined(SO_REUSEPORT)
+    if (ap_have_so_reuseport) {
+        int thesock;
+        apr_os_sock_get(&thesock, s);
+        if (setsockopt(thesock, SOL_SOCKET, SO_REUSEPORT,
+                       (void *)&one, sizeof(int)) < 0) {
+            stat = apr_get_netos_error();
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02638)

@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Lua script killed by user with SCRIPT KILL.");

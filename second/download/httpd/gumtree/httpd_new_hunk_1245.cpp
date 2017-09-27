@@ -1,63 +1,13 @@
-                        else if (*end &&        /* neither empty nor [Bb] */
-                                 ((*end != 'B' && *end != 'b') || end[1])) {
-                            rv = APR_EGENERAL;
-                        }
+                        apr_brigade_length(output_brigade, 0, &bb_len);
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
                     }
-                    if (rv != APR_SUCCESS) {
-                        usage(apr_psprintf(pool, "Invalid limit: %s"
-                                                 APR_EOL_STR APR_EOL_STR, arg));
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");
+                        output_failed = 1;
                     }
-                } while(0);
-                break;
-
-            case 'p':
-                if (proxypath) {
-                    usage(apr_psprintf(pool, "The option '%c' cannot be specified more than once", (int)opt));
-                }
-                proxypath = apr_pstrdup(pool, arg);
-                if ((status = apr_filepath_set(proxypath, pool)) != APR_SUCCESS) {
-                    usage(apr_psprintf(pool, "Could not set filepath to '%s': %s",
-                                       proxypath, apr_strerror(status, errmsg, sizeof errmsg)));
-                }
-                break;
-            } /* switch */
-        } /* else */
-    } /* while */
-
-    if (argc <= 1) {
-        usage(NULL);
-    }
-
-    if (o->ind != argc) {
-         usage("Additional parameters specified on the command line, aborting");
-    }
-
-    if (isdaemon && repeat <= 0) {
-         usage("Option -d must be greater than zero");
-    }
-
-    if (isdaemon && (verbose || realclean || dryrun)) {
-         usage("Option -d cannot be used with -v, -r or -D");
-    }
-
-    if (!isdaemon && intelligent) {
-         usage("Option -i cannot be used without -d");
-    }
-
-    if (!proxypath) {
-         usage("Option -p must be specified");
-    }
-
-    if (max <= 0) {
-         usage("Option -l must be greater than zero");
-    }
-
-    if (apr_filepath_get(&path, 0, pool) != APR_SUCCESS) {
-        usage(apr_psprintf(pool, "Could not get the filepath: %s",
-                           apr_strerror(status, errmsg, sizeof errmsg)));
-    }
-    baselen = strlen(path);
-
-#ifndef DEBUG
-    if (isdaemon) {
-        apr_file_close(errfile);
+                    data_sent = 1;

@@ -1,48 +1,38 @@
-}
+	if (strcmp(argv[1], "-c"))
+	    usage();
+	rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
+        if (rv != APR_SUCCESS) {
+            char errmsg[120];
 
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    if (!one_process) {
-        sa.sa_handler = sig_coredump;
-#if defined(SA_ONESHOT)
-        sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-        sa.sa_flags = SA_RESETHAND;
-#endif
-        if (sigaction(SIGSEGV, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-        if (sigaction(SIGBUS, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-        if (sigaction(SIGABORT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-        if (sigaction(SIGABRT, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-        if (sigaction(SIGILL, &sa, NULL) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGILL)");
-#endif
-        sa.sa_flags = 0;
+	    fprintf(stderr, "Could not open passwd file %s for writing: %s\n",
+		    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+	    exit(1);
+	}
+	printf("Adding password for %s in realm %s.\n", argv[4], argv[3]);
+	add_password(argv[4], argv[3], f);
+	apr_file_close(f);
+	exit(0);
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
+    else if (argc != 4)
+	usage();
+
+    if (apr_file_mktemp(&tfp, tn, 0, cntxt) != APR_SUCCESS) {
+	fprintf(stderr, "Could not open temp file.\n");
+	exit(1);
+    }
+
+    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
+	fprintf(stderr,
+		"Could not open passwd file %s for reading.\n", argv[1]);
+	fprintf(stderr, "Use -c option to create new one.\n");
+	exit(1);
+    }
+    strcpy(user, argv[3]);
+    strcpy(realm, argv[2]);
+
+    found = 0;
+    while (!(get_line(line, MAX_STRING_LEN, f))) {
+	if (found || (line[0] == '#') || (!line[0])) {
+	    putline(tfp, line);
+	    continue;

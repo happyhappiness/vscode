@@ -1,17 +1,12 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+        }
     }
+    
+    return status;
+}
 
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+static ssize_t stream_data_cb(nghttp2_session *ng2s,
+                              int32_t stream_id,
+                              uint8_t *buf,
+                              size_t length,
+                              uint32_t *data_flags,
+                              nghttp2_data_source *source,

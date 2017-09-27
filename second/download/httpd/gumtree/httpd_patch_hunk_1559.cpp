@@ -1,30 +1,206 @@
+         {
+             const char *data;
+             apr_size_t len;
  
-     if (ret == APR_SUCCESS) {
-         for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
-           dumpit(f, b);
-         }
-     } else {
--        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
-+        ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server,
-         "mod_dumpio: %s - %d", f->frec->name, ret) ;
-     }
+             /* If we actually see the EOS, that means we screwed up! */
+             if (APR_BUCKET_IS_EOS(bkt)) {
+-                if (!ctx->done) {
+-                    inflateEnd(&ctx->stream);
+-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+-                                  "Encountered premature end-of-stream while inflating");
+-                    return APR_EGENERAL;
+-                }
+-
+-                /* Move everything to the returning brigade. */
+-                APR_BUCKET_REMOVE(bkt);
+-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+-                break;
++                inflateEnd(&ctx->stream);
++                return APR_EGENERAL;
+             }
  
-     return APR_SUCCESS ;
- }
+             if (APR_BUCKET_IS_FLUSH(bkt)) {
+-                apr_bucket *tmp_b;
++                apr_bucket *tmp_heap;
+                 zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                 if (zRC != Z_OK) {
+-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+-                                  "Zlib error %d inflating data (%s)", zRC,
+-                                  ctx->stream.msg);
+                     inflateEnd(&ctx->stream);
+                     return APR_EGENERAL;
+                 }
  
- static int dumpio_output_filter (ap_filter_t *f, apr_bucket_brigade *bb)
- {
-     apr_bucket *b;
-     conn_rec *c = f->c;
-+    dumpio_conf_t *ptr =
-+    (dumpio_conf_t *) ap_get_module_config(c->base_server->module_config,
-+                                           &dumpio_module);
+                 ctx->stream.next_out = ctx->buffer;
+                 len = c->bufferSize - ctx->stream.avail_out;
+- 
+-                ctx->inflate_total += len;
+-                if (inflate_limit && ctx->inflate_total > inflate_limit) { 
+-                    inflateEnd(&ctx->stream);
+-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+-                            "Inflated content length of %" APR_OFF_T_FMT
+-                            " is larger than the configured limit"
+-                            " of %" APR_OFF_T_FMT, 
+-                            ctx->inflate_total, inflate_limit);
+-                    return APR_ENOSPC;
+-                }
  
--    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server, "mod_dumpio: %s", f->frec->name) ;
-+    ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server, "mod_dumpio: %s", f->frec->name) ;
+                 ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+-                tmp_b = apr_bucket_heap_create((char *)ctx->buffer, len,
+-                                                NULL, f->c->bucket_alloc);
+-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_b);
++                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
++                                                 NULL, f->c->bucket_alloc);
++                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                 ctx->stream.avail_out = c->bufferSize;
  
-     for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
-         /*
-          * If we ever see an EOS, make sure to FLUSH.
-          */
-         if (APR_BUCKET_IS_EOS(b)) {
+-                /* Flush everything so far in the returning brigade, but continue
+-                 * reading should EOS/more follow (don't lose them).
+-                 */
+-                tmp_b = APR_BUCKET_PREV(bkt);
++                /* Move everything to the returning brigade. */
+                 APR_BUCKET_REMOVE(bkt);
+-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+-                bkt = tmp_b;
+-                continue;
+-            }
+-
+-            /* sanity check - data after completed compressed body and before eos? */
+-            if (ctx->done) {
+-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+-                              "Encountered extra data after compressed data");
+-                return APR_EGENERAL;
++                APR_BRIGADE_CONCAT(bb, ctx->bb);
++                break;
+             }
+ 
+             /* read */
+             apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+-            if (!len) {
+-                continue;
+-            }
+-            if (len > APR_INT32_MAX) {
+-                apr_bucket_split(bkt, APR_INT32_MAX);
+-                apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+-            }
+-
+-            if (ctx->zlib_flags) {
+-                rv = consume_zlib_flags(ctx, &data, &len);
+-                if (rv == APR_SUCCESS) {
+-                    ctx->zlib_flags = 0;
+-                }
+-                if (!len) {
+-                    continue;
+-                }
+-            }
+ 
+             /* pass through zlib inflate. */
+             ctx->stream.next_in = (unsigned char *)data;
+-            ctx->stream.avail_in = (int)len;
++            ctx->stream.avail_in = len;
+ 
+             zRC = Z_OK;
+ 
+-            if (!ctx->validation_buffer) {
+-                while (ctx->stream.avail_in != 0) {
+-                    if (ctx->stream.avail_out == 0) {
+-                        apr_bucket *tmp_heap;
+-                        ctx->stream.next_out = ctx->buffer;
+-                        len = c->bufferSize - ctx->stream.avail_out;
+-
+-                        ctx->inflate_total += len;
+-                        if (inflate_limit && ctx->inflate_total > inflate_limit) { 
+-                            inflateEnd(&ctx->stream);
+-                            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+-                                    "Inflated content length of %" APR_OFF_T_FMT
+-                                    " is larger than the configured limit"
+-                                    " of %" APR_OFF_T_FMT, 
+-                                    ctx->inflate_total, inflate_limit);
+-                            return APR_ENOSPC;
+-                        }
+-
+-                        if (!check_ratio(r, ctx, dc)) {
+-                            inflateEnd(&ctx->stream);
+-                            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+-                                    "Inflated content ratio is larger than the "
+-                                    "configured limit %i by %i time(s)",
+-                                    dc->ratio_limit, dc->ratio_burst);
+-                            return APR_EINVAL;
+-                        }
+-
+-                        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+-                        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+-                                                          NULL, f->c->bucket_alloc);
+-                        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+-                        ctx->stream.avail_out = c->bufferSize;
+-                    }
+-
+-                    zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+-
+-                    if (zRC == Z_STREAM_END) {
+-                        ctx->validation_buffer = apr_pcalloc(r->pool,
+-                                                             VALIDATION_SIZE);
+-                        ctx->validation_buffer_length = 0;
+-                        break;
+-                    }
+-
+-                    if (zRC != Z_OK) {
+-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+-                                      "Zlib error %d inflating data (%s)", zRC,
+-                                      ctx->stream.msg);
+-                        inflateEnd(&ctx->stream);
+-                        return APR_EGENERAL;
+-                    }
++            while (ctx->stream.avail_in != 0) {
++                if (ctx->stream.avail_out == 0) {
++                    apr_bucket *tmp_heap;
++                    ctx->stream.next_out = ctx->buffer;
++                    len = c->bufferSize - ctx->stream.avail_out;
++
++                    ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
++                    tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
++                                                      NULL, f->c->bucket_alloc);
++                    APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
++                    ctx->stream.avail_out = c->bufferSize;
+                 }
+-            }
+ 
+-            if (ctx->validation_buffer) {
+-                apr_bucket *tmp_heap;
+-                apr_size_t avail, valid;
+-                unsigned char *buf = ctx->validation_buffer;
++                zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+ 
+-                avail = ctx->stream.avail_in;
+-                valid = (apr_size_t)VALIDATION_SIZE -
+-                         ctx->validation_buffer_length;
++                if (zRC == Z_STREAM_END) {
++                    break;
++                }
+ 
+-                /*
+-                 * We have inflated all data. Now try to capture the
+-                 * validation bytes. We may not have them all available
+-                 * right now, but capture what is there.
+-                 */
+-                if (avail < valid) {
+-                    memcpy(buf + ctx->validation_buffer_length,
+-                           ctx->stream.next_in, avail);
+-                    ctx->validation_buffer_length += avail;
+-                    continue;
++                if (zRC != Z_OK) {
++                    inflateEnd(&ctx->stream);
++                    return APR_EGENERAL;
+                 }
+-                memcpy(buf + ctx->validation_buffer_length,
+-                       ctx->stream.next_in, valid);
+-                ctx->validation_buffer_length += valid;
++            }
++            if (zRC == Z_STREAM_END) {
++                apr_bucket *tmp_heap, *eos;
+ 
+                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                               "Zlib: Inflated %ld to %ld : URL %s",
+                               ctx->stream.total_in, ctx->stream.total_out,
+                               r->uri);
+ 

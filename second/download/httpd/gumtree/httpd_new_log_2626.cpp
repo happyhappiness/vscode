@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation verbose:            %12s\n", config->verbose ? "yes" : "no");

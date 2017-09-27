@@ -1,21 +1,21 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
+                        cp++;
+                    }
+                    else if (*cp == '\0' || *cp == ';') {
+                        break;
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01608)
+                                     "Cannot get media parameter.");
+                        return (NULL);
+                    }
+                }
+            }
+            value = zap_sp_and_dup(p, mp, cp, NULL);
+            if (value == NULL || *value == '\0') {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01609)
+                             "Cannot get media parameter.");
+                return (NULL);
+            }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+            pp = apr_palloc(p, sizeof(param));
+            pp->attr = attribute;

@@ -1,96 +1,27 @@
- * that the interpolation doesn't expose parts of the filesystem.
- * We don't do strict RFC 952 / RFC 1123 syntax checking in order
- * to support iDNS and people who erroneously use underscores.
- * Instead we just check for filesystem metacharacters: directory
- * separators / and \ and sequences of more than one dot.
- */
-static int fix_hostname(request_rec *r, const char *host_header,
-                        unsigned http_conformance)
-{
-    const char *src;
-    char *host, *scope_id;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
-    int is_v6literal = 0;
-    int strict = (http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
-
-    src = host_header ? host_header : r->hostname;
-
-    /* According to RFC 2616, Host header field CAN be blank */
-    if (!*src) {
-        return is_v6literal;
-    }
-
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
      */
-    for (c = src; apr_isdigit(*c); ++c);
-    if (!*c) {
-        /* pure integer */
-        if (strict) {
-            /* RFC 3986 7.4 */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "[strict] purely numeric host names not allowed: %s",
-                         src);
-            goto bad_nolog;
-        }
-        r->hostname = src;
-        return is_v6literal;
+    flags |= ((coreconf->enable_sendfile == ENABLE_SENDFILE_OFF)
+              ? 0 : APR_SENDFILE_ENABLED);
+#endif
+    rc = apr_file_open(&dobj->fd, dobj->datafile, flags, 0, r->pool);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                 "disk_cache: Cannot open info header file %s",  dobj->datafile);
+        return DECLINED;
     }
 
-    if (host_header) {
-        rv = apr_parse_addr_port(&host, &scope_id, &port, src, r->pool);
-        if (rv != APR_SUCCESS || scope_id)
-            goto bad;
-        if (port) {
-            /* Don't throw the Host: header's port number away:
-               save it in parsed_uri -- ap_get_server_port() needs it! */
-            /* @@@ XXX there should be a better way to pass the port.
-             *         Like r->hostname, there should be a r->portno
-             */
-            r->parsed_uri.port = port;
-            r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
-        }
-        if (host_header[0] == '[')
-            is_v6literal = 1;
-    }
-    else {
-        /*
-         * Already parsed, surrounding [ ] (if IPv6 literal) and :port have
-         * already been removed.
-         */
-        host = apr_pstrdup(r->pool, r->hostname);
-        if (ap_strchr(host, ':') != NULL)
-            is_v6literal = 1;
+    rc = apr_file_info_get(&finfo, APR_FINFO_SIZE, dobj->fd);
+    if (rc == APR_SUCCESS) {
+        dobj->file_size = finfo.size;
     }
 
-    if (is_v6literal) {
-        rv = fix_hostname_v6_literal(r, host);
+    /* Read the bytes to setup the cache_info fields */
+    rc = file_cache_recall_mydata(dobj->hfd, info, dobj, r);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                 "disk_cache: Cannot read header file %s",  dobj->hdrsfile);
+        return DECLINED;
     }
-    else {
-        rv = fix_hostname_non_v6(r, host);
-        if (strict && rv == APR_SUCCESS)
-            rv = strict_hostname_check(r, host);
-    }
-    if (rv != APR_SUCCESS)
-        goto bad;
 
-    r->hostname = host;
-    return is_v6literal;
-
-bad:
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "Client sent malformed Host header: %s",
-                  src);
-bad_nolog:
-    r->status = HTTP_BAD_REQUEST;
-    return is_v6literal;
-}
-
-/* return 1 if host matches ServerName or ServerAliases */
-static int matches_aliases(server_rec *s, const char *host)
-{
-    int i;
-    apr_array_header_t *names;
-
+    /* Initialize the cache_handle callback functions */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "disk_cache: Recalled cached URL info header %s",  dobj->name);

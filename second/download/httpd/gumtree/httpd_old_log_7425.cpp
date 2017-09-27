@@ -1,0 +1,1 @@
+fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
-                         "apr_accept: (client socket)");
+fprintf(stderr, "%s: Directory %s exceeds the maximum include "
+                    "directory nesting level of %u. You have probably a "
+                    "recursion somewhere.\n", ap_server_argv0, path,
+                    AP_MAX_INCLUDE_DIR_DEPTH);

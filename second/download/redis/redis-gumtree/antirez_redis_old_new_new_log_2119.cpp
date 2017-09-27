@@ -1,1 +1,0 @@
-addReplyError(c,"SYNC and PSYNC are invalid with pending output");

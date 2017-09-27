@@ -1,1 +1,1 @@
-ap_rputs("<dd><tt>", r);
+ap_rputs("</dt>", r);

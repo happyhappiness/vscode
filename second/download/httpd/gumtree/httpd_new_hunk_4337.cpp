@@ -1,18 +1,21 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+                else {
+                    do_sleep = 1;
+                }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+                apr_brigade_length(bb, 1, &len);
+
+                /*
+                 * Pull next chunk of data; the initial amount is our
+                 * burst allotment (if any) plus a chunk.  All subsequent
+                 * iterations are just chunks with whatever remaining
+                 * burst amounts we have left (in case not done in the
+                 * first bucket).
+                 */
+                rv = apr_brigade_partition(bb,
+                    ctx->chunk_size + ctx->burst, &stop_point);
+                if (rv != APR_SUCCESS && rv != APR_INCOMPLETE) {
+                    ctx->state = RATE_ERROR;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");
+                    break;
+                }

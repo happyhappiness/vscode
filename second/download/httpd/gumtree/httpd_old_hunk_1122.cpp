@@ -1,12 +1,12 @@
-                if (ap_pass_brigade(r->output_filters,
-                                    output_brigade) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "proxy: error processing body");
-                    isok = 0;
-                }
-                break;
-            default:
-                isok = 0;
-                break;
-        }
+                "Illegal attempt to re-initialise SSL for server "
+                "(theoretically shouldn't happen!)");
+        ssl_die();
+    }
+}
 
+static void ssl_init_ctx_protocol(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = NULL;

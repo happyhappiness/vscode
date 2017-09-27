@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to release global mutex lock");

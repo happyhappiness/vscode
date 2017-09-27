@@ -1,17 +1,33 @@
+            checked_standby = checking_standby++;
+        }
+        cur_lbset++;
+    } while (cur_lbset <= max_lbset && !mycandidate);
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    if (mycandidate) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01210)
+                     "proxy: bytraffic selected worker \"%s\" : busy %" APR_SIZE_T_FMT,
+                     mycandidate->s->name, mycandidate->s->busy);
+
     }
 
-    cache = c->fp;
+    return mycandidate;
+}
 
-    c->hdrs = resp_hdrs;
+/* assumed to be mutex protected by caller */
+static apr_status_t reset(proxy_balancer *balancer, server_rec *s) {
+    int i;
+    proxy_worker **worker;
+    worker = (proxy_worker **)balancer->workers->elts;
+    for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+        (*worker)->s->lbstatus = 0;
+        (*worker)->s->busy = 0;
+        (*worker)->s->transferred = 0;
+        (*worker)->s->read = 0;
+    }
+    return APR_SUCCESS;
+}
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+static apr_status_t age(proxy_balancer *balancer, server_rec *s) {
+        return APR_SUCCESS;
+}
+

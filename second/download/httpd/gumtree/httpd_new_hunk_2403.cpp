@@ -1,13 +1,24 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+             * environment is set.
+             */
+
+            if (apr_table_get(r->subprocess_env,
+                              "AuthDigestEnableQueryStringHack")) {
+
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01784)
+                              "applying AuthDigestEnableQueryStringHack "
+                              "to uri <%s>", resp->raw_request_uri);
+
+               d_uri.query = r_uri.query;
+            }
+        }
+
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01785)
+                              "uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }
+        else if (
+            /* check hostname matches, if present */

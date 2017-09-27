@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"!!! Warning: short read while loading the AOF file !!!");

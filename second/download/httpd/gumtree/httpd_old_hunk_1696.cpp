@@ -1,12 +1,13 @@
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Error looking up %s in database", user);
-            return AUTH_GENERAL_ERROR;
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: prefetch request body failed to %pI (%s)"
+                         " from %s (%s)",
+                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                         c->remote_ip, c->remote_host ? c->remote_host: "");
+            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
         }
-        if (dbd_password == NULL) {
-            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
-        }
-        /* we can't break out here or row won't get cleaned up */
-    }
 
-    if (!dbd_password) {
-        return AUTH_USER_NOT_FOUND;
+        apr_brigade_length(temp_brigade, 1, &bytes);
+        bytes_read += bytes;
+
+        /*

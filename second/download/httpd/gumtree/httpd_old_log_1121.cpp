@@ -1,1 +1,1 @@
-printf("%3d", *tables++);
+printf(" */\n\n/* End of chartables.c */\n");

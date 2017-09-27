@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation size interval:      %12d\n", config->sRotation);

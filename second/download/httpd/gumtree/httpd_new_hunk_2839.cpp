@@ -1,101 +1,118 @@
- * and OPTIONS at this point... anyone who wants to write a generic
- * handler for PUT or POST is free to do so, but it seems unwise to provide
- * any defaults yet... So, for now, we assume that this will always be
- * the last handler called and return 405 or 501.
- */
+            *current = apr_pcalloc(cmd->pool, sizeof(**current));
+        }
 
-static int default_handler(request_rec *r)
+        baton = apr_pcalloc(cmd->pool, sizeof(hack_section_baton));
+        baton->name = name;
+        baton->spec = spec;
+        baton->apr_hook_when = when;
+
+        (*current)->filename = cmd->config_file->name;
+        (*current)->line_num = cmd->config_file->line_number;
+        (*current)->directive = apr_pstrdup(cmd->pool, "Lua_____ByteCodeHack");
+        (*current)->args = NULL;
+        (*current)->data = baton;
+    }
+
+    return NULL;
+}
+
+static const char *register_named_file_function_hook(const char *name,
+                                                     cmd_parms *cmd,
+                                                     void *_cfg,
+                                                     const char *file,
+                                                     const char *function,
+                                                     int apr_hook_when)
 {
-    core_dir_config *d =
-      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
-    int rangestatus, errstatus;
-    FILE *f;
-#ifdef USE_MMAP_FILES
-    caddr_t mm;
-#endif
+    ap_lua_mapped_handler_spec *spec;
+    ap_lua_dir_cfg *cfg = (ap_lua_dir_cfg *) _cfg;
+    const char *key = apr_psprintf(cmd->pool, "%s_%d", name, apr_hook_when);
+    apr_array_header_t *hook_specs = apr_hash_get(cfg->hooks, key,
+                                                  APR_HASH_KEY_STRING);
 
-    /* This handler has no use for a request body (yet), but we still
-     * need to read and discard it if the client sent one.
-     */
-    if ((errstatus = ap_discard_request_body(r)) != OK) {
-        return errstatus;
+    if (!hook_specs) {
+        hook_specs = apr_array_make(cmd->pool, 2,
+                                    sizeof(ap_lua_mapped_handler_spec *));
+        apr_hash_set(cfg->hooks, key, APR_HASH_KEY_STRING, hook_specs);
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+    spec = apr_pcalloc(cmd->pool, sizeof(ap_lua_mapped_handler_spec));
+    spec->file_name = apr_pstrdup(cmd->pool, file);
+    spec->function_name = apr_pstrdup(cmd->pool, function);
+    spec->scope = cfg->vm_scope;
 
-    if (r->method_number == M_INVALID) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
+    *(ap_lua_mapped_handler_spec **) apr_array_push(hook_specs) = spec;
+    return NULL;
+}
 
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-                    "File does not exist: %s", 
-		     r->path_info 
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-		         : r->filename);
-	return NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(__EMX__) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
+static int lua_check_user_id_harness_first(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "check_user_id", AP_LUA_HOOK_FIRST);
+}
+static int lua_check_user_id_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "check_user_id", APR_HOOK_MIDDLE);
+}
+static int lua_check_user_id_harness_last(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "check_user_id", AP_LUA_HOOK_LAST);
+}
 
-    if (f == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
-    ap_set_etag(r);
-    ap_table_setn(r->headers_out, "Accept-Ranges", "bytes");
-    if (((errstatus = ap_meets_conditions(r)) != OK)
-	|| (errstatus = ap_set_content_length(r, r->finfo.st_size))) {
-        return errstatus;
-    }
+static int lua_translate_name_harness_first(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "translate_name", AP_LUA_HOOK_FIRST);
+}
+static int lua_translate_name_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "translate_name", APR_HOOK_MIDDLE);
+}
+static int lua_translate_name_harness_last(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "translate_name", AP_LUA_HOOK_LAST);
+}
 
-#ifdef USE_MMAP_FILES
-    ap_block_alarms();
-    if ((r->finfo.st_size >= MMAP_THRESHOLD)
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
-    }
-    else {
-	mm = (caddr_t)-1;
-    }
+static int lua_fixup_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "fixups", APR_HOOK_MIDDLE);
+}
 
-    if (mm == (caddr_t)-1) {
-	ap_unblock_alarms();
-#endif
+static int lua_map_to_storage_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "map_to_storage", APR_HOOK_MIDDLE);
+}
 
-	if (d->content_md5 & 1) {
-	    ap_table_setn(r->headers_out, "Content-MD5",
-			  ap_md5digest(r->pool, f));
-	}
+static int lua_type_checker_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "type_checker", APR_HOOK_MIDDLE);
+}
 
-	rangestatus = ap_set_byterange(r);
-#ifdef CHARSET_EBCDIC
-	/* To make serving of "raw ASCII text" files easy (they serve faster 
-	 * since they don't have to be converted from EBCDIC), a new
+static int lua_access_checker_harness_first(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "access_checker", AP_LUA_HOOK_FIRST);
+}
+static int lua_access_checker_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "access_checker", APR_HOOK_MIDDLE);
+}
+static int lua_access_checker_harness_last(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "access_checker", AP_LUA_HOOK_LAST);
+}
+
+static int lua_auth_checker_harness_first(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "auth_checker", AP_LUA_HOOK_FIRST);
+}
+static int lua_auth_checker_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "auth_checker", APR_HOOK_MIDDLE);
+}
+static int lua_auth_checker_harness_last(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "auth_checker", AP_LUA_HOOK_LAST);
+}
+static void lua_insert_filter_harness(request_rec *r)
+{
+    /* ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "LuaHookInsertFilter not yet implemented"); */
+}
+
+static int lua_quick_harness(request_rec *r, int lookup)

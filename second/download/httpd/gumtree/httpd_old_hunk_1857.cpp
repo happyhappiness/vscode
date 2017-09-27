@@ -1,14 +1,24 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+    apr_atomic_inc32(&g_blocked_threads);
+    while (1) {
+        if (workers_may_exit) {
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        }
+        rc = GetQueuedCompletionStatus(ThreadDispatchIOCP, &BytesRead, &CompKey,
+                                       &pol, INFINITE);
+        if (!rc) {
+            rc = apr_get_os_error();
+            ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
+                             "Child %lu: GetQueuedComplationStatus returned %d", my_pid, rc);
+            continue;
+        }
+
+        switch (CompKey) {
+        case IOCP_CONNECTION_ACCEPTED:
+            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);
+            break;
+        case IOCP_SHUTDOWN:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        default:
+            apr_atomic_dec32(&g_blocked_threads);

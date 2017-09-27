@@ -1,13 +1,13 @@
     else {
-        /* no last slash, buh?! */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "internal error in mod_cern_meta: %s", r->filename);
-        /* should really barf, but hey, let's be friends... */
-        return DECLINED;
-    };
+        /* Single process mode - this lock doesn't even need to exist */
+        rv = apr_proc_mutex_create(&start_mutex, signal_name_prefix,
+                                   APR_LOCK_DEFAULT, s->process->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                         "%s child %d: Unable to init the start_mutex.",
+                         service_name, my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
 
-    metafilename = apr_pstrcat(r->pool, scrap_book, "/",
-               dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
-               "/", real_file,
-         dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
-               NULL);
+        /* Borrow the shutdown_even as our _child_ loop exit event */
+        exit_event = shutdown_event;

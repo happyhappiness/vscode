@@ -1,14 +1,15 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+        rv = APR_EGENERAL;
+    }
+
+    return rv;
+}
+
+AP_DECLARE(apr_status_t) ap_mpm_note_child_killed(int childnum)
+{
+    return ap_run_mpm_note_child_killed(childnum);
+}
+
+AP_DECLARE(apr_status_t) ap_mpm_register_timed_callback(apr_time_t t, ap_mpm_callback_fn_t *cbfn, void *baton)
+{
+    return ap_run_mpm_register_timed_callback(t, cbfn, baton);
+}

@@ -1,13 +1,96 @@
+                break;
+            }
+        }
+        
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
+                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
+        status = apr_brigade_write(io->output, pass_out, io, buf, length);
+    }
+    
+    return status;
+}
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+apr_status_t h2_conn_io_writeb(h2_conn_io *io, apr_bucket *b)
+{
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    io->unflushed = 1;
+    return APR_SUCCESS;
+}
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+apr_status_t h2_conn_io_consider_flush(h2_conn_io *io)
+{
+    apr_status_t status = APR_SUCCESS;
+    
+    /* The HTTP/1.1 network output buffer/flush behaviour does not
+     * give optimal performance in the HTTP/2 case, as the pattern of
+     * buckets (data/eor/eos) is different.
+     * As long as we have not found out the "best" way to deal with
+     * this, force a flush at least every WRITE_BUFFER_SIZE amount
+     * of data.
+     */
+    if (io->unflushed) {
+        apr_off_t len = 0;
+        if (!APR_BRIGADE_EMPTY(io->output)) {
+            apr_brigade_length(io->output, 0, &len);
+        }
+        len += io->buflen;
+        if (len >= WRITE_BUFFER_SIZE) {
+            return h2_conn_io_pass(io);
+        }
+    }
+    return status;
+}
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+static apr_status_t h2_conn_io_flush_int(h2_conn_io *io, int force)
+{
+    if (io->unflushed || force) {
+        if (io->buflen > 0) {
+            /* something in the buffer, put it in the output brigade */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                          "h2_conn_io: flush, flushing %ld bytes", (long)io->buflen);
+            bucketeer_buffer(io);
+            io->buflen = 0;
+        }
+        
+        if (force) {
+            APR_BRIGADE_INSERT_TAIL(io->output,
+                                    apr_bucket_flush_create(io->output->bucket_alloc));
+        }
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                      "h2_conn_io: flush");
+        /* Send it out */
+        io->unflushed = 0;
+        return pass_out(io->output, io);
+        /* no more access after this, as we might have flushed an EOC bucket
+         * that de-allocated us all. */
+    }
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_conn_io_flush(h2_conn_io *io)
+{
+    return h2_conn_io_flush_int(io, 1);
+}
+
+apr_status_t h2_conn_io_pass(h2_conn_io *io)
+{
+    return h2_conn_io_flush_int(io, 0);
+}
+
+apr_status_t h2_conn_io_close(h2_conn_io *io, void *session)
+{
+    apr_bucket *b;
+
+    /* Send out anything in our buffers */
+    h2_conn_io_flush_int(io, 0);
+    
+    b = h2_bucket_eoc_create(io->connection->bucket_alloc, session);
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    b = apr_bucket_flush_create(io->connection->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    return ap_pass_brigade(io->connection->output_filters, io->output);
+    /* and all is gone */
+}

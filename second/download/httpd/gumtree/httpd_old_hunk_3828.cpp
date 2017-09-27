@@ -1,13 +1,12 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    /* OpenSSL is not expected to call us with modes other than 1 or 0 */
+    return -1;
+}
+#endif /* HAVE_TLS_SESSION_TICKETS */
+
+#ifdef HAVE_SRP
+
+int ssl_callback_SRPServerParams(SSL *ssl, int *ad, void *arg)
+{
+    modssl_ctx_t *mctx = (modssl_ctx_t *)arg;
+    char *username = SSL_get_srp_username(ssl);

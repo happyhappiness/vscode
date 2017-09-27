@@ -1,13 +1,13 @@
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    result = ap_run_handler(r);
 
-    ap_hard_timeout("send headers", r);
+    r->handler = old_handler;
 
-    ap_basic_http_header(r);
+    if (result == DECLINED && r->handler && r->filename) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    }
+    if ((result != OK) && (result != DONE) && (result != DECLINED) && (result != SUSPENDED)
+        && (result != AP_FILTER_ERROR) /* ap_die() knows about this specifically */
+        && !ap_is_HTTP_VALID_RESPONSE(result)) {
+        /* If a module is deliberately returning something else

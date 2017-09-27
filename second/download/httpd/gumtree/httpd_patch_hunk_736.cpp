@@ -1,21 +1,19 @@
-          * was a local redirect and the requested resource failed
-          * for any reason, the custom_response will still hold the
-          * redirect URL. We don't really want to output this URL
-          * as a text message, so first check the custom response
-          * string to ensure that it is a text-string (using the
-          * same test used in ap_die(), i.e. does it start with a ").
--         * 
--         * If it's not a text string, we've got a recursive error or 
-+         *
-+         * If it's not a text string, we've got a recursive error or
-          * an external redirect.  If it's a recursive error, ap_die passes
--         * us the second error code so we can write both, and has already 
--         * backed up to the original error.  If it's an external redirect, 
-+         * us the second error code so we can write both, and has already
-+         * backed up to the original error.  If it's an external redirect,
-          * it hasn't happened yet; we may never know if it fails.
-          */
-         if (custom_response[0] == '\"') {
-             ap_rputs(custom_response + 1, r);
-             ap_finalize_request_protocol(r);
-             return;
+ 
+         /* XXX: probably a better way to determine this */
+         if (SSL_total_renegotiations(filter_ctx->pssl)) {
+             reason = "likely due to failed renegotiation";
+         }
+ 
+-        ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+-                     "failed to write %d of %d bytes (%s)",
+-                     len - (apr_size_t)res, len, reason);
++        ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
++                      "failed to write %" APR_SSIZE_T_FMT
++                      " of %" APR_SIZE_T_FMT " bytes (%s)",
++                      len - (apr_size_t)res, len, reason);
+ 
+         outctx->rc = APR_EGENERAL;
+     }
+     return outctx->rc;
+ }
+ 

@@ -1,17 +1,21 @@
-         err = apr_sockaddr_info_get(&(connect_addr),
-                                     connectname, APR_UNSPEC,
-                                     connectport, 0,
-                                     address_pool);
-     if (worker->is_address_reusable && !worker->cp->addr) {
-         worker->cp->addr = connect_addr;
--        PROXY_THREAD_UNLOCK(worker);
-+        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
-+            ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-+                         "proxy: FTP: unlock");
-+        }
-     }
-     /*
-      * get all the possible IP addresses for the destname and loop through
-      * them until we get a successful connection
-      */
-     if (APR_SUCCESS != err) {
+         apr_bucket *bucket;
+ 
+         rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                             APR_BLOCK_READ, HUGE_STRING_LEN);
+ 
+         if (rv != APR_SUCCESS) {
++            if (APR_STATUS_IS_TIMEUP(rv)) {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
++                              "Timeout during reading request entity data");
++                return HTTP_REQUEST_TIME_OUT;
++            }
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                           "Error reading request entity data");
+-            return ap_map_http_request_error(rv, HTTP_BAD_REQUEST);
++            return HTTP_INTERNAL_SERVER_ERROR;
+         }
+ 
+         for (bucket = APR_BRIGADE_FIRST(bb);
+              bucket != APR_BRIGADE_SENTINEL(bb);
+              bucket = APR_BUCKET_NEXT(bucket))
+         {

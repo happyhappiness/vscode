@@ -1,1 +1,0 @@
-printf("  %d:%.*s => %d:%.*s\n", klen, klen, key, vlen, vlen, value);

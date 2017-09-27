@@ -1,1 +1,0 @@
-snprintf(addr,sizeof(addr),"%s:%d",ip,port);

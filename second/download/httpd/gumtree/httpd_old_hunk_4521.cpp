@@ -1,44 +1,61 @@
-        return errstatus;
-    }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+#include "h2_filter.h"
 
-    if (r->method_number == M_INVALID) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
+#define UNSET       -1
+#define H2MIN(x,y) ((x) < (y) ? (x) : (y))
 
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-                    "File does not exist: %s", 
-		     r->path_info 
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-		         : r->filename);
-	return NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(__EMX__) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
+static apr_status_t consume_brigade(h2_filter_cin *cin, 
+                                    apr_bucket_brigade *bb, 
+                                    apr_read_type_e block)
+{
+    apr_status_t status = APR_SUCCESS;
+    apr_size_t readlen = 0;
+    
+    while (status == APR_SUCCESS && !APR_BRIGADE_EMPTY(bb)) {
+        
+        apr_bucket* bucket = APR_BRIGADE_FIRST(bb);
+        if (APR_BUCKET_IS_METADATA(bucket)) {
+            /* we do nothing regarding any meta here */
+        }
+        else {
+            const char *bucket_data = NULL;
+            apr_size_t bucket_length = 0;
+            status = apr_bucket_read(bucket, &bucket_data,
+                                     &bucket_length, block);
+            
+            if (status == APR_SUCCESS && bucket_length > 0) {
+                apr_size_t consumed = 0;
 
-    if (f == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
+                status = cin->cb(cin->cb_ctx, bucket_data, bucket_length, &consumed);
+                if (status == APR_SUCCESS && bucket_length > consumed) {
+                    /* We have data left in the bucket. Split it. */
+                    status = apr_bucket_split(bucket, consumed);
+                }
+                readlen += consumed;
+                cin->start_read = apr_time_now();
+            }
+        }
+        apr_bucket_delete(bucket);
     }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+    
+    if (readlen == 0 && status == APR_SUCCESS && block == APR_NONBLOCK_READ) {
+        return APR_EAGAIN;
+    }
+    return status;
+}
+
+h2_filter_cin *h2_filter_cin_create(apr_pool_t *p, h2_filter_cin_cb *cb, void *ctx)
+{
+    h2_filter_cin *cin;
+    
+    cin = apr_pcalloc(p, sizeof(*cin));
+    cin->pool      = p;
+    cin->cb        = cb;
+    cin->cb_ctx    = ctx;
+    cin->start_read = UNSET;
+    return cin;
+}
+
+void h2_filter_cin_timeout_set(h2_filter_cin *cin, apr_interval_time_t timeout)
+{
+    cin->timeout = timeout;

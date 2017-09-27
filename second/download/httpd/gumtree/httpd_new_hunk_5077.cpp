@@ -1,14 +1,40 @@
-    return res;
-}
+                    }
 
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-        "Done with config file %s", cfp->name);
-#endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-}
+                    /* XXX Why don't we cleanup here?  (logic from AJP) */
+                }
+                break;
 
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {
+            case AP_FCGI_STDERR:
+                /* TODO: Should probably clean up this logging a bit... */
+                if (clen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", readbuf);
+                }
+
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }
+                break;
+
+            case AP_FCGI_END_REQUEST:
+                done = 1;
+                break;
+
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01072)
+                              "Got bogus record %d", type);
+                break;
+            }
+
+            if (plen) {
+                rv = get_data_full(conn, readbuf, plen);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  APLOGNO(02537) "Error occurred reading padding");
+                    break;
+                }
+            }
+        }
+    }
+

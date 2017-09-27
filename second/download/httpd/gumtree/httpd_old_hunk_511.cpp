@@ -1,12 +1,13 @@
-                                      getpid(), t, ldc->reason, ldap_err2string(result));
-                    }
-                }
-            }
-        }
-        else if (strcmp(w, "ldap-attribute") == 0) {
-            while (t[0]) {
-                w = ap_getword(r->pool, &t, '=');
-                value = ap_getword_conf(r->pool, &t);
+static void show_compile_settings(void)
+{
+    printf("Server version: %s\n", ap_get_server_version());
+    printf("Server built:   %s\n", ap_get_server_built());
+    printf("Server's Module Magic Number: %u:%u\n",
+           MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: checking attribute"
+    /* sizeof(foo) is long on some platforms so we might as well
+     * make it long everywhere to keep the printf format
+     * consistent
+     */
+    printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
+    printf("Server compiled with....\n");

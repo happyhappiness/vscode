@@ -1,32 +1,33 @@
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
+    void *sconf = s->module_config;
+    proxy_server_conf *conf =
+        (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+
+    if (conn->sock) {
+        if (!(connected = is_socket_connected(conn->sock))) {
+            /* This clears conn->scpool (and associated data), so backup and
+             * restore any ssl_hostname for this connection set earlier by
+             * ap_proxy_determine_connection().
+             */
+            char ssl_hostname[PROXY_WORKER_RFC1035_NAME_SIZE];
+            if (!conn->ssl_hostname ||
+                    conn->ssl_hostname[apr_cpystrn(ssl_hostname,
+                                                   conn->ssl_hostname,
+                                                   sizeof ssl_hostname) -
+                                       ssl_hostname]) {
+                ssl_hostname[0] = '\0';
+            }
+
+            socket_cleanup(conn);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: %s: backend socket is disconnected.",
+                         proxy_function);
+
+            if (ssl_hostname[0]) {
+                conn->ssl_hostname = apr_pstrdup(conn->scpool, ssl_hostname);
+            }
         }
     }
-    /* Forward the local ip address information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getLocalAddr(),
-     * we provide the address to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the local address from this attribute.
-     */
-    {
-        const char *key = SC_A_REQ_LOCAL_ADDR;
-        char *val = r->connection->local_ip;
-        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
-            ajp_msg_append_string(msg, key)   ||
-            ajp_msg_append_string(msg, val)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
-     */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+    while (backend_addr && !connected) {
+        if ((rv = apr_socket_create(&newsock, backend_addr->family,
+                                SOCK_STREAM, APR_PROTO_TCP,
+                                conn->scpool)) != APR_SUCCESS) {

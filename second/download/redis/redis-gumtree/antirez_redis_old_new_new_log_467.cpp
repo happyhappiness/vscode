@@ -1,1 +1,0 @@
-serverLog(LL_WARNING, "Module %s failed to load: %s", path, dlerror());

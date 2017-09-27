@@ -1,14 +1,26 @@
+ {
+     ef_ctx_t *ctx = f->ctx;
+     apr_status_t rv;
  
-     case HSE_REQ_GET_SSPI_INFO:
-         if (cid->dconf.log_unsupported)
-             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                            "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                            "is not supported: %s", r->filename);
--        SetLastError(ERROR_INVALID_PARAMETER);
-+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-         return 0;
+     if (!ctx) {
+         if ((rv = init_filter_instance(f)) != APR_SUCCESS) {
+-            return rv;
++            ctx = f->ctx;
++            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
++                          "can't initialise input filter %s: %s",
++                          f->frec->name,
++                          (ctx->dc->onfail == 1) ? "removing" : "aborting");
++            ap_remove_input_filter(f);
++            if (ctx->dc->onfail == 1) {
++                return ap_get_brigade(f->next, bb, mode, block, readbytes);
++            }
++            else {
++                f->r->status = HTTP_INTERNAL_SERVER_ERROR;
++                return HTTP_INTERNAL_SERVER_ERROR;
++            }
+         }
+         ctx = f->ctx;
+     }
  
-     case HSE_APPEND_LOG_PARAMETER:
-         /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
-          */
-         apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
+     if (ctx->noop) {
+         ap_remove_input_filter(f);

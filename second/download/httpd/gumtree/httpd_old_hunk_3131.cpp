@@ -1,13 +1,18 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+    n = SSL_CTX_use_certificate_chain(mctx->ssl_ctx,
+                                      (char *)chain,
+                                      skip_first, NULL);
+    if (n < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Failed to configure CA certificate chain!");
+        ssl_die();
+    }
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring server certificate chain "
+                 "(%d CA certificate%s)",
+                 n, n == 1 ? "" : "s");
+}
+
+static void ssl_init_ctx(server_rec *s,

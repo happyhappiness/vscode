@@ -1,15 +1,17 @@
-             apr_status_t rv;
- 
-             /* flush the remaining data from the zlib buffers */
-             zRC = flush_libz_buffer(ctx, c, f->c->bucket_alloc, deflate,
-                                     Z_SYNC_FLUSH, NO_UPDATE_CRC);
-             if (zRC != Z_OK) {
-+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-+                              "Zlib error %d flushing zlib output buffer (%s)",
-+                              zRC, ctx->stream.msg);
-                 return APR_EGENERAL;
-             }
- 
-             /* Remove flush bucket from old brigade anf insert into the new. */
-             APR_BUCKET_REMOVE(e);
-             APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+     case APR_SUCCESS:
+         break;
+     }
+     *db = rec;
+     rv = dbd_prepared_init(rec->pool, svr, rec);
+     if (rv != APR_SUCCESS) {
++        const char *errmsg = apr_dbd_error(rec->driver, rec->handle, rv);
+         ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+-                      "DBD: failed to initialise prepared SQL statements");
++                      "DBD: failed to initialise prepared SQL statements: %s",
++                      (errmsg ? errmsg : "[???]"));
+     }
+     return rv;
+ }
+ static apr_status_t dbd_close(void *CONN)
+ {
+     ap_dbd_t *conn = CONN;

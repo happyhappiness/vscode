@@ -1,1 +1,0 @@
-fprintf(stderr,"%s:%d: %s\n",config.hostip,config.hostport,c->context->errstr);

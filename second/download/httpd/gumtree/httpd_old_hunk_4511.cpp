@@ -1,47 +1,19 @@
-    else {
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
+    return NULL;
+}
+
+static const char *h2_conf_set_session_extra_files(cmd_parms *parms,
+                                                   void *arg, const char *value)
+{
+    h2_config *cfg = (h2_config *)h2_config_sget(parms->server);
+    apr_int64_t max = (int)apr_atoi64(value);
+    if (max < 0) {
+        return "value must be a non-negative number";
     }
-#endif
-}
-    
-
-void ap_log_pid (pool *p, char *fname)
-{
-    FILE *pid_file;
-
-    if (!fname) return;
-    fname = ap_server_root_relative (p, fname);
-    if(!(pid_file = fopen(fname,"w"))) {
-	perror("fopen");
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-        exit(1);
-    }
-    fprintf(pid_file,"%ld\n",(long)getpid());
-    fclose(pid_file);
+    cfg->session_extra_files = (int)max;
+    (void)arg;
+    return NULL;
 }
 
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
+static const char *h2_conf_set_serialize_headers(cmd_parms *parms,
+                                                 void *arg, const char *value)
 {
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, err);
-}
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-			      const char *msg, server_rec *s)
-{
-    ap_log_error(file, 0, APLOG_ERR, s, msg);
-}
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-{
-    char buf[MAX_STRING_LEN];
-    va_list args;
-    
-    va_start(args, fmt);
-    ap_vsnprintf(buf, sizeof(buf), fmt, args);
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, buf);
-    va_end(args);
-}
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

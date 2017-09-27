@@ -1,2 +1,5 @@
-ap_register_output_filter("FIXUP_HEADERS_ERR", ap_headers_error_filter,
-                              NULL, AP_FTYPE_CONTENT_SET);
+ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>Sch</th><th>Host</th><th>Stat</th>"
+                 "<th>Route</th><th>Redir</th>"
+                 "<th>F</th><th>Acc</th><th>Wr</th><th>Rd</th>"
+                 "</tr>\n", r);

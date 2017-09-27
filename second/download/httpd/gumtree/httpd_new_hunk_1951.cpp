@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+    return APR_SUCCESS;
+}
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+static void htdbm_usage(void)
+{
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+#if (!(defined(WIN32) || defined(NETWARE)))
+#define CRYPT_OPTION "d"
+#else
+#define CRYPT_OPTION ""
+#endif
+    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
+    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");

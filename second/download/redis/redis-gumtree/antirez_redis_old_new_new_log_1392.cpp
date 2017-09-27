@@ -1,1 +1,0 @@
-anetFormatIP(buf,sizeof(buf),ip,c->slave_listening_port);

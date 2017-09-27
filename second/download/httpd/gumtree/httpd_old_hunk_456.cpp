@@ -1,31 +1,35 @@
-    /* Initialize the cache_handle */
-    h->cache_obj = obj;
-    h->req_hdrs = NULL;  /* Pick these up in recall_headers() */
-    return OK;
-}
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
 
-static int remove_entity(cache_handle_t *h) 
-{
-    cache_object_t *obj = h->cache_obj;
-
-    /* Remove the cache object from the cache under protection */
-    if (sconf->lock) {
-        apr_thread_mutex_lock(sconf->lock);
+    /* check if we have a registered command for the extension*/
+    new_cmd = apr_table_get(d->file_type_handlers, ext);
+    if (new_cmd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Could not find a command associated with the %s extension", ext);
+        return APR_EBADF;
     }
-    /* If the object is not already marked for cleanup, remove
-     * it from the cache and mark it for cleanup. Remember,
-     * an object marked for cleanup is by design not in the
-     * hash table.
-     */
-    if (!obj->cleanup) {
-        cache_remove(sconf->cache_cache, obj);
-        obj->cleanup = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
-    }
+    if (stricmp(new_cmd, "OS")) {
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, new_cmd, " ", cmd_only, NULL);
 
-    if (sconf->lock) {
-        apr_thread_mutex_unlock(sconf->lock);
+        /* Run in its own address space if specified */
+        detached = apr_table_get(d->file_handler_mode, ext);
+        if (detached) {
+            e_info->cmd_type = APR_PROGRAM_ENV;
+        }
+        else {
+            e_info->cmd_type = APR_PROGRAM;
+        }
     }
 
-    return OK;
+    /* Tokenize the full command string into its arguments */
+    apr_tokenize_to_argv(*cmd, (char***)argv, p);
+    e_info->detached = 1;
+
+    /* The first argument should be the executible */
+    *cmd = ap_server_root_relative(p, *argv[0]);
+
+    return APR_SUCCESS;
 }

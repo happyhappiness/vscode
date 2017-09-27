@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'" NL, argv[0], *arg);
+apr_file_printf(errfile, "%s: could not determine temp dir" NL,
+                        argv[0]);

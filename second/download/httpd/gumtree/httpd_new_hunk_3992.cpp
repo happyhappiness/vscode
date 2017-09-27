@@ -1,13 +1,13 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
+        procnew = apr_pcalloc(p, sizeof(*procnew));
+        rc = ap_os_create_privileged_process(r, procnew, command, argv, env,
+                                             procattr, p);
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+        if (rc != APR_SUCCESS) {
+            /* Bad things happened. Everyone should have cleaned up. */
+            /* Intentional no APLOGNO */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
+                          "couldn't create child process: %d: %s", rc,
+                          apr_filepath_name_get(r->filename));
+        }
+        else {
+            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);

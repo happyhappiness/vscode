@@ -1,23 +1,29 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00926)
+                     "worker %s local already initialized", worker->s->name);
     }
-    service_set_status(SERVICE_STOPPED);
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00927)
+                     "initializing worker %s local", worker->s->name);
+        apr_global_mutex_lock(proxy_mutex);
+        /* Now init local worker data */
+        if (worker->tmutex == NULL) {
+            rv = apr_thread_mutex_create(&(worker->tmutex), APR_THREAD_MUTEX_DEFAULT, p);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00928)
+                             "can not create worker thread mutex");
+                apr_global_mutex_unlock(proxy_mutex);
+                return rv;
+            }
+        }
+        if (worker->cp == NULL)
+            init_conn_pool(p, worker);
+        if (worker->cp == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00929)
+                         "can not create connection pool");
+            apr_global_mutex_unlock(proxy_mutex);
+            return APR_EGENERAL;
+        }
 
-    /* cleanup pid file on normal shutdown */
-    {
-	const char *pidfile = NULL;
-	pidfile = ap_server_root_relative (pparent, ap_pid_fname);
-	if ( pidfile != NULL && unlink(pidfile) == 0)
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			 server_conf,
-			 "httpd: removed PID file %s (pid=%ld)",
-			 pidfile, (long)getpid());
-    }
-
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+        if (worker->s->hmax) {
+            rv = apr_reslist_create(&(worker->cp->res),
+                                    worker->s->min, worker->s->smax,

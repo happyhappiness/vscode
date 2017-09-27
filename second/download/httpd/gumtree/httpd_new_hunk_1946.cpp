@@ -1,13 +1,47 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    return APR_ENOMEM;
+}
+
+/*
+ * print purge statistics
+ */
+static void printstats(char *path, struct stats *s)
+{
+    char ttype, stype, mtype, utype;
+    apr_off_t tfrag, sfrag, ufrag;
+
+    if (!verbose) {
+        return;
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+    ttype = 'K';
+    tfrag = ((s->total * 10) / KBYTE) % 10;
+    s->total /= KBYTE;
+    if (s->total >= KBYTE) {
+        ttype = 'M';
+        tfrag = ((s->total * 10) / KBYTE) % 10;
+        s->total /= KBYTE;
+    }
+
+    stype = 'K';
+    sfrag = ((s->sum * 10) / KBYTE) % 10;
+    s->sum /= KBYTE;
+    if (s->sum >= KBYTE) {
+        stype = 'M';
+        sfrag = ((s->sum * 10) / KBYTE) % 10;
+        s->sum /= KBYTE;
+    }
+
+    mtype = 'K';
+    s->max /= KBYTE;
+    if (s->max >= KBYTE) {
+        mtype = 'M';
+        s->max /= KBYTE;
+    }
+
+    apr_file_printf(errfile, "Cleaned %s. Statistics:" APR_EOL_STR, path);
+    if (unsolicited) {
+        utype = 'K';
+        ufrag = ((unsolicited * 10) / KBYTE) % 10;
+        unsolicited /= KBYTE;
+        if (unsolicited >= KBYTE) {
+            utype = 'M';

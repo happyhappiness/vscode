@@ -1,13 +1,14 @@
-                ret = apr_poll(pollset, num_listensocks, &n, -1);
-                if (ret != APR_SUCCESS) {
-                    if (APR_STATUS_IS_EINTR(ret)) {
-                        continue;
-                    }
+    return 0;
+}
 
-                    /* apr_poll() will only return errors in catastrophic
-                     * circumstances. Let's try exiting gracefully, for now. */
-                    ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
-                                 ap_server_conf, "apr_poll: (listen)");
-                    signal_threads(ST_GRACEFUL);
-                }
-
+static void usage(void)
+{
+    apr_file_printf(errfile, "Usage:\n");
+    apr_file_printf(errfile, "\thtpasswd [-cmdps] passwordfile username\n");
+    apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
+                    "password\n\n");
+    apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");
+    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+    apr_file_printf(errfile, " -c  Create a new file.\n");
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout.\n");

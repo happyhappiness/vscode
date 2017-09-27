@@ -1,12 +1,14 @@
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "%s", errmsg);
-        exit(1);
+        apr_socket_close(lr->sd);
+        lr->active = 0;
+        next = lr->next;
     }
+    old_listeners = NULL;
 
-    ap_cfg_closefile(cfp);
+    apr_pool_cleanup_register(pool, NULL, apr_pool_cleanup_null,
+                              close_listeners_on_exec);
+
+    return num_open ? 0 : -1;
 }
 
-AP_DECLARE(void) ap_process_config_tree(server_rec *s,
-                                        ap_directive_t *conftree,
-                                        apr_pool_t *p, apr_pool_t *ptemp)
+int ap_setup_listeners(server_rec *s)
 {

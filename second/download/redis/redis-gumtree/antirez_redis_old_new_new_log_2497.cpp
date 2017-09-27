@@ -1,1 +1,0 @@
-__redisSetError(c,REDIS_ERR_EOF,"Server closed the connection");

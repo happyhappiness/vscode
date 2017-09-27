@@ -1,1 +1,0 @@
-printf("forceCommandPropagation\n");

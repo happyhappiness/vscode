@@ -1,13 +1,13 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
-    }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+#endif
+
+    /*
+     * SSL external crypto device ("engine") support
+     */
+#if defined(HAVE_OPENSSL_ENGINE_H) && defined(HAVE_ENGINE_INIT)
+    ssl_init_Engine(base_server, p);
+#endif
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01883)
+                 "Init: Initialized %s library", SSL_LIBRARY_NAME);
+
+    /*

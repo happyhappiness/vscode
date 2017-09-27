@@ -1,15 +1,23 @@
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "Failed to open the WinNT service manager.");
-            return (rv);
-        }
+    entry  = client_list->table[bucket];
 
-        /* ###: utf-ize */
-        schService = OpenService(schSCManager, mpm_service_name, DELETE);
+    apr_global_mutex_lock(client_lock);
 
-        if (!schService) {
-           rv = apr_get_os_error();
-           ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                        "%s: OpenService failed", mpm_display_name);
-           return (rv);
+    /* try to allocate a new entry */
+
+    entry = (client_entry *)apr_rmm_malloc(client_rmm, sizeof(client_entry));
+    if (!entry) {
+        long num_removed = gc();
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Digest: gc'd %ld client entries. Total new clients: "
+                     "%ld; Total removed clients: %ld; Total renewed clients: "
+                     "%ld", num_removed,
+                     client_list->num_created - client_list->num_renewed,
+                     client_list->num_removed, client_list->num_renewed);
+        entry = (client_entry *)apr_rmm_malloc(client_rmm, sizeof(client_entry));
+        if (!entry) {
+            return NULL;       /* give up */
         }
+    }
+
+    /* now add the entry */
+

@@ -1,18 +1,37 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+            argv0);
+    fprintf(stderr,
+            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
+#endif
+    fprintf(stderr,
+            "to httpd.conf. By default, the generated name will be\n"
+            "<logfile>.nnnn where nnnn is the system time at which the log\n"
+            "nominally starts (N.B. if using a rotation time, the time will\n"
+            "always be a multiple of the rotation time, so you can synchronize\n"
+            "cron scripts with it). If <logfile> contains strftime conversion\n"
+            "specifications, those will be used instead. At the end of each\n"
+            "rotation time or when the file size is reached a new log is\n"
+            "started.\n"
+            "\n"
+            "Options:\n"
+            "  -v       Verbose operation. Messages are written to stderr.\n"
+            "  -l       Base rotation on local time instead of UTC.\n"
+            "  -L path  Create hard link from current log to specified path.\n"
+            "  -p prog  Run specified program after opening a new log file. See below.\n"
+            "  -f       Force opening of log on program start.\n"
+            "  -t       Truncate logfile instead of rotating, tail friendly.\n"
+            "  -e       Echo log to stdout for further processing.\n"
+#if APR_FILES_AS_SOCKETS
+            "  -c       Create log even if it is empty.\n"
+#endif
+            "\n"
+            "The program is invoked as \"[prog] <curfile> [<prevfile>]\"\n"
+            "where <curfile> is the filename of the newly opened logfile, and\n"
+            "<prevfile>, if given, is the filename of the previously used logfile.\n"
+            "\n");
+    exit(1);
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+/*
+ * Get the unix time with timezone corrections
+ * given in the config struct.

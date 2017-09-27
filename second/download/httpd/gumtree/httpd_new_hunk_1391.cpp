@@ -1,38 +1,39 @@
-                            output_failed = 1;
-                        }
-                        data_sent = 1;
-                        apr_brigade_cleanup(output_brigade);
-                    }
-                }
-            }
-                else {
-                    backend_failed = 1;
-                }
-                break;
-            case CMD_AJP13_END_RESPONSE:
-                status = ajp_parse_reuse(r, conn->data, &conn_reuse);
-                if (status != APR_SUCCESS) {
-                    backend_failed = 1;
-                }
-                /* If we are overriding the errors, we must not send anything to
-                 * the client, especially as the brigade already contains headers.
-                 * So do nothing here, and it will be cleaned up below.
-                 */
-                if (!psf->error_override || !ap_is_HTTP_ERROR(r->status)) {
-                    e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                    if (ap_pass_brigade(r->output_filters,
-                                        output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                      "proxy: error processing end");
-                        output_failed = 1;
-                    }
-                    /* XXX: what about flush here? See mod_jk */
-                    data_sent = 1;
-                }
-                request_ended = 1;
-                break;
-            default:
-                backend_failed = 1;
-                break;
         }
+
+        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
+        lenp = apr_table_get(f->r->headers_in, "Content-Length");
+
+        if (tenc) {
+            if (strcasecmp(tenc, "chunked") == 0 /* fast path */
+                    || ap_find_last_token(f->r->pool, tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+            else if (f->r->proxyreq == PROXYREQ_RESPONSE) {
+                /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+                 * Section 3.3.3.3: "If a Transfer-Encoding header field is
+                 * present in a response and the chunked transfer coding is not
+                 * the final encoding, the message body length is determined by
+                 * reading the connection until it is closed by the server."
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s; "
+                              "using read-until-close", tenc);
+                tenc = NULL;
+            }
+            else {
+                /* Something that isn't a HTTP request, unless some future
+                 * edition defines new transfer encodings, is unsupported.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
+            }
+            lenp = NULL;
+        }
+        if (lenp) {
+            char *endstr;
+
+            ctx->state = BODY_LENGTH;
+            errno = 0;
+
+            /* Protects against over/underflow, non-digit chars in the

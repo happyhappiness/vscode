@@ -1,1 +1,0 @@
-printf("j: %d; vectorlen: %d\n", j, vectorlen);

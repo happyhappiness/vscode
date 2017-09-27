@@ -1,14 +1,20 @@
-             }
-             ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-             child_handles[i] = (HANDLE) _beginthreadex(NULL, (unsigned)ap_thread_stacksize,
-                                                        worker_main, (void *) i, 0, &tid);
-             if (child_handles[i] == 0) {
-                 ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
--                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
-+                             "Child %lu: _beginthreadex failed. Unable to create all worker threads. "
-                              "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.",
-                              my_pid, threads_created, ap_threads_per_child);
-                 ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
-                 goto shutdown;
-             }
-             threads_created++;
+ {
+     apr_status_t rv;
+     apr_pool_t *pool;
+     cache_object_t *obj, *tmp_obj;
+     mem_cache_object_t *mobj;
+ 
++    /* we don't support caching of range requests (yet) */
++    if (r->status == HTTP_PARTIAL_CONTENT) {
++        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++                     "disk_cache: URL %s partial content response not cached",
++                     key);
++        return DECLINED;
++    }
++
+     if (len == -1) {
+         /* Caching a streaming response. Assume the response is
+          * less than or equal to max_streaming_buffer_size. We will
+          * correct all the cache size counters in store_body once
+          * we know exactly know how much we are caching.
+          */

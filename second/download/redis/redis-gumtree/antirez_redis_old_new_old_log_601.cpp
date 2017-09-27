@@ -1,1 +1,0 @@
-s = sdscatprintf(s,"%g",(double)lua_tonumber(lua,-1));

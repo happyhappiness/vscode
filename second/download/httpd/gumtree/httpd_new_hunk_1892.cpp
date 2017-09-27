@@ -1,38 +1,22 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-				ap_escape_html(scratch,
-					       ap_os_escape_path(scratch, t,
-								 0)),
-				"\">", NULL);
-	}
+    ap_fatal_signal_child_setup(ap_server_conf);
+    apr_pool_create(&pchild, pconf);
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs(anchor, r);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
-			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-			  "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			       d->icon_height, d->icon_width);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
+    /*stuff to do before we switch id's, so we have permissions.*/
+    ap_reopen_scoreboard(pchild, NULL, 0);
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&accept_mutex,
+                                               apr_proc_mutex_lockfile(accept_mutex),
+                                               pchild));
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "Couldn't initialize cross-process lock in child");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    ap_run_child_init(pchild, ap_server_conf);
+
+    /* done with init critical section */

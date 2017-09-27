@@ -1,13 +1,34 @@
-    if (!method_restricted)
-	return OK;
+#include "apr_time.h"
+#include "apr_getopt.h"
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+#if APR_HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#if APR_HAVE_STRING_H
+#include <string.h>
+#endif
+#if APR_HAVE_STRINGS_H
+#include <strings.h>
+#endif
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+#define BUFSIZE         65536
+#define ERRMSGSZ        256
 
-module MODULE_VAR_EXPORT auth_module =
+#ifndef MAX_PATH
+#define MAX_PATH        1024
+#endif
+
+static void usage(const char *argv0, const char *reason)
 {
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    if (reason) {
+        fprintf(stderr, "%s\n", reason);
+    }
+    fprintf(stderr,
+            "Usage: %s [-l] [-f] <logfile> "
+            "{<rotation time in seconds>|<rotation size in megabytes>} "
+            "[offset minutes from UTC]\n\n",
+            argv0);
+#ifdef OS2
+    fprintf(stderr,
+            "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
+            argv0);

@@ -1,83 +1,72 @@
-    }
-    else {
-        if (type == REMOTE_HOST || type == REMOTE_DOUBLE_REV) {
-            return NULL;
+	 */
+
+	/* Lock around "accept", if necessary */
+	SAFE_ACCEPT(accept_mutex_on());
+
+        if (num_listensocks == 1) {
+            /* There is only one listener record, so refer to that one. */
+            lr = ap_listeners;
         }
         else {
-            *str_is_ip = 1;
-            return conn->remote_ip;
-        }
-    }
-}
+            /* multiple listening sockets - need to poll */
+	    for (;;) {
+                apr_int32_t numdesc;
+                const apr_pollfd_t *pdesc;
 
-/*
- * Optional function coming from mod_ident, used for looking up ident user
- */
-static APR_OPTIONAL_FN_TYPE(ap_ident_lookup) *ident_lookup;
-
-AP_DECLARE(const char *) ap_get_remote_logname(request_rec *r)
-{
-    if (r->connection->remote_logname != NULL) {
-        return r->connection->remote_logname;
-    }
-
-    if (ident_lookup) {
-        return ident_lookup(r);
-    }
-
-    return NULL;
-}
-
-/* There are two options regarding what the "name" of a server is.  The
- * "canonical" name as defined by ServerName and Port, or the "client's
- * name" as supplied by a possible Host: header or full URI.
- *
- * The DNS option to UseCanonicalName causes this routine to do a
- * reverse lookup on the local IP address of the connection and use
- * that for the ServerName. This makes its value more reliable while
- * at the same time allowing Demon's magic virtual hosting to work.
- * The assumption is that DNS lookups are sufficiently quick...
- * -- fanf 1998-10-03
- */
-AP_DECLARE(const char *) ap_get_server_name(request_rec *r)
-{
-    conn_rec *conn = r->connection;
-    core_dir_config *d;
-    const char *retval;
-
-    d = (core_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                &core_module);
-
-    switch (d->use_canonical_name) {
-        case USE_CANONICAL_NAME_ON:
-            retval = r->server->server_hostname;
-            break;
-        case USE_CANONICAL_NAME_DNS:
-            if (conn->local_host == NULL) {
-                if (apr_getnameinfo(&conn->local_host,
-                                conn->local_addr, 0) != APR_SUCCESS)
-                    conn->local_host = apr_pstrdup(conn->pool,
-                                               r->server->server_hostname);
-                else {
-                    ap_str_tolower(conn->local_host);
+                /* timeout == -1 == wait forever */
+                status = apr_pollset_poll(pollset, -1, &numdesc, &pdesc);
+                if (status != APR_SUCCESS) {
+                    if (APR_STATUS_IS_EINTR(status)) {
+                        if (one_process && shutdown_pending) {
+                            return;
+                        }
+                        continue;
+                    }
+    	            /* Single Unix documents select as returning errnos
+    	             * EBADF, EINTR, and EINVAL... and in none of those
+    	             * cases does it make sense to continue.  In fact
+    	             * on Linux 2.0.x we seem to end up with EFAULT
+    	             * occasionally, and we'd loop forever due to it.
+    	             */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status,
+                                 ap_server_conf, "apr_pollset_poll: (listen)");
+    	            clean_child_exit(1);
                 }
-            }
-            retval = conn->local_host;
-            break;
-        case USE_CANONICAL_NAME_OFF:
-        case USE_CANONICAL_NAME_UNSET:
-            retval = r->hostname ? r->hostname : r->server->server_hostname;
-            break;
-        default:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                         "ap_get_server_name: Invalid UCN Option somehow");
-            retval = "localhost";
-            break;
-    }
-    return retval;
-}
 
-/*
- * Get the current server name from the request for the purposes
- * of using in a URL.  If the server name is an IPv6 literal
- * address, it will be returned in URL format (e.g., "[fe80::1]").
+                /* We can always use pdesc[0], but sockets at position N
+                 * could end up completely starved of attention in a very
+                 * busy server. Therefore, we round-robin across the
+                 * returned set of descriptors. While it is possible that
+                 * the returned set of descriptors might flip around and
+                 * continue to starve some sockets, we happen to know the
+                 * internal pollset implementation retains ordering
+                 * stability of the sockets. Thus, the round-robin should
+                 * ensure that a socket will eventually be serviced.
+                 */
+                if (last_poll_idx >= numdesc)
+                    last_poll_idx = 0;
+
+                /* Grab a listener record from the client_data of the poll
+                 * descriptor, and advance our saved index to round-robin
+                 * the next fetch.
+                 *
+                 * ### hmm... this descriptor might have POLLERR rather
+                 * ### than POLLIN
+                 */
+                lr = pdesc[last_poll_idx++].client_data;
+                goto got_fd;
+            }
+        }
+    got_fd:
+	/* if we accept() something we don't want to die, so we have to
+	 * defer the exit
+	 */
+        status = lr->accept_func(&csd, lr, ptrans);
+
+        SAFE_ACCEPT(accept_mutex_off());      /* unlock after "accept" */
+
+        if (status == APR_EGENERAL) {
+            /* resource shortage or should-not-occur occured */
+            clean_child_exit(1);
+        }
+        else if (status != APR_SUCCESS) {

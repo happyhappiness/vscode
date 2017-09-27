@@ -1,26 +1,20 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    exit(1);
-}
+ *                         ap_add_loaded_module. Add ap_find_module_short_name
+ * 20100723.0 (2.3.7-dev)  Remove ct_output_filters from core rec
+ * 20100723.1 (2.3.7-dev)  Added ap_proxy_hashfunc() and hash elements to
+ *                         proxy worker structs
+ * 20100723.2 (2.3.7-dev)  Add ap_request_has_body()
+ * 20100723.3 (2.3.8-dev)  Add ap_check_mpm()
+ */
 
-/*****************************************************************
+#define MODULE_MAGIC_COOKIE 0x41503234UL /* "AP24" */
+
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20100723
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 3                     /* 0...n */
+
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
  *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+ * Useful for testing for features.

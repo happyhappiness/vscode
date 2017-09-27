@@ -1,16 +1,27 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+            }
+            bytes_in_brigade += bucket->length;
+            if (!APR_BUCKET_IS_FILE(bucket)) {
+                non_file_bytes_in_brigade += bucket->length;
+            }
+        }
+    }
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    if (non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER) {
+        /* ### Writing the entire brigade may be excessive; we really just
+         * ### need to send enough data to be under THRESHOLD_MAX_BUFFER.
+         */
+        rv = send_brigade_blocking(net->client_socket, bb,
+                                   &(ctx->bytes_written), c);
+        if (rv != APR_SUCCESS) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+            return rv;
+        }
+    }
+    else if (bytes_in_brigade >= THRESHOLD_MIN_WRITE) {
+        rv = send_brigade_nonblocking(net->client_socket, bb,
+                                      &(ctx->bytes_written), c);
+        if ((rv != APR_SUCCESS) && (!APR_STATUS_IS_EAGAIN(rv))) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+            return rv;

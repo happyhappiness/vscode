@@ -1,0 +1,1 @@
+fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);

@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
-
-#ifndef LINUX
-#define LINUX 2
+        case LUA_TFUNCTION:{
+                ap_log_perror(APLOG_MARK, level, 0, r, "%d:  <function>", i);
+                break;
+            }
+        default:{
+                ap_log_perror(APLOG_MARK, level, 0, r,
+                              "%d:  unkown: [%s]", i, lua_typename(L, i));
+                break;
+            }
+        }
+    }
+}
 #endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800

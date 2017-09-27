@@ -1,1 +1,0 @@
-serverLog(LL_DEBUG,"PONG contains mismatching sender ID");

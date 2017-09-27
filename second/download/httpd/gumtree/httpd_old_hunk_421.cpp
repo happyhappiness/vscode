@@ -1,15 +1,14 @@
-    /* cache filters 
-     * XXX The cache filters need to run right after the handlers and before
-     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
-     * Make them AP_FTYPE_CONTENT for now.
-     * XXX ianhH:they should run AFTER all the other content filters.
-     */
-    cache_in_filter_handle = 
-        ap_register_output_filter("CACHE_IN", 
-                                  cache_in_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET-1);
-    /* CACHE_OUT must go into the filter chain before SUBREQ_CORE to
-     * handle subrequsts. Decrementing filter type by 1 ensures this 
-     * happens.
-     */
+    }
+    ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
+    return;
+}
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+    ap_hook_insert_error_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_insert_filter(expires_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+}
+
+module AP_MODULE_DECLARE_DATA expires_module =
+{

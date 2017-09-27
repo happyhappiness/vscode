@@ -1,13 +1,25 @@
-    if (DECLINED == access_status) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-                    "proxy: No protocol handler was valid for the URL %s. "
-                    "If you are using a DSO version of mod_proxy, make sure "
-                    "the proxy submodules are included in the configuration "
-                    "using LoadModule.", r->uri);
-        access_status = HTTP_FORBIDDEN;
-        goto cleanup;
-    }
-cleanup:
-    if (balancer) {
-        int post_status = proxy_run_post_request(worker, balancer, r, conf);
-        if (post_status == DECLINED) {
+
+    if (mc->szCryptoDevice) {
+        if (!(e = ENGINE_by_id(mc->szCryptoDevice))) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Init: Failed to load Crypto Device API `%s'",
+                         mc->szCryptoDevice);
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();
+        }
+
+        if (strEQ(mc->szCryptoDevice, "chil")) {
+            ENGINE_ctrl(e, ENGINE_CTRL_CHIL_SET_FORKCHECK, 1, 0, 0);
+        }
+
+        if (!ENGINE_set_default(e, ENGINE_METHOD_ALL)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Init: Failed to enable Crypto Device API `%s'",
+                         mc->szCryptoDevice);
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();
+        }
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, 
+                     "Init: loaded Crypto Device API `%s'", 
+                     mc->szCryptoDevice);
+

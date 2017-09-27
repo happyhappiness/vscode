@@ -1,12 +1,13 @@
-
-
-/*****************************************************************************
- * run-time vhost matching functions
- */
-
-/* Lowercase and remove any trailing dot and/or :port from the hostname,
- * and check that it is sane.
- *
- * In most configurations the exact syntax of the hostname isn't
- * important so strict sanity checking isn't necessary. However, in
- * mass hosting setups (using mod_vhost_alias or mod_rewrite) where
+        if (rc != APR_SUCCESS) {
+            return DECLINED;
+        }
+    }
+    else if (format != DISK_FORMAT_VERSION) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "cache_disk: File '%s' has a version mismatch. File had version: %d.",
+                     dobj->hdrsfile, format);
+        return DECLINED;
+    }
+    else {
+        apr_off_t offset = 0;
+        /* This wasn't a Vary Format file, so we must seek to the

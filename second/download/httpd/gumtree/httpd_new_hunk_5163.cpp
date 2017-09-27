@@ -1,41 +1,37 @@
-	return DECLINED;
-
-    Explain1("Create temporary file %s", c->tempfile);
-
-    i = open(c->tempfile, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0622);
-    if (i == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error creating cache file %s",
-		     c->tempfile);
-	return DECLINED;
+        err = ap_proxy_define_balancer(cmd->pool, &balancer, conf, path, "/", 0);
+        if (err)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
     }
-    ap_note_cleanups_for_fd(r->pool, i);
-    c->fp = ap_bcreate(r->pool, B_WR);
-    ap_bpushfd(c->fp, -1, i);
 
-    if (ap_bvputs(c->fp, buff, "X-URL: ", c->url, "\n", NULL) == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error writing cache file(%s)", c->tempfile);
-	ap_pclosef(r->pool, c->fp->fd);
-	unlink(c->tempfile);
-	c->fp = NULL;
+    /* Try to find existing worker */
+    worker = ap_proxy_get_worker(cmd->temp_pool, balancer, conf, de_socketfy(cmd->temp_pool, name));
+    if (!worker) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
+                     "Defining worker '%s' for balancer '%s'",
+                     name, balancer->s->name);
+        if ((err = ap_proxy_define_worker(cmd->pool, &worker, balancer, conf, name, 0)) != NULL)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
+                     "Defined worker '%s' for balancer '%s'",
+                     ap_proxy_worker_name(cmd->pool, worker), balancer->s->name);
+        PROXY_COPY_CONF_PARAMS(worker, conf);
+    } else {
+        reuse = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
+                     "Sharing worker '%s' instead of creating new worker '%s'",
+                     ap_proxy_worker_name(cmd->pool, worker), name);
     }
-    return DECLINED;
-}
 
-void ap_proxy_cache_tidy(cache_req *c)
-{
-    server_rec *s;
-    long int bc;
-
-    if (c == NULL || c->fp == NULL)
-	return;
-
-    s = c->req->server;
-
-/* don't care how much was sent, but rather how much was written to cache
-    ap_bgetopt(c->req->connection->client, BO_BYTECT, &bc);
- */
-    bc = c->written;
-
-    if (c->len != -1) {
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;
+    for (i = 0; i < arr->nelts; i++) {
+        if (reuse) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
+                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                         elts[i].key, elts[i].val, ap_proxy_worker_name(cmd->pool, worker));
+        } else {
+            err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                               elts[i].val);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        }

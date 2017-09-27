@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Server started, Redis version " REDIS_VERSION);

@@ -1,1 +1,0 @@
-(redisCheckSocketError(c) != REDIS_OK;

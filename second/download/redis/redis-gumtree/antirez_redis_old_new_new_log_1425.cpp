@@ -1,1 +1,0 @@
-luaL_error(l, "JSON parser does not support UTF-16 or UTF-32");

@@ -1,1 +1,0 @@
-printf(" table size: %d\n", ht->size);

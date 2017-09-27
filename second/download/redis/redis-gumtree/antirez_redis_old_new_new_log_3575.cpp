@@ -1,1 +1,0 @@
-printf("redis-cli shipped with Redis version %s\n", REDIS_VERSION);

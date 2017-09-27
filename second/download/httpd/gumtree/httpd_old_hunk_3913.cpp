@@ -1,13 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+                char buffer[1024];
+                apr_size_t len = sizeof(buffer)-1;
+                apr_brigade_flatten(bb, buffer, &len);
+                buffer[len] = 0;
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_task_input(%s): getline: %s",
+                              input->env->id, buffer);
+            }
+            return status;
+        }
+        else {
+            /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
+             * to support it. Seems to work. */

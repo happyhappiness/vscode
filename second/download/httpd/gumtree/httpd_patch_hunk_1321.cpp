@@ -1,14 +1,14 @@
-      */
-     if (mctx->pks->certs[SSL_AIDX_RSA] ||
-         mctx->pks->certs[SSL_AIDX_DSA])
-     {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                 "Illegal attempt to re-initialise SSL for server "
--                "(theoretically shouldn't happen!)");
-+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
-         ssl_die();
-     }
- }
  
- #ifndef OPENSSL_NO_TLSEXT
- static void ssl_init_ctx_tls_extensions(server_rec *s,
+     status = ilink_read(sock, msg->buf, hlen);
+ 
+     if (status != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                      "ajp_ilink_receive() can't receive header");
+-        return AJP_ENO_HEADER;
++        return (APR_STATUS_IS_TIMEUP(status) ? APR_TIMEUP : AJP_ENO_HEADER);
+     }
+ 
+     status = ajp_msg_check_header(msg, &blen);
+ 
+     if (status != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,

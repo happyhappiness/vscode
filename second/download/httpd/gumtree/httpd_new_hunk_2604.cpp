@@ -1,17 +1,15 @@
+    p = db ? db->pool : p;
+
+    /* There might not be a <db> if we had problems creating it. */
+    if (db == NULL) {
+        errcode = 1;
+        errstr = "Could not open property database.";
+        if (APR_STATUS_IS_EDSOOPEN(status))
+            ap_log_error(APLOG_MARK, APLOG_CRIT, status, ap_server_conf, APLOGNO(00576)
+            "The DBM driver could not be loaded");
     }
     else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
+        (void) apr_dbm_geterror(db->file, &errcode, errbuf, sizeof(errbuf));
+        errstr = apr_pstrdup(p, errbuf);
     }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+

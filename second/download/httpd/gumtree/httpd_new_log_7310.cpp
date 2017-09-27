@@ -1,0 +1,1 @@
+etext = ap_escape_html(r->pool, text);

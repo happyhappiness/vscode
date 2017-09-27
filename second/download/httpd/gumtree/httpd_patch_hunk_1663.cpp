@@ -1,57 +1,74 @@
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                  "proxy: connected %s to %s:%d", *url, conn->hostname,
-                  conn->port);
-     return OK;
  }
  
-+#define USE_ALTERNATE_IS_CONNECTED 1
-+
-+#if !defined(APR_MSG_PEEK) && defined(MSG_PEEK)
-+#define APR_MSG_PEEK MSG_PEEK
-+#endif
-+
-+#if USE_ALTERNATE_IS_CONNECTED && defined(APR_MSG_PEEK)
-+static int is_socket_connected(apr_socket_t *socket)
-+{
-+    apr_pollfd_t pfds[1];
-+    apr_status_t status;
-+    apr_int32_t  nfds;
-+
-+    pfds[0].reqevents = APR_POLLIN;
-+    pfds[0].desc_type = APR_POLL_SOCKET;
-+    pfds[0].desc.s = socket;
-+
-+    do {
-+        status = apr_poll(&pfds[0], 1, &nfds, 0);
-+    } while (APR_STATUS_IS_EINTR(status));
-+
-+    if (status == APR_SUCCESS && nfds == 1 &&
-+        pfds[0].rtnevents == APR_POLLIN) {
-+        apr_sockaddr_t unused;
-+        apr_size_t len = 1;
-+        char buf[1];
-+        /* The socket might be closed in which case
-+         * the poll will return POLLIN.
-+         * If there is no data available the socket
-+         * is closed.
-+         */
-+        status = apr_socket_recvfrom(&unused, socket, APR_MSG_PEEK,
-+                                     &buf[0], &len);
-+        if (status == APR_SUCCESS && len)
-+            return 1;
-+        else
-+            return 0;
-+    }
-+    else if (APR_STATUS_IS_EAGAIN(status)) {
-+        return 1;
-+    }
-+    return 0;
-+
-+}
-+#else
- static int is_socket_connected(apr_socket_t *sock)
- 
+ static void force_recovery(proxy_balancer *balancer, server_rec *s)
  {
-     apr_size_t buffer_len = 1;
-     char test_buffer[1];
-     apr_status_t socket_status;
+     int i;
+     int ok = 0;
+-    proxy_worker *worker;
++    proxy_worker **worker;
+ 
+-    worker = (proxy_worker *)balancer->workers->elts;
++    worker = (proxy_worker **)balancer->workers->elts;
+     for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+-        if (!(worker->s->status & PROXY_WORKER_IN_ERROR)) {
++        if (!((*worker)->s->status & PROXY_WORKER_IN_ERROR)) {
+             ok = 1;
+             break;
+         }
+         else {
+             /* Try if we can recover */
+-            ap_proxy_retry_worker("BALANCER", worker, s);
+-            if (!(worker->s->status & PROXY_WORKER_IN_ERROR)) {
++            ap_proxy_retry_worker("BALANCER", *worker, s);
++            if (!((*worker)->s->status & PROXY_WORKER_IN_ERROR)) {
+                 ok = 1;
+                 break;
+             }
+         }
+     }
+-    if (!ok && balancer->forcerecovery) {
++    if (!ok) {
+         /* If all workers are in error state force the recovery.
+          */
+-        worker = (proxy_worker *)balancer->workers->elts;
++        worker = (proxy_worker **)balancer->workers->elts;
+         for (i = 0; i < balancer->workers->nelts; i++, worker++) {
+-            ++worker->s->retries;
+-            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
++            ++(*worker)->s->retries;
++            (*worker)->s->status &= ~PROXY_WORKER_IN_ERROR;
+             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                          "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
+-                         balancer->name, worker->hostname);
++                         balancer->name, (*worker)->hostname);
+         }
+     }
+ }
+ 
+-static apr_status_t decrement_busy_count(void *worker_)
+-{
+-    proxy_worker *worker = worker_;
+-    
+-    if (worker->s->busy) {
+-        worker->s->busy--;
+-    }
+-
+-    return APR_SUCCESS;
+-}
+-
+ static int proxy_balancer_pre_request(proxy_worker **worker,
+                                       proxy_balancer **balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf, char **url)
+ {
+     int access_status;
+     proxy_worker *runtime;
+     char *route = NULL;
+-    char *sticky = NULL;
++    const char *sticky = NULL;
+     apr_status_t rv;
+ 
+     *worker = NULL;
+     /* Step 1: check if the url is for us
+      * The url we can handle starts with 'balancer://'
+      * If balancer is already provided skip the search

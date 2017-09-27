@@ -1,23 +1,12 @@
-                }
-            }
+    mod_filter_ctx *ctx = apr_pcalloc(r->pool, sizeof(mod_filter_ctx));
+    ap_set_module_config(r->request_config, &filter_module, ctx);
+#endif
 
-            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
-
-            if (zRC != Z_OK) {
-                return APR_EGENERAL;
-            }
-        }
-
-        apr_bucket_delete(e);
-    }
-
-    apr_brigade_cleanup(bb);
-    return APR_SUCCESS;
-}
-
-/* This is the deflate input filter (inflates).  */
-static apr_status_t deflate_in_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb,
-                                      ap_input_mode_t mode,
-                                      apr_read_type_e block,
-                                      apr_off_t readbytes)
+    for (p = cfg->chain; p; p = p->next) {
+        filter = apr_hash_get(cfg->live_filters, p->fname, APR_HASH_KEY_STRING);
+        ap_add_output_filter_handle(filter, NULL, r, r->connection);
+#ifndef NO_PROTOCOL
+        if (ranges && (filter->proto_flags
+                       & (AP_FILTER_PROTO_NO_BYTERANGE
+                          | AP_FILTER_PROTO_CHANGE_LENGTH))) {
+            ctx->range = apr_table_get(r->headers_in, "Range");

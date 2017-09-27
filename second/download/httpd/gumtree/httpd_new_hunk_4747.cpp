@@ -1,26 +1,18 @@
-		    }   
-		}
-	    }
-	    break;
-	}
+            ap_lua_mapped_handler_spec *hook_spec =
+                ((ap_lua_mapped_handler_spec **) hook_specs->elts)[i];
 
-	/*
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	/* blast trailing whitespace */
-	dst = &src[strlen(src)];
-	while (--dst >= src && ap_isspace(*dst))
-	    *dst = '\0';
-        /* Zap leading whitespace by shifting */
-        if (src != buf)
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-	        ;
+            if (hook_spec == NULL) {
+                continue;
+            }
+            spec = create_vm_spec(&pool, r, cfg, server_cfg,
+                                  hook_spec->file_name,
+                                  hook_spec->bytecode,
+                                  hook_spec->bytecode_len,
+                                  hook_spec->function_name,
+                                  "request hook");
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+            L = ap_lua_get_lua_state(pool, spec);
+
+            if (!L) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
+                              "lua: Failed to obtain lua interpreter for %s %s",

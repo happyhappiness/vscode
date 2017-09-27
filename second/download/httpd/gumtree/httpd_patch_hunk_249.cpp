@@ -1,14 +1,13 @@
-                                       APR_LOCK_DEFAULT, p)) != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                      "mod_rewrite: could not create rewrite_log_lock");
-         return HTTP_INTERNAL_SERVER_ERROR;
-     }
+     name = X509_get_subject_name(info->x509);
+     dn = X509_NAME_oneline(name, name_buf, sizeof(name_buf));
  
--#if APR_USE_SYSVSEM_SERIALIZE
-+#ifdef MOD_REWRITE_SET_MUTEX_PERMS
-     rv = unixd_set_global_mutex_perms(rewrite_log_lock);
-     if (rv != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                      "mod_rewrite: Could not set permissions on "
-                      "rewrite_log_lock; check User and Group directives");
-         return HTTP_INTERNAL_SERVER_ERROR;
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  SSLPROXY_CERT_CB_LOG_FMT "%s, sending %s", 
+                  sc->vhost_id, msg, dn ? dn : "-uknown-");
+-    modssl_free(dn);
+ }
+ 
+ /*
+  * caller will decrement the cert and key reference
+  * so we need to increment here to prevent them from
+  * being freed.

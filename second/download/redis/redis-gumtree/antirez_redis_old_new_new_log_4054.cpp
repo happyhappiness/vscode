@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"key:%lu",j);

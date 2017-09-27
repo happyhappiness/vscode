@@ -1,22 +1,21 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
-
-#ifdef OS2
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
-
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+        if (!strcasecmp(w, "inherit")) {
+            options |= OPTION_INHERIT;
+        }
+        else if (!strcasecmp(w, "inheritbefore")) {
+            options |= OPTION_INHERIT_BEFORE;
+        }
+        else if (!strcasecmp(w, "inheritdown")) {
+            options |= OPTION_INHERIT_DOWN;
+        }
+        else if(!strcasecmp(w, "inheritdownbefore")) {
+            options |= OPTION_INHERIT_DOWN_BEFORE;
+        }
+        else if (!strcasecmp(w, "ignoreinherit")) {
+            options |= OPTION_IGNORE_INHERIT;
+        }
+        else if (!strcasecmp(w, "allownoslash")) {
+            options |= OPTION_NOSLASH;
+        }
+        else if (!strncasecmp(w, "MaxRedirects=", 13)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00664)
+                         "RewriteOptions: MaxRedirects option has been "

@@ -1,13 +1,13 @@
+    schSCManager = OpenSCManager(NULL, NULL, /* default machine & database */
+                                 SC_MANAGER_CONNECT);
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
+    if (!schSCManager) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(00369)  "Failed to open the Windows service "
+                     "manager, perhaps you forgot to log in as Adminstrator?");
+        return;
+    }
 
-#ifndef __EMX__
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+#if APR_HAS_UNICODE_FS
+    IF_WIN_OS_IS_UNICODE

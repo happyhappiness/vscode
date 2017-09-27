@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    st->search_cache_size = atol(size);
+    if (st->search_cache_size < 0) {
+        st->search_cache_size = 0;
+    }
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap cache: Setting search cache size to %ld entries.",
+                 st->search_cache_size);
+
+    return NULL;
 }
 
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800

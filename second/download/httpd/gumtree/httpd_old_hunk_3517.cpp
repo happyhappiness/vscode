@@ -1,13 +1,13 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+        buffer = apr_pstrcat(r->pool, "Max-Age=", apr_ltoa(r->pool, maxage), ";", NULL);
     }
+
+    /* create RFC2109 compliant cookie */
+    rfc2109 = apr_pstrcat(r->pool, name, "=", val, ";", buffer,
+                          attrs && *attrs ? attrs : DEFAULT_ATTRS, NULL);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+                  "user '%s' set cookie: '%s'", r->user, rfc2109);
+
+    /* write the cookie to the header table(s) provided */
+    va_start(vp, maxage);
+    while ((t = va_arg(vp, apr_table_t *))) {
+        apr_table_addn(t, SET_COOKIE, rfc2109);

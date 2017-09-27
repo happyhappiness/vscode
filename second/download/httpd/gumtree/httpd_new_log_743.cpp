@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);
+ap_rputs(" -D APR_HAS_OTHER_CHILD\n", r);

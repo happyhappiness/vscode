@@ -1,1 +1,0 @@
-printf("New pid: %d\n", getpid());

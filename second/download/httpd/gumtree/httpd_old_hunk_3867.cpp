@@ -1,14 +1,13 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
-    }
+        /* Count our log entries */
+        entries++;
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+        /* Check if this could even be an IP address */
+        if (!apr_isxdigit(line[0]) && line[0] != ':') {
+                withname++;
+            apr_file_puts(line, outfile);
+            continue;
+        }
+
+        /* Terminate the line at the next space */
+        if ((space = strchr(line, ' ')) != NULL) {

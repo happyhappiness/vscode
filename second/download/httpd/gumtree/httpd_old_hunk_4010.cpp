@@ -1,93 +1,138 @@
- */
+    return h2_upgrade > 0 || (h2_upgrade < 0 && !h2_h2_is_tls(c));
+}
 
-/*
- * Look for the specified file, and pump it into the response stream if we
- * find it.
+/*******************************************************************************
+ * Register various hooks
  */
-static int insert_readme(char *name, char *readme_fname, char *title, int hrule,
-			 int whichend, request_rec *r)
+static const char *const mod_reqtimeout[] = { "reqtimeout.c", NULL};
+static const char* const mod_ssl[]        = {"mod_ssl.c", NULL};
+
+void h2_h2_register_hooks(void)
 {
-    char *fn;
-    FILE *f;
-    struct stat finfo;
-    int plaintext = 0;
-    request_rec *rr;
-    autoindex_config_rec *cfg =
-    (autoindex_config_rec *) ap_get_module_config
-    (
-	r->per_dir_config,
-	&autoindex_module
-    );
-    int autoindex_opts = find_opts(cfg, r);
+    /* When the connection processing actually starts, we might to
+     * take over, if h2* was selected as protocol.
+     */
+    ap_hook_process_connection(h2_h2_process_conn, 
+                               mod_ssl, NULL, APR_HOOK_MIDDLE);
+                               
+    /* Perform connection cleanup before the actual processing happens.
+     */
+    ap_hook_process_connection(h2_h2_remove_timeout, 
+                               mod_reqtimeout, NULL, APR_HOOK_LAST);
+    
+    /* With "H2SerializeHeaders On", we install the filter in this hook
+     * that parses the response. This needs to happen before any other post
+     * read function terminates the request with an error. Otherwise we will
+     * never see the response.
+     */
+    ap_hook_post_read_request(h2_h2_post_read_req, NULL, NULL, APR_HOOK_REALLY_FIRST);
+}
 
-    /* XXX: this is a load of crap, it needs to do a full sub_req_lookup_uri */
-    fn = ap_make_full_path(r->pool, name, readme_fname);
-    fn = ap_pstrcat(r->pool, fn, ".html", NULL);
-    if (stat(fn, &finfo) == -1) {
-	/* A brief fake multiviews search for README.html */
-	fn[strlen(fn) - 5] = '\0';
-	if (stat(fn, &finfo) == -1)
-	    return 0;
-	plaintext = 1;
-	if (hrule)
-	    ap_rputs("<HR>\n", r);
+static int h2_h2_remove_timeout(conn_rec* c)
+{
+    h2_ctx *ctx = h2_ctx_get(c);
+    
+    if (h2_ctx_is_active(ctx) && !h2_ctx_is_task(ctx)) {
+        /* cleanup on master h2 connections */
+        ap_remove_input_filter_byhandle(c->input_filters, "reqtimeout");
     }
-    else if (hrule)
-	ap_rputs("<HR>\n", r);
-    /* XXX: when the above is rewritten properly, this necessary security
-     * check will be redundant. -djg */
-    rr = ap_sub_req_lookup_file(fn, r);
-    if (rr->status != HTTP_OK) {
-	ap_destroy_sub_req(rr);
-	return 0;
+    
+    return DECLINED;
+}
+
+int h2_h2_process_conn(conn_rec* c)
+{
+    h2_ctx *ctx = h2_ctx_get(c);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, process_conn");
+    if (h2_ctx_is_task(ctx)) {
+        /* our stream pseudo connection */
+        return DECLINED;
     }
-    ap_destroy_sub_req(rr);
-    if (!(f = ap_pfopen(r->pool, fn, "r")))
-	     return 0;
-    if (
-	   (whichend == FRONT_MATTER) &&
-	   (!(autoindex_opts & SUPPRESS_PREAMBLE))
-	) {
-	emit_preamble(r, title);
+
+    if (h2_ctx_protocol_get(c)) {
+        /* Something has been negotiated */
     }
-    if (!plaintext) {
-	ap_send_fd(f, r);
+    else if (!strcmp(AP_PROTOCOL_HTTP1, ap_get_protocol(c))
+             && h2_allows_h2_direct(c) 
+             && h2_is_acceptable_connection(c, 1)) {
+        /* connection still is on http/1.1 and H2Direct is enabled. 
+         * Otherwise connection is in a fully acceptable state.
+         * -> peek at the first 24 incoming bytes
+         */
+        apr_bucket_brigade *temp;
+        apr_status_t status;
+        char *s = NULL;
+        apr_size_t slen;
+        
+        temp = apr_brigade_create(c->pool, c->bucket_alloc);
+        status = ap_get_brigade(c->input_filters, temp,
+                                AP_MODE_SPECULATIVE, APR_BLOCK_READ, 24);
+        
+        if (status != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c,
+                          "h2_h2, error reading 24 bytes speculative");
+            apr_brigade_destroy(temp);
+            return DECLINED;
+        }
+        
+        apr_brigade_pflatten(temp, &s, &slen, c->pool);
+        if ((slen >= 24) && !memcmp(H2_MAGIC_TOKEN, s, 24)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                          "h2_h2, direct mode detected");
+            h2_ctx_protocol_set(ctx, h2_h2_is_tls(c)? "h2" : "h2c");
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                          "h2_h2, not detected in %d bytes: %s", 
+                          (int)slen, s);
+        }
+        
+        apr_brigade_destroy(temp);
     }
     else {
-	char buf[IOBUFSIZE + 1];
-	int i, n, c, ch;
-	ap_rputs("<PRE>\n", r);
-	while (!feof(f)) {
-	    do
-		n = fread(buf, sizeof(char), IOBUFSIZE, f);
-	    while (n == -1 && ferror(f) && errno == EINTR);
-	    if (n == -1 || n == 0)
-		break;
-	    buf[n] = '\0';
-	    c = 0;
-	    while (c < n) {
-		for (i = c; i < n; i++)
-		    if (buf[i] == '<' || buf[i] == '>' || buf[i] == '&')
-			break;
-		ch = buf[i];
-		buf[i] = '\0';
-		ap_rputs(&buf[c], r);
-		if (ch == '<')
-		    ap_rputs("&lt;", r);
-		else if (ch == '>')
-		    ap_rputs("&gt;", r);
-		else if (ch == '&')
-		    ap_rputs("&amp;", r);
-		c = i + 1;
-	    }
-	}
+        /* the connection is not HTTP/1.1 or not for us, don't touch it */
+        return DECLINED;
     }
-    ap_pfclose(r->pool, f);
-    if (plaintext)
-	ap_rputs("</PRE>\n", r);
-    return 1;
+
+    /* If "h2" was selected as protocol (by whatever mechanism), take over
+     * the connection.
+     */
+    if (h2_ctx_is_active(ctx)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_h2, connection, h2 active");
+        
+        return h2_conn_process(c, NULL, ctx->server);
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, declined");
+    return DECLINED;
+}
+
+static int h2_h2_post_read_req(request_rec *r)
+{
+    h2_ctx *ctx = h2_ctx_rget(r);
+    struct h2_task *task = h2_ctx_get_task(ctx);
+    if (task) {
+        /* FIXME: sometimes, this hook gets called twice for a single request.
+         * This should not be, right? */
+        /* h2_task connection for a stream, not for h2c */
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "adding h1_to_h2_resp output filter");
+        if (task->serialize_headers) {
+            ap_remove_output_filter_byhandle(r->output_filters, "H1_TO_H2_RESP");
+            ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);
+        }
+        else {
+            /* replace the core http filter that formats response headers
+             * in HTTP/1 with our own that collects status and headers */
+            ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+            ap_remove_output_filter_byhandle(r->output_filters, "H2_RESPONSE");
+            ap_add_output_filter("H2_RESPONSE", task, r, r->connection);
+        }
+        ap_add_output_filter("H2_TRAILERS", task, r, r->connection);
+    }
+    return DECLINED;
 }
 
 
-static char *find_title(request_rec *r)
-{

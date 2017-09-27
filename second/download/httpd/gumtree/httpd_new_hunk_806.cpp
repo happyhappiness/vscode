@@ -1,38 +1,16 @@
+    const char *err = ap_check_cmd_context(cmd,
+                                           NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
+    if (err != NULL) {
+        return err;
     }
 
-    /*
-     * Support for SSLRequireSSL directive
-     */
-    if (dc->bSSLRequired && !ssl) {
-        if (sc->enabled == SSL_ENABLED_OPTIONAL) {
-            /* This vhost was configured for optional SSL, just tell the
-             * client that we need to upgrade.
-             */
-            apr_table_setn(r->err_headers_out, "Upgrade", "TLS/1.0, HTTP/1.1");
-            apr_table_setn(r->err_headers_out, "Connection", "Upgrade");
+    /* Make it absolute, relative to ServerRoot */
+    arg = ap_server_root_relative(cmd->pool, arg);
 
-            return HTTP_UPGRADE_REQUIRED;
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
-
-        /* remember forbidden access for strict require option */
-        apr_table_setn(r->notes, "ssl-access-forbidden", "1");
-
-        return HTTP_FORBIDDEN;
-    }
-
-    /*
-     * Check to see if SSL protocol is on
-     */
-    if (!((sc->enabled == SSL_ENABLED_TRUE) || (sc->enabled == SSL_ENABLED_OPTIONAL) || ssl)) {
-        return DECLINED;
-    }
-    /*
-     * Support for per-directory reconfigured SSL connection parameters.
-     *
-     * This is implemented by forcing an SSL renegotiation with the
-     * reconfigured parameter suite. But Apache's internal API processing
-     * makes our life very hard here, because when internal sub-requests occur
+    /* TODO: ap_configtestonly && ap_docrootcheck && */
+    if (apr_filepath_merge((char**)&conf->ap_document_root, NULL, arg,
+                           APR_FILEPATH_TRUENAME, cmd->pool) != APR_SUCCESS
+        || !ap_is_directory(cmd->pool, arg)) {
+        if (cmd->server->is_virtual) {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool,

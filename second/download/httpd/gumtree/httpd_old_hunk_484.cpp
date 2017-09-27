@@ -1,12 +1,17 @@
-                     "Child %d: Child process is exiting", my_pid);        
-        return 1;
-    }
-    else 
-    {
-        /* A real-honest to goodness parent */
-
-        restart = master_main(ap_server_conf, shutdown_event, restart_event);
-
-        if (!restart) 
-        {
-            /* Shutting down. Clean up... */
+             */
+            rv = apr_thread_create(&threads[i], thread_attr, 
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                    "apr_thread_create: unable to create worker thread");
+                /* In case system resources are maxxed out, we don't want
+                   Apache running away with the CPU trying to fork over and
+                   over and over again if we exit. */
+                apr_sleep(apr_time_from_sec(10));
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }
+            threads_created++;
+        }
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);

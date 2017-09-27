@@ -1,26 +1,22 @@
-     if (renegotiate && !renegotiate_quick
-         && (apr_table_get(r->headers_in, "transfer-encoding")
-             || (apr_table_get(r->headers_in, "content-length")
-                 && strcmp(apr_table_get(r->headers_in, "content-length"), "0")))
-         && !r->expecting_100) {
-         int rv;
-+        apr_size_t rsize;
+             goto start_over;
+         }
+     }
  
--        /* Fill the I/O buffer with the request body if possible. */
--        rv = ssl_io_buffer_fill(r);
-+        rsize = dc->nRenegBufferSize == UNSET ? DEFAULT_RENEG_BUFFER_SIZE :
-+                                                dc->nRenegBufferSize;
-+        if (rsize > 0) {
-+            /* Fill the I/O buffer with the request body if possible. */
-+            rv = ssl_io_buffer_fill(r, rsize);
+     /* handle bind failure */
+     if (result != LDAP_SUCCESS) {
+-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
++        if (!sec->bind_authoritative) {
++           ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
++                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
++                      "user %s authentication failed; URI %s [%s][%s] (not authoritative)",
++                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
++           return AUTH_USER_NOT_FOUND;
 +        }
-+        else {
-+            /* If the reneg buffer size is set to zero, just fail. */
-+            rv = HTTP_REQUEST_ENTITY_TOO_LARGE;
-+        }
++
++        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                       "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                       "user %s authentication failed; URI %s [%s][%s]",
+                       getpid(), user, r->uri, ldc->reason, ldap_err2string(result));
  
-         if (rv) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                           "could not buffer message body to allow "
-                           "SSL renegotiation to proceed");
-             return rv;
+         return (LDAP_NO_SUCH_OBJECT == result) ? AUTH_USER_NOT_FOUND
+ #ifdef LDAP_SECURITY_ERROR

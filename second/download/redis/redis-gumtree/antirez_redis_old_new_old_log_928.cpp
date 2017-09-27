@@ -1,1 +1,0 @@
-sprintf(types[REDIS_RDB_TYPE_LIST], "LIST");

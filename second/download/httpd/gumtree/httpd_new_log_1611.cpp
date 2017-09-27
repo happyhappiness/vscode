@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
+ap_log_error(APLOG_MARK, level, status, r->server,
+                     "dialog with client %pI failed",
+                     r->connection->remote_addr);

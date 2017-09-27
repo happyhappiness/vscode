@@ -1,1 +1,0 @@
-snprintf(buf,128,"%llu\n",server.maxmemory);

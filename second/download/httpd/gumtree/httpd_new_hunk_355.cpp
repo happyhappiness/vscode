@@ -1,16 +1,39 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-		"AcceptMutex: %s (default: %s)",
-		apr_proc_mutex_name(accept_mutex),
-		apr_proc_mutex_defname());
-#endif
-    restart_pending = shutdown_pending = 0;
-    mpm_state = AP_MPMQ_RUNNING;
-    
-    server_main_loop(remaining_children_to_start);
-    mpm_state = AP_MPMQ_STOPPING;
+     * All the file access checks (if any) have been made.  Time to go to work;
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
+     */
+    if (!(mask & APHTP_DELUSER)) {
+        i = mkrecord(user, record, sizeof(record) - 1,
+                     password, alg);
+        if (i != 0) {
+            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
+            exit(i);
+        }
+        if (mask & APHTP_NOFILE) {
+            printf("%s\n", record);
+            exit(0);
+        }
+    }
 
-    if (shutdown_pending) {
-        /* Time to gracefully shut down:
-         * Kill child processes, tell them to call child_exit, etc...
-         * (By "gracefully" we don't mean graceful in the same sense as 
-         * "apachectl graceful" where we allow old connections to finish.)
+    /*
+     * We can access the files the right way, and we have a record
+     * to add or update.  Let's do it..
+     */
+    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: could not determine temp dir\n",
+                        argv[0]);
+        exit(ERR_FILEPERM);
+    }
+    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
+
+    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], dirname);
+        exit(ERR_FILEPERM);
+    }
+
+    /*
+     * If we're not creating a new file, copy records from the existing
+     * one to the temporary file until we find the specified user.

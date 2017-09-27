@@ -1,14 +1,24 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+
+static int connect_to_daemon(int *sdptr, request_rec *r,
+                             cgid_server_conf *conf)
+{
+    int sd;
+    int connect_tries;
+    apr_interval_time_t sliding_timer;
+
+    connect_tries = 0;
+    sliding_timer = 100000; /* 100 milliseconds */
+    while (1) {
+        ++connect_tries;
+        if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+            return log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   APLOGNO(01255) "unable to create socket to cgi daemon");
+        }
+        if (connect(sd, (struct sockaddr *)server_addr, server_addr_len) < 0) {
+            if (errno == ECONNREFUSED && connect_tries < DEFAULT_CONNECT_ATTEMPTS) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, errno, r, APLOGNO(01256)
+                              "connect #%d to cgi daemon failed, sleeping before retry",
+                              connect_tries);
+                close(sd);
+                apr_sleep(sliding_timer);
+                if (sliding_timer < apr_time_from_sec(2)) {

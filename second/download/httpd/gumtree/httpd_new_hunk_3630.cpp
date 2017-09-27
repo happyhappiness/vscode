@@ -1,31 +1,27 @@
 
-    /* Pass one --- direct matches */
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01151)
+                  "set r->filename to %s", r->filename);
+    return OK;
+}
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
+static apr_status_t get_socket_from_path(apr_pool_t *p,
+                                         const char* path,
+                                         apr_socket_t **out_sock)
+{
+    apr_socket_t *s;
+    apr_status_t rv;
+    *out_sock = NULL;
 
-            if (result != DECLINED)
-                return result;
-        }
+    rv = apr_socket_create(&s, AF_UNIX, SOCK_STREAM, 0, p);
+
+    if (rv != APR_SUCCESS) {
+        return rv;
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    rv = ap_proxy_connect_uds(s, path, p);
+    if (rv != APR_SUCCESS) {
+        return rv;
     }
 
-    /* Pass two --- wildcard matches */
+    *out_sock = s;
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

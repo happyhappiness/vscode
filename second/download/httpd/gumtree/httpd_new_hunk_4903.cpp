@@ -1,13 +1,44 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-        ap_die(BAD_REQUEST, r);
-        return;
+     * OCSP Stapling support, status_request extension
+     */
+    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
+        modssl_init_stapling(s, p, ptemp, mctx);
     }
+#endif
 
-    /* Ignore embedded %2F's in path for proxy requests */
+#ifndef OPENSSL_NO_SRP
+    /*
+     * TLS-SRP support
+     */
+    if (mctx->srp_vfile != NULL) {
+        int err;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02308)
+                     "Using SRP verifier file [%s]", mctx->srp_vfile);
+
+        if (!(mctx->srp_vbase = SRP_VBASE_new(mctx->srp_unknown_user_seed))) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02309)
+                         "Unable to initialize SRP verifier structure "
+                         "[%s seed]",
+                         mctx->srp_unknown_user_seed ? "with" : "without");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die(s);
+        }
+
+        err = SRP_VBASE_init(mctx->srp_vbase, mctx->srp_vfile);
+        if (err != SRP_NO_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
+                         "Unable to load SRP verifier file [error %d]", err);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die(s);
+        }
+
+        SSL_CTX_set_srp_username_callback(mctx->ssl_ctx,
+                                          ssl_callback_SRPServerParams);
+        SSL_CTX_set_srp_cb_arg(mctx->ssl_ctx, mctx);
+    }
+#endif
+}
+#endif
+
+static void ssl_init_ctx_protocol(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,

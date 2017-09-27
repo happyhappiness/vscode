@@ -1,33 +1,80 @@
-                 }
- 
-                 /* Detect chunksize error (such as overflow) */
-                 if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                     ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
-                                   (ctx->remaining < 0) ? "(overflow)" : "");
--                    ctx->remaining = 0; /* Reset it in case we have to
--                                         * come back here later */
--                    if (APR_STATUS_IS_TIMEUP(rv)) { 
-+                    if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
-                         http_error = HTTP_REQUEST_TIME_OUT;
-                     }
-+                    ctx->remaining = 0; /* Reset it in case we have to
-+                                         * come back here later */
-                     return bail_out_on_error(ctx, f, http_error);
-                 }
- 
-                 if (!ctx->remaining) {
--                    /* Handle trailers by calling ap_get_mime_headers again! */
--                    ctx->state = BODY_NONE;
--                    ap_get_mime_headers(f->r);
--                    e = apr_bucket_eos_create(f->c->bucket_alloc);
--                    APR_BRIGADE_INSERT_TAIL(b, e);
--                    ctx->eos_sent = 1;
--                    return APR_SUCCESS;
-+                    return read_chunked_trailers(ctx, f, b,
-+                            conf->merge_trailers == AP_MERGE_TRAILERS_ENABLE);
-                 }
-             }
-             break;
          }
+         else {
+             conn->hostname = apr_pstrdup(conn->pool, uri->hostname);
+             conn->port = uri->port;
+         }
+         socket_cleanup(conn);
+-        err = apr_sockaddr_info_get(&(conn->addr),
+-                                    conn->hostname, APR_UNSPEC,
+-                                    conn->port, 0,
+-                                    conn->pool);
+-    }
+-    else if (!worker->cp->addr) {
+-        if ((err = PROXY_THREAD_LOCK(worker)) != APR_SUCCESS) {
+-            ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
+-                         "proxy: lock");
+-            return HTTP_INTERNAL_SERVER_ERROR;
++        if (!worker->is_address_reusable || worker->disablereuse) {
++            /*
++             * Only do a lookup if we should not reuse the backend address.
++             * Otherwise we will look it up once for the worker.
++             */
++            err = apr_sockaddr_info_get(&(conn->addr),
++                                        conn->hostname, APR_UNSPEC,
++                                        conn->port, 0,
++                                        conn->pool);
+         }
+-
++    }
++    if (worker->is_address_reusable && !worker->disablereuse) {
+         /*
+-         * Worker can have the single constant backend adress.
+-         * The single DNS lookup is used once per worker.
+-         * If dynamic change is needed then set the addr to NULL
+-         * inside dynamic config to force the lookup.
++         * Looking up the backend address for the worker only makes sense if
++         * we can reuse the address.
+          */
+-        err = apr_sockaddr_info_get(&(worker->cp->addr),
+-                                    conn->hostname, APR_UNSPEC,
+-                                    conn->port, 0,
+-                                    worker->cp->pool);
+-        conn->addr = worker->cp->addr;
+-        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
+-            ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
+-                         "proxy: unlock");
++        if (!worker->cp->addr) {
++            if ((err = PROXY_THREAD_LOCK(worker)) != APR_SUCCESS) {
++                ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
++                             "proxy: lock");
++                return HTTP_INTERNAL_SERVER_ERROR;
++            }
++
++            /*
++             * Worker can have the single constant backend adress.
++             * The single DNS lookup is used once per worker.
++             * If dynamic change is needed then set the addr to NULL
++             * inside dynamic config to force the lookup.
++             */
++            err = apr_sockaddr_info_get(&(worker->cp->addr),
++                                        conn->hostname, APR_UNSPEC,
++                                        conn->port, 0,
++                                        worker->cp->pool);
++            conn->addr = worker->cp->addr;
++            if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
++                ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
++                             "proxy: unlock");
++            }
++        }
++        else {
++            conn->addr = worker->cp->addr;
+         }
+-    }
+-    else {
+-        conn->addr = worker->cp->addr;
      }
- 
+     /* Close a possible existing socket if we are told to do so */
+     if (conn->close) {
+         socket_cleanup(conn);
+         conn->close = 0;
+     }

@@ -1,0 +1,1 @@
+printf("Server loaded:  APR %s\n", apr_version_string());

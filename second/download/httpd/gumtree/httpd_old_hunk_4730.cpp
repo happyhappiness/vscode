@@ -1,35 +1,37 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, HUGE_STRING_LEN, conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
-        }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
-#endif                          /* SIGUSR1 */
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-    if (len == (HUGE_STRING_LEN - 1)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "request failed for %s, reason: URI too long",
-            ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME));
-	/* hack to deal with the HTTP_REQUEST_TIME_OUT setting up above: */
-	if (r->status == HTTP_REQUEST_TIME_OUT) {
-	    r->status = HTTP_OK;
-	}
-	r->request_time = time(NULL);
-	ap_die (HTTP_REQUEST_URI_TOO_LARGE, r);
-        return 0;
+                     "socache");
+        return rv;
     }
 
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
-
+    shm_segment = apr_shm_baseaddr_get(ctx->shm);
+    shm_segsize = apr_shm_size_get(ctx->shm);
+    if (shm_segsize < (5 * sizeof(SHMCBHeader))) {
+        /* the segment is ridiculously small, bail out */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00820)
+                     "shared memory segment too small");
+        return APR_ENOSPC;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00821)
+                 "shmcb_init allocated %" APR_SIZE_T_FMT
+                 " bytes of shared memory",
+                 shm_segsize);
+    /* Discount the header */
+    shm_segsize -= sizeof(SHMCBHeader);
+    /* Select index size based on average object size hints, if given. */
+    avg_obj_size = hints && hints->avg_obj_size ? hints->avg_obj_size : 150;
+    avg_id_len = hints && hints->avg_id_len ? hints->avg_id_len : 30;
+    num_idx = (shm_segsize) / (avg_obj_size + avg_id_len);
+    num_subcache = 256;
+    while ((num_idx / num_subcache) < (2 * num_subcache))
+        num_subcache /= 2;
+    num_idx /= num_subcache;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00822)
+                 "for %" APR_SIZE_T_FMT " bytes (%" APR_SIZE_T_FMT
+                 " including header), recommending %u subcaches, "
+                 "%u indexes each", shm_segsize,
+                 shm_segsize + sizeof(SHMCBHeader), num_subcache, num_idx);
+    if (num_idx < 5) {
+        /* we're still too small, bail out */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00823)
+                     "shared memory segment too small");
+        return APR_ENOSPC;
+    }

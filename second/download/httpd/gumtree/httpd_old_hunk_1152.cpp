@@ -1,13 +1,16 @@
-{
-    ef_ctx_t *ctx = f->ctx;
-    apr_status_t rv;
-
-    if (!ctx) {
-        if ((rv = init_filter_instance(f)) != APR_SUCCESS) {
-            return rv;
-        }
-        ctx = f->ctx;
+        return TRUE;
     }
 
-    if (ctx->noop) {
-        ap_remove_input_filter(f);
+    if (ssl_verify_error_is_optional(errnum) &&
+        (verify == SSL_CVERIFY_OPTIONAL_NO_CA))
+    {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Certificate Verification: Verifiable Issuer is "
+                     "configured as optional, therefore we're accepting "
+                     "the certificate");
+
+        sslconn->verify_info = "GENEROUS";
+        ok = TRUE;
+    }
+
+    /*

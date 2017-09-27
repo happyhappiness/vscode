@@ -1,52 +1,13 @@
-#endif
-
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-    ap_hard_timeout("proxy send body", r);
-
-    while (!con->aborted && f != NULL) {
-	n = ap_bread(f, buf, IOBUFSIZE);
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_sent += n;
-
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
-
-	while (n && !con->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0) {
-		if (f2 != NULL) {
-		    ap_pclosef(c->req->pool, c->fp->fd);
-		    c->fp = NULL;
-		    f2 = NULL;
-		    con->aborted = 1;
-		    unlink(c->tempfile);
-		}
-		break;
-	    }
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-	    n -= w;
-	    o += w;
-	}
+        cleanup_tempfile_and_exit(1);
     }
-    if (!con->aborted)
-	ap_bflush(con->client);
+    pw = pwin;
+    apr_file_printf(f, "%s:%s:", user, realm);
 
-    ap_kill_timeout(r);
-    return total_bytes_sent;
-}
+    /* Do MD5 stuff */
+    apr_snprintf(string, sizeof(string), "%s:%s:%s", user, realm, pw);
 
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+    apr_md5_init(&context);
+#if APR_CHARSET_EBCDIC
+    apr_md5_set_xlate(&context, to_ascii);
+#endif
+    apr_md5_update(&context, (unsigned char *) string, strlen(string));

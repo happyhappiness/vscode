@@ -1,14 +1,22 @@
-void ssl_io_filter_init(conn_rec *c, SSL *ssl)
-{
-    ssl_filter_ctx_t *filter_ctx;
+                     NULL);
+    cp[strlen(cp)-2] = NUL;
 
-    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Creating new SSL context (protocols: %s)", cp);
 
-    filter_ctx->config          = myConnConfig(c);
+#ifndef OPENSSL_NO_SSL2
+    if (protocol == SSL_PROTOCOL_SSLV2) {
+        method = mctx->pkp ?
+            SSLv2_client_method() : /* proxy */
+            SSLv2_server_method();  /* server */
+        ctx = SSL_CTX_new(method);  /* only SSLv2 is left */
+    }
+    else
+#endif
+    {
+        method = mctx->pkp ?
+            SSLv23_client_method() : /* proxy */
+            SSLv23_server_method();  /* server */
+        ctx = SSL_CTX_new(method); /* be more flexible */
+    }
 
-    filter_ctx->nobuffer        = 0;
-    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
-                                                   filter_ctx, NULL, c);
-
-    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
-    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);

@@ -1,18 +1,21 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+        if (rv != APR_SUCCESS) {
+            apr_file_remove(storename, slotmem->gpool);
+        }
+    }
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+static apr_status_t restore_slotmem(void *ptr, const char *storename,
+                                    apr_size_t size, apr_pool_t *pool)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    apr_file_t *fp;
+    apr_size_t nbytes = size;
+    apr_status_t rv = APR_SUCCESS;
+    unsigned char digest[APR_MD5_DIGESTSIZE];
+    unsigned char digest2[APR_MD5_DIGESTSIZE];
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02335)
+                 "restoring %s", storename);
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    if (storename) {
+        rv = apr_file_open(&fp, storename, APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                           pool);

@@ -1,14 +1,15 @@
-    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
-        /* The AJP protocol does not want body data yet */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: request is chunked");
-    } else {
-        /* Get client provided Content-Length header */
-        content_length = get_content_length(r);
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                maxsize - AJP_HEADER_SZ);
+        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
+        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
 
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
+        cert_store = X509_STORE_new();
+
+        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unable to reconfigure verify locations "
+                          "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+
+            X509_STORE_free(cert_store);
+
+            return HTTP_FORBIDDEN;
+        }

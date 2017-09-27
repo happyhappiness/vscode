@@ -1,12 +1,12 @@
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "loaded %d client certs for SSL proxy",
-                 ncerts);
-    pkp->certs = sk;
+    fputc('\n', stderr);
+    password[n] = '\0';
+    return password;
+#endif
 }
 
-static void ssl_init_proxy_ctx(server_rec *s,
-                               apr_pool_t *p,
-                               apr_pool_t *ptemp,
-                               SSLSrvConfigRec *sc)
+#endif /* no getchar or _getch */
+
+#endif /* no getpass or getpassphrase or getpass_r */
+
+/*
+ * Use the OS getpass() routine (or our own) to obtain a password from

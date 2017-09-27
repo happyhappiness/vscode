@@ -1,77 +1,70 @@
-        int iEnvBlockLen;
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Unable to retrieve the ready event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
+    SetEvent(ready_event);
+    CloseHandle(ready_event);
 
-	interpreter[0] = 0;
+    if (!ReadFile(pipe, child_exit_event, sizeof(HANDLE),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(HANDLE))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Unable to retrieve the exit event from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
 
-	exename = strrchr(r->filename, '/');
-	if (!exename)
-	    exename = strrchr(r->filename, '\\');
-	if (!exename)
-	    exename = r->filename;
-	else
-	    exename++;
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT") ||
-		!strcasecmp(dot, ".CMD") ||
-		!strcasecmp(dot, ".EXE") ||
-		!strcasecmp(dot, ".COM"))
-		is_exe = 1;
-	}
+    if (!ReadFile(pipe, &os_start, sizeof(os_start),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(os_start))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Unable to retrieve the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *child_start_mutex = NULL;
+    if ((rv = apr_os_proc_mutex_put(child_start_mutex, &os_start, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %lu: Unable to access the start_mutex from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
 
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r') ||
-			(interpreter[i] == '\n'))
-			break;
-		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-	    }
-	    else {
-                        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512)
-                    is_binary = 1;
-	    }
-	}
+    if (!ReadFile(pipe, &hScore, sizeof(hScore),
+                  &BytesRead, (LPOVERLAPPED) NULL)
+        || (BytesRead != sizeof(hScore))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Unable to retrieve the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    *scoreboard_shm = NULL;
+    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Child %lu: Unable to access the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
 
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
-	
-	pid = -1;      
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
+    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
+    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %lu: Unable to reopen the scoreboard from the parent", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    /* We must 'initialize' the scoreboard to relink all the
+     * process-local pointer arrays into the shared memory block.
+     */
+    ap_init_scoreboard(sb_shared);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %lu: Retrieved our scoreboard from the parent.", my_pid);
+}
+
+
+static int send_handles_to_child(apr_pool_t *p,
+                                 HANDLE child_ready_event,
+                                 HANDLE child_exit_event,

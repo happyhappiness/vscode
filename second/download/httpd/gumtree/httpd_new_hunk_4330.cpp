@@ -1,30 +1,20 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+    apr_status_t rv;
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+    if (socache_mc_id2key(ctx, id, idlen, buf, sizeof buf)) {
+        return APR_EINVAL;
     }
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+    /* memcache needs time in seconds till expiry; fail if this is not
+     * positive *before* casting to unsigned (apr_uint32_t). */
+    expiry -= apr_time_now();
+    if (apr_time_sec(expiry) <= 0) {
+        return APR_EINVAL;
+    }
+    rv = apr_memcache_set(ctx->mc, buf, (char*)ucaData, nData,
+                          apr_time_sec(expiry), 0);
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00790)
+                     "scache_mc: error setting key '%s' "
+                     "with %d bytes of data", buf, nData);
+        return rv;

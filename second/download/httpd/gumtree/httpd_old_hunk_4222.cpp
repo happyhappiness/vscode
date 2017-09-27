@@ -1,17 +1,12 @@
+    char *w;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+    /* the require line is an expression, which is evaluated now. */
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+      ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
+                    "Can't evaluate require expression: %s", err);
+      return AUTHZ_DENIED;
+    }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    /* tokenize expected list of names */
+    t = require;

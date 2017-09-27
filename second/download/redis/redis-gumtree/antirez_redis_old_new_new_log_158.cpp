@@ -1,1 +1,0 @@
-setProtocolError("expected $ but got something else",c,pos);

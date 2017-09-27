@@ -1,13 +1,13 @@
-
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
-
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+    if (ctx) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "process_conn");
+        if (!h2_ctx_session_get(ctx)) {
+            status = h2_conn_setup(ctx, c, NULL);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c, "conn_setup");
+            if (status != APR_SUCCESS) {
+                h2_ctx_clear(c);
+                return status;
+            }
+        }
+        return h2_conn_run(ctx, c);
+    }
+    

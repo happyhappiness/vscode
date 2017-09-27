@@ -1,1 +1,1 @@
-ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
+ap_rputs(" -D BIG_SECURITY_HOLE\n", r);

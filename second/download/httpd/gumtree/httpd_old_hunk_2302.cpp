@@ -1,13 +1,13 @@
+        subcache->idx_used -= loop;
+        subcache->idx_pos = new_idx_pos;
+        /* Adjust the data area */
+        subcache->data_used -= diff;
+        subcache->data_pos = idx->data_pos;
+    }
+    header->stat_expiries += loop;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "we now have %u socache entries", subcache->idx_used);
+}
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+static int shmcb_subcache_store(server_rec *s, SHMCBHeader *header,
+                                SHMCBSubcache *subcache, 

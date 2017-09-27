@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "proxy: NOT Closing connection to client"
-                                   " although reading from backend server %s"
-                                   " failed.", backend->hostname);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  No groups file?"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

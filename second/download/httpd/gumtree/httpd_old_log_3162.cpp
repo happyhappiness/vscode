@@ -1,0 +1,1 @@
+ap_add_output_filter(ct_filter->name, NULL, r, r->connection);

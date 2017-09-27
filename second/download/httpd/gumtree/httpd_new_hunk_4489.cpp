@@ -1,18 +1,45 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
 
-	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
-	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
-	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
+    ap_run_pre_read_request(r, conn);
 
-	pid = (*func) (data, &info);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        switch (r->status) {
+        case HTTP_REQUEST_URI_TOO_LARGE:
+        case HTTP_BAD_REQUEST:
+        case HTTP_VERSION_NOT_SUPPORTED:
+        case HTTP_NOT_IMPLEMENTED:
+            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
+                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
+                              r->server->limit_req_line);
+            }
+            else if (r->method == NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00566)
+                              "request failed: malformed request line");
+            }
+            access_status = r->status;
+            r->status = HTTP_OK;
+            ap_die(access_status, r);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            r = NULL;
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        case HTTP_REQUEST_TIME_OUT:
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, NULL);
+            if (!r->connection->keepalives)
+                ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        default:
+            apr_brigade_destroy(tmp_bb);
+            r = NULL;
+            goto traceout;
+        }
+    }
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
-++ apache_1.3.2/src/main/buff.c	1998-09-05 00:47:46.000000000 +0800
+    /* We may have been in keep_alive_timeout mode, so toggle back
+     * to the normal timeout mode as we fetch the header lines,
+     * as necessary.
+     */

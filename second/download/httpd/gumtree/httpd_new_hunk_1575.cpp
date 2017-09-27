@@ -1,14 +1,17 @@
-    runtime = find_session_route(*balancer, r, &route, url);
-    /* Lock the LoadBalancer
-     * XXX: perhaps we need the process lock here
-     */
-    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: BALANCER: (%s). Lock failed for pre_request",
-                     (*balancer)->name);
-        return DECLINED;
-    }
-    if (runtime) {
-        int i, total_factor = 0;
-        proxy_worker *workers;
-        /* We have a sticky load balancer
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                "%Y-%m-%d %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="1975-04-07 01:23  " (see 4 lines above) */
+                    ap_rputs("                   ", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rputs(apr_strfsize(ar[x]->size, buf), r);

@@ -1,18 +1,21 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    if (!auth_line) {
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
+    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+        /* Client tried to authenticate using wrong auth scheme */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client used wrong authentication scheme: %s", r->uri);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    while (*auth_line == ' ' || *auth_line == '\t') {
+        auth_line++;
+    }

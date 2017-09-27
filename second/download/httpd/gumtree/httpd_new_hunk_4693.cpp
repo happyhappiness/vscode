@@ -1,22 +1,20 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
     }
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
-}
+    else if (r->main && (r->main->per_dir_config == r->per_dir_config)) {
+        r->user = r->main->user;
+        r->ap_auth_type = r->main->ap_auth_type;
+    }
+    else {
+        /* A module using a confusing API (ap_get_basic_auth_pw) caused
+        ** r->user to be filled out prior to check_authn hook. We treat
+        ** it is inadvertent.
+        */
+        if (r->user && apr_table_get(r->notes, AP_GET_BASIC_AUTH_PW_NOTE)) { 
+            r->user = NULL;
+        }
 
-
-static int check_symlinks(char *d, int opts)
-{
-#if defined(OS2) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+        switch (ap_satisfies(r)) {
+        case SATISFY_ALL:
+        case SATISFY_NOSPEC:
+            if ((access_status = ap_run_access_checker(r)) != OK) {
+                return decl_die(access_status,
+                                "check access (with Satisfy All)", r);

@@ -1,12 +1,13 @@
-        ap_unescape_url(arg_copy);
-        apr_table_setn(e, "QUERY_STRING_UNESCAPED",
-                       ap_escape_shell_cmd(r->pool, arg_copy));
-    }
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Ins/Rem</b></font></td>"
+             "<td colspan='2'><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Purges</b></font></td>"
+             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Avg Purge Time</b></font></td>"
+             "</tr>\n", r
+            );
+
+    ap_rputs(util_ald_cache_display(r->pool), r);
+
+    ap_rputs("</table>\n</p>\n", r);
+
+    return OK;
 }
 
-static apr_status_t run_cgi_child(apr_file_t **script_out,
-                                  apr_file_t **script_in,
-                                  apr_file_t **script_err, 
-                                  const char *command,
-                                  const char * const argv[],
-                                  request_rec *r,

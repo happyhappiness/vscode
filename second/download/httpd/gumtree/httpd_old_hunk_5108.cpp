@@ -1,13 +1,13 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
+#endif
+    u_long zero = 0;
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
+    core_sconf = ap_get_core_module_config(ap_server_conf->module_config);
+    accf_name = apr_table_get(core_sconf->accf_map, lr->protocol);
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+    if (strcmp(accf_name, "data") == 0)
+        accf = 2;
+    else if (strcmp(accf_name, "connect") == 0)
+        accf = 1;
+    else if (strcmp(accf_name, "none") == 0)
+        accf = 0;
+    else {

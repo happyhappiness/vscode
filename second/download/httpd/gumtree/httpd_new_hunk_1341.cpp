@@ -1,13 +1,13 @@
-            exit(APEXIT_CHILDINIT);
-        }
-        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,
-                        &WSAProtocolInfo, 0, 0);
-        if (nsd == INVALID_SOCKET) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                         "Child %lu: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
 
-        if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
-            HANDLE hProcess = GetCurrentProcess();
-            HANDLE dup;
+    return OK;
+}
+
+static void recalc_factors(proxy_balancer *balancer)
+{
+    int i;
+    proxy_worker *workers;

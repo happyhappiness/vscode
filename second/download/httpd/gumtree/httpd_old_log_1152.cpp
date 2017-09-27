@@ -1,1 +1,1 @@
-printf("    \\x%02x", c);
+(*code == OP_TYPEMINUPTO;

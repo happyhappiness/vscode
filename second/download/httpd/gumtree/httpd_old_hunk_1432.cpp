@@ -1,15 +1,31 @@
-    if (SSL_is_init_finished(filter_ctx->pssl)) {
-        return APR_SUCCESS;
+    /*
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
+
+    if (backend_failed || output_failed) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: Processing of request failed backend: %i, "
+                     "output: %i", backend_failed, output_failed);
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
     }
-
-    server = sslconn->server;
-    if (sslconn->is_proxy) {
-        const char *hostname_note;
-
-        sc = mySrvConfig(server);
-        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                          "SSL Proxy connect failed");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-            /* ensure that the SSL structures etc are freed, etc: */
-            ssl_filter_io_shutdown(filter_ctx, c, 1);
+    else if (!request_ended) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: Processing of request didn't terminate cleanly");
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        backend_failed = 1;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
+    }
+    else if (!conn_reuse) {
+        /* Our backend signalled connection close */
+        conn->close++;

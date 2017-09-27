@@ -1,14 +1,15 @@
-
-        if (rv != APR_SUCCESS) {
-            if (APR_STATUS_IS_TIMEUP(rv)) {
-                r->status = HTTP_REQUEST_TIME_OUT;
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
-                              "Failed to read request header line %s", field);
-                r->status = HTTP_BAD_REQUEST;
-            }
-
-            /* ap_rgetline returns APR_ENOSPC if it fills up the buffer before
-             * finding the end-of-line.  This is only going to happen if it
-             * exceeds the configured limit for a field size.
+         * We can omit the check for SSL_PROTOCOL_SSLV2 as there is
+         * no way for OpenSSL to screw up things in this case (it's
+         * impossible to include extensions in a pure SSLv2 ClientHello,
+         * protocol-wise).
+         */
+        if (hostname_note &&
+#ifndef OPENSSL_NO_SSL3
+            sc->proxy->protocol != SSL_PROTOCOL_SSLV3 &&
+#endif
+            apr_ipsubnet_create(&ip, hostname_note, NULL,
+                                c->pool) != APR_SUCCESS) {
+            if (SSL_set_tlsext_host_name(filter_ctx->pssl, hostname_note)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SNI extension for SSL Proxy request set to '%s'",
+                              hostname_note);

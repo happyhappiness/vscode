@@ -1,1 +1,0 @@
-slen = snprintf(buf,32,"%ld",value);

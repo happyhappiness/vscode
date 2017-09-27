@@ -1,28 +1,20 @@
-        return APR_SUCCESS;
-    }
-    return get_remaining_chunk_line(ctx, b, linelimit);
+
+    } while (again);
+
+    return APR_SUCCESS;
 }
 
-
-/* This is the HTTP_INPUT filter for HTTP requests and responses from
- * proxied servers (mod_proxy).  It handles chunked and content-length
- * bodies.  This can only be inserted/used after the headers
- * are successfully parsed.
- */
-apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
-                            ap_input_mode_t mode, apr_read_type_e block,
-                            apr_off_t readbytes)
-{
-    apr_bucket *e;
-    http_ctx_t *ctx = f->ctx;
-    apr_status_t rv;
-    apr_off_t totalread;
-    int http_error = HTTP_REQUEST_ENTITY_TOO_LARGE;
+typedef struct header_struct {
+    apr_pool_t *pool;
     apr_bucket_brigade *bb;
+} header_struct;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-        return ap_get_brigade(f->next, b, mode, block, readbytes);
-    }
-
-    if (!ctx) {
+/* Send a single HTTP header field to the client.  Note that this function
+ * is used in calls to table_do(), so their interfaces are co-dependent.
+ * In other words, don't change this one without checking table_do in alloc.c.
+ * It returns true unless there was a write error of some kind.
+ */
+static int form_header_field(header_struct *h,
+                             const char *fieldname, const char *fieldval)
+{
+#if APR_CHARSET_EBCDIC

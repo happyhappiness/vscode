@@ -1,13 +1,13 @@
-        rv = apr_file_open_stderr(&child_err, ptemp);
-    }
-    if (rv == APR_SUCCESS) {
-        if ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
-                != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                            "Parent: Unable to connect child stderr.");
-            apr_pool_destroy(ptemp);
-            return -1;
+        int res;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported) 
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "ISAPI: asynchronous I/O not supported: %s", 
+                            r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
         }
-    }
 
-    /* Create the child_ready_event */
+        if (r->remaining < *buf_size) {
+            *buf_size = (apr_size_t)r->remaining;
+        }

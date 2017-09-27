@@ -1,0 +1,1 @@
+ap_rputs(const char *str, request_rec *r);

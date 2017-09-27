@@ -1,21 +1,17 @@
+     */
+    if (!file_req) {
+        if ((access_status = ap_location_walk(r))) {
+            return access_status;
+        }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+        d = ap_get_module_config(r->per_dir_config, &core_module);
+        if (d->log) {
+            r->log = d->log;
+        }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+        if ((access_status = ap_run_translate_name(r))) {
+            return decl_die(access_status, "translate", r);
+        }
+    }
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    /* Reset to the server default config prior to running map_to_storage

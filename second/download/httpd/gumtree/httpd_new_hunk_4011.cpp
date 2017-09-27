@@ -1,38 +1,305 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-				ap_escape_html(scratch,
-					       ap_os_escape_path(scratch, t,
-								 0)),
-				"\">", NULL);
-	}
+        io->input_consumed += end_len;
+        apr_brigade_cleanup(io->bbin);
+    }
+    return h2_io_in_close(io);
+}
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs(anchor, r);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
-			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-			  "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			       d->icon_height, d->icon_width);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+void h2_io_signal_init(h2_io *io, h2_io_op op, apr_interval_time_t timeout, 
+                       apr_thread_cond_t *cond)
+{
+    io->timed_op = op;
+    io->timed_cond = cond;
+    if (timeout > 0) {
+        io->timeout_at = apr_time_now() + timeout;
+    }
+    else {
+        io->timeout_at = 0; 
+    }
+}
+
+void h2_io_signal_exit(h2_io *io)
+{
+    io->timed_cond = NULL;
+    io->timeout_at = 0; 
+}
+
+apr_status_t h2_io_signal_wait(h2_mplx *m, h2_io *io)
+{
+    apr_status_t status;
+    
+    if (io->timeout_at != 0) {
+        status = apr_thread_cond_timedwait(io->timed_cond, m->lock, io->timeout_at);
+        if (APR_STATUS_IS_TIMEUP(status)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03055)  
+                          "h2_mplx(%ld-%d): stream timeout expired: %s",
+                          m->id, io->id, 
+                          (io->timed_op == H2_IO_READ)? "read" : "write");
+            h2_io_rst(io, H2_ERR_CANCEL);
+        }
+    }
+    else {
+        apr_thread_cond_wait(io->timed_cond, m->lock);
+        status = APR_SUCCESS;
+    }
+    if (io->orphaned && status == APR_SUCCESS) {
+        return APR_ECONNABORTED;
+    }
+    return status;
+}
+
+void h2_io_signal(h2_io *io, h2_io_op op)
+{
+    if (io->timed_cond && (io->timed_op == op || H2_IO_ANY == op)) {
+        apr_thread_cond_signal(io->timed_cond);
+    }
+}
+
+void h2_io_make_orphaned(h2_io *io, int error)
+{
+    io->orphaned = 1;
+    if (error) {
+        h2_io_rst(io, error);
+    }
+    /* if someone is waiting, wake him up */
+    h2_io_signal(io, H2_IO_ANY);
+}
+
+static int add_trailer(void *ctx, const char *key, const char *value)
+{
+    apr_bucket_brigade *bb = ctx;
+    apr_status_t status;
+    
+    status = apr_brigade_printf(bb, NULL, NULL, "%s: %s\r\n", 
+                                key, value);
+    return (status == APR_SUCCESS);
+}
+
+static apr_status_t in_append_eos(h2_io *io, apr_bucket_brigade *bb, 
+                                  apr_table_t *trailers)
+{
+    apr_status_t status = APR_SUCCESS;
+    apr_table_t *t = io->request->trailers;
+
+    if (trailers && t && !apr_is_empty_table(trailers)) {
+        /* trailers passed in, transfer directly. */
+        apr_table_overlap(trailers, t, APR_OVERLAP_TABLES_SET);
+        t = NULL;
+    }
+    
+    if (io->request->chunked) {
+        if (t && !apr_is_empty_table(t)) {
+            /* no trailers passed in, transfer via chunked */
+            status = apr_brigade_puts(bb, NULL, NULL, "0\r\n");
+            apr_table_do(add_trailer, bb, t, NULL);
+            status = apr_brigade_puts(bb, NULL, NULL, "\r\n");
+        }
+        else {
+            status = apr_brigade_puts(bb, NULL, NULL, "0\r\n\r\n");
+        }
+    }
+    append_eos(io, bb);
+    return status;
+}
+
+apr_status_t h2_io_in_read(h2_io *io, apr_bucket_brigade *bb, 
+                           apr_size_t maxlen, apr_table_t *trailers)
+{
+    apr_off_t start_len = 0;
+    apr_status_t status;
+
+    if (io->rst_error) {
+        return APR_ECONNABORTED;
+    }
+    
+    if (!io->bbin || APR_BRIGADE_EMPTY(io->bbin)) {
+        if (io->eos_in) {
+            if (!io->eos_in_written) {
+                status = in_append_eos(io, bb, trailers);
+                io->eos_in_written = 1;
+                return status;
+            }
+            return APR_EOF;
+        }
+        return APR_EAGAIN;
+    }
+    
+    if (io->request->chunked) {
+        /* the reader expects HTTP/1.1 chunked encoding */
+        check_bbtmp(io);
+        status = h2_util_move(io->bbtmp, io->bbin, maxlen, NULL, "h2_io_in_read_chunk");
+        if (status == APR_SUCCESS) {
+            apr_off_t tmp_len = 0;
+            
+            apr_brigade_length(io->bbtmp, 1, &tmp_len);
+            if (tmp_len > 0) {
+                io->input_consumed += tmp_len;
+                status = apr_brigade_printf(bb, NULL, NULL, "%lx\r\n", 
+                                            (unsigned long)tmp_len);
+                if (status == APR_SUCCESS) {
+                    status = h2_util_move(bb, io->bbtmp, -1, NULL, "h2_io_in_read_tmp1");
+                    if (status == APR_SUCCESS) {
+                        status = apr_brigade_puts(bb, NULL, NULL, "\r\n");
+                    }
+                }
+            }
+            else {
+                status = h2_util_move(bb, io->bbtmp, -1, NULL, "h2_io_in_read_tmp2");
+            }
+            apr_brigade_cleanup(io->bbtmp);
+        }
+    }
+    else {
+        apr_brigade_length(bb, 1, &start_len);
+        
+        status = h2_util_move(bb, io->bbin, maxlen, NULL, "h2_io_in_read");
+        if (status == APR_SUCCESS) {
+            apr_off_t end_len = 0;
+            apr_brigade_length(bb, 1, &end_len);
+            io->input_consumed += (end_len - start_len);
+        }
+    }
+    
+    if (status == APR_SUCCESS && (!io->bbin || APR_BRIGADE_EMPTY(io->bbin))) {
+        if (io->eos_in) {
+            if (!io->eos_in_written) {
+                status = in_append_eos(io, bb, trailers);
+                io->eos_in_written = 1;
+            }
+        }
+    }
+    
+    if (status == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) {
+        return APR_EAGAIN;
+    }
+    return status;
+}
+
+apr_status_t h2_io_in_write(h2_io *io, const char *d, apr_size_t len, int eos)
+{
+    if (io->rst_error) {
+        return APR_ECONNABORTED;
+    }
+    
+    if (io->eos_in) {
+        return APR_EOF;
+    }
+    if (eos) {
+        io->eos_in = 1;
+    }
+    if (len > 0) {
+        check_bbin(io);
+        return apr_brigade_write(io->bbin, NULL, NULL, d, len);
+    }
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_io_in_close(h2_io *io)
+{
+    if (io->rst_error) {
+        return APR_ECONNABORTED;
+    }
+    
+    io->eos_in = 1;
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_io_out_get_brigade(h2_io *io, apr_bucket_brigade *bb, 
+                                   apr_off_t len)
+{
+    if (io->rst_error) {
+        return APR_ECONNABORTED;
+    }
+    if (io->eos_out_read) {
+        return APR_EOF;
+    }
+    else if (!io->bbout || APR_BRIGADE_EMPTY(io->bbout)) {
+        return APR_EAGAIN;
+    }
+    else {
+        apr_status_t status;
+        apr_off_t pre_len, post_len;
+        /* Allow file handles pass through without limits. If they
+         * already have the lifetime of this stream, we might as well
+         * pass them on to the master connection */
+        apr_size_t files = INT_MAX;
+        
+        apr_brigade_length(bb, 0, &pre_len);
+        status = h2_util_move(bb, io->bbout, len, &files, "h2_io_read_to");
+        if (status == APR_SUCCESS && io->eos_out 
+            && APR_BRIGADE_EMPTY(io->bbout)) {
+            io->eos_out_read = 1;
+        }
+        apr_brigade_length(bb, 0, &post_len);
+        io->output_consumed += (post_len - pre_len);
+        return status;
+    }
+}
+
+apr_status_t h2_io_out_write(h2_io *io, apr_bucket_brigade *bb, 
+                             apr_size_t maxlen, 
+                             apr_size_t *pfile_buckets_allowed)
+{
+    apr_status_t status;
+    apr_bucket *b;
+    int start_allowed;
+    
+    if (io->rst_error) {
+        return APR_ECONNABORTED;
+    }
+
+    /* Filter the EOR bucket and set it aside. We prefer to tear down
+     * the request when the whole h2 stream is done */
+    for (b = APR_BRIGADE_FIRST(bb);
+         b != APR_BRIGADE_SENTINEL(bb);
+         b = APR_BUCKET_NEXT(b))
+    {
+        if (AP_BUCKET_IS_EOR(b)) {
+            APR_BUCKET_REMOVE(b);
+            io->eor = b;
+            break;
+        }
+        else if (APR_BUCKET_IS_EOS(b)) {
+            io->eos_out = 1;
+            break;
+        }
+    }     
+    
+    /* Let's move the buckets from the request processing in here, so
+     * that the main thread can read them when it has time/capacity.
+     *
+     * Move at most "maxlen" memory bytes. If buckets remain, it is
+     * the caller's responsibility to take care of this.
+     *
+     * We allow passing of file buckets as long as we do not have too
+     * many open files already buffered. Otherwise we will run out of
+     * file handles.
+     */
+    check_bbout(io);
+    start_allowed = *pfile_buckets_allowed;
+    status = h2_util_move(io->bbout, bb, maxlen, pfile_buckets_allowed, 
+                          "h2_io_out_write");
+    /* track # file buckets moved into our pool */
+    if (start_allowed != *pfile_buckets_allowed) {
+        io->files_handles_owned += (start_allowed - *pfile_buckets_allowed);
+    }
+    return status;
+}
+
+
+apr_status_t h2_io_out_close(h2_io *io)
+{
+    if (io->rst_error) {
+        return APR_ECONNABORTED;
+    }
+    if (!io->eos_out_read) { /* EOS has not been read yet */
+        if (!io->eos_out) {
+            check_bbout(io);
+            io->eos_out = 1;
+            if (!h2_util_has_eos(io->bbout, -1)) {
+                append_eos(io, io->bbout);
+            }
+        }
+    }
+    return APR_SUCCESS;
+}

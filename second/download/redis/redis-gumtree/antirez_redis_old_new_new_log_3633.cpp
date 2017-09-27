@@ -1,1 +1,0 @@
-x = sdscatprintf(sdsempty(),"%d",123);

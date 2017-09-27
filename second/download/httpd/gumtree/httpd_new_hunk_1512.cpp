@@ -1,20 +1,25 @@
-            if ( pidfile != NULL && unlink(pidfile) == 0)
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                             ap_server_conf,
-                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
-                             pidfile, getpid());
+                 : (LDAP_INSUFFICIENT_ACCESS == result) ? AUTH_DENIED
+#endif
+#ifdef LDAP_INSUFFICIENT_RIGHTS
+                 : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
+#endif
+#endif
+                 : AUTH_GENERAL_ERROR;
+    }
 
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "caught " AP_SIG_GRACEFUL_STOP_STRING
-                         ", shutting down gracefully");
-        }
+    /* mark the user and DN */
+    req->dn = apr_pstrdup(r->pool, dn);
+    req->user = apr_pstrdup(r->pool, user);
+    req->password = apr_pstrdup(r->pool, password);
+    if (sec->user_is_dn) {
+        r->user = req->dn;
+    }
 
-        if (ap_graceful_shutdown_timeout) {
-            cutoff = apr_time_now() +
-                     apr_time_from_sec(ap_graceful_shutdown_timeout);
-        }
+    /* add environment variables */
+    remote_user_attribute_set = set_request_vars(r, LDAP_AUTHN);
 
-        /* Don't really exit until each child has finished */
-        shutdown_pending = 0;
-        do {
-            /* Pause for a second */
+    /* sanity check */
+    if (sec->remote_user_attribute && !remote_user_attribute_set) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                  "REMOTE_USER was to be set with attribute '%s', "

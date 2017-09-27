@@ -1,52 +1,92 @@
-    fputs(prompt, stderr);
-    fgets((char *) &password, sizeof(password), stdin);
 
-    return (char *) &password;
-}
 
-#elif defined (HAVE_TERMIOS_H)
-#include <stdio.h>
-
-static char *get_password(const char *prompt)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
+                                 const char * const * argv, int reconfig)
 {
-    struct termios attr;
-    static char password[MAX_STRING_LEN];
-    int n=0;
-    fputs(prompt, stderr);
-    fflush(stderr);
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
+    apr_status_t rv;
 
-    if (tcgetattr(STDIN_FILENO, &attr) != 0)
-        return NULL;
-    attr.c_lflag &= ~(ECHO);
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);
 
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
-        return NULL;
-    while ((password[n] = getchar()) != '\n') {
-        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
-            n++;
-        } else {
-            fprintf(stderr,"\n");
-            fputs(prompt, stderr);
-            fflush(stderr);
-            n = 0;
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "GetModuleFileName failed");
+        return rv;
+    }
+
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+    {
+        SC_HANDLE   schService;
+        SC_HANDLE   schSCManager;
+
+        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                     SC_MANAGER_CREATE_SERVICE);
+        if (!schSCManager) {
+            rv = apr_get_os_error();
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to open the WinNT service manager");
+            return (rv);
         }
-    }
- 
-    password[n] = '\0';
-    printf("\n");
-    if (n > (MAX_STRING_LEN - 1)) {
-        password[MAX_STRING_LEN - 1] = '\0';
-    }
 
-    attr.c_lflag |= ECHO;
-    tcsetattr(STDIN_FILENO, TCSANOW, &attr);
-    return (char*) &password;
-}
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
 
-#else
+        if (reconfig) {
+            /* ###: utf-ize */
+            schService = OpenService(schSCManager, mpm_service_name,
+                                     SERVICE_CHANGE_CONFIG);
+            if (!schService) {
+                ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                             apr_get_os_error(), NULL,
+                             "OpenService failed");
+            }
+            /* ###: utf-ize */
+            else if (!ChangeServiceConfig(schService,
+                                          SERVICE_WIN32_OWN_PROCESS,
+                                          SERVICE_AUTO_START,
+                                          SERVICE_ERROR_NORMAL,
+                                          launch_cmd, NULL, NULL,
+                                          "Tcpip\0Afd\0", NULL, NULL,
+                                          mpm_display_name)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                             apr_get_os_error(), NULL,
+                             "ChangeServiceConfig failed");
+                /* !schService aborts configuration below */
+                CloseServiceHandle(schService);
+                schService = NULL;
+            }
+        }
+        else {
+            /* RPCSS is the Remote Procedure Call (RPC) Locator required
+             * for DCOM communication pipes.  I am far from convinced we
+             * should add this to the default service dependencies, but
+             * be warned that future apache modules or ISAPI dll's may
+             * depend on it.
+             */
+            /* ###: utf-ize */
+            schService = CreateService(schSCManager,         // SCManager database
+                                   mpm_service_name,     // name of service
+                                   mpm_display_name,     // name to display
+                                   SERVICE_ALL_ACCESS,   // access required
+                                   SERVICE_WIN32_OWN_PROCESS,  // service type
+                                   SERVICE_AUTO_START,   // start type
+                                   SERVICE_ERROR_NORMAL, // error control type
+                                   launch_cmd,           // service's binary
+                                   NULL,                 // no load svc group
+                                   NULL,                 // no tag identifier
+                                   "Tcpip\0Afd\0",       // dependencies
+                                   NULL,                 // use SYSTEM account
+                                   NULL);                // no password
 
-/*
- * Windows lacks getpass().  So we'll re-implement it here.
- */
-
-static char *get_password(const char *prompt)
+            if (!schService)
+            {
+                rv = apr_get_os_error();
+                ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                             "Failed to create WinNT Service Profile");
+                CloseServiceHandle(schSCManager);

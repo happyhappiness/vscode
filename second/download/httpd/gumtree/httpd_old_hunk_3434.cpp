@@ -1,13 +1,37 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+void mpm_signal_service(apr_pool_t *ptemp, int signal)
+{
+    int success = FALSE;
+    SC_HANDLE   schService;
+    SC_HANDLE   schSCManager;
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    schSCManager = OpenSCManager(NULL, NULL, // default machine & database
+                                 SC_MANAGER_CONNECT);
+
+    if (!schSCManager) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the NT Service Manager");
+        return;
+    }
+
+    /* ###: utf-ize */
+    schService = OpenService(schSCManager, mpm_service_name,
+                             SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                             SERVICE_USER_DEFINED_CONTROL |
+                             SERVICE_START | SERVICE_STOP);
+
+    if (schService == NULL) {
+        /* Could not open the service */
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the %s Service", mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return;
+    }
+
+    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Query of Service %s failed", mpm_display_name);
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+        return;
+    }
+

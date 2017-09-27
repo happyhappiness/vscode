@@ -1,1 +1,0 @@
-addReplyError(c,"Only CONFIG GET is allowed during loading");

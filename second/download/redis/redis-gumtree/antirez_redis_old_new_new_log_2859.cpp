@@ -1,1 +1,0 @@
-addReplyError(c,"Number of keys can't be greater than number of args");

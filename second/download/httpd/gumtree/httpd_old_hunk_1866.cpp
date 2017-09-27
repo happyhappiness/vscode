@@ -1,40 +1,34 @@
-	return;
+     * for the target process then send the WSAPROTOCOL_INFO
+     * (returned by dup socket) to the child.
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        apr_os_sock_t nsd;
+        lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
+        apr_os_sock_get(&nsd, lr->sd);
+        ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %lu",
+                     nsd, dwProcessId);
+        if (WSADuplicateSocket(nsd, dwProcessId,
+                               lpWSAProtocolInfo) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", nsd);
+            return -1;
+        }
+
+        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
+                                      sizeof(WSAPROTOCOL_INFO), &BytesWritten))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                         "Parent: Unable to write duplicated socket %d to the child.", nsd);
+            return -1;
+        }
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Parent: Sent %d listeners to child %lu", lcnt, dwProcessId);
+    return 0;
 }
 
-
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+enum waitlist_e {
+    waitlist_ready = 0,
+    waitlist_term = 1

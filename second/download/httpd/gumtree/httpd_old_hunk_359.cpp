@@ -1,12 +1,12 @@
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
-            r->header_only = 0;
-            r->status = HTTP_BAD_REQUEST;
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            return r;
-        }
-    }
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+	}		
+	return rcode;
+}
 
+static const char *set_secure_listener(cmd_parms *cmd, void *dummy, 
+                                       const char *ips, const char* key, 
+                                       const char* mutual)
+{
+    NWSSLSrvConfigRec* sc = get_nwssl_cfg(cmd->server);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

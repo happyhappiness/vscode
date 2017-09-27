@@ -1,1 +1,0 @@
-addReplyError(c,"One or more scores can't be converted into double");

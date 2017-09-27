@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
-    }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+        if (ap_unixd_config.user_name[0] == '#') {
+            struct passwd *ent;
+            uid_t uid = atol(&ap_unixd_config.user_name[1]);
+
+            if ((ent = getpwuid(uid)) == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "getpwuid: couldn't determine user name from uid %ld, "
+                         "you probably need to modify the User directive",
+                         (long)uid);
+                return -1;
+            }
+

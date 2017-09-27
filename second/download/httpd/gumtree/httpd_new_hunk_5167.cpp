@@ -1,89 +1,41 @@
-	    n = strlen(buf);
-	}
+                              char *url, const char *proxyname,
+                              apr_port_t proxyport)
+{
+    int status;
+    char server_portstr[32];
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend;
 
-	o = 0;
-	total_bytes_sent += n;
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
 
-	if (c != NULL && c->fp && ap_bwrite(c->fp, buf, n) != n)
-	    c = ap_proxy_cache_error(c);
+    apr_pool_t *p = r->pool;
 
-	while (n && !r->connection->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0)
-		break;
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-	    n -= w;
-	    o += w;
-	}
+    apr_uri_t *uri = apr_palloc(r->pool, sizeof(*uri));
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01076)
+                  "url: %s proxyname: %s proxyport: %d",
+                 url, proxyname, proxyport);
+
+    if (strncasecmp(url, "fcgi:", 5) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01077) "declining URL %s", url);
+        return DECLINED;
     }
 
-    total_bytes_sent += ap_proxy_bputs2("</PRE><HR>\n", con->client, c);
-    total_bytes_sent += ap_proxy_bputs2(ap_psignature("", r), con->client, c);
-    total_bytes_sent += ap_proxy_bputs2("</BODY></HTML>\n", con->client, c);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01078) "serving URL %s", url);
 
-    ap_bflush(con->client);
+    /* Create space for state information */
+    status = ap_proxy_acquire_connection(FCGI_SCHEME, &backend, worker,
+                                         r->server);
+    if (status != OK) {
+        if (backend) {
+            backend->close = 1;
+            ap_proxy_release_connection(FCGI_SCHEME, backend, r->server);
+        }
+        return status;
+    }
 
-    return total_bytes_sent;
-}
+    backend->is_ssl = 0;
 
-/* Common routine for failed authorization (i.e., missing or wrong password)
- * to an ftp service. This causes most browsers to retry the request
- * with username and password (which was presumably queried from the user)
- * supplied in the Authorization: header.
- * Note that we "invent" a realm name which consists of the
- * ftp://user@host part of the reqest (sans password -if supplied but invalid-)
- */
-static int ftp_unauthorized (request_rec *r, int log_it)
-{
-    r->proxyreq = 0;
-    /* Log failed requests if they supplied a password
-     * (log username/password guessing attempts)
-     */
-    if (log_it)
-	ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
-		      "proxy: missing or failed auth to %s",
-		      ap_unparse_uri_components(r->pool,
-		      &r->parsed_uri, UNP_OMITPATHINFO));
-
-    ap_table_setn(r->err_headers_out, "WWW-Authenticate",
-                  ap_pstrcat(r->pool, "Basic realm=\"",
-		  ap_unparse_uri_components(r->pool, &r->parsed_uri,
-					    UNP_OMITPASSWORD|UNP_OMITPATHINFO),
-		  "\"", NULL));
-
-    return HTTP_UNAUTHORIZED;
-}
-
-/*
- * Handles direct access of ftp:// URLs
- * Original (Non-PASV) version from
- * Troy Morrison <spiffnet@zoom.com>
- * PASV added by Chuck
- */
-int ap_proxy_ftp_handler(request_rec *r, cache_req *c, char *url)
-{
-    char *host, *path, *strp, *parms;
-    char *cwd = NULL;
-    char *user = NULL;
-/*    char *account = NULL; how to supply an account in a URL? */
-    const char *password = NULL;
-    const char *err;
-    int port, i, j, len, sock, dsock, rc, nocache = 0;
-    int csd = 0;
-    struct sockaddr_in server;
-    struct hostent server_hp;
-    struct in_addr destaddr;
-    table *resp_hdrs;
-    BUFF *f;
-    BUFF *data = NULL;
-    pool *p = r->pool;
-    int one = 1;
-    const long int zero = 0L;
-    NET_SIZE_T clen;
-    struct tbl_do_args tdo;
-
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
+    /* Step One: Determine Who To Connect To */
+    status = ap_proxy_determine_connection(p, r, conf, worker, backend,

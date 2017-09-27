@@ -1,1 +1,0 @@
-printf("ERROR: \"hella\"\n");

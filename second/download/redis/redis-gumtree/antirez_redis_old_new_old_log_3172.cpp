@@ -1,1 +1,0 @@
-"Can't lock the swap file at '%s': %s. Make sure it is not used by another Redis instance.";

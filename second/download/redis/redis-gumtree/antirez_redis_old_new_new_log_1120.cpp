@@ -1,1 +1,0 @@
-notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);

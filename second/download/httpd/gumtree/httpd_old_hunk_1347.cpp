@@ -1,20 +1,27 @@
-            exitcode = APEXIT_CHILDFATAL;
-        }
-        if (   exitcode == APEXIT_CHILDFATAL
-            || exitcode == APEXIT_CHILDINIT
-            || exitcode == APEXIT_INIT) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "Parent: child process exited with status %u -- Aborting.", exitcode);
-            shutdown_pending = 1;
-        }
-        else {
-            int i;
-            restart_pending = 1;
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Parent: child process exited with status %u -- Restarting.", exitcode);
-            for (i = 0; i < ap_threads_per_child; i++) {
-                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
+
+        modssl_set_cert_info(info, x509, pkey);
+
+        return TRUE;
+    }
+
+    for (i = 0; i < sk_X509_NAME_num(ca_list); i++) {
+        ca_name = sk_X509_NAME_value(ca_list, i);
+
+        for (j = 0; j < sk_X509_INFO_num(certs); j++) {
+            info = sk_X509_INFO_value(certs, j);
+            issuer = X509_get_issuer_name(info->x509);
+
+            if (X509_NAME_cmp(issuer, ca_name) == 0) {
+                modssl_proxy_info_log(s, info, "found acceptable cert");
+
+                modssl_set_cert_info(info, x509, pkey);
+
+                return TRUE;
             }
         }
-        CloseHandle(event_handles[CHILD_HANDLE]);
-        event_handles[CHILD_HANDLE] = NULL;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT
+                 "no client certificate found!?", sc->vhost_id);
+

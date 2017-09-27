@@ -1,22 +1,26 @@
-                status = apr_pollset_poll(pollset, -1, &numdesc, &pdesc);
-                if (status != APR_SUCCESS) {
-                    if (APR_STATUS_IS_EINTR(status)) {
-                        if (one_process && shutdown_pending) {
-                            return;
-                        }
-                        continue;
-                    }
-                    /* Single Unix documents select as returning errnos
-                     * EBADF, EINTR, and EINVAL... and in none of those
-                     * cases does it make sense to continue.  In fact
-                     * on Linux 2.0.x we seem to end up with EFAULT
-                     * occasionally, and we'd loop forever due to it.
-                     */
-                    ap_log_error(APLOG_MARK, APLOG_ERR, status,
-                                 ap_server_conf, "apr_pollset_poll: (listen)");
-                    clean_child_exit(1);
-                }
+/*
+ * Prints the SSL library error information.
+ */
+void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+{
+    unsigned long e;
 
-                /* We can always use pdesc[0], but sockets at position N
-                 * could end up completely starved of attention in a very
-                 * busy server. Therefore, we round-robin across the
+    while ((e = ERR_get_error())) {
+        const char *annotation;
+        char err[256];
+
+        ERR_error_string_n(e, err, sizeof err);
+        annotation = ssl_log_annotation(err);
+
+        if (annotation) {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s %s",
+                         e, err, annotation);
+        }
+        else {
+            ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err);
+        }
+    }
+}

@@ -1,15 +1,14 @@
-         }
- 
-         if (status == APEXIT_CHILDFATAL) {
-             ap_log_error(APLOG_MARK, APLOG_ALERT,
-                          0, ap_server_conf,
-                          "Child %" APR_PID_T_FMT
--                         " returned a Fatal error..." APR_EOL_STR
--                         "Apache is exiting!",
-+                         " returned a Fatal error... Apache is exiting!",
-                          pid->pid);
-             return APEXIT_CHILDFATAL;
-         }
- 
+     case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+         if (cid->dconf.log_unsupported)
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction "
+                           "HSE_REQ_CLOSE_CONNECTION "
+                           "is not supported: %s", r->filename);
+-        SetLastError(ERROR_INVALID_PARAMETER);
++        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
          return 0;
-     }
+ 
+     case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
+         /* Returns True if client is connected c.f. MSKB Q188346
+          * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
+          */

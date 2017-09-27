@@ -1,1 +1,1 @@
-ap_rputs("<tr>", r);
+printf("disabled)\n");

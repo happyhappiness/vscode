@@ -1,16 +1,12 @@
-    }
+    if (csd && key) {
+        int sockdes;
+        apr_os_sock_get(&sockdes, csd);
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    tn = get_tempname(pool);
-    if (apr_file_mktemp(&ftemp, tn, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], tn);
-        exit(ERR_FILEPERM);
-    }
 
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
+        ret = SSLize_Socket(sockdes, key, r);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Upgradeable socket handle not found");
+        return ap_pass_brigade(f->next, bb);
+    }

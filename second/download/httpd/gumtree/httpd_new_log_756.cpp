@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);
+ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);

@@ -1,1 +1,1 @@
-ap_rputs(" -D OS=\"" OS "\"\n", r);
+ap_rputs("disabled)\n", r);

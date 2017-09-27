@@ -1,45 +1,32 @@
-                 * to remove the object, update the size and re-add the 
-                 * object, all under protection of the lock.
-                 */
-                if (sconf->lock) {
-                    apr_thread_mutex_lock(sconf->lock);
-                }
-                /* Has the object been ejected from the cache?
-                 */
-                tobj = (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
-                if (tobj == obj) {
-                    /* Object is still in the cache, remove it, update the len field then
-                     * replace it under protection of sconf->lock.
-                     */
-                    cache_remove(sconf->cache_cache, obj);
-                    /* For illustration, cache no longer has reference to the object
-                     * so decrement the refcount
-                     * apr_atomic_dec(&obj->refcount); 
-                     */
-                    mobj->m_len = obj->count;
+    }
 
-                    cache_insert(sconf->cache_cache, obj);
-                    /* For illustration, cache now has reference to the object, so
-                     * increment the refcount
-                     * apr_atomic_inc(&obj->refcount); 
-                     */
-                }
-                else if (tobj) {
-                    /* Different object with the same key found in the cache. Doing nothing
-                     * here will cause the object refcount to drop to 0 in decrement_refcount
-                     * and the object will be cleaned up.
-                     */
+    if (!sec->have_ldap_url) {
+        return DECLINED;
+    }
 
-                } else {
-                    /* Object has been ejected from the cache, add it back to the cache */
-                    mobj->m_len = obj->count;
-                    cache_insert(sconf->cache_cache, obj);
-                    apr_atomic_inc(&obj->refcount); 
-                }
+    /*
+     * It is possible that we've skipped mod_auth_ldap's
+     * check_user_id hook, but still get here. In that
+     * case, the req request_config struct hasn't been initialized
+     * causing problems when we try to use req->dn and/or req->name
+     * below. So we simply create one.
+     *
+     * Unlike 2.2, we don't try to search or populate it.
+     */
+    if (!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: "
+                      "no req struct - skipped mod_auth_ldap_check_user_id?",
+                      getpid());
 
-                if (sconf->lock) {
-                    apr_thread_mutex_unlock(sconf->lock);
-                }
-            }
-            /* Open for business */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+        req = (mod_auth_ldap_request_t *)apr_pcalloc(r->pool,
+                                                     sizeof(mod_auth_ldap_request_t));
+        ap_set_module_config(r->request_config, &auth_ldap_module, req);
+    }
+
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  mod_auth_ldap_cleanup_connection_close,

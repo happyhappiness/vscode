@@ -1,57 +1,53 @@
-	}
-	ap_destroy_sub_req(pa_req);
+            procnew->in = NULL;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          pl->write_fd, pl->p);
+            close_handle_in_child(pl->p, pl->read_fd);
+        }
+        else {
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, status, NULL, APLOGNO(00104)
+                         "unable to start piped log program '%s'",
+                         pl->program);
+        }
     }
+
+    return status;
 }
 
 
-static int set_cookie_doo_doo(void *v, const char *key, const char *val)
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
 {
-    ap_table_addn(v, key, val);
-    return 1;
-}
+    piped_log *pl = data;
+    apr_status_t rv;
+    int mpm_state;
 
-API_EXPORT(int) ap_scan_script_header_err_core(request_rec *r, char *buffer,
-				       int (*getsfunc) (char *, int, void *),
-				       void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
-    table *merge;
-    table *cookie_table;
+    switch (reason) {
+    case APR_OC_REASON_DEATH:
+    case APR_OC_REASON_LOST:
+        pl->pid = NULL; /* in case we don't get it going again, this
+                         * tells other logic not to try to kill it
+                         */
+        apr_proc_other_child_unregister(pl);
+        rv = ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00105)
+                         "can't query MPM state; not restarting "
+                         "piped log program '%s'",
+                         pl->program);
+        }
+        else if (mpm_state != AP_MPMQ_STOPPING) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00106)
+                         "piped log program '%s' failed unexpectedly",
+                         pl->program);
+            if ((rv = piped_log_spawn(pl)) != APR_SUCCESS) {
+                /* what can we do?  This could be the error log we're having
+                 * problems opening up... */
+                ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL, APLOGNO(00107)
+                             "piped_log_maintenance: unable to respawn '%s'",
+                             pl->program);
+            }
+        }
+        break;
 
-    if (buffer) {
-	*buffer = '\0';
-    }
-    w = buffer ? buffer : x;
-
-    ap_hard_timeout("read script header", r);
-
-    /* temporary place to hold headers to merge in later */
-    merge = ap_make_table(r->pool, 10);
-
-    /* The HTTP specification says that it is legal to merge duplicate
-     * headers into one.  Some browsers that support Cookies don't like
-     * merged headers and prefer that each Set-Cookie header is sent
-     * separately.  Lets humour those browsers by not merging.
-     * Oh what a pain it is.
-     */
-    cookie_table = ap_make_table(r->pool, 2);
-    ap_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-			  "Premature end of script headers: %s", r->filename);
-	    ap_table_setn(r->notes, "error-notes",
-			  "Premature end of script headers");
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
+    case APR_OC_REASON_UNWRITABLE:
+        /* We should not kill off the pipe here, since it may only be full.

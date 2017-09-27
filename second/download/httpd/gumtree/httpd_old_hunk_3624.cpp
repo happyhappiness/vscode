@@ -1,28 +1,37 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers", r->filename);
-		return FALSE;
-	    }
 
-	    *value++ = '\0';
-	    while (*value && isspace(*value)) ++value;
+        for (pi = 0; pi < pollcnt; pi++) {
+            const apr_pollfd_t *cur = &signalled[pi];
 
-	    /* Check all the special-case headers. Similar to what
-	     * scan_script_header() does (see that function for
-	     * more detail)
-	     */
-
-	    if (!strcasecmp(data, "Content-Type")) {
-		/* Nuke trailing whitespace */
-		
-		char *endp = value + strlen(value) - 1;
-		while (endp > value && isspace(*endp)) *endp-- = '\0';
-            
-		r->content_type = ap_pstrdup (r->pool, value);
-		ap_str_tolower(r->content_type);
-	    }
-	    else if (!strcasecmp(data, "Content-Length")) {
-		ap_table_set(r->headers_out, data, value);
-	    }
-	    else if (!strcasecmp(data, "Transfer-Encoding")) {
-		ap_table_set(r->headers_out, data, value);
--- apache_1.3.0/src/os/win32/multithread.c	1998-04-11 20:01:06.000000000 +0800
+            if (cur->desc.s == sock) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+#ifdef DEBUGGING
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01025)
+                                  "sock was readable");
+#endif
+                    rv = proxy_connect_transfer(r, backconn, c, bb, "sock");
+                    }
+                else if ((pollevent & APR_POLLERR)
+                         || (pollevent & APR_POLLHUP)) {
+                         rv = APR_EPIPE;
+                         ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(01026)
+                                       "err/hup on backconn");
+                }
+                if (rv != APR_SUCCESS)
+                    client_error = 1;
+            }
+            else if (cur->desc.s == client_socket) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+#ifdef DEBUGGING
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01027)
+                                  "client was readable");
+#endif
+                    rv = proxy_connect_transfer(r, c, backconn, bb, "client");
+                }
+            }
+            else {
+                rv = APR_EBADF;
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01028)
+                              "unknown socket in pollset");
+            }

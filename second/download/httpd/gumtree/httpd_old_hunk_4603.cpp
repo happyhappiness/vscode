@@ -1,17 +1,23 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
+
+    /* Second, check for actions (which override the method scripts) */
+    action = r->handler ? r->handler :
+        ap_field_noparam(r->pool, r->content_type);
+
+    if (action && (t = apr_table_get(conf->action_types, action))) {
+        if (*t++ == '0' && r->finfo.filetype == APR_NOFILE) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00652)
+                          "File does not exist: %s", r->filename);
+            return HTTP_NOT_FOUND;
         }
+
+        script = t;
+        /* propagate the handler name to the script
+         * (will be REDIRECT_HANDLER there)
+         */
+        apr_table_setn(r->subprocess_env, "HANDLER", action);
+    }
+
+    if (script == NULL)
+        return DECLINED;
+
+    ap_internal_redirect_handler(apr_pstrcat(r->pool, script,

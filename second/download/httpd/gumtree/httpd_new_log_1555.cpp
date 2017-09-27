@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
-               r->method);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->name, worker->name);

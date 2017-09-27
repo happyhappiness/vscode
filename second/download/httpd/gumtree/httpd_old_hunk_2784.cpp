@@ -1,13 +1,28 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
-    }
-    else {
+                cp++;
+                continue;
+            }
+            else if (*cp == '=') {
+                attribute = zap_sp_and_dup(p, mp, cp, NULL);
+                if (attribute == NULL || *attribute == '\0') {
+                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                 "Cannot get media parameter.");
+                    return (NULL);
+                }
+                cp++;
+                cp = zap_sp(cp);
+                if (cp == NULL || *cp == '\0') {
+                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                 "Cannot get media parameter.");
+                    return (NULL);
+                }
+                mp = cp;
+                continue;
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                             "Cannot get media parameter.");
+                return (NULL);
+            }
+        }
+        else {
+            if (mp == cp) {

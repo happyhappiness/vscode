@@ -1,76 +1,166 @@
+                    return APR_EGENERAL;
+                }
 
-    ap_hard_timeout("proxy receive", r);
-/* send response */
-/* write status line */
-    if (!r->assbackwards)
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-    if (c != NULL && c->fp != NULL
-	&& ap_bvputs(c->fp, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
-	c = ap_proxy_cache_error(c);
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                break;
+            }
 
-/* send headers */
-    tdo.req = r;
-    tdo.cache = c;
-    ap_table_do(ap_proxy_send_hdr_line, &tdo, resp_hdrs, NULL);
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_b;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
 
-    if (!r->assbackwards)
-	ap_rputs(CRLF, r);
-    if (c != NULL && c->fp != NULL && ap_bputs(CRLF, c->fp) == -1)
-	c = ap_proxy_cache_error(c);
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+ 
+                ctx->inflate_total += len;
+                if (inflate_limit && ctx->inflate_total > inflate_limit) { 
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02647)
+                            "Inflated content length of %" APR_OFF_T_FMT
+                            " is larger than the configured limit"
+                            " of %" APR_OFF_T_FMT, 
+                            ctx->inflate_total, inflate_limit);
+                    return APR_ENOSPC;
+                }
 
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-    r->sent_bodyct = 1;
-/* send body */
-    if (!r->header_only) {
-	if (parms[0] != 'd') {
-/* we need to set this for ap_proxy_send_fb()... */
-	    if (c != NULL)
-		c->cache_completion = 0;
-	    ap_proxy_send_fb(data, r, c);
-	} else
-	    send_dir(data, r, c, cwd);
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_b);
+                ctx->stream.avail_out = c->bufferSize;
 
-	if (rc == 125 || rc == 150)
-	    rc = ftp_getrc(f);
+                /* Flush everything so far in the returning brigade, but continue
+                 * reading should EOS/more follow (don't lose them).
+                 */
+                tmp_b = APR_BUCKET_PREV(bkt);
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                bkt = tmp_b;
+                continue;
+            }
 
-	/* XXX: we checked for 125||150||226||250 above. This is redundant. */
-	if (rc != 226 && rc != 250)
-	    c = ap_proxy_cache_error(c);
-    }
-    else {
-/* abort the transfer */
-	ap_bputs("ABOR" CRLF, f);
-	ap_bflush(f);
-	if (!pasvmode)
-	    ap_bclose(data);
-	Explain0("FTP: ABOR");
-/* responses: 225, 226, 421, 500, 501, 502 */
-    /* 225 Data connection open; no transfer in progress. */
-    /* 226 Closing data connection. */
-    /* 421 Service not available, closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    /* 501 Syntax error in parameters or arguments. */
-    /* 502 Command not implemented. */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
-    }
+            /* sanity check - data after completed compressed body and before eos? */
+            if (ctx->done) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482)
+                              "Encountered extra data after compressed data");
+                return APR_EGENERAL;
+            }
 
-    ap_kill_timeout(r);
-    ap_proxy_cache_tidy(c);
+            /* read */
+            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+            if (!len) {
+                continue;
+            }
+            if (len > INT_MAX) {
+                apr_bucket_split(bkt, INT_MAX);
+                apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+            }
 
-/* finish */
-    ap_bputs("QUIT" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: QUIT");
-/* responses: 221, 500 */
-    /* 221 Service closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    i = ftp_getrc(f);
-    Explain1("FTP: QUIT: status %d", i);
+            if (ctx->zlib_flags) {
+                rv = consume_zlib_flags(ctx, &data, &len);
+                if (rv == APR_SUCCESS) {
+                    ctx->zlib_flags = 0;
+                }
+                if (!len) {
+                    continue;
+                }
+            }
 
-    if (pasvmode)
-	ap_bclose(data);
-    ap_bclose(f);
+            /* pass through zlib inflate. */
+            ctx->stream.next_in = (unsigned char *)data;
+            ctx->stream.avail_in = (int)len;
 
-    ap_rflush(r);	/* flush before garbage collection */
-++ apache_1.3.2/src/modules/proxy/proxy_http.c	1998-09-01 03:51:59.000000000 +0800
+            zRC = Z_OK;
+
+            if (!ctx->validation_buffer) {
+                while (ctx->stream.avail_in != 0) {
+                    if (ctx->stream.avail_out == 0) {
+                        apr_bucket *tmp_heap;
+
+                        ctx->stream.next_out = ctx->buffer;
+                        len = c->bufferSize - ctx->stream.avail_out;
+
+                        ctx->inflate_total += len;
+                        if (inflate_limit && ctx->inflate_total > inflate_limit) { 
+                            inflateEnd(&ctx->stream);
+                            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02648)
+                                    "Inflated content length of %" APR_OFF_T_FMT
+                                    " is larger than the configured limit"
+                                    " of %" APR_OFF_T_FMT, 
+                                    ctx->inflate_total, inflate_limit);
+                            return APR_ENOSPC;
+                        }
+
+                        if (!check_ratio(r, ctx, dc)) {
+                            inflateEnd(&ctx->stream);
+                            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02649)
+                                    "Inflated content ratio is larger than the "
+                                    "configured limit %i by %i time(s)",
+                                    dc->ratio_limit, dc->ratio_burst);
+                            return APR_EINVAL;
+                        }
+
+                        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                          NULL, f->c->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                        ctx->stream.avail_out = c->bufferSize;
+                    }
+
+                    zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+                    if (zRC == Z_STREAM_END) {
+                        ctx->validation_buffer = apr_pcalloc(r->pool,
+                                                             VALIDATION_SIZE);
+                        ctx->validation_buffer_length = 0;
+                        break;
+                    }
+
+                    if (zRC != Z_OK) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
+                                      "Zlib error %d inflating data (%s)", zRC,
+                                      ctx->stream.msg);
+                        return APR_EGENERAL;
+                    }
+                }
+            }
+
+            if (ctx->validation_buffer) {
+                apr_bucket *tmp_heap;
+                apr_size_t avail, valid;
+                unsigned char *buf = ctx->validation_buffer;
+
+                avail = ctx->stream.avail_in;
+                valid = (apr_size_t)VALIDATION_SIZE -
+                         ctx->validation_buffer_length;
+
+                /*
+                 * We have inflated all data. Now try to capture the
+                 * validation bytes. We may not have them all available
+                 * right now, but capture what is there.
+                 */
+                if (avail < valid) {
+                    memcpy(buf + ctx->validation_buffer_length,
+                           ctx->stream.next_in, avail);
+                    ctx->validation_buffer_length += avail;
+                    continue;
+                }
+                memcpy(buf + ctx->validation_buffer_length,
+                       ctx->stream.next_in, valid);
+                ctx->validation_buffer_length += valid;
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);
+

@@ -1,22 +1,73 @@
- /* display copyright information */
- static void copyright(void)
- {
-     if (!use_html) {
- 	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.12 $> apache-2.0");
- 	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
--	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-+	printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");
- 	printf("\n");
-     }
-     else {
- 	printf("<p>\n");
- 	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
- 	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
--	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-+	printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
- 	printf("</p>\n<p>\n");
-     }
- }
+                 sk_X509_pop_free(cert_stack, X509_free);
+             }
+         }
+         else {
+             request_rec *id = r->main ? r->main : r;
  
- /* display usage information */
- static void usage(const char *progname)
+-            /* do a full renegotiation */
+-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+-                         "Performing full renegotiation: "
+-                         "complete handshake protocol");
++            /* Additional mitigation for CVE-2009-3555: At this point,
++             * before renegotiating, an (entire) request has been read
++             * from the connection.  An attacker may have sent further
++             * data to "prefix" any subsequent request by the victim's
++             * client after the renegotiation; this data may already
++             * have been read and buffered.  Forcing a connection
++             * closure after the response ensures such data will be
++             * discarded.  Legimately pipelined HTTP requests will be
++             * retried anyway with this approach. */
++            if (has_buffered_data(r)) {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                              "insecure SSL re-negotiation required, but "
++                              "a pipelined request is present; keepalive "
++                              "disabled");
++                r->connection->keepalive = AP_CONN_CLOSE;
++            }
++
++            /* Perform a full renegotiation. */
++            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
++                          "Performing full renegotiation: complete handshake "
++                          "protocol (%s support secure renegotiation)",
++#if defined(SSL_get_secure_renegotiation_support)
++                          SSL_get_secure_renegotiation_support(ssl) ? 
++                          "client does" : "client does not"
++#else
++                          "server does not"
++#endif
++                );
+ 
+             SSL_set_session_id_context(ssl,
+                                        (unsigned char *)&id,
+                                        sizeof(id));
+ 
++            /* Toggle the renegotiation state to allow the new
++             * handshake to proceed. */
++            sslconn->reneg_state = RENEG_ALLOW;
++            
+             SSL_renegotiate(ssl);
+             SSL_do_handshake(ssl);
+ 
+             if (SSL_get_state(ssl) != SSL_ST_OK) {
+                 ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                              "Re-negotiation request failed");
++                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+ 
+                 r->connection->aborted = 1;
+                 return HTTP_FORBIDDEN;
+             }
+ 
+             ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                          "Awaiting re-negotiation handshake");
+ 
+             SSL_set_state(ssl, SSL_ST_ACCEPT);
+             SSL_do_handshake(ssl);
+ 
++            sslconn->reneg_state = RENEG_REJECT;
++
+             if (SSL_get_state(ssl) != SSL_ST_OK) {
+                 ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                              "Re-negotiation handshake failed: "
+                         "Not accepted by client!?");
+ 
+                 r->connection->aborted = 1;

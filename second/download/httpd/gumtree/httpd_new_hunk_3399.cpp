@@ -1,21 +1,31 @@
+        }
+        else
+#endif
+            if (rv == WAIT_FAILED) {
+            /* Something serious is wrong */
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                         ap_server_conf, APLOGNO(00356)
+                         "Child: WAIT_FAILED -- shutting down server");
+            break;
+        }
+        else if (cld == 0) {
+            /* Exit event was signaled */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00357)
+                         "Child: Exit event signaled. Child process is "
+                         "ending.");
+            break;
+        }
+        else {
+            /* MaxConnectionsPerChild event set by the worker threads.
+             * Signal the parent to restart
+             */
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00358)
+                         "Child: Process exiting because it reached "
+                         "MaxConnectionsPerChild. Signaling the parent to "
+                         "restart a new child process.");
+            ap_signal_parent(SIGNAL_PARENT_RESTART);
+            break;
+        }
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    /*

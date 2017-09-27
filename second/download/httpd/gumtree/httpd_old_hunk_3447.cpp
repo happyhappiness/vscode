@@ -1,14 +1,20 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
 
+    /* Setup worker threads */
 
-static const handler_rec autoindex_handlers[] =
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
+    /* clear the storage; we may not create all our threads immediately,
+     * and we want a 0 entry to indicate a thread which was not created
+     */
+    threads = (apr_thread_t **)calloc(1,
+                                sizeof(apr_thread_t *) * threads_per_child);
+    if (threads == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                     "malloc: out of memory");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    ts = (thread_starter *)apr_palloc(pchild, sizeof(*ts));
+
+    apr_threadattr_create(&thread_attr, pchild);
+    /* 0 means PTHREAD_CREATE_JOINABLE */
+    apr_threadattr_detach_set(thread_attr, 0);
+

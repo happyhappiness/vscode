@@ -1,22 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
     }
-    ap_unblock_alarms();
+
+    ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
+                 "Inter-Process Session Cache: "
+                 "request=%s status=%s id=%s %s(session %s)",
+                 request, status,
+                 SSL_SESSION_id2sz(id, idlen, buf, sizeof(buf)),
+                 timeout_str, result);
 }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+/*
+ *  This callback function is executed by OpenSSL whenever a new SSL_SESSION is
+ *  added to the internal OpenSSL session cache. We use this hook to spread the

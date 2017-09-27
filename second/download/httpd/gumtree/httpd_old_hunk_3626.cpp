@@ -1,14 +1,15 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+                                apr_bucket *tmp_b;
+                                apr_brigade_cleanup(ob);
+                                tmp_b = apr_bucket_eos_create(c->bucket_alloc);
+                                APR_BRIGADE_INSERT_TAIL(ob, tmp_b);
+                                r->status = status;
+                                ap_pass_brigade(r->output_filters, ob);
+                                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01070)
+                                              "Error parsing script headers");
+                                rv = APR_EINVAL;
+                                break;
+                            }
+
+                            if (conf->error_override &&
+                                ap_is_HTTP_ERROR(r->status)) {
+                                /*

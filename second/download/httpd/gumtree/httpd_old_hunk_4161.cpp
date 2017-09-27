@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+
+    rc = DosCreateMutexSem(NULL, &ap_mpm_accept_mutex, DC_SEM_SHARED, FALSE);
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s, APLOGNO(00204)
+                     "failure creating accept mutex, shutting down");
+        return FALSE;
     }
 
-    Explain0("FTP: connected.");
+    parent_info->accept_mutex = ap_mpm_accept_mutex;
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    /* Allocate shared memory for scoreboard */
+    if (ap_scoreboard_image == NULL) {

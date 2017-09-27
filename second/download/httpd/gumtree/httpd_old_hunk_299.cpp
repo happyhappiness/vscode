@@ -1,13 +1,18 @@
-                    if (d->icon_width) {
-                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                    }
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-                    ap_rputs(" />", r);
-                }
-                else {
-                    ap_rputs("     ", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a> ", r);
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");
+            return 1;
+        }
+    }
+
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            return 1;
+        }
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
+         */
+        ap_scoreboard_image->global->running_generation = ap_my_generation;

@@ -1,1 +1,0 @@
-printf("%s\n", reply->element[1]->element[j]->str);

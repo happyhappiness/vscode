@@ -1,13 +1,14 @@
-                                       getpid(), ldc->reason, ldap_err2string(result));
-                     }
-                 }
-             }
-         }
-         else if (strcmp(w, "ldap-dn") == 0) {
--            required_ldap = 1;
-             if (req->dn == NULL || strlen(req->dn) == 0) {
-                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "[%" APR_PID_T_FMT "] auth_ldap authorise: "
-                               "require dn: user's DN has not been defined; failing authorisation",
-                               getpid());
-                 return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+     }
+ 
+     if (ccfg->min_rate > 0 && rv == APR_SUCCESS) {
+         extend_timeout(ccfg, bb);
+     }
+ 
+-    if (rv == APR_TIMEUP) {
++    if (APR_STATUS_IS_TIMEUP(rv)) {
+         ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                       "Request %s read timeout", ccfg->type);
+     }
+     return rv;
+ }
+ 

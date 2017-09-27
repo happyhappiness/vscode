@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Wrong RDB checksum. Aborting now.");

@@ -1,1 +1,0 @@
-anetSetError(err, "creating socket: %s\n", strerror(errno));

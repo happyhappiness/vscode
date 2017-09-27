@@ -1,24 +1,36 @@
+                    if (etag) {
+                        apr_table_set(r->headers_in, "If-None-Match", etag);
+                    }
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+                    if (lastmod) {
+                        apr_table_set(r->headers_in, "If-Modified-Since",
+                                      lastmod);
+                    }
+                    cache->stale_handle = h;
+                }
+                else {
+                    int irv;
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
-    }
+                    /*
+                     * The copy isn't fresh enough, but we cannot revalidate.
+                     * So it is the same case as if there had not been a cached
+                     * entry at all. Thus delete the entry from cache.
+                     */
+                    irv = cache->provider->remove_url(h, r->pool);
+                    if (irv != OK) {
+                        ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
+                                     "cache: attempt to remove url from cache unsuccessful.");
+                    }
+                }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
+                return DECLINED;
+            }
 
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
+            /* Okay, this response looks okay.  Merge in our stuff and go. */
+            ap_cache_accept_headers(h, r, 0);
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+            cache->handle = h;
+            return OK;
+        }
+        case DECLINED: {
+            /* try again with next cache type */

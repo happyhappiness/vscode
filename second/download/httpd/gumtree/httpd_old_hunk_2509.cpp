@@ -1,16 +1,25 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
+ * selected, details of it are stored in the per request
+ * config to save time when serving the request later.
+ *
+ * This function returns OK if successful, DECLINED if no
+ * cached entity fits the bill.
+ */
+int cache_select(request_rec *r)
+{
+    cache_provider_list *list;
+    apr_status_t rv;
+    cache_handle_t *h;
+    char *key;
+    cache_request_rec *cache = (cache_request_rec *)
+                         ap_get_module_config(r->request_config, &cache_module);
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
+    rv = cache_generate_key(r, r->pool, &key);
+    if (rv != APR_SUCCESS) {
+        return rv;
     }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
+    /* go through the cache types till we get a match */
+    h = apr_palloc(r->pool, sizeof(cache_handle_t));
 
-    /* perform sub-request for the file name without the suffix */
+    list = cache->providers;
+
+    while (list) {

@@ -1,13 +1,27 @@
-}
+         */
+        if (!r->filename) {
+            return DECLINED;
+        }
+    }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    rv = apr_pool_create(&pool, NULL);
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                     "mem_cache: Failed to create memory pool.");
+        return DECLINED;
+    }
+
+    /* Allocate and initialize cache_object_t */
+    obj = apr_pcalloc(pool, sizeof(*obj));
+    obj->key = apr_pstrdup(pool, key);
+
+    /* Allocate and init mem_cache_object_t */
+    mobj = apr_pcalloc(pool, sizeof(*mobj));
+    mobj->pool = pool;
+
+    /* Finish initing the cache object */
+    apr_atomic_set32(&obj->refcount, 1);
+    mobj->total_refs = 1;
+    obj->complete = 0;
+    obj->vobj = mobj;

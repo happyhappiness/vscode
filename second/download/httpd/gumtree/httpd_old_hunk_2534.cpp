@@ -1,13 +1,13 @@
-
+                                  cache_filter,
+                                  NULL,
+                                  AP_FTYPE_RESOURCE);
     /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
+     * CACHE_SAVE must go into the filter chain after a possible DEFLATE
+     * filter to ensure that the compressed content is stored.
+     * Incrementing filter type by 1 ensures his happens.
      */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    cache_save_filter_handle =
+        ap_register_output_filter("CACHE_SAVE",
+                                  cache_save_filter,
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET+1);

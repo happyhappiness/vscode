@@ -1,13 +1,12 @@
+    (void)prio;
+    (void)valid_weight;
+#endif
+    return status;
+}
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+int h2_session_push_enabled(h2_session *session)
+{
+    /* iff we can and they can and want */
+    return (session->remote.accepting /* remote GOAWAY received */
+            && h2_config_geti(session->config, H2_CONF_PUSH)
+            && nghttp2_session_get_remote_settings(session->ngh2, 

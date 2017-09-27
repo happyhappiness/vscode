@@ -1,13 +1,15 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+           (heartbeatres ? "\n" : "..."));
+    fflush(stdout);
     }
-    else {
+
+    con = calloc(concurrency, sizeof(struct connection));
+
+    stats = calloc(requests, sizeof(struct data));
+
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt, 0)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
+    }
+
+    /* add default headers if necessary */
+    if (!opt_host) {
+        /* Host: header not overridden, add default value to hdrs */

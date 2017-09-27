@@ -1,15 +1,30 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+        to authz_owner_get_file_group already did it
+        for us.
+        */
+        return AUTHZ_DENIED;
     }
-    else if (lenp) {
-        const char *pos = lenp;
 
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01671)
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed file group.",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
+}
+
+static const authz_provider authz_group_provider =
+{
+    &group_check_authorization,
+    NULL,
+};
+
+static const authz_provider authz_filegroup_provider =
+{
+    &filegroup_check_authorization,
+    NULL,
+};
+
+static void register_hooks(apr_pool_t *p)
+{
+    authz_owner_get_file_group = APR_RETRIEVE_OPTIONAL_FN(authz_owner_get_file_group);
+

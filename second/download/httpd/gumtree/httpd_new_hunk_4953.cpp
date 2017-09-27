@@ -1,13 +1,16 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
-    }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+                /* Add cache_remove_url filter to this request to remove a
+                 * stale cache entry if needed. Also put the current cache
+                 * request rec in the filter context, as the request that
+                 * is available later during running the filter may be
+                 * different due to an internal redirect.
+                 */
+                cache->remove_url_filter
+                        = ap_add_output_filter_handle(
+                                cache_remove_url_filter_handle, cache, r,
+                                r->connection);
+
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv,
+                        r, APLOGNO(00760) "Cache locked for url, not caching "
+                        "response: %s", r->uri);

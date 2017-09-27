@@ -1,41 +1,13 @@
-{
-    apr_pool_destroy(process->pool); /* and destroy all descendent pools */
-    apr_terminate();
-    exit(process_exit_value);
-}
-
-static process_rec *create_process(int argc, const char * const *argv)
-{
-    process_rec *process;
-    apr_pool_t *cntx;
-    apr_status_t stat;
-
-    stat = apr_pool_create(&cntx, NULL);
-    if (stat != APR_SUCCESS) {
-        /* XXX From the time that we took away the NULL pool->malloc mapping
-         *     we have been unable to log here without segfaulting.
-         */
-        ap_log_error(APLOG_MARK, APLOG_ERR, stat, NULL,
-                     "apr_pool_create() failed to create "
-                     "initial context");
-        apr_terminate();
-        exit(1);
-    }
-
-    apr_pool_tag(cntx, "process");
-    ap_open_stderr_log(cntx);
-
-    process = apr_palloc(cntx, sizeof(process_rec));
-    process->pool = cntx;
-
-    apr_pool_create(&process->pconf, process->pool);
-    apr_pool_tag(process->pconf, "pconf");
-    process->argc = argc;
-    process->argv = argv;
-    process->short_name = apr_filepath_name_get(argv[0]);
-    return process;
-}
-
-static void usage(process_rec *process)
-{
-    const char *bin = process->argv[0];
+        ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
+        ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
+        ap_rputs("\n\n<table border=\"0\"><tr>"
+                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
+                 "</tr>\n<tr>", r);
+        if (balancer->sticky) {
+            ap_rvputs(r, "<td>", balancer->sticky, NULL);
+        }
+        else {
+            ap_rputs("<td> - ", r);
+        }
+        ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                   apr_time_sec(balancer->timeout));

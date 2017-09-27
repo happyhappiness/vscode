@@ -1,1 +1,0 @@
-printf("Get element at index 3:\n");

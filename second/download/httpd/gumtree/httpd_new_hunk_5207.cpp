@@ -1,24 +1,14 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
-        }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(02292)
+                     "Init: Name-based SSL virtual hosts only "
+                     "work for clients with TLS server name indication "
+                     "support (RFC 4366)");
 #endif
+    }
 
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
+    return APR_SUCCESS;
+}
 
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
-
+static int ssl_init_FindCAList_X509NameCmp(const X509_NAME * const *a,
+                                           const X509_NAME * const *b)
+{
+    return(X509_NAME_cmp(*a, *b));

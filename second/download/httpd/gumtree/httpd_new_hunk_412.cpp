@@ -1,86 +1,38 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
-	}		
-	return rcode;
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: running CACHE_OUT filter");
+
+    /* recall_headers() was called in cache_select_url() */
+    cache->provider->recall_body(cache->handle, r->pool, bb);
+
+    /* This filter is done once it has served up its content */
+    ap_remove_output_filter(f);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: serving %s", r->uri);
+    return ap_pass_brigade(f->next, bb);
 }
 
-int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
-{
-    int rcode;
-    struct tlsserveropts sWS2Opts;
-    struct nwtlsopts    sNWTLSOpts;
-    unicode_t SASKey[512];
-    unsigned long ulFlag;
-    
-    memset((char *)&sWS2Opts, 0, sizeof(struct tlsserveropts));
-    memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
-    
-    
-    ulFlag = SO_TLS_ENABLE;
-    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long), NULL, 0, NULL, NULL, NULL);
-    if(rcode)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_ENABLE)", WSAGetLastError());
-        goto ERR;
-    }
-    
-    
-    ulFlag = SO_TLS_SERVER;
-    rcode = WSAIoctl(socketHnd, SO_TLS_SET_FLAGS, &ulFlag, sizeof(unsigned long),NULL, 0, NULL, NULL, NULL);
-    
-    if(rcode)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
-        goto ERR;
-    }
-    
-    loc2uni(UNI_LOCAL_DEFAULT, SASKey, key, 0, 0);
 
-    //setup the tlsserveropts struct
-    sWS2Opts.wallet = SASKey;
-    sWS2Opts.walletlen = unilen(SASKey);
-    sWS2Opts.sidtimeout = 0;
-    sWS2Opts.sidentries = 0;
-    sWS2Opts.siddir = NULL;
-    sWS2Opts.options = &sNWTLSOpts;
-    
-    //setup the nwtlsopts structure
-    
-    sNWTLSOpts.walletProvider               = WAL_PROV_KMO;
-    sNWTLSOpts.keysList                     = NULL;
-    sNWTLSOpts.numElementsInKeyList         = 0;
-    sNWTLSOpts.reservedforfutureuse         = NULL;
-    sNWTLSOpts.reservedforfutureCRL         = NULL;
-    sNWTLSOpts.reservedforfutureCRLLen      = NULL;
-    sNWTLSOpts.reserved1                    = NULL;
-    sNWTLSOpts.reserved2                    = NULL;
-    sNWTLSOpts.reserved3                    = NULL;
-    
-    
-    rcode = WSAIoctl(socketHnd, 
-                     SO_TLS_SET_SERVER, 
-                     &sWS2Opts, 
-                     sizeof(struct tlsserveropts), 
-                     NULL, 
-                     0, 
-                     NULL, 
-                     NULL, 
-                     NULL);
-    if(SOCKET_ERROR == rcode) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());
-        goto ERR;
-    }
-    
-ERR:
-    return rcode;
-}
+/*
+ * CACHE_SAVE filter
+ * ---------------
+ *
+ * Decide whether or not this content should be cached.
+ * If we decide no it should not:
+ *   remove the filter from the chain
+ * If we decide yes it should:
+ *   Have we already started saving the response?
+ *      If we have started, pass the data to the storage manager via store_body
+ *      Otherwise:
+ *        Check to see if we *can* save this particular response.
+ *        If we can, call cache_create_entity() and save the headers and body
+ *   Finally, pass the data to the next filter (the network or whatever)
+ */
 
-static const char *set_secure_listener(cmd_parms *cmd, void *dummy, 
-                                       const char *ips, const char* key, 
-                                       const char* mutual)
+static int cache_save_filter(ap_filter_t *f, apr_bucket_brigade *in)
 {
-    NWSSLSrvConfigRec* sc = get_nwssl_cfg(cmd->server);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    int rv;
+    int date_in_errhdr = 0;

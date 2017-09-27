@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Access to %s denied for %s "
-                          "(requirement expression not fulfilled)",
-                          r->filename, r->connection->remote_ip);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "access to %s failed; stat of '%s' failed.",
+                                  r->uri, r->filename);

@@ -1,34 +1,24 @@
-		    }   
-		}
-	    }
-	    break;
-	}
+        what = MSG;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+    /* The entry should be ignored if it is a full URL for a 401 error */
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+    if (error_number == 401 && what == REMOTE_PATH) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");
+    }
+    else { /* Store it... */
+        if (conf->response_code_strings == NULL) {
+            conf->response_code_strings =
+                apr_pcalloc(cmd->pool,
+                            sizeof(*conf->response_code_strings) *
+                            RESPONSE_CODES);
+        }
+
+        if (strcmp(msg, "default") == 0) {
+            /* special case: ErrorDocument 404 default restores the
+             * canned server error response
+             */
+            conf->response_code_strings[index_number] = &errordocument_default;
+        }
+        else {

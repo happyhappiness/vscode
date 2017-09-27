@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Retrying with SYNC...");

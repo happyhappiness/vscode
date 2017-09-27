@@ -1,14 +1,34 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+        req->user = r->user;
 
+    }
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require user: user's DN has not "
+                      "been defined; failing authorization");
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * First do a whole-line compare, in case it's something like
+     *   require user Babs Jensen
+     */
+    result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, require_args);
+    switch(result) {
+        case LDAP_COMPARE_TRUE: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: require user: authorization "
+                          "successful");
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
+        }
+        default: {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: require user: "
+                          "authorization failed [%s][%s]",
+                          ldc->reason, ldap_err2string(result));
+        }
+    }
+
+    /*
+     * Now break apart the line and compare each word on it

@@ -1,12 +1,13 @@
-        idx = SSL_TMP_KEY_DH_1024;
+            }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "No matching SSL virtual host for servername "
+                              "%s found (using default/first virtual host)",
+                              servername);
+                return SSL_TLSEXT_ERR_ALERT_WARNING;
+            }
+        }
     }
 
-    return (DH *)mc->pTmpKeys[idx];
+    return SSL_TLSEXT_ERR_NOACK;
 }
-
-/*
- * This OpenSSL callback function is called when OpenSSL
- * does client authentication and verifies the certificate chain.
- */
-int ssl_callback_SSLVerify(int ok, X509_STORE_CTX *ctx)
-{

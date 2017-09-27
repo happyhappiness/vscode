@@ -1,18 +1,14 @@
+     ap_register_output_filter(XLATEOUT_FILTER_NAME, xlate_out_filter, NULL,
+                               AP_FTYPE_RESOURCE);
+     ap_register_input_filter(XLATEIN_FILTER_NAME, xlate_in_filter, NULL,
+                              AP_FTYPE_RESOURCE);
+ }
+ 
+-module AP_MODULE_DECLARE_DATA charset_lite_module =
++AP_DECLARE_MODULE(charset_lite) =
  {
-     void *rec = NULL;
-     svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
-     apr_status_t rv = APR_SUCCESS;
-     const char *errmsg;
- 
-+    /* If nothing is configured, we shouldn't be here */
-+    if (svr->name == no_dbdriver) {
-+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");
-+        return NULL;
-+    }
-+
-     if (!svr->persist) {
-         /* Return a once-only connection */
-         rv = dbd_construct(&rec, svr, s->process->pool);
-         return (rv == APR_SUCCESS) ? arec : NULL;
-     }
- 
+     STANDARD20_MODULE_STUFF,
+     create_charset_dir_conf,
+     merge_charset_dir_conf,
+     NULL,
+     NULL,

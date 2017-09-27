@@ -1,1 +1,0 @@
-printf("Pop tail: %s (length %ld)\n", s, sdslen(s));

@@ -1,14 +1,14 @@
-#include "http_main.h"
-#include "http_request.h"
-
-static int asis_handler(request_rec *r)
 {
-    FILE *f;
-    const char *location;
+    if (task->frozen) {
+        task->frozen = 0;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03407) 
+                      "h2_task(%s), thawed", task->id);
+    }
+    task->thawed = 1;
+    return APR_SUCCESS;
+}
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+int h2_task_has_thawed(h2_task *task)
+{
+    return task->thawed;
+}

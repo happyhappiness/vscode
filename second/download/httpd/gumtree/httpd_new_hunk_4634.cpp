@@ -1,50 +1,41 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
+            }
 
-/* This list displays the compiled-in default paths: */
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-#ifdef SUEXEC_BIN
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-#endif
-#ifdef SHARED_CORE_DIR
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-#endif
-#ifdef DEFAULT_PIDLOG
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-#endif
-#ifdef DEFAULT_SCOREBOARD
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-#endif
-#ifdef DEFAULT_LOCKFILE
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-#endif
-#ifdef DEFAULT_XFERLOG
-    printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");
-#endif
-#ifdef DEFAULT_ERRORLOG
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-#endif
-#ifdef TYPES_CONFIG_FILE
-    printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
-#endif
-#ifdef SERVER_CONFIG_FILE
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-#endif
-#ifdef ACCESS_CONFIG_FILE
-    printf(" -D ACCESS_CONFIG_FILE=\"" ACCESS_CONFIG_FILE "\"\n");
-#endif
-#ifdef RESOURCE_CONFIG_FILE
-    printf(" -D RESOURCE_CONFIG_FILE=\"" RESOURCE_CONFIG_FILE "\"\n");
-#endif
-}
+            if (!cert) {
+                cert = sk_X509_value(cert_stack, 0);
+            }
 
+            cert_store_ctx = X509_STORE_CTX_new();
+            X509_STORE_CTX_init(cert_store_ctx, cert_store, cert, cert_stack);
+            depth = SSL_get_verify_depth(ssl);
 
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+            if (depth >= 0) {
+                X509_STORE_CTX_set_depth(cert_store_ctx, depth);
+            }
+
+            X509_STORE_CTX_set_ex_data(cert_store_ctx,
+                                       SSL_get_ex_data_X509_STORE_CTX_idx(),
+                                       (char *)ssl);
+
+            if (!X509_verify_cert(cert_store_ctx)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02224)
+                              "Re-negotiation verification step failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
+            }
+
+            SSL_set_verify_result(ssl, X509_STORE_CTX_get_error(cert_store_ctx));
+            X509_STORE_CTX_cleanup(cert_store_ctx);
+            X509_STORE_CTX_free(cert_store_ctx);
+
+            if (cert_stack != SSL_get_peer_cert_chain(ssl)) {
+                /* we created this ourselves, so free it */
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
+        }
+        else {
+            char peekbuf[1];
+            const char *reneg_support;
+            request_rec *id = r->main ? r->main : r;
+
+            /* Additional mitigation for CVE-2009-3555: At this point,
+             * before renegotiating, an (entire) request has been read
+             * from the connection.  An attacker may have sent further

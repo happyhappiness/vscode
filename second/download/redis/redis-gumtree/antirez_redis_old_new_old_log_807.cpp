@@ -1,1 +1,0 @@
-serverLog(REDIS_DEBUG,"Pinging node %.40s", min_pong_node->name);

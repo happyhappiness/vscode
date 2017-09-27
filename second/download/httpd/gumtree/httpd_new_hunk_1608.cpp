@@ -1,13 +1,22 @@
+        else {
+            ldc->reason = result->reason;
+        }
+        return(result->rc);
     }
-    else
-    {
-        /* A real-honest to goodness parent */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "%s configured -- resuming normal operations",
-                     ap_get_server_description());
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                     "Server built: %s", ap_get_server_built());
 
-        restart = master_main(ap_server_conf, shutdown_event, restart_event);
+    /* Now that we have an ldap struct, add it to the referral list for rebinds. */
+    rc = apr_ldap_rebind_add(ldc->pool, ldc->ldap, ldc->binddn, ldc->bindpw);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "LDAP: Unable to add rebind cross reference entry. Out of memory?");
+        uldap_connection_unbind(ldc);
+        ldc->reason = "LDAP: Unable to add rebind cross reference entry.";
+        return(rc);
+    }
 
-        if (!restart)
+    /* always default to LDAP V3 */
+    ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+
+    /* set client certificates */
+    if (!apr_is_empty_array(ldc->client_certs)) {
+        apr_ldap_set_option(r->pool, ldc->ldap, APR_LDAP_OPT_TLS_CERT,

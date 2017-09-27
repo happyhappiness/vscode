@@ -1,14 +1,49 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+
+
+/* A simple garbage-collecter to remove unused clients. It removes the
+ * last entry in each bucket and updates the counters. Returns the
+ * number of removed entries.
+ */
+static long gc(server_rec *s)
+{
+    client_entry *entry, *prev;
+    unsigned long num_removed = 0, idx;
+
+    /* garbage collect all last entries */
+
+    for (idx = 0; idx < client_list->tbl_len; idx++) {
+        entry = client_list->table[idx];
+        prev  = NULL;
+
+        if (!entry) {
+            /* This bucket is empty. */
+            continue;
+        }
+
+        while (entry->next) {   /* find last entry */
+            prev  = entry;
+            entry = entry->next;
+        }
+        if (prev) {
+            prev->next = NULL;   /* cut list */
+        }
+        else {
+            client_list->table[idx] = NULL;
+        }
+        if (entry) {                    /* remove entry */
+            apr_status_t err;
+
+            err = rmm_free(client_rmm, entry);
+            num_removed++;
+
+            if (err) {
+                /* Nothing we can really do but log... */
+                ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO()
+                             "Failed to free auth_digest client allocation");
+            }
+        }
+    }
+
+    /* update counters and log */
+
+    client_list->num_entries -= num_removed;

@@ -1,24 +1,37 @@
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "internal error: bad expires code: %s", r->filename);
-        return HTTP_INTERNAL_SERVER_ERROR;
+                     c->id, type,
+                     ssl_util_vhostid(c->pool, c->base_server),
+                     c->remote_ip ? c->remote_ip : "unknown");
     }
 
-    expires = base + additional;
-    apr_table_mergen(r->headers_out, "Cache-Control",
-		    apr_psprintf(r->pool, "max-age=%" APR_TIME_T_FMT,
-                                 apr_time_sec(expires - r->request_time)));
-    timestr = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
-    apr_rfc822_date(timestr, expires);
-    apr_table_setn(r->headers_out, "Expires", timestr);
-    return OK;
+    /* deallocate the SSL connection */
+    SSL_free(ssl);
+    sslconn->ssl = NULL;
+    filter_ctx->pssl = NULL; /* so filters know we've been shutdown */
+
+    return APR_SUCCESS;
 }
 
-static void register_hooks(apr_pool_t *p)
+static apr_status_t ssl_io_filter_cleanup(void *data)
 {
-    ap_hook_fixups(add_expires,NULL,NULL,APR_HOOK_MIDDLE);
+    apr_status_t ret;
+    ssl_filter_ctx_t *filter_ctx = (ssl_filter_ctx_t *)data;
+    conn_rec *c;
+
+    if (!filter_ctx->pssl) {
+        /* already been shutdown */
+        return APR_SUCCESS;
+    }
+
+    c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+    if ((ret = ssl_filter_io_shutdown(filter_ctx, c, 0)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, ret, NULL,
+                     "SSL filter error shutting down I/O");
+    }
+
+    return ret;
 }
 
-module AP_MODULE_DECLARE_DATA expires_module =
-{
-    STANDARD20_MODULE_STUFF,
-    create_dir_expires_config,  /* dir config creater */
+/*
+ * The hook is NOT registered with ap_hook_process_connection. Instead, it is
+ * called manually from the churn () before it tries to read any data.
+ * There is some problem if I accept conn_rec *. Still investigating..

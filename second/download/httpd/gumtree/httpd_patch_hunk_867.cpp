@@ -1,23 +1,28 @@
+          * logs a warning later
+          */
+         changed_limit_at_restart = 1;
+         return NULL;
      }
- 
- #if APR_TCP_NODELAY_INHERITED
-     ap_sock_disable_nagle(s);
- #endif
- 
--    if ((stat = apr_bind(s, server->bind_addr)) != APR_SUCCESS) {
-+    if ((stat = apr_socket_bind(s, server->bind_addr)) != APR_SUCCESS) {
-         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
-                       "make_sock: could not bind to address %pI",
-                       server->bind_addr);
-         apr_socket_close(s);
-         return stat;
+     server_limit = tmp_server_limit;
+-    
++
+     if (server_limit > MAX_SERVER_LIMIT) {
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ServerLimit of %d exceeds compile time limit "
+                     "of %d servers,", server_limit, MAX_SERVER_LIMIT);
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
+        server_limit = MAX_SERVER_LIMIT;
+-    } 
++    }
+     else if (server_limit < 1) {
+-	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      "WARNING: Require ServerLimit > 0, setting to 1");
+ 	server_limit = 1;
      }
+     return NULL;
+ }
  
--    if ((stat = apr_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
-+    if ((stat = apr_socket_listen(s, ap_listenbacklog)) != APR_SUCCESS) {
-         ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
-                       "make_sock: unable to listen for connections "
-                       "on address %pI",
-                       server->bind_addr);
-         apr_socket_close(s);
-         return stat;

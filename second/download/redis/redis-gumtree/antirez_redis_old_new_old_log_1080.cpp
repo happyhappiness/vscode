@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"The server is now ready to accept connections on port %d", server.port);

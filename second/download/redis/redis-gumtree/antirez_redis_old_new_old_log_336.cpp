@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset[0], "Error for type %s", types[e.type]);

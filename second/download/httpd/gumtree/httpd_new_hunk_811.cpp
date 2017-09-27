@@ -1,15 +1,21 @@
-     * working.  (IMHO what they really fix is a bug in the users of the code
-     * - failing to program correctly for shadow passwords).  We need,
-     * therefore, to provide a password. This password can be matched by
-     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
-     * This is just the crypted variant of the word "password" ;-)
-     */
-    auth_line = apr_pstrcat(r->pool, "Basic ",
-                            ap_pbase64encode(r->pool,
-                                             apr_pstrcat(r->pool, clientdn,
-                                                         ":password", NULL)),
-                            NULL);
-    apr_table_set(r->headers_in, "Authorization", auth_line);
+            return ap_send_http_options(r);
+        }
+        return HTTP_METHOD_NOT_ALLOWED;
+    }
+}
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+/* Optional function coming from mod_logio, used for logging of output
+ * traffic
+ */
+APR_OPTIONAL_FN_TYPE(ap_logio_add_bytes_out) *logio_add_bytes_out;
+
+static int core_post_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
+{
+    logio_add_bytes_out = APR_RETRIEVE_OPTIONAL_FN(ap_logio_add_bytes_out);
+    ident_lookup = APR_RETRIEVE_OPTIONAL_FN(ap_ident_lookup);
+
+    ap_set_version(pconf);
+    ap_setup_make_content_type(pconf);
+    return OK;
+}
+

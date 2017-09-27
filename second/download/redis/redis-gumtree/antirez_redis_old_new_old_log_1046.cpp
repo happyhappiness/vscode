@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING, "Opening Unix socket: %s", server.neterr);

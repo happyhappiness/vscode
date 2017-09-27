@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
-                          "name in parsed document %s", ctx->r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                    "execution failure for parameter \"%s\" "
+                                    "to tag exec in file %s", tag, r->filename);

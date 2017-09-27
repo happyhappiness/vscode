@@ -1,27 +1,29 @@
-         was specified at startup) */
-     if (hold_screen_on_exit > 0) {
-         hold_screen_on_exit = 0;
+     if (mc->szSessionCacheDataFile == NULL) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                      "SSLSessionCache required");
+         ssl_die();
      }
  
-     ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
--		"%s configured -- resuming normal operations",
--		ap_get_server_version());
-+            "%s configured -- resuming normal operations",
-+            ap_get_server_version());
-     ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
--		"Server built: %s", ap_get_server_built());
-+            "Server built: %s", ap_get_server_built());
- #ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
--		"AcceptMutex: %s (default: %s)",
--		apr_proc_mutex_name(accept_mutex),
--		apr_proc_mutex_defname());
-+            "AcceptMutex: %s (default: %s)",
-+            apr_proc_mutex_name(accept_mutex),
-+            apr_proc_mutex_defname());
- #endif
-     show_server_data();
- 
-     mpm_state = AP_MPMQ_RUNNING;
-     while (!restart_pending && !shutdown_pending) {
-         perform_idle_server_maintenance(pconf);
+-    if ((rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
+-                             mc->nSessionCacheDataSize, 
+-                             mc->szSessionCacheDataFile,
+-                             mc->pPool)) != APR_SUCCESS) {
++    /* Use anonymous shm by default, fall back on name-based. */
++    rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
++                        mc->nSessionCacheDataSize, 
++                        NULL, mc->pPool);
++    
++    if (APR_STATUS_IS_ENOTIMPL(rv)) {
++        rv = apr_shm_create(&(mc->pSessionCacheDataMM), 
++                            mc->nSessionCacheDataSize, 
++                            mc->szSessionCacheDataFile,
++                            mc->pPool);
++    }
++
++    if (rv != APR_SUCCESS) {
+         char buf[100];
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                      "Cannot allocate shared memory: (%d)%s", rv,
+                      apr_strerror(rv, buf, sizeof(buf)));
+         ssl_die();
+     }

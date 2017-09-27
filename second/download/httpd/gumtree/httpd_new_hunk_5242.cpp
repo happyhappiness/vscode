@@ -1,89 +1,39 @@
-	    n = strlen(buf);
-	}
+}
+static int authn_cache_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                                   apr_pool_t *ptmp, server_rec *s)
+{
+    apr_status_t rv;
+    static struct ap_socache_hints authn_cache_hints = {64, 32, 60000000};
+    const char *errmsg;
 
-	o = 0;
-	total_bytes_sent += n;
-
-	if (c != NULL && c->fp && ap_bwrite(c->fp, buf, n) != n)
-	    c = ap_proxy_cache_error(c);
-
-	while (n && !r->connection->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0)
-		break;
-	    ap_reset_timeout(r);	/* reset timeout after successfule write */
-	    n -= w;
-	    o += w;
-	}
+    if (!configured) {
+        return OK;    /* don't waste the overhead of creating mutex & cache */
+    }
+    if (socache_provider == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(01674)
+                      "Please select a socache provider with AuthnCacheSOCache "
+                      "(no default found on this platform). Maybe you need to "
+                      "load mod_socache_shmcb or another socache module first");
+        return 500; /* An HTTP status would be a misnomer! */
     }
 
-    total_bytes_sent += ap_proxy_bputs2("</PRE><HR>\n", con->client, c);
-    total_bytes_sent += ap_proxy_bputs2(ap_psignature("", r), con->client, c);
-    total_bytes_sent += ap_proxy_bputs2("</BODY></HTML>\n", con->client, c);
+    /* We have socache_provider, but do not have socache_instance. This should
+     * happen only when using "default" socache_provider, so create default
+     * socache_instance in this case. */
+    if (socache_instance == NULL) {
+        errmsg = socache_provider->create(&socache_instance, NULL,
+                                          ptmp, pconf);
+        if (errmsg) {
+            ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(02612)
+                        "failed to create mod_socache_shmcb socache "
+                        "instance: %s", errmsg);
+            return 500;
+        }
+    }
 
-    ap_bflush(con->client);
-
-    return total_bytes_sent;
-}
-
-/* Common routine for failed authorization (i.e., missing or wrong password)
- * to an ftp service. This causes most browsers to retry the request
- * with username and password (which was presumably queried from the user)
- * supplied in the Authorization: header.
- * Note that we "invent" a realm name which consists of the
- * ftp://user@host part of the reqest (sans password -if supplied but invalid-)
- */
-static int ftp_unauthorized (request_rec *r, int log_it)
-{
-    r->proxyreq = 0;
-    /* Log failed requests if they supplied a password
-     * (log username/password guessing attempts)
-     */
-    if (log_it)
-	ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
-		      "proxy: missing or failed auth to %s",
-		      ap_unparse_uri_components(r->pool,
-		      &r->parsed_uri, UNP_OMITPATHINFO));
-
-    ap_table_setn(r->err_headers_out, "WWW-Authenticate",
-                  ap_pstrcat(r->pool, "Basic realm=\"",
-		  ap_unparse_uri_components(r->pool, &r->parsed_uri,
-					    UNP_OMITPASSWORD|UNP_OMITPATHINFO),
-		  "\"", NULL));
-
-    return HTTP_UNAUTHORIZED;
-}
-
-/*
- * Handles direct access of ftp:// URLs
- * Original (Non-PASV) version from
- * Troy Morrison <spiffnet@zoom.com>
- * PASV added by Chuck
- */
-int ap_proxy_ftp_handler(request_rec *r, cache_req *c, char *url)
-{
-    char *host, *path, *strp, *parms;
-    char *cwd = NULL;
-    char *user = NULL;
-/*    char *account = NULL; how to supply an account in a URL? */
-    const char *password = NULL;
-    const char *err;
-    int port, i, j, len, sock, dsock, rc, nocache = 0;
-    int csd = 0;
-    struct sockaddr_in server;
-    struct hostent server_hp;
-    struct in_addr destaddr;
-    table *resp_hdrs;
-    BUFF *f;
-    BUFF *data = NULL;
-    pool *p = r->pool;
-    int one = 1;
-    const long int zero = 0L;
-    NET_SIZE_T clen;
-    struct tbl_do_args tdo;
-
-    void *sconf = r->server->module_config;
-    proxy_server_conf *conf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-    struct nocache_entry *ncent = (struct nocache_entry *) conf->nocaches->elts;
+    rv = ap_global_mutex_create(&authn_cache_mutex, NULL,
+                                authn_cache_id, NULL, s, pconf, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01675)
+                      "failed to create %s mutex", authn_cache_id);
+        return 500; /* An HTTP status would be a misnomer! */

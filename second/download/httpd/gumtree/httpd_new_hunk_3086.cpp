@@ -1,13 +1,14 @@
+    }
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
+        return ap_proxyerror(r, HTTP_FORBIDDEN,
+                             "Connect to remote machine blocked");
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00947)
+                 "connected %s to %s:%d", *url, conn->hostname, conn->port);
+    return OK;
+}
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+#define USE_ALTERNATE_IS_CONNECTED 1
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+#if !defined(APR_MSG_PEEK) && defined(MSG_PEEK)

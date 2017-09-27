@@ -1,4 +1,1 @@
-fprintf(stderr, "%s: Directory %s exceeds the maximum include "
-                    "directory nesting level of %u. You have probably a "
-                    "recursion somewhere.\n", ap_server_argv0, path,
-                    AP_MAX_INCLUDE_DIR_DEPTH);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");

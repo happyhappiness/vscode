@@ -1,29 +1,35 @@
-
-
-/**
- * Create an AJP Message from pool
- *
- * @param pool      memory pool to allocate AJP message from
- * @param size      size of the buffer to create
- * @param rmsg      Pointer to newly created AJP message
- * @return          APR_SUCCESS or error
- */
-apr_status_t ajp_msg_create(apr_pool_t *pool, apr_size_t size, ajp_msg_t **rmsg)
-{
-    ajp_msg_t *msg = (ajp_msg_t *)apr_pcalloc(pool, sizeof(ajp_msg_t));
-
-    if (!msg) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                      "ajp_msg_create(): can't allocate AJP message memory");
-        return APR_ENOPOOL;
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "RewriteOptions: MaxRedirects option has been "
+                         "removed in favor of the global "
+                         "LimitInternalRecursion directive and will be "
+                         "ignored.");
+        }
+        else {
+            return apr_pstrcat(cmd->pool, "RewriteOptions: unknown option '",
+                               w, "'", NULL);
+        }
     }
 
-    msg->server_side = 0;
+    /* put it into the appropriate config */
+    if (cmd->path == NULL) { /* is server command */
+        rewrite_server_conf *conf =
+            ap_get_module_config(cmd->server->module_config,
+                                 &rewrite_module);
 
-    msg->buf = (apr_byte_t *)apr_palloc(pool, size);
+        conf->options |= options;
+    }
+    else {                  /* is per-directory command */
+        rewrite_perdir_conf *conf = in_dconf;
 
-    /* XXX: This should never happen
-     * In case if the OS cannont allocate 8K of data
-     * we are in serious trouble
-     * No need to check the alloc return value, cause the
-     * core dump is probably the best solution anyhow.
+        conf->options |= options;
+    }
+
+    return NULL;
+}
+
+static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
+                                  const char *a2)
+{
+    rewrite_server_conf *sconf;
+    rewritemap_entry *newmap;
+    apr_finfo_t st;

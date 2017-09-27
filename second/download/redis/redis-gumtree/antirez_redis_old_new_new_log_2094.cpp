@@ -1,1 +1,0 @@
-addReplyError(c,"DB must be empty to perform CLUSTER FLUSHSLOTS.");

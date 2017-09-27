@@ -1,1 +1,0 @@
-notifyKeyspaceEvent("ltrim",c->argv[1],c->db->id);

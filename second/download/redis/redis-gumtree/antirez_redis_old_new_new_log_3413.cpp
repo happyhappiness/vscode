@@ -1,1 +1,0 @@
-tmp = cliFormatReply(r->element[i],prefix);

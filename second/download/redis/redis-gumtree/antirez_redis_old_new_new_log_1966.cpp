@@ -1,1 +1,0 @@
-anetSetError(err, "%s", gai_strerror(rv));

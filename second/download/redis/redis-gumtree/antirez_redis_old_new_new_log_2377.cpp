@@ -1,1 +1,0 @@
-s[j++]="    error(\"Script attempted to access unexisting global variable '\"..n..\"'\", 2)\n";

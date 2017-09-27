@@ -1,19 +1,56 @@
-     apr_pool_create(&pcommands, pglobal);
-     apr_pool_tag(pcommands, "pcommands");
-     ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
-     ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
-     ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
+ AP_DECLARE(apr_array_header_t *) ap_get_status_table(apr_pool_t *p)
+ {
+     /* NOP */
+     return NULL;
+ }
  
--    ap_setup_prelinked_modules(process);
-+    error = ap_setup_prelinked_modules(process);
-+    if (error) {
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
-+                     ap_server_argv0, error);
-+        destroy_and_exit_process(process, 1);
-+    }
+-/* 
+- * Command processors 
++/*
++ * Command processors
+  */
  
-     ap_run_rewrite_args(process);
+-static const char *set_threads_per_child (cmd_parms *cmd, void *dummy, char *arg) 
++static const char *set_threads_per_child (cmd_parms *cmd, void *dummy, char *arg)
+ {
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+     if (err != NULL) {
+         return err;
+     }
  
-     /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
-      * to safely pass on our args from its rewrite_args() handler.
-      */
+     ap_threads_per_child = atoi(arg);
+     if (ap_threads_per_child > thread_limit) {
+-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+-                     "value of %d threads,", ap_threads_per_child, 
++                     "value of %d threads,", ap_threads_per_child,
+                      thread_limit);
+         ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      " lowering ThreadsPerChild to %d. To increase, please"
+                      " see the", thread_limit);
+-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      " ThreadLimit directive.");
+         ap_threads_per_child = thread_limit;
+     }
+     else if (ap_threads_per_child < 1) {
+-	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      "WARNING: Require ThreadsPerChild > 0, setting to 1");
+ 	ap_threads_per_child = 1;
+     }
+     return NULL;
+ }
+-static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg) 
++static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg)
+ {
+     int tmp_thread_limit;
+-    
++
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+     if (err != NULL) {
+         return err;
+     }
+ 
+     tmp_thread_limit = atoi(arg);

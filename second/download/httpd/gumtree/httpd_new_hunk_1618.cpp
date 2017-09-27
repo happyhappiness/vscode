@@ -1,26 +1,14 @@
-                    if (lastmod) {
-                        apr_table_set(r->headers_in, "If-Modified-Since",
-                                      lastmod);
-                    }
-                    cache->stale_handle = h;
-                }
-                else {
-                    int irv;
+        return err;
+    }
 
-                    /*
-                     * The copy isn't fresh enough, but we cannot revalidate.
-                     * So it is the same case as if there had not been a cached
-                     * entry at all. Thus delete the entry from cache.
-                     */
-                    irv = cache->provider->remove_url(h, r->pool);
-                    if (irv != OK) {
-                        ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
-                                     "cache: attempt to remove url from cache unsuccessful.");
-                    }
-                }
+    st->compare_cache_ttl = atol(ttl) * 1000000;
 
-                return DECLINED;
-            }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache TTL"
+                 " to %ld microseconds.", getpid(), st->compare_cache_ttl);
 
-            /* Okay, this response looks okay.  Merge in our stuff and go. */
-            ap_cache_accept_headers(h, r, 0);
+    return NULL;
+}
+
+static const char *util_ldap_set_opcache_entries(cmd_parms *cmd, void *dummy,
+                                                 const char *size)

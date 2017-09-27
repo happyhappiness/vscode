@@ -1,31 +1,13 @@
-    return APR_SUCCESS;
-}
-
-
-static int init_config_log(apr_pool_t *pc, apr_pool_t *p, apr_pool_t *pt, server_rec *s)
-{
-    /* First, do "physical" server, which gets default log fd and format
-     * for the virtual servers, if they don't override...
-     */
-    int res = open_multi_logs(s, p);
-
-    /* Then, virtual servers */
-
-    for (s = s->next; (res == OK) && s; s = s->next) {
-        res = open_multi_logs(s, p);
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, 
+                     "Child %d: Failure releasing the start mutex", my_pid);
     }
 
-    return res;
-}
-
-static void init_child(apr_pool_t *p, server_rec *s)
-{
-    /* Now register the last buffer flush with the cleanup engine */
-    if (buffered_logs) {
-        apr_pool_cleanup_register(p, s, flush_all_logs, flush_all_logs);
+    /* Shutdown the worker threads */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
+        }
     }
-}
-
-static void ap_register_log_handler(apr_pool_t *p, char *tag, 
-                                    ap_log_handler_fn_t *handler, int def)
-{
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */

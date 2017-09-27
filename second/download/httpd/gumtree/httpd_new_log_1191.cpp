@@ -1,1 +1,1 @@
-(namecount <= 0;
+fprintf(stderr, "pcregrep: malloc failed\n");

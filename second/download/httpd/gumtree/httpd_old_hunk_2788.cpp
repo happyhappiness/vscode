@@ -1,25 +1,24 @@
-	return ap_proxyerror(r, err);	/* give up */
+ *   SetHandler ldap-status
+ * </Location>
+ *
+ */
+static int util_ldap_handler(request_rec *r)
+{
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(r->server->module_config,
+                                                 &ldap_module);
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
+    r->allowed |= (1 << M_GET);
+    if (r->method_number != M_GET)
+        return DECLINED;
+
+    if (strcmp(r->handler, "ldap-status")) {
+        return DECLINED;
     }
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
-    }
-#endif
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+    if (r->header_only)
+        return OK;
+
+    ap_rputs(DOCTYPE_HTML_3_2

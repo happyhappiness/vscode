@@ -1,1 +1,2 @@
-ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "SSL FIPS mode disabled");

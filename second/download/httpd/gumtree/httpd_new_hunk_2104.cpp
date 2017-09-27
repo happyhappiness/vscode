@@ -1,13 +1,19 @@
+    break;
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+    case OP_TYPEEXACT:
+    case OP_TYPEUPTO:
+    case OP_TYPEMINUPTO:
+    fprintf(f, "    %s", OP_names[code[3]]);
+#ifdef SUPPORT_UCP
+    if (code[3] == OP_PROP || code[3] == OP_NOTPROP)
+      {
+      fprintf(f, " %s ", get_ucpname(code[4]));
+      extra = 1;
+      }
+#endif
+    fprintf(f, "{");
+    if (*code != OP_TYPEEXACT) fprintf(f, "0,");
+    fprintf(f, "%d}", GET2(code,1));
+    if (*code == OP_TYPEMINUPTO) fprintf(f, "?");
+    break;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }

@@ -1,1 +1,0 @@
-printf("  if set to 10 only rand000000000000 - rand000000000009\n");

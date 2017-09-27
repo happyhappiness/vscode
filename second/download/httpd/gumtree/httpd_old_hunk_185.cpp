@@ -1,14 +1,13 @@
-                               APR_OS_DEFAULT, p)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "%s: could not open error log file %s.",
-                         ap_server_argv0, fname);
-            return DONE;
-        }
-
-        apr_file_inherit_set(s->error_log);
-    }
-
-    return OK;
-}
-
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
+            ap_rputs(" ", r);
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN, 
+                                "%d-%b-%Y %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
+                    ap_rputs("                   ", r);

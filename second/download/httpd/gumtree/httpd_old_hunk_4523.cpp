@@ -1,15 +1,23 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+            apr_socket_timeout_set(cin->socket, saved_timeout);
+        }
     }
-#endif
+    
+    switch (status) {
+        case APR_SUCCESS:
+            status = consume_brigade(cin, cin->bb, block);
+            break;
+        case APR_EOF:
+        case APR_EAGAIN:
+        case APR_TIMEUP:
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                          "core_input(%ld): read", (long)f->c->id);
+            break;
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, f->c, APLOGNO(03046)
+                          "h2_conn_io: error reading");
+            break;
+    }
+    return status;
+}
 
-    va_start(args, fmt);
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-    va_end(args);
-
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+/*******************************************************************************

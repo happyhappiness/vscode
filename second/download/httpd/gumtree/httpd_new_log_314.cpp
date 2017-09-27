@@ -1,1 +1,0 @@
-ap_fatal_signal_setup(ap_server_conf, pconf);

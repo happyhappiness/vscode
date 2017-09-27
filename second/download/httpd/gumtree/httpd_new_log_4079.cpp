@@ -1,0 +1,2 @@
+ap_log_rerror(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0,
+                  r, "%s", msg);

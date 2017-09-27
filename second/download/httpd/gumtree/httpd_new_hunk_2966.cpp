@@ -1,101 +1,61 @@
- */
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
 
-/*
- * Look for the specified file, and pump it into the response stream if we
- * find it.
- */
-static int insert_readme(char *name, char *readme_fname, char *title,
-			 int hrule, int whichend, request_rec *r)
-{
-    char *fn;
-    FILE *f;
-    struct stat finfo;
-    int plaintext = 0;
-    request_rec *rr;
-    autoindex_config_rec *cfg;
-    int autoindex_opts;
-
-    cfg = (autoindex_config_rec *) ap_get_module_config(r->per_dir_config,
-							&autoindex_module);
-    autoindex_opts = find_opts(cfg, r);
-    /* XXX: this is a load of crap, it needs to do a full sub_req_lookup_uri */
-    fn = ap_make_full_path(r->pool, name, readme_fname);
-    fn = ap_pstrcat(r->pool, fn, ".html", NULL);
-    if (stat(fn, &finfo) == -1) {
-	/* A brief fake multiviews search for README.html */
-	fn[strlen(fn) - 5] = '\0';
-	if (stat(fn, &finfo) == -1) {
-	    return 0;
-	}
-	plaintext = 1;
-	if (hrule) {
-	    ap_rputs("<HR>\n", r);
-	}
+    if (backend_failed || output_failed) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00890)
+                      "Processing of request failed backend: %i, "
+                      "output: %i", backend_failed, output_failed);
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
     }
-    else if (hrule) {
-	ap_rputs("<HR>\n", r);
+    else if (!request_ended) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00891)
+                      "Processing of request didn't terminate cleanly");
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        backend_failed = 1;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
     }
-    /* XXX: when the above is rewritten properly, this necessary security
-     * check will be redundant. -djg */
-    rr = ap_sub_req_lookup_file(fn, r);
-    if (rr->status != HTTP_OK) {
-	ap_destroy_sub_req(rr);
-	return 0;
-    }
-    ap_destroy_sub_req(rr);
-    if (!(f = ap_pfopen(r->pool, fn, "r"))) {
-        return 0;
-    }
-    if ((whichend == FRONT_MATTER)
-	&& (!(autoindex_opts & SUPPRESS_PREAMBLE))) {
-	emit_preamble(r, title);
-    }
-    if (!plaintext) {
-	ap_send_fd(f, r);
+    else if (!conn_reuse) {
+        /* Our backend signalled connection close */
+        conn->close++;
     }
     else {
-	char buf[IOBUFSIZE + 1];
-	int i, n, c, ch;
-	ap_rputs("<PRE>\n", r);
-	while (!feof(f)) {
-	    do {
-		n = fread(buf, sizeof(char), IOBUFSIZE, f);
-	    }
-	    while (n == -1 && ferror(f) && errno == EINTR);
-	    if (n == -1 || n == 0) {
-		break;
-	    }
-	    buf[n] = '\0';
-	    c = 0;
-	    while (c < n) {
-	        for (i = c; i < n; i++) {
-		    if (buf[i] == '<' || buf[i] == '>' || buf[i] == '&') {
-			break;
-		    }
-		}
-		ch = buf[i];
-		buf[i] = '\0';
-		ap_rputs(&buf[c], r);
-		if (ch == '<') {
-		    ap_rputs("&lt;", r);
-		}
-		else if (ch == '>') {
-		    ap_rputs("&gt;", r);
-		}
-		else if (ch == '&') {
-		    ap_rputs("&amp;", r);
-		}
-		c = i + 1;
-	    }
-	}
-    }
-    ap_pfclose(r->pool, f);
-    if (plaintext) {
-	ap_rputs("</PRE>\n", r);
-    }
-    return 1;
-}
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00892)
+                      "got response from %pI (%s)",
+                      conn->worker->cp->addr,
+                      conn->worker->s->hostname);
 
+        if (conf->error_override && ap_is_HTTP_ERROR(r->status)) {
+            /* clear r->status for override error, otherwise ErrorDocument
+             * thinks that this is a recursive error, and doesn't find the
+             * custom error page
+             */
+            rv = r->status;
+            r->status = HTTP_OK;
+        }
+        else {
+            rv = OK;
+        }
+    }
 
-static char *find_title(request_rec *r)
-{
+    if (backend_failed) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00893)
+                      "dialog to %pI (%s) failed",
+                      conn->worker->cp->addr,
+                      conn->worker->s->hostname);
+        /*
+         * If we already send data, signal a broken backend connection
+         * upwards in the chain.
+         */
+        if (data_sent) {
+            ap_proxy_backend_broke(r, output_brigade);

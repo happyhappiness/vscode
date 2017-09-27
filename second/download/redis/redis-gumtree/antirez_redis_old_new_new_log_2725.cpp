@@ -1,1 +1,0 @@
-"Error trying to rename the temporary AOF: %s";

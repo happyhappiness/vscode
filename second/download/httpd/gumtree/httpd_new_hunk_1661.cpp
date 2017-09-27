@@ -1,19 +1,13 @@
-            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: %s: worker for (%s) has been marked for retry",
-                         proxy_function, worker->hostname);
-            return OK;
-        }
-        else {
-            return DECLINED;
-        }
+        url += 9;
     }
     else {
-        return OK;
+        return DECLINED;
     }
-}
 
-PROXY_DECLARE(int) ap_proxy_acquire_connection(const char *proxy_function,
-                                               proxy_conn_rec **conn,
-                                               proxy_worker *worker,
-                                               server_rec *s)
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+             "proxy: BALANCER: canonicalising URL %s", url);
+
+    /* do syntatic check.
+     * We break the URL into host, port, path, search
+     */
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);

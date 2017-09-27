@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
+                    user, realm);

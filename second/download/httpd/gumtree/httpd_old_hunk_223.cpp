@@ -1,19 +1,13 @@
-{
-    int file_req = (r->main && r->filename);
-    int access_status;
-
-    /* Ignore embedded %2F's in path for proxy requests */
-    if (!r->proxyreq && r->parsed_uri.path) {
-        access_status = ap_unescape_url(r->parsed_uri.path);
-        if (access_status) {
-            if (access_status == HTTP_NOT_FOUND) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "found %%2f (encoded '/') in URI "
-                              "(decoded='%s'), returning 404",
-                              r->parsed_uri.path);
-            }
-            return access_status;
-        }
+    if (rr->status != HTTP_OK) {
+	ap_destroy_sub_req(rr);
+	return DECLINED;
     }
+    ap_destroy_sub_req(rr);
 
-    ap_getparents(r->uri);     /* OK --- shrinking transformations... */
+    retcode = apr_file_open(&f, metafilename, APR_READ | APR_CREATE, APR_OS_DEFAULT, r->pool);
+    if (retcode != APR_SUCCESS) {
+	if (APR_STATUS_IS_ENOENT(retcode)) {
+	    return DECLINED;
+	}
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+	      "meta file permissions deny server access: %s", metafilename);

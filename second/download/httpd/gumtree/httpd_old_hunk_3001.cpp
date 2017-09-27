@@ -1,13 +1,19 @@
+    if (path == NULL)
+        return HTTP_BAD_REQUEST;
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
+    r->filename = apr_pstrcat(r->pool, "proxy:fcgi://", host, sport, "/",
+                              path, NULL);
 
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "proxy: FCGI: set r->filename to %s", r->filename);
+
+    r->path_info = apr_pstrcat(r->pool, "/", path, NULL);
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "proxy: FCGI: set r->path_info to %s", r->path_info);
+
+    return OK;
 }
 
-/*****************************************************************
+/*
+ * Fill in a fastcgi request header with the following type, request id,

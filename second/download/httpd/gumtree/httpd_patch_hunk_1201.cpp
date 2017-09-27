@@ -1,18 +1,14 @@
-                             ap_pbase64encode(r->pool,
-                                              apr_pstrcat(r->pool, clientdn,
-                                                          ":password", NULL)),
-                             NULL);
-     apr_table_set(r->headers_in, "Authorization", auth_line);
+         info->status = r->status;
+     }
  
--    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
--                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",
--                 auth_line);
-+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-+                  "Faking HTTP Basic Auth header: \"Authorization: %s\"",
-+                  auth_line);
+     if (rv != OK) {
+         /* Caching layer declined the opportunity to cache the response */
+         ap_remove_output_filter(f);
++        ap_cache_remove_lock(conf, r, cache->handle ?
++                (char *)cache->handle->cache_obj->key : NULL, NULL);
+         return ap_pass_brigade(f->next, in);
+     }
  
-     return DECLINED;
- }
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                  "cache: Caching url: %s", r->unparsed_uri);
  
- /* authorization phase */
- int ssl_hook_Auth(request_rec *r)

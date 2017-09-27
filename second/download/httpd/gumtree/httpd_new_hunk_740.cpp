@@ -1,14 +1,43 @@
-        return DECLINED;
+    if (SSL_is_init_finished(filter_ctx->pssl)) {
+        return APR_SUCCESS;
     }
 
-    if (!(id = apr_table_get(r->subprocess_env, "UNIQUE_ID"))) {
-        /* we make the assumption that we can't go through all the PIDs in
-           under 1 second */
-        id = apr_psprintf(r->pool, "%x:%lx:%x", getpid(), time(NULL),
-                          apr_atomic_inc32(&next_id));
+    if (sslconn->is_proxy) {
+        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            return HTTP_BAD_GATEWAY;
+        }
+
+        return APR_SUCCESS;
     }
-    ap_set_module_config(r->request_config, &log_forensic_module, (char *)id);
 
-    h.p = r->pool;
-    h.count = 0;
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                     (filter_ctx->pbioRead->ptr);
+        bio_filter_out_ctx_t *outctx = (bio_filter_out_ctx_t *)
+                                       (filter_ctx->pbioWrite->ptr);
+        apr_status_t rc = inctx->rc ? inctx->rc : outctx->rc ;
+        ssl_err = SSL_get_error(filter_ctx->pssl, n);
 
+        if (ssl_err == SSL_ERROR_ZERO_RETURN) {
+            /*
+             * The case where the connection was closed before any data
+             * was transferred. That's not a real error and can occur
+             * sporadically with some clients.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                         "SSL handshake stopped: connection was closed");
+        }
+        else if (ssl_err == SSL_ERROR_WANT_READ) {
+            /*
+             * This is in addition to what was present earlier. It is
+             * borrowed from openssl_state_machine.c [mod_tls].
+             * TBD.
+             */
+            outctx->rc = APR_EAGAIN;
+            return SSL_ERROR_WANT_READ;
+        }

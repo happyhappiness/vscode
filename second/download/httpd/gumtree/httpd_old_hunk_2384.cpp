@@ -1,29 +1,22 @@
-	}
+/* For httpd-?.? I suggest replacing the above with
+#define ap_register_output_filter(name,ffunc,init,ftype) \
+             ap_register_output_filter_protocol(name,ffunc,init,ftype,0)
+*/
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+/**
+ * This function is used to register an output filter with the system. 
+ * After this registration is performed, then a filter may be added 
+ * directly to the filter chain by using ap_add_output_filter() and
+ * simply specifying the name, or as a provider under mod_filter.
+ *
+ * @param name The name to attach to the filter function
+ * @param filter_func The filter function to name
+ * @param filter_init The function to call before the filter handlers 
+ *                    are invoked
+ * @param ftype The type of filter function, either ::AP_FTYPE_CONTENT or
+ *              ::AP_FTYPE_CONNECTION
+ * @param proto_flags Protocol flags: logical OR of AP_FILTER_PROTO_* bits
+ * @return the filter rec
+ * @see ap_add_output_filter()
+ */
+AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter_protocol(

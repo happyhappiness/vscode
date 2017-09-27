@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "ppr: matching member (%s) and URL (%s)",
-                         u, url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request body exceeds maximum size for SSL buffer");

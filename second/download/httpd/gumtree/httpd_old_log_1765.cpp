@@ -1,1 +1,0 @@
-printf("Server version: %s\n", ap_get_server_version());

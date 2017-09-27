@@ -1,1 +1,0 @@
-printf("Multi-line mode enabled.\n");

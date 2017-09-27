@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Retrying with SYNC...");

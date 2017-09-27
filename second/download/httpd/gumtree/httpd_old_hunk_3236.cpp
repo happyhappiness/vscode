@@ -1,15 +1,13 @@
+     */
+
+    if (one_process) {
+
+        type = forktype = bs2_noFORK;
+
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, server,
+                     "The debug mode of Apache should only "
+                     "be started by an unprivileged user!");
+        return 0;
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+    return 0;

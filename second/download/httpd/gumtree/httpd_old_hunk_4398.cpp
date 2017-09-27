@@ -1,17 +1,17 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    h2_session *session = (h2_session *)userp;
+    apr_status_t status = APR_SUCCESS;
+    h2_stream * stream;
+    int rv;
+    
+    (void)flags;
+    if (!is_accepting_streams(session)) {
+        /* ignore */
+        return 0;
+    }
+    
+    stream = get_stream(session, stream_id);
+    if (!stream) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03064)
+                      "h2_stream(%ld-%d): on_data_chunk for unknown stream",
+                      session->id, (int)stream_id);
+        rv = nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, stream_id,

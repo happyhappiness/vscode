@@ -1,18 +1,28 @@
-             ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                          "mod_rewrite: could not init rewrite_mapr_lock_acquire"
-                          " in child");
+  */
+ void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
+ {
+     unsigned long e;
+ 
+     while ((e = ERR_get_error())) {
+-        char *err, *annotation;
+-        err = ERR_error_string(e, NULL);
++        const char *annotation;
++        char err[256];
++
++        ERR_error_string_n(e, err, sizeof err);
+         annotation = ssl_log_annotation(err);
+ 
+         if (annotation) {
+             ap_log_error(file, line, level, 0, s,
+-                         "SSL Library Error: %ld %s %s",
++                         "SSL Library Error: %lu %s %s",
+                          e, err, annotation); 
+         }
+         else {
+             ap_log_error(file, line, level, 0, s,
+-                         "SSL Library Error: %ld %s",
++                         "SSL Library Error: %lu %s",
+                          e, err); 
          }
      }
- 
-+    rv = apr_global_mutex_child_init(&rewrite_log_lock, NULL, p);
-+    if (rv != APR_SUCCESS) {
-+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-+                     "mod_rewrite: could not init rewrite log lock in child");
-+    }
-+    
-     /* create the lookup cache */
-     cachep = init_cache(p);
  }
- 
- 
- /*

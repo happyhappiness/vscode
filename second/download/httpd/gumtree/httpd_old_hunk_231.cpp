@@ -1,21 +1,22 @@
-     * All the file access checks (if any) have been made.  Time to go to work;
-     * try to create the record for the username in question.  If that
-     * fails, there's no need to waste any time on file manipulations.
-     * Any error message text is returned in the record buffer, since
-     * the mkrecord() routine doesn't have access to argv[].
-     */
-    i = mkrecord(user, record, sizeof(record) - 1,
-                 password, alg);
-    if (i != 0) {
-        apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-        exit(i);
-    }
-    if (mask & APHTP_NOFILE) {
-        printf("%s\n", record);
-        exit(0);
-    }
+            if ((buf = apr_table_get(r->headers_out, "URI")) != NULL) {
+                apr_table_set(r->headers_out, "URI",
+                              ap_proxy_location_reverse_map(r, conf, buf));
+            }
+        }
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
+      if ((r->status == 401) && (conf->error_override != 0)) {
+          const char *buf;
+          const char *wa = "WWW-Authenticate";
+          if ((buf = apr_table_get(r->headers_out, wa))) {
+              apr_table_set(r->err_headers_out, wa, buf);
+          } else {
+              ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                           "proxy: origin server sent 401 without w-a header");
+          }
+      }
+
+        r->sent_bodyct = 1;
+        /* Is it an HTTP/0.9 response? If so, send the extra data */
+        if (backasswards) {
+            apr_ssize_t cntr = len;
+            e = apr_bucket_heap_create(buffer, cntr, NULL, c->bucket_alloc);

@@ -1,33 +1,98 @@
-    void *sconf = s->module_config;
-    proxy_server_conf *conf =
-        (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+ * limitations under the License.
+ */
 
-    if (conn->sock) {
-        if (!(connected = is_socket_connected(conn->sock))) {
-            /* This clears conn->scpool (and associated data), so backup and
-             * restore any ssl_hostname for this connection set earlier by
-             * ap_proxy_determine_connection().
-             */
-            char ssl_hostname[PROXY_WORKER_RFC1035_NAME_SIZE];
-            if (!conn->ssl_hostname ||
-                    conn->ssl_hostname[apr_cpystrn(ssl_hostname,
-                                                   conn->ssl_hostname,
-                                                   sizeof ssl_hostname) -
-                                       ssl_hostname]) {
-                ssl_hostname[0] = '\0';
-            }
+#include "apr_strings.h"
 
-            socket_cleanup(conn);
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: %s: backend socket is disconnected.",
-                         proxy_function);
+#include "ap_config.h"
+#include "ap_provider.h"
+#include "httpd.h"
+#include "http_config.h"
+#include "http_core.h"
+#include "http_log.h"
+#include "http_protocol.h"
+#include "http_request.h"
 
-            if (ssl_hostname[0]) {
-                conn->ssl_hostname = apr_pstrdup(conn->scpool, ssl_hostname);
-            }
+#include "mod_auth.h"
+
+typedef struct {
+        int dummy;  /* just here to stop compiler warnings for now. */
+} authz_user_config_rec;
+
+static void *create_authz_user_dir_config(apr_pool_t *p, char *d)
+{
+    authz_user_config_rec *conf = apr_palloc(p, sizeof(*conf));
+
+    return conf;
+}
+
+static const command_rec authz_user_cmds[] =
+{
+    {NULL}
+};
+
+module AP_MODULE_DECLARE_DATA authz_user_module;
+
+static authz_status user_check_authorization(request_rec *r,
+                                             const char *require_args)
+{
+    const char *t, *w;
+
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    t = require_args;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        if (!strcmp(r->user, w)) {
+            return AUTHZ_GRANTED;
         }
     }
-    while (backend_addr && !connected) {
-        if ((rv = apr_socket_create(&newsock, backend_addr->family,
-                                SOCK_STREAM, APR_PROTO_TCP,
-                                conn->scpool)) != APR_SUCCESS) {
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "access to %s failed, reason: user '%s' does not meet "
+                  "'require'ments for user to be allowed access",
+                  r->uri, r->user);
+
+    return AUTHZ_DENIED;
+}
+
+static authz_status validuser_check_authorization(request_rec *r, const char *require_line)
+{
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    return AUTHZ_GRANTED;
+}
+
+static const authz_provider authz_user_provider =
+{
+    &user_check_authorization,
+};
+static const authz_provider authz_validuser_provider =
+{
+    &validuser_check_authorization,
+};
+
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "user",
+                              AUTHZ_PROVIDER_VERSION,
+                              &authz_user_provider, AP_AUTH_INTERNAL_PER_CONF);
+    ap_register_auth_provider(p, AUTHZ_PROVIDER_GROUP, "valid-user",
+                              AUTHZ_PROVIDER_VERSION,
+                              &authz_validuser_provider,
+                              AP_AUTH_INTERNAL_PER_CONF);
+}
+
+AP_DECLARE_MODULE(authz_user) =
+{
+    STANDARD20_MODULE_STUFF,
+    create_authz_user_dir_config, /* dir config creater */
+    NULL,                         /* dir merger --- default is to override */
+    NULL,                         /* server config */
+    NULL,                         /* merge server config */

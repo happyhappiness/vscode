@@ -1,56 +1,118 @@
+#include "h2_response.h"
+#include "h2_task_output.h"
+#include "h2_task.h"
+#include "h2_util.h"
 
-static int getsfunc_FILE(char *buf, int len, void *f)
+
+h2_task_output *h2_task_output_create(h2_task *task, apr_pool_t *pool)
 {
-    return fgets(buf, len, (FILE *) f) != NULL;
+    h2_task_output *output = apr_pcalloc(pool, sizeof(h2_task_output));
+    
+    if (output) {
+        output->task = task;
+        output->state = H2_TASK_OUT_INIT;
+        output->from_h1 = h2_from_h1_create(task->stream_id, pool);
+        if (!output->from_h1) {
+            return NULL;
+        }
+    }
+    return output;
 }
 
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f, char *buffer)
+void h2_task_output_destroy(h2_task_output *output)
 {
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
+    if (output->from_h1) {
+        h2_from_h1_destroy(output->from_h1);
+        output->from_h1 = NULL;
+    }
 }
 
-static int getsfunc_BUFF(char *w, int len, void *fb)
+static apr_status_t open_if_needed(h2_task_output *output, ap_filter_t *f,
+                                   apr_bucket_brigade *bb)
 {
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
+    if (output->state == H2_TASK_OUT_INIT) {
+        h2_response *response;
+        output->state = H2_TASK_OUT_STARTED;
+        response = h2_from_h1_get_response(output->from_h1);
+        if (!response) {
+            if (f) {
+                /* This happens currently when ap_die(status, r) is invoked
+                 * by a read request filter.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                              "h2_task_output(%s): write without response "
+                              "for %s %s %s",
+                              output->task->id, output->task->request->method, 
+                              output->task->request->authority, 
+                              output->task->request->path);
+                f->c->aborted = 1;
+            }
+            if (output->task->io) {
+                apr_thread_cond_broadcast(output->task->io);
+            }
+            return APR_ECONNABORTED;
+        }
+        
+        output->trailers_passed = !!response->trailers;
+        return h2_mplx_out_open(output->task->mplx, output->task->stream_id, 
+                                response, f, bb, output->task->io);
+    }
+    return APR_EOF;
 }
 
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					    char *buffer)
+static apr_table_t *get_trailers(h2_task_output *output)
 {
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+    if (!output->trailers_passed) {
+        h2_response *response = h2_from_h1_get_response(output->from_h1);
+        if (response && response->trailers) {
+            output->trailers_passed = 1;
+            return response->trailers;
+        }
+    }
+    return NULL;
 }
 
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+void h2_task_output_close(h2_task_output *output)
 {
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1)
-	ap_rputs("    -", r);
-    else if (!size)
-	ap_rputs("   0k", r);
-    else if (size < 1024)
-	ap_rputs("   1k", r);
-    else if (size < 1048576)
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    else if (size < 103809024)
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    else
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+    open_if_needed(output, NULL, NULL);
+    if (output->state != H2_TASK_OUT_DONE) {
+        h2_mplx_out_close(output->task->mplx, output->task->stream_id, 
+                          get_trailers(output));
+        output->state = H2_TASK_OUT_DONE;
+    }
 }
 
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
+int h2_task_output_has_started(h2_task_output *output)
 {
-    register int x, n;
-    char **av;
-    char *w;
+    return output->state >= H2_TASK_OUT_STARTED;
+}
 
-    for (x = 0, n = 2; args[x]; x++)
-	if (args[x] == '+')
-	    ++n;
+/* Bring the data from the brigade (which represents the result of the
+ * request_rec out filter chain) into the h2_mplx for further sending
+ * on the master connection. 
+ */
+apr_status_t h2_task_output_write(h2_task_output *output,
+                                  ap_filter_t* f, apr_bucket_brigade* bb)
+{
+    apr_status_t status;
+    
+    if (APR_BRIGADE_EMPTY(bb)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_output(%s): empty write", output->task->id);
+        return APR_SUCCESS;
+    }
+    
+    status = open_if_needed(output, f, bb);
+    if (status != APR_EOF) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_output(%s): opened and passed brigade", 
+                      output->task->id);
+        return status;
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task_output(%s): write brigade", output->task->id);
+    return h2_mplx_out_write(output->task->mplx, output->task->stream_id, 
+                             f, bb, get_trailers(output), output->task->io);
+}
 
-    /* Add extra strings to array. */
-    n = n + 2;
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;

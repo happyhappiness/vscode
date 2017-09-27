@@ -1,0 +1,1 @@
+fprintf(output, "Cache size      : %d\n", cachesize);

@@ -1,13 +1,13 @@
-
-    tn = NULL;
-    signal(SIGINT, (void (*)()) interrupted);
-    if (argc == 4) {
-	if (strcmp(argv[1], "-c"))
-	    usage();
-      if (!(tfp = fopen(argv[2], "w+"))) {
-	    fprintf(stderr, "Could not open passwd file %s for writing.\n",
-		    argv[2]);
-	    perror("fopen");
-	    exit(1);
-	}
-	printf("Adding password for %s.\n", argv[3]);
+ */
+#ifdef DOXYGEN
+AP_DECLARE(void) ap_log_cerror(const char *file, int line, int module_index,
+                               int level, apr_status_t status,
+                               const conn_rec *c, const char *fmt, ...);
+#else
+#ifdef AP_HAVE_C99
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_cerror(...) ap_log_cerror__(__VA_ARGS__)
+#define ap_log_cerror__(file, line, mi, level, status, c, ...)              \
+    do { if (APLOG_C_MODULE_IS_LEVEL(c, mi, level))                         \
+             ap_log_cerror_(file, line, mi, level, status, c, __VA_ARGS__); \
+    } while(0)

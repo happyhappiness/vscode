@@ -1,1 +1,0 @@
-ap_rputs("</body></html>\n", r);

@@ -1,39 +1,73 @@
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
-        return HTTP_BAD_REQUEST;
+                     */
+                    sslconn->verify_info = "GENEROUS";
+            }
+        }
     }
 
-    /* now parse path/search args, according to rfc1738 */
-    /* N.B. if this isn't a true proxy request, then the URL _path_
-     * has already been decoded.  True proxy requests have r->uri
-     * == r->unparsed_uri, and no others have that property.
+    /*
+     * override SSLCACertificateFile & SSLCACertificatePath
+     * This is only enabled if the SSL_set_cert_store() function
+     * is available in the ssl library.  the 1.x based mod_ssl
+     * used SSL_CTX_set_cert_store which is not thread safe.
      */
-    if (r->uri == r->unparsed_uri) {
-        search = strchr(url, '?');
-        if (search != NULL)
-            *(search++) = '\0';
-    }
-    else
-        search = r->args;
 
-    /* process path */
-    /* In a reverse proxy, our URL has been processed, so canonicalise
-     * unless proxy-nocanon is set to say it's raw
-     * In a forward proxy, we have and MUST NOT MANGLE the original.
+#ifdef HAVE_SSL_SET_CERT_STORE
+    /*
+     * check if per-dir and per-server config field are not the same.
+     * if f is defined in per-dir and not defined in per-server
+     * or f is defined in both but not the equal ...
      */
-    switch (r->proxyreq) {
-    default: /* wtf are we doing here? */
-    case PROXYREQ_REVERSE:
-        if (apr_table_get(r->notes, "proxy-nocanon")) {
-            path = url;   /* this is the raw path */
+#define MODSSL_CFG_NE(f) \
+     (dc->f && (!sc->f || (sc->f && strNE(dc->f, sc->f))))
+
+#define MODSSL_CFG_CA(f) \
+     (dc->f ? dc->f : sc->f)
+
+    if (MODSSL_CFG_NE(szCACertificateFile) ||
+        MODSSL_CFG_NE(szCACertificatePath))
+    {
+        STACK_OF(X509_NAME) *ca_list;
+        const char *ca_file = MODSSL_CFG_CA(szCACertificateFile);
+        const char *ca_path = MODSSL_CFG_CA(szCACertificatePath);
+
+        cert_store = X509_STORE_new();
+
+        if (!X509_STORE_load_locations(cert_store, ca_file, ca_path)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unable to reconfigure verify locations "
+                          "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
+
+            X509_STORE_free(cert_store);
+
+            return HTTP_FORBIDDEN;
         }
-        else {
-            path = ap_proxy_canonenc(r->pool, url, strlen(url),
-                                     enc_path, 0, r->proxyreq);
+
+        /* SSL_free will free cert_store */
+        SSL_set_cert_store(ssl, cert_store);
+
+        if (!(ca_list = ssl_init_FindCAList(r->server, r->pool,
+                                            ca_file, ca_path)))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "Unable to determine list of available "
+                         "CA certificates for client authentication");
+
+            return HTTP_FORBIDDEN;
         }
-        break;
-    case PROXYREQ_PROXY:
-        path = url;
-        break;
+
+        SSL_set_client_CA_list(ssl, ca_list);
+        renegotiate = TRUE;
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Changed client verification locations will force "
+                      "renegotiation");
     }
+#endif /* HAVE_SSL_SET_CERT_STORE */
+
+    /* If a renegotiation is now required for this location, and the
+     * request includes a message body (and the client has not
+     * requested a "100 Continue" response), then the client will be
+     * streaming the request body over the wire already.  In that
+     * case, it is not possible to stop and perform a new SSL
+     * handshake immediately; once the SSL library moves to the

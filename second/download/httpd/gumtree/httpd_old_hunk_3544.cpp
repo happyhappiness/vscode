@@ -1,28 +1,63 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers", r->filename);
-		return FALSE;
-	    }
+                        status, inbytes_left, outbytes_left);
+        exit(1);
+    }
+#endif              /* NOT_ASCII */
 
-	    *value++ = '\0';
-	    while (*value && isspace(*value)) ++value;
+    /* This only needs to be done once */
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, APR_UNSPEC, connectport, 0, cntxt))
+       != APR_SUCCESS) {
+        char buf[120];
+        apr_snprintf(buf, sizeof(buf),
+                 "apr_sockaddr_info_get() for %s", connecthost);
+        apr_err(buf, rv);
+    }
 
-	    /* Check all the special-case headers. Similar to what
-	     * scan_script_header() does (see that function for
-	     * more detail)
-	     */
+    /* ok - lets start */
+    start = lasttime = apr_time_now();
+    stoptime = tlimit ? (start + apr_time_from_sec(tlimit)) : AB_MAX;
 
-	    if (!strcasecmp(data, "Content-Type")) {
-		/* Nuke trailing whitespace */
-		
-		char *endp = value + strlen(value) - 1;
-		while (endp > value && isspace(*endp)) *endp-- = '\0';
-            
-		r->content_type = ap_pstrdup (r->pool, value);
-		ap_str_tolower(r->content_type);
-	    }
-	    else if (!strcasecmp(data, "Content-Length")) {
-		ap_table_set(r->headers_out, data, value);
-	    }
-	    else if (!strcasecmp(data, "Transfer-Encoding")) {
-		ap_table_set(r->headers_out, data, value);
--- apache_1.3.0/src/os/win32/multithread.c	1998-04-11 20:01:06.000000000 +0800
+#ifdef SIGINT 
+    /* Output the results if the user terminates the run early. */
+    apr_signal(SIGINT, output_results);
+#endif
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+        con[i].socknum = i;
+        start_connect(&con[i]);
+    }
+
+    do {
+        apr_int32_t n;
+        const apr_pollfd_t *pollresults;
+
+        n = concurrency;
+        do {
+            status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        } while (APR_STATUS_IS_EINTR(status));
+        if (status != APR_SUCCESS)
+            apr_err("apr_poll", status);
+
+        if (!n) {
+            err("\nServer timed out\n\n");
+        }
+
+        for (i = 0; i < n; i++) {
+            const apr_pollfd_t *next_fd = &(pollresults[i]);
+            struct connection *c;
+
+            c = next_fd->client_data;
+
+            /*
+             * If the connection isn't connected how can we check it?
+             */
+            if (c->state == STATE_UNCONNECTED)
+                continue;
+
+            rtnev = next_fd->rtnevents;
+
+#ifdef USE_SSL
+            if (c->state == STATE_CONNECTED && c->ssl && SSL_in_init(c->ssl)) {
+                ssl_proceed_handshake(c);
+                continue;
+            }

@@ -1,13 +1,25 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+                                     r->pool);
+        if (cid->completed && (rv == APR_SUCCESS)) {
+            rv = apr_thread_mutex_lock(cid->completed);
+        }
+
+        if (!cid->completed || (rv != APR_SUCCESS)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02112)
+                          "Failed to create completion mutex");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+    /* All right... try and run the sucker */
+    rv = (*isa->HttpExtensionProc)(cid->ecb);
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    /* Check for a log message - and log it */
+    if (cid->ecb->lpszLogData && *cid->ecb->lpszLogData)
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02113)
+                      "%s: %s", r->filename, cid->ecb->lpszLogData);
+
+    switch(rv) {
+        case 0:  /* Strange, but MS isapi accepts this as success */
+        case HSE_STATUS_SUCCESS:
+        case HSE_STATUS_SUCCESS_AND_KEEP_CONN:
+            /* Ignore the keepalive stuff; Apache handles it just fine without

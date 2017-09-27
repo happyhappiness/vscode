@@ -1,1 +1,0 @@
-vfprintf(fp, fmt, ap);

@@ -1,31 +1,20 @@
-            } else {
-                /* Allocate another context.
-                 * Note:
-                 * Multiple failures in the next two steps will cause the pchild pool
-                 * to 'leak' storage. I don't think this is worth fixing...
-                 */
-                context = (PCOMP_CONTEXT) apr_pcalloc(pchild, sizeof(COMP_CONTEXT));
-  
-                context->Overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-                if (context->Overlapped.hEvent == NULL) {
-                    /* Hopefully this is a temporary condition ... */
-                    ap_log_error(APLOG_MARK,APLOG_WARNING, apr_get_os_error(), ap_server_conf,
-                                 "mpm_get_completion_context: CreateEvent failed.");
-                    return NULL;
-                }
- 
-                /* Create the tranaction pool */
-                if ((rv = apr_pool_create(&context->ptrans, pchild)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
-                                 "mpm_get_completion_context: Failed to create the transaction pool.");
-                    CloseHandle(context->Overlapped.hEvent);
-                    return NULL;
-                }
-                apr_pool_tag(context->ptrans, "ptrans");
- 
-                context->accept_socket = INVALID_SOCKET;
-                context->ba = apr_bucket_alloc_create(pchild);
-                apr_atomic_inc(&num_completion_contexts); 
-                break;
-            }
-        } else {
+/* ------------------------------------------------------- */
+
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
+    }
+    else {
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
+

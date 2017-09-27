@@ -1,14 +1,13 @@
-        }
-#endif
-    }
-    else
-#endif
-    {
+        method_restricted = 1;
 
-        rv = connection_constructor((void **)&(worker->cp->conn), worker, worker->cp->pool);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-             "proxy: initialized single connection worker %d in child %" APR_PID_T_FMT " for (%s)",
-             worker->id, getpid(), worker->hostname);
-    }
-    if (rv == APR_SUCCESS) {
-        worker->status |= (PROXY_WORKER_INITIALIZED);
+        t = reqs[x].requirement;
+        w = ap_getword_white(r->pool, &t);
+
+        if (strcmp(w, "ldap-user") == 0) {
+            required_ldap = 1;
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require user: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;

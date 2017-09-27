@@ -1,22 +1,13 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
+    SSLModConfigRec *mc = myModConfig(s);
+
+#ifdef HAVE_FIPS
+
+    if (FIPS_mode() && bits < 1024) {
+        mc->pTmpKeys[idx] = NULL;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01880)
+                     "Init: Skipping generating temporary "
+                     "%d bit DH parameters in FIPS mode", bits);
         return OK;
     }
-    ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
-}
 
-
-static int check_symlinks(char *d, int opts)
-{
-#if defined(OS2) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+#endif

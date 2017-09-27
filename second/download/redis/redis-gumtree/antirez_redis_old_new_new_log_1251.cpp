@@ -1,1 +1,0 @@
-ci = sdscatfmt(ci," %s:%i ",node->ip,node->port);

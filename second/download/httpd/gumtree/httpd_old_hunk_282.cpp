@@ -1,21 +1,48 @@
-
-static apr_status_t ef_close_file(void *vfile)
-{
-    return apr_file_close(vfile);
 }
 
-static void child_errfn(apr_pool_t *p, apr_status_t err, const char *desc)
+static void set_signals(void)
 {
-    request_rec *r;
-    void *vr;
+#ifndef NO_USE_SIGACTION
+    struct sigaction sa;
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, p);
-    r = vr;
-    
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
-}
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-/* init_ext_filter_process: get the external filter process going
- * This is per-filter-instance (i.e., per-request) initialization.
- */
-static apr_status_t init_ext_filter_process(ap_filter_t *f)
+    if (!one_process) {
+        sa.sa_handler = sig_coredump;
+#if defined(SA_ONESHOT)
+        sa.sa_flags = SA_ONESHOT;
+#elif defined(SA_RESETHAND)
+        sa.sa_flags = SA_RESETHAND;
+#endif
+        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGSEGV)");
+#ifdef SIGBUS
+        if (sigaction(SIGBUS, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGBUS)");
+#endif
+#ifdef SIGABORT
+        if (sigaction(SIGABORT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABORT)");
+#endif
+#ifdef SIGABRT
+        if (sigaction(SIGABRT, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABRT)");
+#endif
+#ifdef SIGILL
+        if (sigaction(SIGILL, &sa, NULL) < 0)
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGILL)");
+#endif
+        sa.sa_flags = 0;
+    }
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)

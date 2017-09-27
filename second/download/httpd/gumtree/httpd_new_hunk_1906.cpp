@@ -1,14 +1,17 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
+        }
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    endgrent();
+
+    return setgroups(index, groups);
+#endif
+}
+#endif /* def NEED_INITGROUPS */
+
+/* standard mpm configuration handling */
+const char *ap_pid_fname = NULL;
+
+const char *ap_mpm_set_pidfile(cmd_parms *cmd, void *dummy,
+                               const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

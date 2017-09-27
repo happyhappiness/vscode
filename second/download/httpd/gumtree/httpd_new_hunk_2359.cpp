@@ -1,32 +1,15 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+    if (status == DECLINED) {
+        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                      "configuration error:  couldn't %s: %s", phase, r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-#if !defined(__EMX__) && !defined(WIN32)
-    /* make sure the childs have access to this file */
-    if (geteuid() == 0 /* is superuser */)
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-#endif
-
-    return;
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "auth phase '%s' gave status %d: %s", phase,
+                      status, r->uri);
+        return status;
+    }
 }
 
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0') {
-        return;
-    }
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+/* This is the master logic for processing requests.  Do NOT duplicate
+ * this logic elsewhere, or the security model will be broken by future

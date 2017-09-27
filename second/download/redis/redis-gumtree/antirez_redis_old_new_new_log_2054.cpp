@@ -1,1 +1,0 @@
-rewriteConfigYesNoOption(state,"rdbchecksum",server.rdb_checksum,1);

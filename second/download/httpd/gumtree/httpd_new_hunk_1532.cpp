@@ -1,14 +1,24 @@
-         * Client sent us an HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-         * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        access_status = HTTP_BAD_REQUEST;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
-    }
-
+     * cache_save_filter_handle / cache_out_filter_handle to be used by
+     * main requests and
+     * cache_save_subreq_filter_handle / cache_out_subreq_filter_handle
+     * to be run by subrequest
+     */
     /*
-     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * CACHE is placed into the filter chain at an admin specified location,
+     * and when the cache_handler is run, the CACHE filter is swapped with
+     * the CACHE_OUT filter, or CACHE_SAVE filter as appropriate. This has
+     * the effect of offering optional fine control of where the cache is
+     * inserted into the filter chain.
+     */
+    cache_filter_handle =
+        ap_register_output_filter("CACHE",
+                                  cache_filter,
+                                  NULL,
+                                  AP_FTYPE_RESOURCE);
+    /*
+     * CACHE_SAVE must go into the filter chain after a possible DEFLATE
+     * filter to ensure that the compressed content is stored.
+     * Incrementing filter type by 1 ensures his happens.
+     */
+    cache_save_filter_handle =
+        ap_register_output_filter("CACHE_SAVE",

@@ -1,21 +1,19 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
+    if (cfg->query == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01642)
+                      "No query configured for %s!", action);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02902)
+                      "No db handle available for %s! "
+                      "Check your database access",
+                      action);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
+    query = apr_hash_get(dbd->prepared, cfg->query, APR_HASH_KEY_STRING);
+    if (query == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01643)
+                      "Error retrieving Query for %s!", action);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

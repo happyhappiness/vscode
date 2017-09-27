@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(), "setsockopt(TCP_NODELAY): %s", strerror(errno));

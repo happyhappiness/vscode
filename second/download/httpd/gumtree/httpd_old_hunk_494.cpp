@@ -1,13 +1,13 @@
-            int *score_idx;
-            int status = ap_scoreboard_image->servers[0][i].status;
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-            ap_update_child_status_from_indexes(0, i, SERVER_STARTING, NULL);
-            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE) worker_main,
-                                                       (void *) i, 0, &tid);
-            if (child_handles[i] == 0) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
-                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
-                             my_pid, threads_created, ap_threads_per_child);
+
+        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return 0;
+        }
+        
+        /* Presume the handle was opened with the CORRECT semantics
+         * for TransmitFile 
+         */

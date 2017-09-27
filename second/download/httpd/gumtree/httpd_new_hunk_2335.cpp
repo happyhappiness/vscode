@@ -1,13 +1,13 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+        ++l;
+        ++l;
+        m->nospflag = 1;
     }
+    else
+        m->nospflag = 0;
+    apr_cpystrn(m->desc, l, sizeof(m->desc));
+
+#if MIME_MAGIC_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, serv,
+                MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
+                lineno, m, m->next, m->cont_level, m->desc);
+#endif /* MIME_MAGIC_DEBUG */

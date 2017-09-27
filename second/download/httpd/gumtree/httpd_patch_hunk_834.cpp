@@ -1,25 +1,46 @@
- 
- #define KEYMAX 1024
- 
-     ssl_mutex_on(s);
-     for (;;) {
-         /* allocate the key array in a memory sub pool */
--        apr_pool_sub_make(&p, mc->pPool, NULL);
-+        apr_pool_create_ex(&p, mc->pPool, NULL, NULL);
-         if (p == NULL)
-             break;
-         if ((keylist = apr_palloc(p, sizeof(dbmkey)*KEYMAX)) == NULL) {
-             apr_pool_destroy(p);
-             break;
-         }
- 
-         /* pass 1: scan DBM database */
-         keyidx = 0;
--        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile, 
-+        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
-                                APR_DBM_RWCREATE,SSL_DBM_FILE_MODE,
-                                p)) != APR_SUCCESS) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                          "Cannot open SSLSessionCache DBM file `%s' for "
-                          "scanning",
-                          mc->szSessionCacheDataFile);
+                     child_slot = i;
+                     break;
+                 }
+             }
+             if (child_slot >= 0) {
+                 ap_scoreboard_image->servers[0][child_slot].tid = 0;
+-                (void) ap_update_child_status_from_indexes(0, child_slot, 
+-                                                           SERVER_DEAD, 
++                (void) ap_update_child_status_from_indexes(0, child_slot,
++                                                           SERVER_DEAD,
+                                                            (request_rec*)NULL);
+-                
++
+                 if (remaining_threads_to_start
+ 		            && child_slot < ap_thread_limit) {
+                     /* we're still doing a 1-for-1 replacement of dead
+                      * children with new children
+                      */
+                     make_worker(child_slot);
+                     --remaining_threads_to_start;
+ 		        }
++/* TODO
+ #if APR_HAS_OTHER_CHILD
+             }
+-            else if (apr_proc_other_child_read(&pid, status) == 0) {
+-    		/* handled */
++            else if (apr_proc_other_child_refresh(&pid, status) == 0) {
+ #endif
++*/
+             }
+             else if (is_graceful) {
+                 /* Great, we've probably just lost a slot in the
+                  * scoreboard.  Somehow we don't know about this
+                  * child.
+                  */
+                  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
+ 			                  "long lost child came home! (pid %ld)", pid.pid);
+             }
+-	    
++
+             /* Don't perform idle maintenance when a child dies,
+              * only do it when there's a timeout.  Remember only a
+              * finite number of children can die, and it's pretty
+              * pathological for a lot to die suddenly.
+              */
+              continue;

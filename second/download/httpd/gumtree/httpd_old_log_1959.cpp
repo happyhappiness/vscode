@@ -1,2 +1,3 @@
-printf("Waiting:    " CONF_FMT_STRING,
-                   minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not open RewriteLog "
+                         "file %s", fname);

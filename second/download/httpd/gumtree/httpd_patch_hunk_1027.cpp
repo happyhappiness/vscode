@@ -1,23 +1,31 @@
- {
-     apr_table_entry_t *next_elt;
-     apr_table_entry_t *end_elt;
-     apr_uint32_t checksum;
-     int hash;
+             htdbm_list(h);
+             break;
+         default:
+             htdbm_make(h);
+             break;
  
--#ifdef POOL_DEBUG
-+#if APR_POOL_DEBUG
-     {
- 	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
--	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-+	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
- 	    abort();
- 	}
- 	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
--	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-+	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
- 	    abort();
- 	}
+-    }    
++    }
+     if (need_file && !h->rdonly) {
+         if ((rv = htdbm_save(h, &changed)) != APR_SUCCESS) {
+             apr_strerror(rv, errbuf, sizeof(errbuf));
+             exit(ERR_FILEPERM);
+         }
+-        fprintf(stdout, "Database %s %s.\n", h->filename, 
++        fprintf(stdout, "Database %s %s.\n", h->filename,
+                 h->create ? "created" : (changed ? "modified" : "updated"));
      }
- #endif
- 
-     COMPUTE_KEY_CHECKSUM(key, checksum);
+     if (cmd == HTDBM_NOFILE) {
+         if (!need_cmnt) {
+             fprintf(stderr, "%s:%s\n", h->username, h->userpass);
+         }
+         else {
+             fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
+                     h->comment);
+         }
+     }
+     htdbm_terminate(h);
+-    
++
+     return 0; /* Suppress compiler warning. */
+ }

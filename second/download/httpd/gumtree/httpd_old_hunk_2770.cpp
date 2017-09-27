@@ -1,13 +1,23 @@
+             * string (excluding leading space) (the endstr checks)
+             * and a negative number. */
+            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
+                || endstr == lenp || *endstr || ctx->remaining < 0) {
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+                ctx->remaining = 0;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                              "Invalid Content-Length");
 
-    ap_hard_timeout("send headers", r);
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+            }
 
-    ap_basic_http_header(r);
+            /* If we have a limit in effect and we know the C-L ahead of
+             * time, stop it here if it is invalid.
+             */
+            if (ctx->limit && ctx->limit < ctx->remaining) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                          "Requested content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+            }
+        }

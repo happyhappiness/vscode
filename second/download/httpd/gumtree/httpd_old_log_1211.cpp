@@ -1,1 +1,2 @@
-printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+printf("error reading postfile: %s\n",
+	       apr_strerror(rv, errmsg, sizeof errmsg));

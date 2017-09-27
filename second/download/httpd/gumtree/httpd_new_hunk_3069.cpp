@@ -1,10 +1,14 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    if (   (*status == OK)
+        && (req_conf = ap_get_module_config(r->request_config,
+                                            &proxy_scgi_module))) {
+        switch (req_conf->type) {
+        case scgi_internal_redirect:
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00862)
+                          "Internal redirect to %s", req_conf->location);
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+            r->status_line = NULL;
+            if (r->method_number != M_GET) {
+                /* keep HEAD, which is passed around as M_GET, too */
+                r->method = "GET";
+                r->method_number = M_GET;

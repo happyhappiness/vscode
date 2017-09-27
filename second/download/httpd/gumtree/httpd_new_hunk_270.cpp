@@ -1,20 +1,31 @@
-	     * needs to be extended to handle whatever servers folks want to
-	     * test against. -djg
-	     */
+        case AP_MPMQ_MAX_REQUESTS_DAEMON:
+            *result = ap_max_requests_per_child;
+            return APR_SUCCESS;
+        case AP_MPMQ_MAX_DAEMONS:
+            *result = ap_daemons_limit;
+            return APR_SUCCESS;
+        case AP_MPMQ_MPM_STATE:
+            *result = mpm_state;
+            return APR_SUCCESS;
+    }
+    return APR_ENOTIMPL;
+}
 
-	    /* check response code */
-	    part = strstr(c->cbuff, "HTTP");	/* really HTTP/1.x_ */
-            if (part && strlen(part) > strlen("HTTP/1.x_")) {
-                strncpy(respcode, (part + strlen("HTTP/1.x_")), 3);
-                respcode[3] = '\0';
-            }
-            else {
-                strcpy(respcode, "500");
-            }
+/* a clean exit from a child with proper cleanup */ 
+static void clean_child_exit(int code) __attribute__ ((noreturn));
+static void clean_child_exit(int code)
+{
+    mpm_state = AP_MPMQ_STOPPING;
+    if (pchild) {
+        apr_pool_destroy(pchild);
+    }
+    ap_mpm_pod_close(pod);
+    exit(code);
+}
 
-	    if (respcode[0] != '2') {
-		err_response++;
-		if (verbosity >= 2)
-		    printf("WARNING: Response code not 2xx (%s)\n", respcode);
-	    }
-	    else if (verbosity >= 3) {
+static void just_die(int sig)
+{
+    clean_child_exit(0);
+}
+
+/*****************************************************************

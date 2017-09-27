@@ -1,18 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    rc = log_child(p, program, &dummy, cmdtype, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process '%s'.",
+                     (program == NULL) ? "NULL" : program);
+        return NULL;
+    }
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    pl = apr_palloc(p, sizeof (*pl));

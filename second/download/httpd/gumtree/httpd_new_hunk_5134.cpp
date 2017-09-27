@@ -1,25 +1,13 @@
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-		    r, "need AuthName: %s", r->uri);
-        return SERVER_ERROR;
+        }
     }
 
-    if (!auth_line) {
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
-    }
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-        /* Client tried to authenticate using wrong auth scheme */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client used wrong authentication scheme: %s", r->uri);
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
-    }
-
-    t = ap_uudecode(r->pool, auth_line);
+    /*
+     * Now break apart the line and compare each word on it
+     */
+    t = require;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        result = util_ldap_cache_compare(r, ldc, sec->url, req->dn, sec->attribute, w);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01705)
+                              "auth_ldap authorize: "

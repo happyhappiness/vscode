@@ -1,20 +1,34 @@
+                            APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                        }
+                        apr_brigade_length(output_brigade, 0, &bb_len);
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
                     }
-                    apr_brigade_cleanup(bb);
-                }
-
-                /* Detect chunksize error (such as overflow) */
-                if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
-                                  (ctx->remaining < 0) ? "(overflow)" : "");
-                    ctx->remaining = 0; /* Reset it in case we have to
-                                         * come back here later */
-                    if (APR_STATUS_IS_TIMEUP(rv)) { 
-                        http_error = HTTP_REQUEST_TIME_OUT;
+                    if (headers_sent) {
+                        if (ap_pass_brigade(r->output_filters,
+                                            output_brigade) != APR_SUCCESS) {
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                          "proxy: error processing body.%s",
+                                          r->connection->aborted ?
+                                          " Client aborted connection." : "");
+                            output_failed = 1;
+                        }
+                        data_sent = 1;
+                        apr_brigade_cleanup(output_brigade);
                     }
-                    return bail_out_on_error(ctx, f, http_error);
                 }
-
-                if (!ctx->remaining) {
-                    /* Handle trailers by calling ap_get_mime_headers again! */
-                    ctx->state = BODY_NONE;
-                    ap_get_mime_headers(f->r);
+                else {
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                status = ajp_parse_reuse(r, conn->data, &conn_reuse);
+                if (status != APR_SUCCESS) {
+                    backend_failed = 1;
+                }
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "proxy: error processing end");

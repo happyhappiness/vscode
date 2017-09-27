@@ -1,13 +1,13 @@
-    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
-    if (!worker) {
-        const char *err;
-        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-    } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "worker %s already used by another worker", worker->name);
-    }
-    PROXY_COPY_CONF_PARAMS(worker, conf);
+                break;
 
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;

@@ -1,17 +1,20 @@
-	    int cond_status = OK;
-
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+                        if (received > 0 ) {
+                            remaining -= received;
+                            at += received;
+                        }
+                    }
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: Frame contained %lu bytes, pushed to Lua stack", 
+                        at);
+                }
+                else {
+                    rv = lua_websocket_readbytes(r->connection, buffer, 
+                            remaining);
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: SSL Frame contained %lu bytes, "\
+                            "pushed to Lua stack", 
+                        remaining);
+                }
+                if (mask) {
+                    for (n = 0; n < plen; n++) {
+                        buffer[n] ^= mask_bytes[n%4];

@@ -1,21 +1,35 @@
-      *
-      * Log into the ftp server, send the username & password, change to the
-      * correct directory...
+ 
+ static int core_pre_connection(conn_rec *c, void *csd)
+ {
+     core_net_rec *net = apr_palloc(c->pool, sizeof(*net));
+ 
+ #ifdef AP_MPM_DISABLE_NAGLE_ACCEPTED_SOCK
++    apr_status_t rv;
++
+     /* BillS says perhaps this should be moved to the MPMs. Some OSes
+      * allow listening socket attributes to be inherited by the
+      * accept sockets which means this call only needs to be made
+      * once on the listener
       */
- 
-     /* set up the connection filters */
--    ap_run_pre_connection(origin, sock);
-+    rc = ap_run_pre_connection(origin, sock);
-+    if (rc != OK && rc != DONE) {
-+        origin->aborted = 1;
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                     "proxy: FTP: pre_connection setup failed (%d)",
-+                     rc);
-+        return rc;
+-    ap_sock_disable_nagle(csd);
++    /* The Nagle algorithm says that we should delay sending partial
++     * packets in hopes of getting more data.  We don't want to do
++     * this; we are not telnet.  There are bad interactions between
++     * persistent connections and Nagle's algorithm that have very severe
++     * performance penalties.  (Failing to disable Nagle is not much of a
++     * problem with simple HTTP.)
++     */
++    rv = apr_socket_opt_set(csd, APR_TCP_NODELAY, 1);
++    if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
++        /* expected cause is that the client disconnected already,
++         * hence the debug level
++         */
++        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
++                      "apr_socket_opt_set(APR_TCP_NODELAY)");
 +    }
+ #endif
+     net->c = c;
+     net->in_ctx = NULL;
+     net->out_ctx = NULL;
+     net->client_socket = csd;
  
-     /* possible results: */
-     /* 120 Service ready in nnn minutes. */
-     /* 220 Service ready for new user. */
-     /* 421 Service not available, closing control connection. */
-     rc = proxy_ftp_command(NULL, r, origin, bb, &ftpmessage);

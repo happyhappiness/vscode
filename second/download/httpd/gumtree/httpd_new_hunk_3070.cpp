@@ -1,14 +1,14 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+            apr_table_unset(r->headers_in, "Content-Length");
+            ap_internal_redirect_handler(req_conf->location, r);
+            return OK;
+            /* break; */
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+        case scgi_sendfile:
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00863)
+                          "File subrequest to %s", req_conf->location);
+            do {
+                request_rec *rr;
+
+                rr = ap_sub_req_lookup_file(req_conf->location, r,
+                                            r->output_filters);
+                if (rr->status == HTTP_OK && rr->finfo.filetype != APR_NOFILE) {

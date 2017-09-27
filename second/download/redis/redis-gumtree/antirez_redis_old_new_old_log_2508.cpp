@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(), "fcntl(F_SETFL): %s", strerror(errno));

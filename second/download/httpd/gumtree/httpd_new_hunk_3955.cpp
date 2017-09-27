@@ -1,10 +1,14 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
-
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+                                                          strict);
+        if (interpreter && e_info->cmd_type != APR_SHELLCMD) {
+            e_info->cmd_type = APR_PROGRAM_PATH;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 strict ? APLOGNO(03180) "No ExecCGI verb found for files of type '%s'."
+                        : APLOGNO(03181) "No ExecCGI or Open verb found for files of type '%s'.",
+                 ext);
+        }
+    }
+    if (!interpreter) {
+        apr_status_t rv;
+        char buffer[1024];

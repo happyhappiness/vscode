@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"CONFIG REWRITE failed: %s", strerror(errno));

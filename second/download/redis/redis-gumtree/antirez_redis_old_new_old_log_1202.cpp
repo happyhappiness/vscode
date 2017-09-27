@@ -1,1 +1,0 @@
-addReplyError(c, "syntax error, try: GEOENCODE x y [radius unit]");

@@ -1,1 +1,0 @@
-addReplyError(c,"HLL encoding is not sparse");

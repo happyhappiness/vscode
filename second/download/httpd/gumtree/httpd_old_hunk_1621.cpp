@@ -1,16 +1,31 @@
-        apr_array_header_t* varray;
-        apr_time_t expire;
+    }
 
-        len = sizeof(expire);
-        apr_file_read_full(dobj->hfd, &expire, len, &len);
+#ifdef LDAP_OPT_NETWORK_TIMEOUT
+    st->connectionTimeout = atol(ttl);
 
-        if (expire < r->request_time) {
-            return DECLINED;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap connection: Setting connection timeout to "
+                 "%ld seconds.", getpid(), st->connectionTimeout);
+#else
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
+                 "LDAP: Connection timout option not supported by the "
+                 "LDAP SDK in use." );
+#endif
 
-        varray = apr_array_make(r->pool, 5, sizeof(char*));
-        rc = read_array(r, varray, dobj->hfd);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                         "disk_cache: Cannot parse vary header file: %s",
-                         dobj->hdrsfile);
+    return NULL;
+}
+
+
+static void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+{
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
+
+    /* Create a per vhost pool for mod_ldap to use, serialized with 
+     * st->mutex (also one per vhost) 
+     */
+    apr_pool_create(&st->pool, p);
+#if APR_HAS_THREADS
+    apr_thread_mutex_create(&st->mutex, APR_THREAD_MUTEX_DEFAULT, st->pool);
+#endif
+

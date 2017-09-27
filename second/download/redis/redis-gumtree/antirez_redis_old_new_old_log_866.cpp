@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING, "--- STACK TRACE");

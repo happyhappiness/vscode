@@ -1,1 +1,0 @@
-printf("Cannot open file: %s\n", filename);

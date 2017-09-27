@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving now with %u bytes in the cache and %u indexes",
-                 shmcb_get_safe_uint(cache->pos_count),
-                 shmcb_get_safe_uint(queue->pos_count));
+r(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "proxy: %s: fam %d socket created to connect to %s",
+                     proxy_function, backend_addr->family, worker->hostname);

@@ -1,15 +1,15 @@
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: agreeing because non-restricted",
+                      getpid());
+        return OK;
+    }
 
-        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
-        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
-        klen = strlen(key);
+    if (!required_ldap || !sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise", getpid());
+        return DECLINED;
+    }
 
-        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         base_server,
-                         "Init: SSL server IP/port conflict: "
-                         "%s (%s:%d) vs. %s (%s:%d)",
-                         ssl_util_vhostid(p, s),
-                         (s->defn_name ? s->defn_name : "unknown"),
-                         s->defn_line_number,
-                         ssl_util_vhostid(p, ps),
-                         (ps->defn_name ? ps->defn_name : "unknown"),
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);

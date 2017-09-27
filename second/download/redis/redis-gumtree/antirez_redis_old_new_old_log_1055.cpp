@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Saving the final RDB snapshot before exiting.");

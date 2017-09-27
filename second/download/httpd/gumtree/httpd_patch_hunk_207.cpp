@@ -1,39 +1,38 @@
-  * selected again.  Non-active fields always start in ascending order.
-  */
- static void emit_link(request_rec *r, const char *anchor, char column,
-                       char curkey, char curdirection,
-                       const char *colargs, int nosort)
- {
--    char qvalue[13];
--    int reverse;
--
-     if (!nosort) {
--        reverse = ((curkey == column) && (curdirection == D_ASCENDING));
-+        char qvalue[9];
+     struct accept_rec accept_info;
+     void *new_var;
+     int anymatch = 0;
+ 
+     clean_var_rec(&mime_info);
+ 
+-    if (r->proxyreq || !r->filename 
++    if (r->proxyreq || !r->filename
+                     || !ap_os_is_path_absolute(neg->pool, r->filename)) {
+         return DECLINED;
+     }
+ 
+     /* Only absolute paths here */
+     if (!(filp = strrchr(r->filename, '/'))) {
+         return DECLINED;
+     }
+     ++filp;
+     prefix_len = strlen(filp);
+ 
+-    if ((status = apr_dir_open(&dirp, neg->dir_name, neg->pool)) != APR_SUCCESS) {
++    if ((status = apr_dir_open(&dirp, neg->dir_name,
++                               neg->pool)) != APR_SUCCESS) {
+         ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                     "cannot read directory for multi: %s", neg->dir_name);
+         return HTTP_FORBIDDEN;
+     }
+ 
+     while (apr_dir_read(&dirent, APR_FINFO_DIRENT, dirp) == APR_SUCCESS) {
+         apr_array_header_t *exception_list;
+         request_rec *sub_req;
+-        
 +
-         qvalue[0] = '?';
-         qvalue[1] = 'C';
-         qvalue[2] = '=';
-         qvalue[3] = column;
--        qvalue[4] = '&';
--        qvalue[5] = 'a';
--        qvalue[6] = 'm';
--        qvalue[7] = 'p';
--        qvalue[8] = ';';
--        qvalue[9] = 'O';
--        qvalue[10] = '=';
--        qvalue[11] = reverse ? D_DESCENDING : D_ASCENDING;
--        qvalue[12] = '\0';
-+        qvalue[4] = ';';
-+        qvalue[5] = 'O';
-+        qvalue[6] = '=';
-+                    /* reverse? */
-+        qvalue[7] = ((curkey == column) && (curdirection == D_ASCENDING))
-+                      ? D_DESCENDING : D_ASCENDING;
-+        qvalue[8] = '\0';
-         ap_rvputs(r, "<a href=\"", qvalue, colargs ? colargs : "",
-                      "\">", anchor, "</a>", NULL);
-     }
-     else {
-         ap_rputs(anchor, r);
-     }
+         /* Do we have a match? */
+ #ifdef CASE_BLIND_FILESYSTEM
+         if (strncasecmp(dirent.name, filp, prefix_len)) {
+ #else
+         if (strncmp(dirent.name, filp, prefix_len)) {
+ #endif

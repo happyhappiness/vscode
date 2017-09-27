@@ -1,1 +1,0 @@
-addReplyError(c,"The server is running without a config file");

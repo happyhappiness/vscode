@@ -1,29 +1,22 @@
-	}
+    bucket = key % client_list->tbl_len;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    apr_global_mutex_lock(client_lock);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    /* try to allocate a new entry */
+
+    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+    if (!entry) {
+        long num_removed = gc();
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01766)
+                     "gc'd %ld client entries. Total new clients: "
+                     "%ld; Total removed clients: %ld; Total renewed clients: "
+                     "%ld", num_removed,
+                     client_list->num_created - client_list->num_renewed,
+                     client_list->num_removed, client_list->num_renewed);
+        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+        if (!entry) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01767)
+                         "unable to allocate new auth_digest client");
+            apr_global_mutex_unlock(client_lock);
+            return NULL;       /* give up */
+        }

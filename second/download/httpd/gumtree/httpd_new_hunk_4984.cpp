@@ -1,50 +1,61 @@
-        return errstatus;
+    spec->function_name = apr_pstrdup(cmd->pool, function);
+    spec->scope = cfg->vm_scope;
+
+    *(ap_lua_mapped_handler_spec **) apr_array_push(hook_specs) = spec;
+    return NULL;
+}
+static const char *register_mapped_file_function_hook(const char *pattern,
+                                                     cmd_parms *cmd,
+                                                     void *_cfg,
+                                                     const char *file,
+                                                     const char *function)
+{
+    ap_lua_mapped_handler_spec *spec;
+    ap_lua_dir_cfg *cfg = (ap_lua_dir_cfg *) _cfg;
+    ap_regex_t *regex = apr_pcalloc(cmd->pool, sizeof(ap_regex_t));
+    if (ap_regcomp(regex, pattern,0)) {
+        return "Invalid regex pattern!";
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+    spec = apr_pcalloc(cmd->pool, sizeof(ap_lua_mapped_handler_spec));
+    spec->file_name = apr_pstrdup(cmd->pool, file);
+    spec->function_name = apr_pstrdup(cmd->pool, function);
+    spec->scope = cfg->vm_scope;
+    spec->uri_pattern = regex;
 
-    if (r->method_number == M_INVALID) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
+    *(ap_lua_mapped_handler_spec **) apr_array_push(cfg->mapped_handlers) = spec;
+    return NULL;
+}
+static const char *register_filter_function_hook(const char *filter,
+                                                     cmd_parms *cmd,
+                                                     void *_cfg,
+                                                     const char *file,
+                                                     const char *function,
+                                                     int direction)
+{
+    ap_lua_filter_handler_spec *spec;
+    ap_lua_dir_cfg *cfg = (ap_lua_dir_cfg *) _cfg;
+   
+    spec = apr_pcalloc(cmd->pool, sizeof(ap_lua_filter_handler_spec));
+    spec->file_name = apr_pstrdup(cmd->pool, file);
+    spec->function_name = apr_pstrdup(cmd->pool, function);
+    spec->filter_name = filter;
 
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	char *emsg;
-
-	emsg = "File does not exist: ";
-	if (r->path_info == NULL) {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, NULL);
-	}
-	else {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
-	ap_table_setn(r->notes, "error-notes", emsg);
-	return HTTP_NOT_FOUND;
+    *(ap_lua_filter_handler_spec **) apr_array_push(cfg->mapped_filters) = spec;
+    /* TODO: Make it work on other types than just AP_FTYPE_RESOURCE? */
+    if (direction == AP_LUA_FILTER_OUTPUT) {
+        spec->direction = AP_LUA_FILTER_OUTPUT;
+        ap_register_output_filter(filter, lua_output_filter_handle, NULL, AP_FTYPE_RESOURCE);
     }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
+    else {
+        spec->direction = AP_LUA_FILTER_INPUT;
+        ap_register_input_filter(filter, lua_input_filter_handle, NULL, AP_FTYPE_RESOURCE);
     }
-	
-#if defined(OS2) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
-
-    if (f == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+    return NULL;
+}
+static int lua_check_user_id_harness_first(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "check_user_id", AP_LUA_HOOK_FIRST);
+}
+static int lua_check_user_id_harness(request_rec *r)
+{

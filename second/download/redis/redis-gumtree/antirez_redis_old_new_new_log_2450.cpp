@@ -1,1 +1,0 @@
-fprintf(stderr,"       ./redis-server --test-memory <megabytes>\n\n");

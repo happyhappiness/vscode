@@ -1,14 +1,12 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
+    strcpy(newarg, LINKER_FLAG_PREFIX);
+    strcat(newarg, arg);
+    push_count_chars(cc, newarg);
 #endif
+}
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+int parse_input_file_name(char *arg, command_t *cmd_data)
+{
+    char *ext = strrchr(arg, '.');
+    char *name = strrchr(arg, '/');
+    int pathlen;
+    enum lib_type libtype;

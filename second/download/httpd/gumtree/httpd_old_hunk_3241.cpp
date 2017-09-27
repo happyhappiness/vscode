@@ -1,22 +1,28 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+             * of which would make the parent shutdown all
+             * children, then idle-loop until it detected that
+             * the network is up again, and restart the children.
+             * Ben Hyde noted that temporary ENETDOWN situations
+             * occur in mobile IP.
+             */
+            ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                         "apr_socket_accept: giving up.");
+            return APR_EGENERAL;
+#endif /*ENETDOWN*/
 
-    if (!child && run_as_service) {
-	service_cd();
+        default:
+            /* If the socket has been closed in ap_close_listeners()
+             * by the restart/stop action, we may get EBADF.
+             * Do not print an error in this case.
+             */
+            if (!lr->active) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, status, ap_server_conf,
+                             "apr_socket_accept failed for inactive listener");
+                return status;
+            }
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_socket_accept: (client socket)");
+            return APR_EGENERAL;
     }
+    return status;
+}
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();

@@ -1,29 +1,22 @@
-	}
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
+        if (nscp_host != NULL && nscp_path != NULL)
+            dest = apr_psprintf(r->pool, "http://%s%s", nscp_host, nscp_path);
+    }
+    if (dest == NULL) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00591)
+                      "The request is missing a Destination header.");
+        return HTTP_BAD_REQUEST;
+    }
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    lookup = dav_lookup_uri(dest, r, 1 /* must_be_absolute */);
+    if (lookup.rnew == NULL) {
+        if (lookup.err.status == HTTP_BAD_REQUEST) {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00592)
+                          "%s", lookup.err.desc);
+            return HTTP_BAD_REQUEST;
+        }
+
+        /* ### this assumes that dav_lookup_uri() only generates a status
+         * ### that Apache can provide a status line for!! */

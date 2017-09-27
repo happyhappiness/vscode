@@ -1,18 +1,38 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+    ca_list = sk_X509_NAME_new(ssl_init_FindCAList_X509NameCmp);
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    /*
+     * Process CA certificate bundle file
+     */
+    if (ca_file) {
+        ssl_init_PushCAList(ca_list, s, ca_file);
+    }
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
+    /*
+     * Process CA certificate path files
+     */
+    if (ca_path) {
+        apr_dir_t *dir;
+        apr_finfo_t direntry;
+        apr_int32_t finfo_flags = APR_FINFO_TYPE|APR_FINFO_NAME;
+        apr_status_t rv;
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
+        if ((rv = apr_dir_open(&dir, ca_path, ptemp)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                    "Failed to open Certificate Path `%s'",
+                    ca_path);
+            ssl_die();
+        }
 
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+        while ((apr_dir_read(&direntry, finfo_flags, dir)) == APR_SUCCESS) {
+            const char *file;
+            if (direntry.filetype == APR_DIR) {
+                continue; /* don't try to load directories */
+            }
+            file = apr_pstrcat(ptemp, ca_path, "/", direntry.name, NULL);
+            ssl_init_PushCAList(ca_list, s, file);
+        }
+
+        apr_dir_close(dir);
+    }
+
+    /*

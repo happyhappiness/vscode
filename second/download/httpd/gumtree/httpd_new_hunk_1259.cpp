@@ -1,21 +1,13 @@
-#endif
+            }
+        }
+    }
+    if (!interpreter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" or \"'!\" first line", *cmd);
+        return APR_EBADF;
     }
 
-    return rv;
-}
-
-static void dbd_child_init(apr_pool_t *p, server_rec *s)
-{
-  apr_status_t rv = dbd_setup_init(p, s);
-  if (rv) {
-    ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                 "DBD: child init failed!");
-  }
-}
-
-#if APR_HAS_THREADS
-static apr_status_t dbd_setup_lock(server_rec *s, dbd_group_t *group)
-{
-    apr_status_t rv = APR_SUCCESS, rv2;
-
-    /* several threads could be here at the same time, all trying to
+    *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                       args)->elts);
+    *cmd = (*argv)[0];

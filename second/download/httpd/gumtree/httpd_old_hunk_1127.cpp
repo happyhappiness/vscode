@@ -1,22 +1,13 @@
-     * If the connection pool is NULL the worker
-     * cleanup has been run. Just return.
-     */
-    if (!worker->cp)
-        return APR_SUCCESS;
+    switch (status) {
+      case HTTP_BAD_REQUEST:
+            /* log the situation */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, f->c->base_server);
 
-    /* deterimine if the connection need to be closed */
-    if (conn->close_on_recycle || conn->close) {
-        apr_pool_t *p = conn->pool;
-        apr_pool_clear(conn->pool);
-        memset(conn, 0, sizeof(proxy_conn_rec));
-        conn->pool = p;
-        conn->worker = worker;
-    }
-#if APR_HAS_THREADS
-    if (worker->hmax && worker->cp->res) {
-        apr_reslist_release(worker->cp->res, (void *)conn);
-    }
-    else
-#endif
-    {
-        worker->cp->conn = conn;
+            sslconn->non_ssl_request = 1;
+            ssl_io_filter_disable(sslconn, f);
+
+            /* fake the request line */
+            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);

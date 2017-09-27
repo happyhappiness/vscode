@@ -1,12 +1,14 @@
         }
-
-        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
-                     "connect to listener on %pI", ap_listeners->bind_addr);
+      else options = handle_option(*s++, options);
+      }
     }
+  }
 
-    apr_socket_close(sock);
-    apr_pool_destroy(p);
+pattern_list = malloc(MAX_PATTERN_COUNT * sizeof(pcre *));
+hints_list = malloc(MAX_PATTERN_COUNT * sizeof(pcre_extra *));
 
-    return rv;
-}
-
+if (pattern_list == NULL || hints_list == NULL)
+  {
+  fprintf(stderr, "pcregrep: malloc failed\n");
+  return 2;
+  }

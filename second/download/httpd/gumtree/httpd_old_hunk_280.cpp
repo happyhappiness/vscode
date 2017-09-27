@@ -1,28 +1,22 @@
-    st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
-    st->ssl_support = 0;
+    ap_sb_handle_t *sbh;
 
-    return st;
-}
+    if ((rv = apr_os_sock_get(&csd, sock)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, "apr_os_sock_get");
+    }
 
-static void util_ldap_init_module(apr_pool_t *pool, server_rec *s)
-{
-    util_ldap_state_t *st = 
-        (util_ldap_state_t *)ap_get_module_config(s->module_config, 
-						  &ldap_module);
+    if (csd >= FD_SETSIZE) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "new file descriptor %d is too large; you probably need "
+                     "to rebuild Apache with a larger FD_SETSIZE "
+                     "(currently %d)", 
+                     csd, FD_SETSIZE);
+        apr_socket_close(sock);
+        return;
+    }
 
-    apr_status_t result = util_ldap_cache_init(pool, st->cache_bytes);
-    char buf[MAX_STRING_LEN];
+    if (thread_socket_table[thread_num] < 0) {
+        ap_sock_disable_nagle(sock);
+    }
 
-    apr_strerror(result, buf, sizeof(buf));
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                      "[%d] ldap cache init: %s", 
-                      getpid(), buf);
-}
-
-
-static apr_status_t util_ldap_cleanup_module(void *data)
-{
-    server_rec *s = data;
-
-    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
-                                          s->module_config, &ldap_module);
+    ap_create_sb_handle(&sbh, p, conn_id / thread_limit, thread_num);
+    current_conn = ap_run_create_connection(p, ap_server_conf, sock, conn_id, 

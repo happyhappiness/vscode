@@ -1,31 +1,29 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+        case 'f':
+            if (format) {
+                apr_file_printf(errfile, "Error: -f can only be passed once" NL NL);
+                usage();
+                return 1;
+            }
+            format = apr_pstrdup(pool, opt_arg);
+            break;
+        case 'i':
+            if (input) {
+                apr_file_printf(errfile, "Error: -i can only be passed once" NL NL);
+                usage();
+                return 1;
+            }
+            input = apr_pstrdup(pool, opt_arg);
+            break;
+        case 'o':
+            if (output) {
+                apr_file_printf(errfile, "Error: -o can only be passed once" NL NL);
+                usage();
+                return 1;
+            }
+            output = apr_pstrdup(pool, opt_arg);
+            break;
+        }
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    if (rv != APR_EOF) {
+        apr_file_printf(errfile, "Error: Parsing Arguments Failed" NL NL);

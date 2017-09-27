@@ -1,14 +1,13 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
-    }
-
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+    *psticky = 0;
+    
+    status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ++workers->idle_workers;
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                     "h2_worker(%d): looking for work", h2_worker_get_id(worker));
+        
+        while (!h2_worker_is_aborted(worker) && !workers->aborted
+               && !(task = next_task(workers))) {
+        
+            /* Need to wait for a new tasks to arrive. If we are above
+             * minimum workers, we do a timed wait. When timeout occurs

@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE, "MASTER <-> SLAVE sync: Flushing old data");

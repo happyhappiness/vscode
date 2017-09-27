@@ -1,0 +1,14 @@
+     case LEDATE:
+         apr_ctime(time_str, apr_time_from_sec(*(time_t *)&p->l));
+         pp = time_str;
+         (void) magic_rsl_printf(r, m->desc, pp);
+         return;
+     default:
+-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01537)
+                     MODNAME ": invalid m->type (%d) in mprint().",
+                     m->type);
+         return;
+     }
+ 
+     v = signextend(r->server, m, v) & m->mask;

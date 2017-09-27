@@ -1,25 +1,40 @@
-  *   scoreboard shm handle [to recreate the ap_scoreboard]
-  */
- void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
-                              apr_proc_mutex_t **child_start_mutex,
-                              apr_shm_t **scoreboard_shm)
+ 
+ static int reclaim_one_pid(pid_t pid, action_t action)
  {
-+    HANDLE pipe;
-     HANDLE hScore;
-     HANDLE ready_event;
-     HANDLE os_start;
-     DWORD BytesRead;
-     void *sb_shared;
-     apr_status_t rv;
--    
--    /* *** We now do this was back in winnt_rewrite_args
--     * pipe = GetStdHandle(STD_INPUT_HANDLE);
--     */
+     apr_proc_t proc;
+     apr_status_t waitret;
+ 
+-    /* Ensure pid sanity. */
+-    if (pid < 1) {
+-        return 1;
+-    }        
+-
+     proc.pid = pid;
+     waitret = apr_proc_wait(&proc, NULL, NULL, APR_NOWAIT);
+     if (waitret != APR_CHILD_NOTDONE) {
+         return 1;
+     }
+ 
+     switch(action) {
+     case DO_NOTHING:
+         break;
+-        
 +
-+    pipe = GetStdHandle(STD_INPUT_HANDLE);
-     if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
-                   &BytesRead, (LPOVERLAPPED) NULL)
-         || (BytesRead != sizeof(HANDLE))) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                      "Child %d: Unable to retrieve the ready event from the parent", my_pid);
-         exit(APEXIT_CHILDINIT);
+     case SEND_SIGTERM:
+         /* ok, now it's being annoying */
+         ap_log_error(APLOG_MARK, APLOG_WARNING,
+                      0, ap_server_conf,
+                      "child process %" APR_PID_T_FMT
+                      " still did not exit, "
+                      "sending a SIGTERM",
+                      pid);
+         kill(pid, SIGTERM);
+         break;
+-        
++
+     case SEND_SIGKILL:
+         ap_log_error(APLOG_MARK, APLOG_ERR,
+                      0, ap_server_conf,
+                      "child process %" APR_PID_T_FMT
+                      " still did not exit, "
+                      "sending a SIGKILL",

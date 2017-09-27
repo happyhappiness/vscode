@@ -1,41 +1,26 @@
-	    return cond_status;
-	}
+                /* client cert is in the session cache, but there is
+                 * no chain, since ssl3_get_client_certificate()
+                 * sk_X509_shift-ed the peer cert out of the chain.
+                 * we put it back here for the purpose of quick_renegotiation.
+                 */
+                cert_stack = sk_X509_new_null();
+                sk_X509_push(cert_stack, MODSSL_PCHAR_CAST cert);
+            }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Cannot find peer certificate chain");
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+                return HTTP_FORBIDDEN;
+            }
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+            if (!(cert_store ||
+                  (cert_store = SSL_CTX_get_cert_store(ctx))))
+            {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Cannot find certificate storage");
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+                return HTTP_FORBIDDEN;
+            }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+            if (!cert) {

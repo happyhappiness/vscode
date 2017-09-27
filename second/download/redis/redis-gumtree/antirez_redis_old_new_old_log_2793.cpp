@@ -1,1 +1,0 @@
-printf(" -D                 Debug mode. more verbose.\n");

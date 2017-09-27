@@ -1,61 +1,41 @@
+    apr_dbd_row_t *row = NULL;
 
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
-
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs
-	(
-	    r,
-	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
-	    title,
-	    "</TITLE>\n </HEAD>\n <BODY>\n",
-	    NULL
-	);
-}
-
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to)
-	to = "";
-    if (!path)
-	path = "";
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    else if (to)
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    else
-	p->apply_to = NULL;
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH)
-	if (!strcmp(to, "**DIRECTORY**"))
-	    to = "^^DIRECTORY^^";
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
+    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                &authn_dbd_module);
+    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Failed to acquire database connection to look up "
+                      "user '%s:%s'", user, realm);
+        return AUTH_GENERAL_ERROR;
     }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
-    return NULL;
-}
-
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
-{
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+    if (conf->realm == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "No AuthDBDUserRealmQuery has been specified");
+        return AUTH_GENERAL_ERROR;
+    }
+    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserRealmQuery with the key '%s'", conf->realm);
+        return AUTH_GENERAL_ERROR;
+    }
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, realm, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);
+        return AUTH_GENERAL_ERROR;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error retrieving results while looking up '%s:%s' "
+                          "in database", user, realm);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_hash == NULL) {
+#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)

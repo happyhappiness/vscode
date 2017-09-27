@@ -1,40 +1,19 @@
-	return;
+    apr_byte_t result;
+    apr_status_t rc;
+    apr_uint16_t expected_len;
+
+    rc = ajp_msg_get_uint8(msg, &result);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: ajp_msg_get_byte failed");
+        return rc;
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+    if (result != CMD_AJP13_SEND_BODY_CHUNK) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: wrong type %02x expecting 0x03", result);
+        return AJP_EBAD_HEADER;
+    }
+    rc = ajp_msg_get_uint16(msg, len);
+    if (rc != APR_SUCCESS) {
+        return rc;
+    }

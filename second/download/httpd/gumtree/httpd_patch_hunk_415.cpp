@@ -1,94 +1,94 @@
-  * Can we deliver this request from the cache?
-  * If yes:
-  *   deliver the content by installing the CACHE_OUT filter.
-  * If no:
-  *   check whether we're allowed to try cache it
-  *   If yes:
-- *     add CACHE_IN filter
-+ *     add CACHE_SAVE filter
-  *   If No:
-  *     oh well.
-  */
- 
- static int cache_url_handler(request_rec *r, int lookup)
+ static int remove_url(const char *key)
  {
-     apr_status_t rv;
--    const char *cc_in, *pragma, *auth;
--    apr_uri_t uri = r->parsed_uri;
--    char *url = r->unparsed_uri;
--    apr_size_t urllen;
--    char *path = uri.path;
--    const char *types;
--    cache_info *info = NULL;
-+    const char *pragma, *auth;
-+    apr_uri_t uri;
-+    char *url;
-+    char *path;
-+    cache_provider_list *providers;
-+    cache_info *info;
-     cache_request_rec *cache;
-     cache_server_conf *conf;
-+    apr_bucket_brigade *out;
+     /* XXX: Delete file from cache! */
+     return OK;
+ }
  
--    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
--                                                      &cache_module);
--
--    /* we don't handle anything but GET */
-+    /* Delay initialization until we know we are handling a GET */
-     if (r->method_number != M_GET) {
-         return DECLINED;
-     }
- 
-+    uri = r->parsed_uri;
-+    url = r->unparsed_uri;
-+    path = uri.path;
-+    info = NULL;
++static apr_status_t read_table(cache_handle_t *handle, request_rec *r,
++                               apr_table_t *table, apr_file_t *file)
++{
++    char w[MAX_STRING_LEN];
++    char *l;
++    int p;
++    apr_status_t rv;
 +
-+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
-+                                                      &cache_module);
++    while (1) {
 +
-     /*
-      * Which cache module (if any) should handle this request?
-      */
--    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
--        return DECLINED;
--    }
--
--    urllen = strlen(url);
--    if (urllen > MAX_URL_LENGTH) {
--        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
--                     "cache: URL exceeds length threshold: %s", url);
--        return DECLINED;
--    }
--    /* DECLINE urls ending in / ??? EGP: why? */
--    if (url[urllen-1] == '/') {
-+    if (!(providers = ap_cache_get_providers(r, conf, path))) {
-         return DECLINED;
-     }
- 
-     /* make space for the per request config */
--    cache = (cache_request_rec *) ap_get_module_config(r->request_config, 
-+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
-                                                        &cache_module);
-     if (!cache) {
-         cache = apr_pcalloc(r->pool, sizeof(cache_request_rec));
-         ap_set_module_config(r->request_config, &cache_module, cache);
-     }
- 
--    /* save away the type */
--    cache->types = types;
-+    /* save away the possible providers */
-+    cache->providers = providers;
- 
-     /*
-      * Are we allowed to serve cached info at all?
-      */
- 
-     /* find certain cache controlling headers */
--    cc_in = apr_table_get(r->headers_in, "Cache-Control");
-     pragma = apr_table_get(r->headers_in, "Pragma");
-     auth = apr_table_get(r->headers_in, "Authorization");
- 
-     /* first things first - does the request allow us to return
-      * cached information at all? If not, just decline the request.
-      *
++        /* ### What about APR_EOF? */
++        rv = apr_file_gets(w, MAX_STRING_LEN - 1, file);
++        if (rv != APR_SUCCESS) {
++            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                          "Premature end of cache headers.");
++            return rv;
++        }
++
++        /* Delete terminal (CR?)LF */
++
++        p = strlen(w);
++        /* Indeed, the host's '\n':
++           '\012' for UNIX; '\015' for MacOS; '\025' for OS/390
++           -- whatever the script generates.
++        */
++        if (p > 0 && w[p - 1] == '\n') {
++            if (p > 1 && w[p - 2] == CR) {
++                w[p - 2] = '\0';
++            }
++            else {
++                w[p - 1] = '\0';
++            }
++        }
++
++        /* If we've finished reading the headers, break out of the loop. */
++        if (w[0] == '\0') {
++            break;
++        }
++
++#if APR_CHARSET_EBCDIC
++        /* Chances are that we received an ASCII header text instead of
++         * the expected EBCDIC header lines. Try to auto-detect:
++         */
++        if (!(l = strchr(w, ':'))) {
++            int maybeASCII = 0, maybeEBCDIC = 0;
++            unsigned char *cp, native;
++            apr_size_t inbytes_left, outbytes_left;
++
++            for (cp = w; *cp != '\0'; ++cp) {
++                native = apr_xlate_conv_byte(ap_hdrs_from_ascii, *cp);
++                if (apr_isprint(*cp) && !apr_isprint(native))
++                    ++maybeEBCDIC;
++                if (!apr_isprint(*cp) && apr_isprint(native))
++                    ++maybeASCII;
++            }
++            if (maybeASCII > maybeEBCDIC) {
++                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
++                             "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)",
++                             r->filename);
++                inbytes_left = outbytes_left = cp - w;
++                apr_xlate_conv_buffer(ap_hdrs_from_ascii,
++                                      w, &inbytes_left, w, &outbytes_left);
++            }
++        }
++#endif /*APR_CHARSET_EBCDIC*/
++
++        /* if we see a bogus header don't ignore it. Shout and scream */
++        if (!(l = strchr(w, ':'))) {
++            return APR_EGENERAL;
++        }
++
++        *l++ = '\0';
++        while (*l && apr_isspace(*l)) {
++            ++l;
++        }
++
++        apr_table_add(table, w, l);
++    }
++
++    return APR_SUCCESS;
++}
++
+ /*
+  * Reads headers from a buffer and returns an array of headers.
+  * Returns NULL on file error
+  * This routine tries to deal with too long lines and continuation lines.
+  * @@@: XXX: FIXME: currently the headers are passed thru un-merged.
+  * Is that okay, or should they be collapsed where possible?

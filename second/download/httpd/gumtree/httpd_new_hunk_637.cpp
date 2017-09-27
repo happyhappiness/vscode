@@ -1,23 +1,35 @@
-                if ((fold_len - 1) > r->server->limit_req_fieldsize) {
-                    r->status = HTTP_BAD_REQUEST;
-                    /* report what we have accumulated so far before the
-                     * overflow (last_field) as the field with the problem
-                     */
-                    apr_table_setn(r->notes, "error-notes",
-                                   apr_psprintf(r->pool,
-                                               "Size of a request header field " 
-                                               "after folding "
-                                               "exceeds server limit.<br />\n"
-                                                "<pre>\n%.*s\n</pre>\n",
-                                                field_name_len(last_field),
-                                                ap_escape_html(r->pool, last_field)));
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                                  "Request header exceeds LimitRequestFieldSize "
-                                  "after folding: %.*s",
-                                  field_name_len(last_field), last_field);
-                    return;
-                }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "apr_bucket_read()");
+            return rv;
+        }
 
-                if (fold_len > alloc_len) {
-                    char *fold_buf;
-                    alloc_len += alloc_len;
+        /* Good cast, we just tested len isn't negative */
+        if (len > 0 &&
+            (rv = pass_data_to_filter(f, data, (apr_size_t)len, bb_tmp))
+                != APR_SUCCESS) {
+            return rv;
+        }
+    }
+
+    apr_brigade_cleanup(bb);
+    APR_BRIGADE_CONCAT(bb, bb_tmp);
+    apr_brigade_destroy(bb_tmp);
+
+    if (eos) {
+        /* close the child's stdin to signal that no more data is coming;
+         * that will cause the child to finish generating output
+         */
+        if ((rv = apr_file_close(ctx->proc->in)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_file_close(child input)");
+            return rv;
+        }
+        /* since we've seen eos and closed the child's stdin, set the proper pipe
+         * timeout; we don't care if we don't return from apr_file_read() for a while...
+         */
+        rv = apr_file_pipe_timeout_set(ctx->proc->out,
+                                       r->server->timeout);
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_file_pipe_timeout_set(child output)");
+            return rv;
+        }

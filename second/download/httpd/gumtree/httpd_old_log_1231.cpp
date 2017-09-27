@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");
+apr_file_printf(errfile,
+            "On all other systems, the '-p' flag will probably not work.\n");

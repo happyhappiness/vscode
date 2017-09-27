@@ -1,1 +1,1 @@
-s(ap_psignature("",r), r);
+ap_rputs("<tr>", r);

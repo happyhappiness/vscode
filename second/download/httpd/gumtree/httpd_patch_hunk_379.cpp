@@ -1,40 +1,28 @@
- 
-     return APR_SUCCESS;
+                          "LDAP: SSL support unavailable" );
+     }
+     
+     return(OK);
  }
  
- static apr_status_t ssl_io_filter_cleanup(void *data)
- {
--    apr_status_t ret;
--    ssl_filter_ctx_t *filter_ctx = (ssl_filter_ctx_t *)data;
--    conn_rec *c;
--
--    if (!filter_ctx->pssl) {
--        /* already been shutdown */
--        return APR_SUCCESS;
--    }
-+    ssl_filter_ctx_t *filter_ctx = data;
- 
--    c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
--    if ((ret = ssl_filter_io_shutdown(filter_ctx, c, 0)) != APR_SUCCESS) {
--        ap_log_error(APLOG_MARK, APLOG_INFO, ret, NULL,
--                     "SSL filter error shutting down I/O");
--    }
-+    if (filter_ctx->pssl) {
-+        conn_rec *c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
-+        SSLConnRec *sslconn = myConnConfig(c);
++static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
++{
++    apr_status_t sts;
++    util_ldap_state_t *st =
++        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
 +
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-+                     "SSL connection destroyed without being closed");
- 
--    return ret;
-+        SSL_free(filter_ctx->pssl);
-+        sslconn->ssl = filter_ctx->pssl = NULL;
++    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
++    if (sts != APR_SUCCESS) {
++        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");
++        return;
 +    }
-+  
-+    return APR_SUCCESS;
- }
++    else {
++        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
++                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
++    }
++}
  
- /*
-  * The hook is NOT registered with ap_hook_process_connection. Instead, it is
-  * called manually from the churn () before it tries to read any data.
-  * There is some problem if I accept conn_rec *. Still investigating..
+ command_rec util_ldap_cmds[] = {
+     AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
+                   "Sets the size of the shared memory cache in bytes. "
+                   "Zero means disable the shared memory cache. Defaults to 100KB."),
+ 

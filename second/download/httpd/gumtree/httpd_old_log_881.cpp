@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                    "Failed to open SSLCACertificatePath `%s'",
-                    ca_path);
+ap_log_error(APLOG_MARK, APLOG_INFO, rc,
+                         c->base_server,
+                         "SSL handshake stopped: connection was closed");

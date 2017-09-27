@@ -1,3 +1,3 @@
-fprintf(stderr, "[%s] [crit] (%d) %s: %s failed "
-                        "to initial context, exiting\n", 
-                        ctimebuff, stat, (*argv)[0], failed);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+           "disk_cache: could not write info to header file %s",
+           dobj->hdrsfile);

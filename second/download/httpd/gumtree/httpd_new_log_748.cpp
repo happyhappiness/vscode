@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_USE_POSIXSEM_SERIALIZE\n", r);
+ap_rputs(" -D SHARED_CORE\n", r);

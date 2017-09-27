@@ -1,25 +1,12 @@
-    const char *t;
+    if (!zz || (zz->expiry && zz->expiry < now)) {
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+        /* no luck, create a blank session */
+        zz = (session_rec *) apr_pcalloc(r->pool, sizeof(session_rec));
+        zz->pool = r->pool;
+        zz->entries = apr_table_make(zz->pool, 10);
 
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-		    r, "need AuthName: %s", r->uri);
-        return SERVER_ERROR;
     }
-
-    if (!auth_line) {
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
-    }
-
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-        /* Client tried to authenticate using wrong auth scheme */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client used wrong authentication scheme: %s", r->uri);
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
-    }
-
-    t = ap_uudecode(r->pool, auth_line);
+    else {
+        rv = ap_run_session_decode(r, zz);
+        if (OK != rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01817)

@@ -1,14 +1,16 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+        /* This assumes that the tempfile is on the same file system
+         * as the cache_root. If not, then we need a file copy/move
+         * rather than a rename.
+         */
+        rv = apr_file_rename(dobj->tempfile, dobj->datafile, r->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                         "disk_cache: rename tempfile to datafile failed:"
+                         " %s -> %s", dobj->tempfile, dobj->datafile);
+            apr_file_remove(dobj->tempfile, r->pool);
+        }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+        dobj->tfd = NULL;
+    }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    return APR_SUCCESS;

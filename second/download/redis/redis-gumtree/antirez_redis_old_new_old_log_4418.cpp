@@ -1,1 +1,0 @@
-snprintf(pointer[i],11,"[%p]", trace[i]);

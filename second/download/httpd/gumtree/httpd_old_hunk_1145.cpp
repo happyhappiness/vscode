@@ -1,37 +1,45 @@
-    char server_portstr[32];
-    char *scheme;
-    const char *proxy_function;
-    const char *u;
-    proxy_conn_rec *backend = NULL;
-    int is_ssl = 0;
+            }
+        }
+        else {
+            request_rec *id = r->main ? r->main : r;
 
-    /* Note: Memory pool allocation.
-     * A downstream keepalive connection is always connected to the existence
-     * (or not) of an upstream keepalive connection. If this is not done then
-     * load balancing against multiple backend servers breaks (one backend
-     * server ends up taking 100% of the load), and the risk is run of
-     * downstream keepalive connections being kept open unnecessarily. This
-     * keeps webservers busy and ties up resources.
-     *
-     * As a result, we allocate all sockets out of the upstream connection
-     * pool, and when we want to reuse a socket, we check first whether the
-     * connection ID of the current upstream connection is the same as that
-     * of the connection when the socket was opened.
-     */
-    apr_pool_t *p = r->connection->pool;
-    conn_rec *c = r->connection;
-    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
-
-    /* find the scheme */
-    u = strchr(url, ':');
-    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0')
-       return DECLINED;
-    if ((u - url) > 14)
-        return HTTP_BAD_REQUEST;
-    scheme = apr_pstrndup(c->pool, url, u - url);
-    /* scheme is lowercase */
-    ap_str_tolower(scheme);
-    /* is it for us? */
-    if (strcmp(scheme, "https") == 0) {
-        if (!ap_proxy_ssl_enable(NULL)) {
+            /* do a full renegotiation */
             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing full renegotiation: "
+                         "complete handshake protocol");
+
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
+
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Awaiting re-negotiation handshake");
+
+            /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
+             * However, this causes failures in perl-framework currently,
+             * perhaps pre-test if we have already negotiated?
+             */
+            SSL_set_state(ssl, SSL_ST_ACCEPT);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                        "Not accepted by client!?");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+        }
+

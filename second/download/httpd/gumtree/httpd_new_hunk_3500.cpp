@@ -1,21 +1,22 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+                     * same file, resolving a possible symlink several lines
+                     * above. Therefore do not make a detailed analysis of rv
+                     * in this case for the reason of the failure, just bail out
+                     * with a HTTP_FORBIDDEN in case we hit a race condition
+                     * here.
+                     */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00031)
+                                  "access to %s failed; stat of '%s' failed.",
+                                  r->uri, r->filename);
+                    return r->status = HTTP_FORBIDDEN;
+                }
+                if (thisinfo.filetype == APR_LNK) {
+                    /* Is this a possibly acceptable symlink? */
+                    if ((res = resolve_symlink(r->filename, &thisinfo,
+                                               opts, r->pool)) != OK) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00032)
+                                      "Symbolic link not allowed "
+                                      "or link target not accessible: %s",
+                                      r->filename);
+                        return r->status = res;
+                    }
+                }

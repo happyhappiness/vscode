@@ -1,21 +1,14 @@
-                         * the network is up again, and restart the children.
-                         * Ben Hyde noted that temporary ENETDOWN situations
-                         * occur in mobile IP.
-                         */
-                         ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
-                             "apr_accept: giving up.");
--                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, bucket_alloc);
-+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, 
-+                                         bucket_alloc, pthrd);
-                 }
-                 else {
-                         ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                             "apr_accept: (client socket)");
--                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
-+                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc, pthrd);
-                 }
-             }
-         }
+         ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                      "mod_rewrite: Parent could not create RewriteLock "
+                      "file %s", lockname);
+         return rc;
+     }
  
-         ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
-         /*
+-#if APR_USE_SYSVSEM_SERIALIZE
++#ifdef MOD_REWRITE_SET_MUTEX_PERMS
+     rc = unixd_set_global_mutex_perms(rewrite_mapr_lock_acquire);
+     if (rc != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
+                      "mod_rewrite: Parent could not set permissions "
+                      "on RewriteLock; check User and Group directives");
+         return rc;

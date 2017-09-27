@@ -1,13 +1,12 @@
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
-        }
-    }
-
-    if (bytes_streamed != cl_val) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: client %s given Content-Length did not match"
+                    r->status = HTTP_BAD_REQUEST;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field value presented"
+                                  " bad whitespace");
+                    return;
+                }
+            }
+            else /* Using strict RFC7230 parsing */
+            {
+                /* Ensure valid token chars before ':' per RFC 7230 3.2.4 */
+                value = (char *)ap_scan_http_token(last_field);
+                if ((value == last_field) || *value != ':') {

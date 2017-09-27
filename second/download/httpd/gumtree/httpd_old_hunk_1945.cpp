@@ -1,13 +1,12 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+
+    if (opt->ind != argc - 1) {
+        fprintf(stderr, "%s: wrong number of arguments\n", argv[0]);
+        usage(argv[0]);
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+        fprintf(stderr, "%s: invalid URL\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {

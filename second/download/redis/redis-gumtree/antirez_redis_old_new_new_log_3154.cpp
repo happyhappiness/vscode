@@ -1,1 +1,0 @@
-f(buf,1024,"%s/%s",path,dp->d_name);

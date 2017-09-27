@@ -1,13 +1,13 @@
+                                int level, apr_status_t status, apr_pool_t *p,
+                                const char *fmt, ...)
+                               __attribute__((format(printf,7,8)));
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+/**
+ * ap_log_rerror() - log messages which are related to a particular
+ * request.  This uses a a printf-like format to log messages to the
+ * error_log.
+ * @param file The file in which this function is called
+ * @param line The line number on which this function is called
+ * @param module_index The module_index of the module generating this message
+ * @param level The level of this error message
+ * @param status The status code from the previous command

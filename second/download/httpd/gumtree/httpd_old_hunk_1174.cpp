@@ -1,13 +1,13 @@
-
-    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
-                                    APR_MD5_DIGESTSIZE*2))
-    {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "Unable to set session id context to `%s'", vhost_md5);
-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, c->base_server);
-
-        c->aborted = 1;
-
-        return DECLINED; /* XXX */
-    }
-
+                                      getpid(), t, ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-attribute") == 0) {
+            required_ldap = 1;
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require ldap-attribute: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;

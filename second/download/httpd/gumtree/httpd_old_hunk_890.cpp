@@ -1,89 +1,129 @@
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-		"Server built: %s", ap_get_server_built());
-
-    restart_pending = shutdown_pending = 0;
-
-    /*
-     * main_loop until it's all over
-     */
-    if (!one_process) {
-        server_main_loop(remaining_threads_to_start);
-    
-        tell_workers_to_exit(); /* if we get here we're exiting... */
-        sleep(1); /* give them a brief chance to exit */
-    } else {
-        proc_info *my_info = (proc_info *)malloc(sizeof(proc_info));
-        my_info->slot = 0;
-        apr_pool_create(&my_info->tpool, pchild);
-        worker_thread(my_info);
-    }
-        
-    /* close the UDP socket we've been using... */
-    apr_socket_close(listening_sockets[0]);
-
-    if ((one_process || shutdown_pending) && !child_fatal) {
-        const char *pidfile = NULL;
-        pidfile = ap_server_root_relative (pconf, ap_pid_fname);
-        if ( pidfile != NULL && unlink(pidfile) == 0)
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                         "removed PID file %s (pid=%ld)", pidfile, 
-                         (long)getpid());
+                     "Parent: Could not create exit event for child process");
+        apr_pool_destroy(ptemp);
+        CloseHandle(waitlist[waitlist_ready]);
+        return -1;
     }
 
-    if (one_process) {
-        return 1;
+    /* Build the env array */
+    for (envc = 0; _environ[envc]; ++envc) {
+        ;
     }
-        
-    /*
-     * If we get here we're shutting down...
-     */
-    if (shutdown_pending) {
-        /* Time to gracefully shut down:
-         * Kill child processes, tell them to call child_exit, etc...
+    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
+    memcpy(env, _environ, envc * sizeof (char*));
+    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
+    env[envc] = pidbuf;
+    env[envc + 1] = NULL;
+
+    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to create the child process.");
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
+    apr_file_close(child_out);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Parent: Created child process %d", new_child.pid);
+
+    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
+                              start_mutex, ap_scoreboard_shm,
+                              new_child.hproc, new_child.in)) {
+        /*
+         * This error is fatal, mop up the child and move on
+         * We toggle the child's exit event to cause this child 
+         * to quit even as it is attempting to start.
          */
-        if (beosd_killpg(getpgrp(), SIGTERM) < 0)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-             "killpg SIGTERM");
-      
-        /* use ap_reclaim_child_processes starting with SIGTERM */
-        ap_reclaim_child_processes(1);
-
-        if (!child_fatal) {         /* already recorded */
-            /* record the shutdown in the log */
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "caught SIGTERM, shutting down");
-        }
-    
-        return 1;
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
 
-    /* we've been told to restart */
-    signal(SIGHUP, SIG_IGN);
-
-    if (is_graceful) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
-    }
-    else {
-        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM 
-         * and a SIGHUP, we may as well use the same signal, because some user
-         * pthreads are stealing signals from us left and right.
+    /* Important:
+     * Give the child process a chance to run before dup'ing the sockets.
+     * We have already set the listening sockets noninheritable, but if 
+     * WSADuplicateSocket runs before the child process initializes
+     * the listeners will be inherited anyway.
+     */
+    waitlist[waitlist_term] = new_child.hproc;
+    rv = WaitForMultipleObjects(2, waitlist, FALSE, INFINITE);
+    CloseHandle(waitlist[waitlist_ready]);
+    if (rv != WAIT_OBJECT_0) {
+        /* 
+         * Outch... that isn't a ready signal. It's dead, Jim!
          */
-	    
-        ap_reclaim_child_processes(1);		/* Start with SIGTERM */
-	    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "SIGHUP received.  Attempting to restart");
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
-    
-    /* just before we go, tidy up the locks we've created to prevent a 
-     * potential leak of semaphores... */
-    apr_thread_mutex_destroy(worker_thread_count_mutex);
-    apr_thread_mutex_destroy(accept_mutex);
-    
+
+    if (send_listeners_to_child(ptemp, new_child.pid, new_child.in)) {
+        /*
+         * This error is fatal, mop up the child and move on
+         * We toggle the child's exit event to cause this child 
+         * to quit even as it is attempting to start.
+         */
+        SetEvent(hExitEvent);
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(new_child.hproc);
+        return -1;
+    }
+
+    apr_file_close(new_child.in);
+
+    *child_exit_event = hExitEvent;
+    *child_proc = new_child.hproc;
+    *child_pid = new_child.pid;
+
     return 0;
 }
 
-static int beos_pre_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp)
-{
-    static int restart_num = 0;
+/***********************************************************************
+ * master_main()
+ * master_main() runs in the parent process.  It creates the child 
+ * process which handles HTTP requests then waits on one of three 
+ * events:
+ *
+ * restart_event
+ * -------------
+ * The restart event causes master_main to start a new child process and
+ * tells the old child process to exit (by setting the child_exit_event).
+ * The restart event is set as a result of one of the following:
+ * 1. An apache -k restart command on the command line
+ * 2. A command received from Windows service manager which gets 
+ *    translated into an ap_signal_parent(SIGNAL_PARENT_RESTART)
+ *    call by code in service.c.
+ * 3. The child process calling ap_signal_parent(SIGNAL_PARENT_RESTART)
+ *    as a result of hitting MaxRequestsPerChild.
+ *
+ * shutdown_event 
+ * --------------
+ * The shutdown event causes master_main to tell the child process to 
+ * exit and that the server is shutting down. The shutdown event is
+ * set as a result of one of the following:
+ * 1. An apache -k shutdown command on the command line
+ * 2. A command received from Windows service manager which gets
+ *    translated into an ap_signal_parent(SIGNAL_PARENT_SHUTDOWN)
+ *    call by code in service.c.
+ *
+ * child process handle
+ * --------------------
+ * The child process handle will be signaled if the child process 
+ * exits for any reason. In a normal running server, the signaling
+ * of this event means that the child process has exited prematurely
+ * due to a seg fault or other irrecoverable error. For server
+ * robustness, master_main will restart the child process under this 
+ * condtion.
+ *
+ * master_main uses the child_exit_event to signal the child process
+ * to exit.
+ **********************************************************************/
+#define NUM_WAIT_HANDLES 3

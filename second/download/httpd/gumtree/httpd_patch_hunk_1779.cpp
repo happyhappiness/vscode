@@ -1,17 +1,24 @@
-                                                proxy_conn_rec *conn,
-                                                server_rec *s)
+                             const char *result,
+                             long timeout)
  {
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "proxy: %s: has released connection for (%s)",
-                  proxy_function, conn->worker->hostname);
--    /* If there is a connection kill it's cleanup */
--    if (conn->connection) {
--        apr_pool_cleanup_kill(conn->connection->pool, conn, connection_cleanup);
--        conn->connection = NULL;
--    }
-     connection_cleanup(conn);
+     char buf[SSL_SESSION_ID_STRING_LEN];
+     char timeout_str[56] = {'\0'};
  
-     return OK;
+-    if (s->loglevel < APLOG_DEBUG) {
++    if (!APLOGdebug(s)) {
+         return;
+     }
+ 
+     if (timeout) {
+         apr_snprintf(timeout_str, sizeof(timeout_str),
+                      "timeout=%lds ", (timeout - time(NULL)));
+     }
+ 
+-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
++    ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
+                  "Inter-Process Session Cache: "
+                  "request=%s status=%s id=%s %s(session %s)",
+                  request, status,
+                  SSL_SESSION_id2sz(id, idlen, buf, sizeof(buf)),
+                  timeout_str, result);
  }
- 
- PROXY_DECLARE(int)

@@ -1,24 +1,13 @@
-        else {
-            /*
-             * Dumb user has given us a bad url to redirect to --- fake up
-             * dying with a recursive server error...
-             */
-            recursive_error = SERVER_ERROR;
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Invalid error redirection directive: %s",
-                        custom_response);
-        }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02173)
+                     "Invalid parameters for %s", cmd->cmd->name);
+        return;
     }
-    ap_send_error_response(r, recursive_error);
-}
 
-static void decl_die(int status, char *phase, request_rec *r)
-{
-    if (status == DECLINED) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r,
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-        ap_die(SERVER_ERROR, r);
+    if (arg2 && (*(str = ap_getword_conf(cmd->pool, &arg2)) != '\0')) {
+        max = atol(str);
     }
-    else
-        ap_die(status, r);
-}
+
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+        limit->rlim_cur = cur;

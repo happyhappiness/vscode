@@ -1,41 +1,66 @@
-{
-    apr_pool_destroy(process->pool); /* and destroy all descendent pools */
-    apr_terminate();
-    exit(process_exit_value);
-}
-
-static process_rec *create_process(int argc, const char * const *argv)
-{
-    process_rec *process;
-    apr_pool_t *cntx;
-    apr_status_t stat;
-
-    stat = apr_pool_create(&cntx, NULL);
-    if (stat != APR_SUCCESS) {
-        /* XXX From the time that we took away the NULL pool->malloc mapping
-         *     we have been unable to log here without segfaulting.
-         */
-        ap_log_error(APLOG_MARK, APLOG_ERR, stat, NULL,
-                     "apr_pool_create() failed to create "
-                     "initial context");
-        apr_terminate();
-        exit(1);
+                         "restart a new child process.", my_pid);
+            ap_signal_parent(SIGNAL_PARENT_RESTART);
+            break;
+        }
     }
 
-    apr_pool_tag(cntx, "process");
-    ap_open_stderr_log(cntx);
+    /*
+     * Time to shutdown the child process
+     */
 
-    process = apr_palloc(cntx, sizeof(process_rec));
-    process->pool = cntx;
+ shutdown:
 
-    apr_pool_create(&process->pconf, process->pool);
-    apr_pool_tag(process->pconf, "pconf");
-    process->argc = argc;
-    process->argv = argv;
-    process->short_name = apr_filepath_name_get(argv[0]);
-    return process;
-}
+    winnt_mpm_state = AP_MPMQ_STOPPING;
+    /* Setting is_graceful will cause threads handling keep-alive connections
+     * to close the connection after handling the current request.
+     */
+    is_graceful = 1;
 
-static void usage(process_rec *process)
-{
-    const char *bin = process->argv[0];
+    /* Close the listening sockets. Note, we must close the listeners
+     * before closing any accept sockets pending in AcceptEx to prevent
+     * memory leaks in the kernel.
+     */
+    for (lr = ap_listeners; lr ; lr = lr->next) {
+        apr_socket_close(lr->sd);
+    }
+
+    /* Shutdown listener threads and pending AcceptEx socksts
+     * but allow the worker threads to continue consuming from
+     * the queue of accepted connections.
+     */
+    shutdown_in_progress = 1;
+
+    Sleep(1000);
+
+    /* Tell the worker threads to exit */
+    workers_may_exit = 1;
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);
+    }
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
+        }
+    }
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+        while (g_blocked_threads > 0) {
+            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+            for (i=g_blocked_threads; i > 0; i--) {
+                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+            }
+            Sleep(1000);
+        }

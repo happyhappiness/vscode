@@ -1,13 +1,24 @@
-                                             &ldap_module);
+                                                     0,
+                                                     0); /* CONCURRENT ACTIVE THREADS */
+         apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+         qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+         if (!qwait_event) {
+             ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+-                         "Child %d: Failed to create a qwait event.", my_pid);
++                         "Child %lu: Failed to create a qwait event.", my_pid);
+             exit(APEXIT_CHILDINIT);
+         }
+     }
  
- #if APR_HAS_SHARED_MEMORY
-             st_vhost->cache_shm = st->cache_shm;
-             st_vhost->cache_rmm = st->cache_rmm;
-             st_vhost->cache_file = st->cache_file;
-+            st_vhost->util_ldap_cache = st->util_ldap_cache;
-             ap_log_error(APLOG_MARK, APLOG_DEBUG, result, s,
-                          "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp "
-                          "for VHOST: %s", st->cache_shm, st->cache_rmm,
-                          s_vhost->server_hostname);
- #endif
-             st_vhost->lock_file = st->lock_file;
+     /*
+      * Create the pool of worker threads
+      */
+     ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+-                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
++                 "Child %lu: Starting %d worker threads.", my_pid, ap_threads_per_child);
+     child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(HANDLE));
+     apr_thread_mutex_create(&child_lock, APR_THREAD_MUTEX_DEFAULT, pchild);
+ 
+     while (1) {
+         for (i = 0; i < ap_threads_per_child; i++) {
+             int *score_idx;

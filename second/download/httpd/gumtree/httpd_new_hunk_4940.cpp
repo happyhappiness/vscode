@@ -1,23 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
+        nWrite = strlen(status->errbuf);
 
-    /* cleanup pid file on normal shutdown */
-    {
-	const char *pidfile = NULL;
-	pidfile = ap_server_root_relative (pparent, ap_pid_fname);
-	if ( pidfile != NULL && unlink(pidfile) == 0)
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			 server_conf,
-			 "httpd: removed PID file %s (pid=%ld)",
-			 pidfile, (long)getpid());
+        if (apr_file_trunc(status->current.fd, 0) != APR_SUCCESS) {
+            fprintf(stderr, "Error truncating the file %s\n", status->current.name);
+            exit(2);
+        }
+        if (apr_file_write_full(status->current.fd, status->errbuf, nWrite, NULL) != APR_SUCCESS) {
+            fprintf(stderr, "Error writing to the file %s\n", status->current.name);
+            exit(2);
+        }
     }
 
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+    status->nMessCount = 0;

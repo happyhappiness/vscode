@@ -1,29 +1,12 @@
-                "be a multiple of the rotation time, so you can synchronize\n"
-                "cron scripts with it). At the end of each rotation time or "
-                "when the file size\nis reached a new log is started.\n");
-        exit(1);
+        /* Set the alias dereferencing option */
+        ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &(ldc->deref));
+
+        /* always default to LDAP V3 */
+        ldap_set_option(ldc->ldap, LDAP_OPT_PROTOCOL_VERSION, &version);
+
     }
 
-    szLogRoot = argv[1];
 
-    ptr = strchr (argv[2], 'M');
-    if (ptr) {
-        if (*(ptr+1) == '\0') {
-            sRotation = atoi(argv[2]) * 1048576;
-        }
-        if (sRotation == 0) {
-            fprintf(stderr, "Invalid rotation size parameter\n");
-            exit(1);
-        }
-    }
-    else {
-        if (argc >= 4) {
-            utc_offset = atoi(argv[3]) * 60;
-        }
-        tRotation = atoi(argv[2]);
-        if (tRotation <= 0) {
-            fprintf(stderr, "Rotation time must be > 0\n");
-            exit(6);
-        }
-    }
-
+    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
+     * returned.  Break out of the loop on Success or any other error.
+     *

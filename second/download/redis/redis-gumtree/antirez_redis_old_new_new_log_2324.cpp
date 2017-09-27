@@ -1,1 +1,0 @@
-fprintf(stderr,"       ./redis-server /etc/sentinel.conf --sentinel\n");

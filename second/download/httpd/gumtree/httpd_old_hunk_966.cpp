@@ -1,31 +1,25 @@
-        if (!signal && (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED)) {
-            fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
-            CloseServiceHandle(schService);
-            CloseServiceHandle(schSCManager);
-            return;
-        }
-        
-        fprintf(stderr,"The %s service is %s.\n", mpm_display_name, 
-               signal ? "restarting" : "stopping");
-
-        if (!signal)
-            success = signal_service_transition(schService, 
-                                                SERVICE_CONTROL_STOP, 
-                                                SERVICE_STOP_PENDING, 
-                                                SERVICE_STOPPED);
-        else if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
-            mpm_service_start(ptemp, 0, NULL);
-            CloseServiceHandle(schService);
-            CloseServiceHandle(schSCManager);
-            return;
-        }
-        else
-            success = signal_service_transition(schService, 
-                                                SERVICE_APACHE_RESTART, 
-                                                SERVICE_START_PENDING, 
-                                                SERVICE_RUNNING);
-
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
+         */
+        return APR_SUCCESS;
     }
-    else /* !isWindowsNT() */
+    return rv;
+}
+
+APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
+                                        const char *format, ...)
+{
+    apr_status_t cc;
+    va_list ap;
+    char *buf;
+    int len;
+
+    buf = malloc(HUGE_STRING_LEN);
+    if (buf == NULL) {
+        return 0;
+    }
+    va_start(ap, format);
+    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
+    cc = apr_file_puts(buf, fptr);
+    va_end(ap);
+    free(buf);
+    return (cc == APR_SUCCESS) ? len : -1;
+}

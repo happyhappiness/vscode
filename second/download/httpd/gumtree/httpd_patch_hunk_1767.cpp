@@ -1,68 +1,30 @@
-              * Calling ap_save_brigade with NULL as filter is OK, because
-              * bb brigade already has been created and does not need to get
-              * created by ap_save_brigade.
-              */
-             status = ap_save_brigade(NULL, &bb, &input_brigade, p);
-             if (status != APR_SUCCESS) {
--                return status;
-+                return HTTP_INTERNAL_SERVER_ERROR;
+                               "insecure SSL re-negotiation required, but "
+                               "a pipelined request is present; keepalive "
+                               "disabled");
+                 r->connection->keepalive = AP_CONN_CLOSE;
              }
  
-             header_brigade = NULL;
-         }
-         else {
-             bb = input_brigade;
-         }
+-#if defined(SSL_get_secure_renegotiation_support)
+-            reneg_support = SSL_get_secure_renegotiation_support(ssl) ?
+-                            "client does" : "client does not";
+-#else
+-            reneg_support = "server does not";
+-#endif
+             /* Perform a full renegotiation. */
+             ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                           "Performing full renegotiation: complete handshake "
+                           "protocol (%s support secure renegotiation)",
+-                          reneg_support);
++#if defined(SSL_get_secure_renegotiation_support)
++                          SSL_get_secure_renegotiation_support(ssl) ? 
++                          "client does" : "client does not"
++#else
++                          "server does not"
++#endif
++                );
  
-         /* Once we hit EOS, we are ready to flush. */
--        status = pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
--        if (status != APR_SUCCESS) {
--            return status;
-+        rv = pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
-+        if (rv != OK) {
-+            return rv ;
-         }
+             SSL_set_session_id_context(ssl,
+                                        (unsigned char *)&id,
+                                        sizeof(id));
  
-         if (seen_eos) {
-             break;
-         }
- 
-         status = ap_get_brigade(r->input_filters, input_brigade,
-                                 AP_MODE_READBYTES, APR_BLOCK_READ,
-                                 HUGE_STRING_LEN);
- 
-         if (status != APR_SUCCESS) {
--            return status;
-+            return HTTP_BAD_REQUEST;
-         }
-     }
- 
-     if (bytes_streamed != cl_val) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                      "proxy: client %s given Content-Length did not match"
-                      " number of body bytes read", r->connection->remote_ip);
--        return APR_EOF;
-+        return HTTP_BAD_REQUEST;
-     }
- 
-     if (header_brigade) {
-         /* we never sent the header brigade since there was no request
-          * body; send it now with the flush flag
-          */
-         bb = header_brigade;
--        status = pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1);
-+        return(pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
-     }
--    return status;
-+
-+    return OK;
- }
- 
--static apr_status_t spool_reqbody_cl(apr_pool_t *p,
-+static int spool_reqbody_cl(apr_pool_t *p,
-                                      request_rec *r,
-                                      proxy_conn_rec *p_conn,
-                                      conn_rec *origin,
-                                      apr_bucket_brigade *header_brigade,
-                                      apr_bucket_brigade *input_brigade,
-                                      int force_cl)
+             /* Toggle the renegotiation state to allow the new

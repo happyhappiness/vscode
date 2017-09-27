@@ -1,26 +1,28 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+/*
+ * Create an already defined worker and free up memory
+ */
+PROXY_DECLARE(apr_status_t) ap_proxy_share_worker(proxy_worker *worker, proxy_worker_shared *shm,
+                                                  int i)
+{
+    char *action = "copying";
+    if (!shm || !worker->s)
+        return APR_EINVAL;
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+    if ((worker->s->hash.def != shm->hash.def) ||
+        (worker->s->hash.fnv != shm->hash.fnv)) {
+        memcpy(shm, worker->s, sizeof(proxy_worker_shared));
+        if (worker->s->was_malloced)
+            free(worker->s); /* was malloced in ap_proxy_define_worker */
+    } else {
+        action = "re-using";
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
+                 "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
+                 worker->s->name);
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    worker->s = shm;
+    worker->s->index = i;
+    return APR_SUCCESS;
+}
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+PROXY_DECLARE(apr_status_t) ap_proxy_initialize_worker(proxy_worker *worker, server_rec *s, apr_pool_t *p)

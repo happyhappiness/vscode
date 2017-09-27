@@ -1,13 +1,12 @@
-            apr_socket_timeout_set(newsock, conf->timeout);
-        }
-        else {
-             apr_socket_timeout_set(newsock, s->timeout);
-        }
+    /* Add the server side to the poll */
+    pollfd.desc.s = sock;
+    apr_pollset_add(pollset, &pollfd);
 
-        conn->sock   = newsock;
-        connected    = 1;
-    }
-    /*
-     * Put the entire worker to error state if
-     * the PROXY_WORKER_IGNORE_ERRORS flag is not set.
-     * Altrough some connections may be alive
+    while (1) { /* Infinite loop until error (one side closes the connection) */
+        if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled)) != APR_SUCCESS) {
+            apr_socket_close(sock);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "proxy: CONNECT: error apr_poll()");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+#ifdef DEBUGGING
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

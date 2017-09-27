@@ -1,3 +1,2 @@
-printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
-       "<td colspan=2 %s>%ld bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalread);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                         "proxy: ap_get_brigade failed");

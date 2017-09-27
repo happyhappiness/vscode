@@ -1,12 +1,30 @@
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
     }
 
-    /* Create the child_ready_event */
-    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!waitlist[waitlist_ready]) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Could not create ready event for child process");
-        apr_pool_destroy (ptemp);
+
+    if (r->method_number == M_OPTIONS) {
+        apr_bucket *b = NULL;
+        /* This is a mandatory SSL upgrade. */
+
+        upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+
+        ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+                    UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+
+        b = apr_bucket_flush_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+        ap_pass_brigade(f->next, upgradebb);
+    }
+    else {
+        /* This is optional, and should be configurable, for now don't bother
+         * doing anything.
+         */
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    key = get_port_key(r->connection);
+
+    if (csd && key) {
+        int sockdes;

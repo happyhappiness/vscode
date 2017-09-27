@@ -1,20 +1,18 @@
-#endif
+    SSLModConfigRec *mc = myModConfig(base_server);
+    SSLSrvConfigRec *sc;
+    server_rec *s;
+    apr_status_t rv;
+    apr_array_header_t *pphrases;
 
-    ap_soft_timeout("send body", r);
+    if (SSLeay() < SSL_LIBRARY_VERSION) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01882)
+                     "Init: this version of mod_ssl was compiled against "
+                     "a newer library (%s, version currently loaded is %s)"
+                     " - may result in undefined or erroneous behavior",
+                     SSL_LIBRARY_TEXT, SSLeay_version(SSLEAY_VERSION));
+    }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    /* We initialize mc->pid per-process in the child init,
+     * but it should be initialized for startup before we
+     * call ssl_rand_seed() below.
+     */

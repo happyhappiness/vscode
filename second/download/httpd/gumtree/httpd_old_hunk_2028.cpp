@@ -1,13 +1,12 @@
+            fprintf(stderr, "No rotation time or size specified\n");
+            exit(2);
+        }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+        if (nLogFD == NULL) {
+            int tLogStart;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+            if (tRotation) {
+                tLogStart = (now / tRotation) * tRotation;
+            }
+            else {
+                tLogStart = (int)apr_time_sec(apr_time_now());

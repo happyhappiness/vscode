@@ -1,15 +1,12 @@
+                worker->s->error_time = apr_time_now();
+                break;
+            }
+        }
     }
 
-    if (num_ranges == 0 && unsatisfiable) {
-        /* If all ranges are unsatisfiable, we should return 416 */
-        return -1;
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
     }
-    if (sum_lengths >= clength) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Sum of ranges not smaller than file, ignoring.");
-        return 0;
-    }
-
-    r->status = HTTP_PARTIAL_CONTENT;
-    r->range = it;
-
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

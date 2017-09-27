@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
-
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
-
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: read response failed from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        /*
+         * This is only non fatal when we have not sent (parts) of a possible
+         * request body so far (we do not store it and thus cannot send it
+         * again) and the method is idempotent. In this case we can dare to
+         * retry it with a different worker if we are a balancer member.
+         */
+        if (!send_body && (is_idempotent(r) == METHOD_IDEMPOTENT)) {
+            return HTTP_SERVICE_UNAVAILABLE;
+        }

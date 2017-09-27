@@ -1,18 +1,28 @@
-        /* Create the worker thread dispatch IOCP */
-        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                    NULL,
-                                                    0,
-                                                    0); /* CONCURRENT ACTIVE THREADS */
-        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
-        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (!qwait_event) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                         "Child %d: Failed to create a qwait event.", my_pid);
-            exit(APEXIT_CHILDINIT);
-        }
+{
+    if (sig == SIGHUP) {
+        ++daemon_should_exit;
     }
+}
 
-    /* 
-     * Create the pool of worker threads
+static void cgid_child_errfn(apr_pool_t *pool, apr_status_t err,
+                             const char *description)
+{
+    request_rec *r;
+    void *vr;
+
+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
+    r = vr;
+
+    /* sure we got r, but don't call ap_log_rerror() because we don't
+     * have r->headers_in and possibly other storage referenced by
+     * ap_log_rerror()
      */
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+}
+
+static int cgid_server(void *data) 
+{ 
+    struct sockaddr_un unix_addr;
+    int sd, sd2, rc;
+    mode_t omask;
+    apr_socklen_t len;

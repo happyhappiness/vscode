@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
+        ajp_msg_append_uint8(msg, is_ssl)                        ||
+        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message beginning");
+        return APR_EGENERAL;
+    }
+
+    for (i = 0 ; i < num_headers ; i++) {
+        int sc;
+        const apr_array_header_t *t = apr_table_elts(r->headers_in);

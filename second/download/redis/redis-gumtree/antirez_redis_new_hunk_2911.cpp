@@ -1,7 +1,0 @@
-         * it exists, because we reference it with "oldfd". */
-        if (rename(tmpfile,server.aof_filename) == -1) {
-            redisLog(REDIS_WARNING,
-                "Error trying to rename the temporary AOF file: %s", strerror(errno));
-            close(newfd);
-            if (oldfd != -1) close(oldfd);
-            goto cleanup;

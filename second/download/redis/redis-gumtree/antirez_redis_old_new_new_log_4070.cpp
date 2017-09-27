@@ -1,1 +1,0 @@
-printf("Invalid argument: %s\n", argv[1]);

@@ -1,15 +1,13 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+    /* allocate an AJP message to store the data of the buckets */
+    bufsiz = maxsize;
+    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
+    if (status != APR_SUCCESS) {
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00869)
+                      "ajp_alloc_data_msg failed");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
+    /* read the first bloc of data */

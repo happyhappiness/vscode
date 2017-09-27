@@ -1,1 +1,0 @@
-f("Stress with variable ziplist size:\n");

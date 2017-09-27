@@ -1,13 +1,19 @@
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
 
-    if (result == DECLINED && r->handler && r->filename) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-    if ((result != OK) && (result != DONE) && (result != DECLINED)
-        && (result != AP_FILTER_ERROR)
-        && !ap_is_HTTP_VALID_RESPONSE(result)) {
-        /* If a module is deliberately returning something else
-         * (request_rec in non-HTTP or proprietary extension?)
-         * let it set a note to allow it explicitly.
-         * Otherwise, a return code that is neither reserved nor HTTP
-         * is a bug, as in PR#31759.
+            return HTTP_FORBIDDEN;
+        }
+
+        if (ok != 1) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Access to %s denied for %s "
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->connection->remote_ip);
+
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled "
+                          "(see SSL logfile for more details)");

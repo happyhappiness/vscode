@@ -1,1 +1,1 @@
-apr_pool_destroy(ptrans);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);

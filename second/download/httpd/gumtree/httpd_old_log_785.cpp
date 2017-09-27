@@ -1,1 +1,3 @@
-ap_add_output_filter("CHUNK", NULL, r, r->connection);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "mod_rewrite's internal redirect status: %d/%d.",
+                  reqc->redirects, reqc->redirect_limit);

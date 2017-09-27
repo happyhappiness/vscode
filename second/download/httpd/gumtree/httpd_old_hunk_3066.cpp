@@ -1,14 +1,15 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
+            if (status != OK) {
+                return HTTP_SERVICE_UNAVAILABLE;
+            }
+            readlen = ap_get_client_block(r, buf, AP_IOBUFSIZE);
+        }
+        if (readlen == -1) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: " PROXY_FUNCTION ": receiving request body "
+                          "failed");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+    return OK;
+}

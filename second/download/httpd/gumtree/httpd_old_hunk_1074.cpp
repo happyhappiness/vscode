@@ -1,29 +1,22 @@
-    apr_terminate();
-#ifdef NETWARE
-    pressanykey();
+     * If the connection pool is NULL the worker
+     * cleanup has been run. Just return.
+     */
+    if (!worker->cp)
+        return APR_SUCCESS;
+
+    /* deterimine if the connection need to be closed */
+    if (conn->close_on_recycle || conn->close) {
+        apr_pool_t *p = conn->pool;
+        apr_pool_clear(conn->pool);
+        memset(conn, 0, sizeof(proxy_conn_rec));
+        conn->pool = p;
+        conn->worker = worker;
+    }
+#if APR_HAS_THREADS
+    if (worker->hmax && worker->cp->res) {
+        apr_reslist_release(worker->cp->res, (void *)conn);
+    }
+    else
 #endif
-}
-
-static void htdbm_terminate(htdbm_t *htdbm) 
-{
-    if (htdbm->dbm)
-        apr_dbm_close(htdbm->dbm);
-    htdbm->dbm = NULL;
-}
-
-static htdbm_t *h;
-  
-static void htdbm_interrupted(void) 
-{
-    htdbm_terminate(h);
-    fprintf(stderr, "htdbm Interrupted !\n");
-    exit(ERR_INTERRUPTED);
-}
-
-static apr_status_t htdbm_init(apr_pool_t **pool, htdbm_t **hdbm) 
-{
-
-#if APR_CHARSET_EBCDIC
-    apr_status_t rv;
-#endif
-
+    {
+        worker->cp->conn = conn;

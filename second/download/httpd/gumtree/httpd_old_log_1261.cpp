@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "User %s not found\n", user);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: Can't connect to %s[%s]", svr->name, svr->params);

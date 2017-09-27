@@ -1,0 +1,1 @@
+fprintf(output, "logresolve Statistics:\n");

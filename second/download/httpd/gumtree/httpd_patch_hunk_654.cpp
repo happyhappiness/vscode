@@ -1,45 +1,42 @@
-                       "Digest: unknown algorithm `%s' received: %s",
-                       resp->algorithm, r->uri);
-         note_digest_auth_failure(r, conf, resp, 0);
-         return HTTP_UNAUTHORIZED;
+                                       conf->limit_nproc)) != APR_SUCCESS) ||
+ #endif
+         ((rc = apr_procattr_cmdtype_set(procattr,
+                                         e_info->cmd_type)) != APR_SUCCESS) ||
+ 
+         ((rc = apr_procattr_detach_set(procattr,
+-                                        e_info->detached & AP_PROC_DETACHED)) != APR_SUCCESS) ||
++                                        e_info->detached)) != APR_SUCCESS) ||
+         ((rc = apr_procattr_addrspace_set(procattr,
+-                                        (e_info->detached & AP_PROC_NEWADDRSPACE) ? 1 : 0)) != APR_SUCCESS) ||
++                                        e_info->addrspace)) != APR_SUCCESS) ||
+         ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
+         /* Something bad happened, tell the world. */
+         ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                       "couldn't set child process attributes: %s", r->filename);
      }
- 
--    if (!conf->pwfile) {
--        return DECLINED;
--    }
-+    return_code = get_hash(r, r->user, conf);
- 
--    if (!(conf->ha1 = get_hash(r, r->user, conf->realm, conf->pwfile))) {
-+    if (return_code == AUTH_USER_NOT_FOUND) {
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                       "Digest: user `%s' in realm `%s' not found: %s",
-                       r->user, conf->realm, r->uri);
-         note_digest_auth_failure(r, conf, resp, 0);
-         return HTTP_UNAUTHORIZED;
-     }
-+    else if (return_code == AUTH_USER_FOUND) {
-+        /* we have a password, so continue */
-+    }
-+    else if (return_code == AUTH_DENIED) {
-+        /* authentication denied in the provider before attempting a match */
-+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
-+                      r->user, conf->realm, r->uri);
-+        note_digest_auth_failure(r, conf, resp, 0);
-+        return HTTP_UNAUTHORIZED;
-+    }
-+    else {
-+        /* AUTH_GENERAL_ERROR (or worse)
-+         * We'll assume that the module has already said what its error
-+         * was in the logs.
-+         */
-+        return HTTP_INTERNAL_SERVER_ERROR;
-+    }
- 
+     else {
+         procnew = apr_pcalloc(p, sizeof(*procnew));
+-        if (e_info->prog_type == RUN_AS_SSI) {
+-            SPLIT_AND_PASS_PRETAG_BUCKETS(*(e_info->bb), e_info->ctx,
+-                                          e_info->next, rc);
+-            if (rc != APR_SUCCESS) {
+-                return rc;
+-            }
+-        }
+-
+         rc = ap_os_create_privileged_process(r, procnew, command, argv, env,
+                                              procattr, p);
 -    
-     if (resp->message_qop == NULL) {
-         /* old (rfc-2069) style digest */
-         if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                           "Digest: user %s: password mismatch: %s", r->user,
-                           r->uri);
++
+         if (rc != APR_SUCCESS) {
+             /* Bad things happened. Everyone should have cleaned up. */
+             ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, rc, r,
+                           "couldn't create child process: %d: %s", rc,
+-                          apr_filename_of_pathname(r->filename));
++                          apr_filepath_name_get(r->filename));
+         }
+         else {
+             apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
+ 
+             *script_in = procnew->out;
+             if (!*script_in)

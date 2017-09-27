@@ -1,28 +1,37 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
+        /* Client tried to authenticate using wrong auth scheme */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client used wrong authentication scheme: %s", r->uri);
+        ap_note_basic_auth_failure(r);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    while (*auth_line == ' ' || *auth_line == '\t') {
+        auth_line++;
+    }
+
+    t = ap_pbase64decode(r->pool, auth_line);
+    r->user = ap_getword_nulls (r->pool, &t, ':');
+    r->ap_auth_type = "Basic";
+
+    *pw = t;
+
+    return OK;
 }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+struct content_length_ctx {
+    int data_sent;  /* true if the C-L filter has already sent at
+                     * least one bucket on to the next output filter
+                     * for this request
+                     */
+    apr_bucket_brigade *tmpbb;
+};
+
+/* This filter computes the content length, but it also computes the number
+ * of bytes sent to the client.  This means that this filter will always run
+ * through all of the buckets in all brigades
+ */

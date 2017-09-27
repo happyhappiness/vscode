@@ -1,1 +1,0 @@
-printf(" -p <port>          Server port (default 6379)\n");

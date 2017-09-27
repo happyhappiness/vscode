@@ -1,26 +1,18 @@
-    unsigned int optParam;
-    WSAPROTOCOL_INFO SecureProtoInfo;
-    int no = 1;
+    e_info.out_pipe    = APR_CHILD_BLOCK;
+    e_info.err_pipe    = APR_CHILD_BLOCK;
+    e_info.prog_type   = RUN_AS_CGI;
+    e_info.bb          = NULL;
+    e_info.ctx         = NULL;
+    e_info.next        = NULL;
+    e_info.addrspace   = 0;
 
-    if (server->sin_addr.s_addr != htonl(INADDR_ANY))
-        apr_snprintf(addr, sizeof(addr), "address %s port %d",
-            inet_ntoa(server->sin_addr), ntohs(server->sin_port));
-    else
-        apr_snprintf(addr, sizeof(addr), "port %d", ntohs(server->sin_port));
+    /* build the command line */
+    if ((rv = cgi_build_command(&command, &argv, r, p, &e_info)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "don't know how to spawn child process: %s",
+                      r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-    /* note that because we're about to slack we don't use psocket */
-    memset(&SecureProtoInfo, 0, sizeof(WSAPROTOCOL_INFO));
-
-    SecureProtoInfo.iAddressFamily = AF_INET;
-    SecureProtoInfo.iSocketType = SOCK_STREAM;
-    SecureProtoInfo.iProtocol = IPPROTO_TCP;
-    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
-
-    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
-            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
-
-    if (s == INVALID_SOCKET) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: failed to get a socket for %s",
-                     addr);
-        return -1;
+    /* run the script in its own process */
+    if ((rv = run_cgi_child(&script_out, &script_in, &script_err,

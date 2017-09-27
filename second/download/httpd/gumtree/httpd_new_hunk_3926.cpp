@@ -1,19 +1,22 @@
-    if (!method_restricted)
-	return OK;
+     * back to "blocking" here ensures such operations don't fail with
+     * SSL_ERROR_WANT_READ. */
+    inctx->block = APR_BLOCK_READ;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    /* Handle custom errors. */
+    if (status != APR_SUCCESS) {
+        return ssl_io_filter_error(f, bb, status, 0);
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    /* Create a transient bucket out of the decrypted data. */
+    if (len > 0) {
+        apr_bucket *bucket =
+            apr_bucket_transient_create(start, len, f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, bucket);
+    }
+
+    return APR_SUCCESS;
 }
 
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+
+/* ssl_io_filter_output() produces one SSL/TLS message per bucket
+ * passed down the output filter stack.  This results in a high

@@ -1,56 +1,18 @@
-             * See if this is our user.
-             */
-            colon = strchr(scratch, ':');
-            if (colon != NULL) {
-                *colon = '\0';
-            }
-            else {
-                /*
-                 * If we've not got a colon on the line, this could well 
-                 * not be a valid htpasswd file.
-                 * We should bail at this point.
-                 */
-                apr_file_printf(errfile, "\n%s: The file %s does not appear "
-                                         "to be a valid htpasswd file.\n",
-                                argv[0], pwfilename);
-                apr_file_close(fpw);
-                exit(ERR_INVALID);
-            }
-            if (strcmp(user, scratch) != 0) {
-                putline(ftemp, line);
-                continue;
-            }
-            else {
-                if (!(mask & APHTP_DELUSER)) {
-                    /* We found the user we were looking for.
-                     * Add him to the file.
-                    */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, record);
-                    found++;
-                }
-                else {
-                    /* We found the user we were looking for.
-                     * Delete them from the file.
-                     */
-                    apr_file_printf(errfile, "Deleting ");
-                    found++;
-                }
-            }
-        }
-        apr_file_close(fpw);
-    }
-    if (!found && !(mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, record);
-    }
-    else if (!found && (mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "User %s not found\n", user);
-        exit(0);
-    }
-    apr_file_printf(errfile, "password for user %s\n", user);
+            (r->status != HTTP_NO_CONTENT) &&      /* not 204 */
+            (r->status != HTTP_RESET_CONTENT) &&   /* not 205 */
+            (r->status != HTTP_NOT_MODIFIED)) {    /* not 304 */
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
+            /* We need to copy the output headers and treat them as input
+             * headers as well.  BUT, we need to do this before we remove
+             * TE, so that they are preserved accordingly for
+             * ap_http_filter to know where to end.
+             */
+            rp->headers_in = apr_table_copy(r->pool, r->headers_out);
+
+            apr_table_unset(r->headers_out,"Transfer-Encoding");
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: start body send");
+             
+            /*
+             * if we are overriding the errors, we can't put the content

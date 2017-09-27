@@ -1,1 +1,1 @@
-ap_rputs("&lt;/", r);
+ap_rputs("<body><h1 align=\"center\">Apache Server Information</h1>\n", r);

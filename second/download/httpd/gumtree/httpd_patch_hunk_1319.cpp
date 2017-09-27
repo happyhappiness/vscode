@@ -1,15 +1,16 @@
-     /* Add the server side to the poll */
-     pollfd.desc.s = sock;
-     apr_pollset_add(pollset, &pollfd);
- 
-     while (1) { /* Infinite loop until error (one side closes the connection) */
-         if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled)) != APR_SUCCESS) {
-+            if (APR_STATUS_IS_EINTR(rv)) { 
-+                continue;
-+            }
-             apr_socket_close(sock);
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "proxy: CONNECT: error apr_poll()");
-             return HTTP_INTERNAL_SERVER_ERROR;
+         backend_failed = 1;
+         /* Return DONE to avoid error messages being added to the stream */
+         if (data_sent) {
+             rv = DONE;
          }
- #ifdef DEBUGGING
+     }
++    else if (!conn_reuse) {
++        /* Our backend signalled connection close */
++        conn->close++;
++    }
+     else {
          ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                      "proxy: got response from %pI (%s)",
+                      conn->worker->cp->addr,
+                      conn->worker->hostname);
+         rv = OK;

@@ -1,46 +1,24 @@
-     * the mkrecord() routine doesn't have access to argv[].
+     * for balancer, because this is failover attempt.
      */
-    if (!(mask & APHTP_DELUSER)) {
-        i = mkrecord(user, record, sizeof(record) - 1,
-                     password, alg);
-        if (i != 0) {
-            apr_file_printf(errfile, "%s: %s\n", argv[0], record);
-            exit(i);
-        }
-        if (mask & APHTP_NOFILE) {
-            printf("%s\n", record);
-            exit(0);
-        }
-    }
+    if (!*balancer &&
+        !(*balancer = ap_proxy_get_balancer(r->pool, conf, *url)))
+        return DECLINED;
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
+    /* Step 2: find the session route */
+
+    runtime = find_session_route(*balancer, r, &route, &sticky, url);
+    /* Lock the LoadBalancer
+     * XXX: perhaps we need the process lock here
      */
-    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
-        exit(ERR_FILEPERM);
+    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",
+                     (*balancer)->name);
+        return DECLINED;
     }
-    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
-
-    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
-        exit(ERR_FILEPERM);
-    }
-
-    /*
-     * If we're not creating a new file, copy records from the existing
-     * one to the temporary file until we find the specified user.
-     */
-    if (existing_file && !(mask & APHTP_NEWFILE)) {
-        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
-                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
-            apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
-            exit(ERR_FILEPERM);
-        }
-        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
-            char *colon;
-
+    if (runtime) {
+        int i, total_factor = 0;
+        proxy_worker *workers;
+        /* We have a sticky load balancer
+         * Update the workers status
+         * so that even session routes get

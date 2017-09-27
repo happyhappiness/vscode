@@ -1,1 +1,0 @@
-(reply[bulklen-1] != '\n') printf("\n");

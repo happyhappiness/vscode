@@ -1,57 +1,13 @@
-        lenp = apr_table_get(f->r->headers_in, "Content-Length");
+        worker->is_address_reusable = 0;
+    }
+    else {
+        worker->is_address_reusable = 1;
+    }
 
-        if (tenc) {
-            if (!strcasecmp(tenc, "chunked")) {
-                ctx->state = BODY_CHUNK;
-            }
+#if APR_HAS_THREADS
+    ap_mpm_query(AP_MPMQ_MAX_THREADS, &mpm_threads);
+    if (mpm_threads > 1) {
+        /* Set hard max to no more then mpm_threads */
+        if (worker->hmax == 0 || worker->hmax > mpm_threads) {
+            worker->hmax = mpm_threads;
         }
-        else if (lenp) {
-            char *endstr;
-
-            ctx->state = BODY_LENGTH;
-            errno = 0;
-
-            /* Protects against over/underflow, non-digit chars in the
-             * string (excluding leading space) (the endstr checks)
-             * and a negative number. */
-            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
-                || endstr == lenp || *endstr || ctx->remaining < 0) {
-                apr_bucket_brigade *bb;
-
-                ctx->remaining = 0;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                              "Invalid Content-Length");
-
-                bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
-                e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
-                                           f->r->pool, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-                e = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-                ctx->eos_sent = 1;
-                return ap_pass_brigade(f->r->output_filters, bb);
-            }
-
-            /* If we have a limit in effect and we know the C-L ahead of
-             * time, stop it here if it is invalid.
-             */
-            if (ctx->limit && ctx->limit < ctx->remaining) {
-                apr_bucket_brigade *bb;
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Requested content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
-                bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
-                e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
-                                           f->r->pool, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-                e = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(bb, e);
-                ctx->eos_sent = 1;
-                return ap_pass_brigade(f->r->output_filters, bb);
-            }
-        }
-
-        /* If we don't have a request entity indicated by the headers, EOS.
-         * (BODY_NONE is a valid intermediate state due to trailers,
-         *  but it isn't a valid starting state.)

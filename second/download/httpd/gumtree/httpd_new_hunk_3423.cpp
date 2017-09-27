@@ -1,13 +1,23 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+                return;
+            if (in.EventType == MOUSE_EVENT
+                    && (in.Event.MouseEvent.dwEventFlags == DOUBLE_CLICK))
+                return;
+        }
+        remains = ((start + 30) - time(NULL));
+        sprintf(count, "%d...",
+                (int)remains); /* 30 or less, so can't overflow int */
+        if (!SetConsoleCursorPosition(hConErr, coninfo.dwCursorPosition))
+            return;
+        if (!WriteConsole(hConErr, count, (DWORD)strlen(count), &result, NULL)
+                || !result)
+            return;
     }
+    while ((remains > 0) && WaitForSingleObject(hConIn, 1000) != WAIT_FAILED);
+}
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+static BOOL CALLBACK console_control_handler(DWORD ctrl_type)
+{
+    switch (ctrl_type)
+    {
+        case CTRL_BREAK_EVENT:
+            fprintf(stderr, "Apache server restarting...\n");

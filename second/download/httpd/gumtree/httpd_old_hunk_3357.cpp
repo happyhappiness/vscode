@@ -1,13 +1,13 @@
+static int setup_listeners(server_rec *s)
+{
+    ap_listen_rec *lr;
+    int sockdes;
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+    if (ap_setup_listeners(s) < 1 ) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+            "no listening sockets available, shutting down");
+        return -1;
     }
+
+    listenmaxfd = -1;
+    FD_ZERO(&listenfds);

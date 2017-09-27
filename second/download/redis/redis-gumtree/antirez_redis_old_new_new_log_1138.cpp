@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Unrecoverable error reading the append only file: %s", strerror(errno));

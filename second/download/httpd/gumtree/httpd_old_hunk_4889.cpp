@@ -1,40 +1,25 @@
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
+                if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01042)
+                                  "apr_socket_opt_set(APR_TCP_NODELAY): "
+                                  "Failed to set");
+                }
 
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-    /* Get the request... */
-
-#ifdef CHARSET_EBCDIC
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-#endif /* CHARSET_EBCDIC */
-    ap_keepalive_timeout("read request line", r);
-    if (!read_request_line(r)) {
-        ap_kill_timeout(r);
-	if (r->status != HTTP_REQUEST_TIME_OUT) {
-	    /* we must have had an error.*/
-	    ap_log_transaction(r);
-	}
-        return NULL;
+                /* make the connection */
+                apr_socket_addr_get(&data_addr, APR_REMOTE, sock);
+                apr_sockaddr_ip_get(&data_ip, data_addr);
+                apr_sockaddr_info_get(&epsv_addr, data_ip, connect_addr->family, data_port, 0, p);
+                rv = apr_socket_connect(data_sock, epsv_addr);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01043)
+                                  "EPSV attempt to connect to %pI failed - "
+                                  "Firewall/NAT?", epsv_addr);
+                    return ftp_proxyerror(r, backend, HTTP_BAD_GATEWAY, apr_psprintf(r->pool,
+                                                                           "EPSV attempt to connect to %pI failed - firewall/NAT?", epsv_addr));
+                }
+                else {
+                    connect = 1;
+                }
+            }
+        }
     }
-    if (!r->assbackwards) {
-        ap_hard_timeout("read request headers", r);
-        get_mime_headers(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {/* we must have had an error.*/
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		         "request failed for %s: error reading the headers",
-		         ap_get_remote_host(r->connection, r->per_dir_config, 
-					    REMOTE_NAME));
-	    ap_log_transaction(r);
-	    return NULL;
-	}
 
-    }
-    ap_kill_timeout(r);
-
-    r->status = HTTP_OK;                         /* Until further notice. */
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read
-     */
