@@ -1,3 +1,2 @@
 apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default." NL);
+            "On all other systems, the '-p' flag will probably not work." NL);

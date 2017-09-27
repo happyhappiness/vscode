@@ -1,0 +1,34 @@
+         /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+         if (!any_dying_threads) {
+             last_non_dead = i;
+             ++total_non_dead;
+         }
+     }
++
++    if (sick_child_detected) {
++        if (active_thread_count > 0) {
++            /* some child processes appear to be working.  don't kill the
++             * whole server.
++             */
++            sick_child_detected = 0;
++        }
++        else {
++            /* looks like a basket case.  give up.  
++             */
++            shutdown_pending = 1;
++            child_fatal = 1;
++            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
++                         ap_server_conf,
++                         "No active workers found..."
++                         " Apache is exiting!");
++            /* the child already logged the failure details */
++            return;
++        }
++    }
++                                                    
+     ap_max_daemons_limit = last_non_dead + 1;
+ 
+     if (idle_thread_count > max_spare_threads) {
+         /* Kill off one child */
+         ap_mpm_pod_signal(pod, TRUE);
+         idle_spawn_rate = 1;

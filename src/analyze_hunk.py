@@ -38,12 +38,14 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
     # deal with log existing in old file
     for old_loc in old_log_loc:
         if gumtree.set_old_loc(old_loc):
-            # old loc and old log
-            old_loc = old_hunk_loc + old_loc - 1
+            # log loc in old hunk, old loc and old log
+            old_hunk_log_loc = old_loc # index from 0
+            old_loc = old_hunk_loc + old_loc - 1 # index from 0
             old_log = gumtree.get_old_log()
 
-            # new loc and new log
+            # log loc in new hunk, new loc and new log
             new_loc = gumtree.get_new_loc()
+            new_hunk_log_loc = new_loc + 1 - new_hunk_loc
             new_log = gumtree.get_new_log()
             # if map
             if new_loc != -1:
@@ -54,23 +56,25 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
             # whether this old log is edited
             curr_action_type = action_type + gumtree.is_old_log_edited()
 
-            writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, curr_action_type])
+            writer.writerow(hunk_info + [old_hunk_log_loc, new_hunk_log_loc, old_loc, new_loc, old_log, new_log, curr_action_type])
             total_log += 1
 
     # deal with inserted log
     for new_loc in new_log_loc:
         if gumtree.set_new_loc(new_loc):
             # new loc and new log
+            new_hunk_log_loc = new_loc
             new_loc = new_hunk_loc + new_loc - 1
             new_log = gumtree.get_new_log()
 
             # old loc and old log
             old_loc = -1
+            old_hunk_log_loc = old_loc + 1 - old_hunk_loc
             old_log = None
 
             # curr action type
             curr_action_type = action_type + 1
-            writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, curr_action_type])
+            writer.writerow(hunk_info + [old_hunk_log_loc, new_hunk_log_loc, old_loc, new_loc, old_log, new_log, curr_action_type])
             total_log += 1
 
     return total_log

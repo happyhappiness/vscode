@@ -88,6 +88,11 @@ class LLVM:
         self.cdg_list = []
         self.ddg_list = []
         shell_output = shell_output.split('\n')
+        # mark not found
+        if len(shell_output) == 1:
+            self.cdg_list = [-1]
+            self.ddg_list = [-1]
+            return
         size = len(shell_output)
         for i in range(size):
             line = shell_output[i]
@@ -103,7 +108,7 @@ main function
 """
 if __name__ == "__main__":
     in_bc = '/usr/info/code/cpp/LogMonitor/LogMonitor/clang/hello.bc'
-    log_loc = 27
+    log_loc = 34
     llvm_api = LLVM(log_loc, in_bc)
     cdg, ddg = llvm_api.get_cdg_ddg_list()
     print 'cdg is: '

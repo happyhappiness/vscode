@@ -129,11 +129,13 @@ namespace {
 			// log basic block
 			BasicBlock* logBB = logInst->getParent();
 			// get control dependence function info
-			controlLoc = getControlLocForLogBasicBlock(logBB);
-			if(controlLoc)
+			BasicBlock* controlBB;
+			controlLoc = getControlLocForLogBasicBlock(logBB, controlBB);
+			if(controlLoc && controlBB)
 			{
+				// controlBB->dump();
 				errs() << "@cdg@: " << controlLoc << "\n";
-				getFunctionInfoForControlLoc();
+				getFunctionInfoForControlLoc(controlBB);
 			}
 		}
 
@@ -160,7 +162,7 @@ namespace {
 		}// end of getInstsForLogInst
 
 //		control dependence: immediate dominator which is unique predecessor
-		unsigned getControlLocForLogBasicBlock(BasicBlock* logBB)
+		unsigned getControlLocForLogBasicBlock(BasicBlock* logBB, BasicBlock*& controlBB)
 		{
 			// dst basic block dominates[not same] src basic block
 			auto idom = dominatorTree->getNode(logBB)->getIDom();
@@ -174,26 +176,28 @@ namespace {
 					// unique predecessor
 					if(logBB->getUniquePredecessor() == dstBB)
 					{
+						controlBB = dstBB;
+						//controlBB->dump();
 						return getDebugLocation(terminatorInst);
 					}
 					else
 					{
 						// find control location for dominator
-						return getControlLocForLogBasicBlock(dstBB);
+						return getControlLocForLogBasicBlock(dstBB, controlBB);
 					}
 				}
-
 			}
 			// no control dependence
+			controlBB = nullptr;
 			return 0;
 		}
 
 //		get function info for control location(data dependence and so on)
-		void getFunctionInfoForControlLoc()
+		void getFunctionInfoForControlLoc(BasicBlock* controlBB)
 		{
 			// fetch all instructions
 			InstVector insts;
-			getInstsForControlLoc(insts);
+			getInstsForControlLoc(controlBB, insts);
 			// deal with instructions
 			StringVector functions;
 			getFunctionInfoForInsts(insts, functions);
@@ -202,13 +206,13 @@ namespace {
 		}
 
 //		get instruction vector for given line(do not expand callInst)
-		void getInstsForControlLoc(InstVector& insts)
+		void getInstsForControlLoc(BasicBlock* controlBB, InstVector& insts)
 		{
 			// reverse iterator
 			for(inst_iterator srcIter = --inst_end(currFunction); srcIter != inst_begin(currFunction); srcIter--)
 			{
 				Instruction* currInst = &*srcIter;
-				if(getDebugLocation(currInst) != controlLoc)
+				if(getDebugLocation(currInst) != controlLoc || currInst->getParent() != controlBB)
 				{
 					continue;
 				}

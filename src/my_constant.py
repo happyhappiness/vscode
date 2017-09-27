@@ -26,6 +26,7 @@ REPOS_DIR = CURR_REPOS_DIR + 'repos/'
 # gumtree dir(hunk, block, function)
 GUMTREE_DIR = CURR_REPOS_DIR + 'gumtree/'
 # hunk
+DOWNLOAD_PATCH_HUNK = GUMTREE_DIR + REPOS + '_patch_hunk_'
 DOWNLOAD_OLD_HUNK = GUMTREE_DIR + REPOS + '_old_hunk_'
 DOWNLOAD_NEW_HUNK = GUMTREE_DIR + REPOS + '_new_hunk_'
 # log
@@ -56,8 +57,8 @@ NODE_DICT_FILE_NAME = 'data/fetch/' + REPOS + '_node_dict.csv'
 """
 fetch hunk file title and index
 """
-FETCH_HUNK_TITLE = ['patch_file', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk_loc', 'new_hunk_loc', \
-'old_log_loc', 'new_log_loc']
+FETCH_HUNK_TITLE = ['patch_file', 'old_file', 'new_file', 'patch_hunk_file','old_hunk_file', 'new_hunk_file', \
+    'old_hunk_loc', 'new_hunk_loc', 'old_log_loc', 'new_log_loc']
 FETCH_HUNK_OLD_HUNK_LOC = FETCH_HUNK_TITLE.index('old_hunk_loc')
 FETCH_HUNK_NEW_HUNK_LOC = FETCH_HUNK_TITLE.index('new_hunk_loc')
 FETCH_HUNK_OLD_LOG_LOC = FETCH_HUNK_TITLE.index('old_log_loc')
@@ -68,8 +69,8 @@ FETCH_HUNK_NEW_HUNK_FILE = FETCH_HUNK_TITLE.index('new_hunk_file')
 """
 fetch log file title and index
 """
-FETCH_LOG_TITLE = ['patch_file', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', \
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type']
+FETCH_LOG_TITLE = ['patch_file', 'old_file', 'new_file', 'patch_hunk_file', 'old_hunk_file', 'new_hunk_file', \
+  'old_hunk_loc', 'new_hunk_loc', 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type']
 FETCH_LOG_OLD_LOC = FETCH_LOG_TITLE.index('old_loc')
 FETCH_LOG_NEW_LOC = FETCH_LOG_TITLE.index('new_loc')
 FETCH_LOG_OLD_LOG = FETCH_LOG_TITLE.index('old_log')
