@@ -30,9 +30,7 @@ int main()
 	double k = 0;
 	if(i * j < 100)
 	{ 
-		if(i + eval(i + j + k) + j)
-		{
-			i = ptr(m);
+		if(i + eval(i + j + k) + j) { i = ptr(m);
 			printf("%d * %d < 100, m:%p, n:%d, eval:%d.\n", i, j
 				, m, n, eval(i));
 			j = eval(n);

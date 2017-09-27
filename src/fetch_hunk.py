@@ -22,7 +22,7 @@ import myUtil
 @ return hunk counter, old and new hunk
 @ involve store hunk file
 """
-def store_hunk(old_hunk, new_hunk, total_hunk):
+def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
     
     total_hunk += 1
     print 'now processing hunk: %d' %(total_hunk)
@@ -34,7 +34,11 @@ def store_hunk(old_hunk, new_hunk, total_hunk):
     new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
     myUtil.save_file(new_hunk, new_hunk_name)
 
-    return total_hunk, old_hunk_name, new_hunk_name
+    # store patch hunk file
+    patch_hunk_name = my_constant.DOWNLOAD_PATCH_HUNK + str(total_hunk) + '.cpp'
+    myUtil.save_file(patch_hunk, patch_hunk_name)
+
+    return total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name
 
 """
 @ param patch info, patch, log function, hunk counter and file writer
@@ -44,7 +48,7 @@ def store_hunk(old_hunk, new_hunk, total_hunk):
 def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writer):
 
     # old and new hunk content
-    old_hunk = new_hunk = ''
+    old_hunk = new_hunk = patch_hunk = ''
     # old and new file location of hunk top
     old_hunk_loc = new_hunk_loc = 0
     old_loc = new_loc = 0
@@ -61,15 +65,15 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
         if is_hunk:
             # if has log modification
             if len(old_log_loc) != 0 or len(new_log_loc) != 0:
-                total_hunk, old_hunk_name, new_hunk_name = store_hunk(old_hunk, new_hunk, total_hunk)
-                writer.writerow(version_diff_info + [old_hunk_name, new_hunk_name, \
+                total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name = store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk)
+                writer.writerow(version_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
                     old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
             # initialize hunk info
-            old_hunk = new_hunk = ''
+            old_hunk = new_hunk = patch_hunk = ''
             old_hunk_loc = is_hunk.group(1)
             new_hunk_loc = is_hunk.group(2)
             old_loc = new_loc = 0
-            old_log_loc = [] 
+            old_log_loc = []
             new_log_loc = []
             continue
 
@@ -77,6 +81,7 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
         change_type = line[0]
         if change_type not in ['-', '+', ' ']:
             continue
+        patch_hunk += line
         line = line[1:]
         # decide if it belongs to log change
         is_log_change = re.search(log_function, line, re.I)
@@ -95,8 +100,8 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
 
     # deal with last hunk, if has log update
     if len(old_log_loc) != 0 or len(new_log_loc) != 0:
-        total_hunk, old_hunk_name, new_hunk_name = store_hunk(old_hunk, new_hunk, total_hunk)
-        writer.writerow(version_diff_info + [old_hunk_name, new_hunk_name, \
+        total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name = store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk)
+        writer.writerow(version_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
             old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
 
     return total_hunk
@@ -252,7 +257,7 @@ def create_version_diff():
 main function
 """
 if __name__ == "__main__":
-    create_version_diff()
+    # create_version_diff()
     fetch_version_diff()
 
 
