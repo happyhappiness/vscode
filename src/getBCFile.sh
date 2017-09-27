@@ -10,7 +10,7 @@ do
     echo "now processing ${CODE_DIR}"
     cd ${CODE_DIR}
     `make clean`
-    `./configure`
+    `./configure --enable-modules="all"`
     `bear make`
     `${SMARTLOG_DIR}/script/extract_command_11.pl compile_commands.json`
     `./build_ir.sh`
