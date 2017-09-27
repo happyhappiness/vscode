@@ -1,23 +1,25 @@
-#endif
+        fprintf(stderr, "only simple translation is supported (%d/%"
+                        APR_SIZE_T_FMT "/%" APR_SIZE_T_FMT ")\n",
+                        status, inbytes_left, outbytes_left);
+        exit(1);
+    }
+#endif              /* NOT_ASCII */
+    
+    if (myhost) {
+        /* This only needs to be done once */
+        if ((rv = apr_sockaddr_info_get(&mysa, myhost, APR_UNSPEC, 0, 0, cntxt)) != APR_SUCCESS) {
+            char buf[120];
+            apr_snprintf(buf, sizeof(buf),
+                         "apr_sockaddr_info_get() for %s", myhost);
+            apr_err(buf, rv);
+        }
+    }
 
-static void show_compile_settings(void)
-{
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-#ifdef HAVE_MMAP
-    printf(" -D HAVE_MMAP\n");
-#endif
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
+    /* This too */
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost, 
+                                    myhost ? mysa->family : APR_UNSPEC,
+                                    connectport, 0, cntxt))
+       != APR_SUCCESS) {
+        char buf[120];
+        apr_snprintf(buf, sizeof(buf),
+                 "apr_sockaddr_info_get() for %s", connecthost);

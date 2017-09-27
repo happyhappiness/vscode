@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot create SSLMutex file `%s'",
-                     mc->szMutexFile);
+ap_rputs(util_ald_cache_display(r->pool), r);

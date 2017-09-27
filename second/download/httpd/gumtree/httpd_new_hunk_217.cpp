@@ -1,22 +1,17 @@
-                             "Re-negotiation handshake failed: "
-                             "Client verification failed");
 
-                return HTTP_FORBIDDEN;
-            }
-
-            if (do_verify) {
-                if ((peercert = SSL_get_peer_certificate(ssl)) == NULL) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                                 "Re-negotiation handshake failed: "
-                                 "Client certificate missing");
-
-                    return HTTP_FORBIDDEN;
+    entries = (rewritemap_entry *)rewritemaps->elts;
+    for (i = 0; i < rewritemaps->nelts; i++) {
+        s = &entries[i];
+        if (strcmp(s->name, name) == 0) {
+            if (s->type == MAPTYPE_TXT) {
+                if ((rv = apr_stat(&st, s->checkfile,
+                                   APR_FINFO_MIN, r->pool)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "mod_rewrite: can't access text RewriteMap "
+                                  "file %s", s->checkfile);
+                    rewritelog(r, 1, "can't open RewriteMap file, "
+                               "see error log");
+                    return NULL;
                 }
-
-                X509_free(peercert);
-            }
-        }
-    }
-
-    /*
-     * Check SSLRequire boolean expressions
+                value = get_cache_string(cachep, s->name, CACHEMODE_TS,
+                                         st.mtime, key);

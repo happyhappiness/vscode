@@ -1,12 +1,12 @@
-    st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
-    st->ssl_support = 0;
+    ap_sb_handle_t *sbh;
 
-    return st;
-}
+    if ((rv = apr_os_sock_get(&csd, sock)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, "apr_os_sock_get");
+    }
 
-static apr_status_t util_ldap_cleanup_module(void *data)
-{
-    server_rec *s = data;
+    if (thread_socket_table[thread_num] < 0) {
+        ap_sock_disable_nagle(sock);
+    }
 
-    util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
-                                          s->module_config, &ldap_module);
+    ap_create_sb_handle(&sbh, p, conn_id / thread_limit, thread_num);
+    current_conn = ap_run_create_connection(p, ap_server_conf, sock, conn_id, 

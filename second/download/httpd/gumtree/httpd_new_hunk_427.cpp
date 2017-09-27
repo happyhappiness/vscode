@@ -1,24 +1,38 @@
-                     * found in the cache, eject it in favor of the completed obj.
-                     */
-                    cache_object_t *tmp_obj =
-                      (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
-                    if (tmp_obj) {
-                        cache_remove(sconf->cache_cache, tmp_obj);
-                        tmp_obj->cleanup = 1;
-                        if (!tmp_obj->refcount) {
-                            cleanup_cache_object(tmp_obj);
-                        }
-                    }
-                    obj->cleanup = 0;
-                }
-                else {
-                    cache_remove(sconf->cache_cache, obj);
-                }
-                mobj->m_len = obj->count;
-                cache_insert(sconf->cache_cache, obj);                
-                if (sconf->lock) {
-                    apr_thread_mutex_unlock(sconf->lock);
-                }
-            }
-            /* Open for business */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+    }
+
+    if (pkp->cert_path) {
+        SSL_X509_INFO_load_path(ptemp, sk, pkp->cert_path);
+    }
+
+    if ((ncerts = sk_X509_INFO_num(sk)) <= 0) {
+        sk_X509_INFO_free(sk);
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "no client certs found for SSL proxy");
+        return;
+    }
+
+    /* Check that all client certs have got certificates and private
+     * keys. */
+    for (n = 0; n < ncerts; n++) {
+        X509_INFO *inf = sk_X509_INFO_value(sk, n);
+
+        if (!inf->x509 || !inf->x_pkey) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die();
+            return;
+        }
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
+}
+
+static void ssl_init_proxy_ctx(server_rec *s,
+                               apr_pool_t *p,
+                               apr_pool_t *ptemp,
+                               SSLSrvConfigRec *sc)

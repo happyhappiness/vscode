@@ -1,12 +1,12 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01914)
+                     "Configuring server %s for SSL protocol", sc->vhost_id);
+        if ((rv = ssl_init_server_ctx(s, p, ptemp, sc, pphrases))
+            != APR_SUCCESS) {
+            return rv;
+        }
     }
-}
 
-#else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+    if (sc->proxy_enabled) {
+        if ((rv = ssl_init_proxy_ctx(s, p, ptemp, sc)) != APR_SUCCESS) {
+            return rv;
+        }

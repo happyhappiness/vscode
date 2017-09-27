@@ -1,23 +1,18 @@
-                             "Error ajp_marshal_into_msgb - "
-                             "Error appending the SSL key size");
-                return APR_EGENERAL;
-            }
-        }
-    }
-    /* If the method was unrecognized, encode it as an attribute */
-    if (method == SC_M_JK_STORED) {
-        if (ajp_msg_append_uint8(msg, SC_A_STORED_METHOD)
-            || ajp_msg_append_string(msg, r->method)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "ajp_marshal_into_msgb: "
-                         "Error appending the method '%s' as request attribute",
-                         r->method);
-            return AJP_EOVERFLOW;
-        }
-    }
-    /* Forward the remote port information, which was forgotten
-     * from the builtin data of the AJP 13 protocol.
-     * Since the servlet spec allows to retrieve it via getRemotePort(),
-     * we provide the port to the Tomcat connector as a request
-     * attribute. Modern Tomcat versions know how to retrieve
-     * the remote port from this attribute.
+                        backend->close = 1;
+                        break;
+                    }
+                    /* next time try a non-blocking read */
+                    mode = APR_NONBLOCK_READ;
+
+                    if (!apr_is_empty_table(rp->trailers_in)) {
+                        apr_table_do(add_trailers, r->trailers_out,
+                                rp->trailers_in, NULL);
+                        apr_table_clear(rp->trailers_in);
+                    }
+
+                    apr_brigade_length(bb, 0, &readbytes);
+                    backend->worker->s->read += readbytes;
+#if DEBUGGING
+                    {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 r->server, "proxy (PID %d): readbytes: %#x",

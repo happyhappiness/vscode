@@ -1,12 +1,13 @@
+                /* client cert is in the session cache, but there is
+                 * no chain, since ssl3_get_client_certificate()
+                 * sk_X509_shift-ed the peer cert out of the chain.
+                 * we put it back here for the purpose of quick_renegotiation.
+                 */
+                cert_stack = sk_new_null();
+                sk_X509_push(cert_stack, cert);
+            }
 
-    unixd_set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
-    return NULL;
-}
-#endif
+            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Cannot find peer certificate chain");
 
-static const char *add_ct_output_filters(cmd_parms *cmd, void *conf_,
-                                         const char *arg, const char *arg2)
-{
-    core_dir_config *conf = conf_;
-    ap_filter_rec_t *old, *new = NULL;
-    const char *filter_name;

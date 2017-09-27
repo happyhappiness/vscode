@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
-    }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+                apr_brigade_write(bbout, NULL, NULL, data, len);
+
+                status = ap_pass_brigade(r->output_filters, bbout);
+                if (status != APR_SUCCESS) {
+                    /* no way to know what type of error occurred */
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                             "reflector_handler: ap_pass_brigade returned %i",
+                                  status);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+
+            }

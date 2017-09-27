@@ -1,0 +1,1 @@
+fprintf(stderr, "Could not allocate memory\n");

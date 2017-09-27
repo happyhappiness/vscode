@@ -1,17 +1,27 @@
-    /* Build the env array */
-    for (envc = 0; _environ[envc]; ++envc) {
-        ;
-    }
-    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
-    memcpy(env, _environ, envc * sizeof (char*));
-    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
-    env[envc] = pidbuf;
-    env[envc + 1] = NULL;
 
-    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Failed to create the child process.");
-        apr_pool_destroy(ptemp);
-        CloseHandle(hExitEvent);
-        CloseHandle(waitlist[waitlist_ready]);
+        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
+        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
+        klen = strlen(key);
+
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, 
+#ifdef OPENSSL_NO_TLSEXT
+                         APLOG_WARNING, 
+#else
+                         APLOG_DEBUG, 
+#endif
+                         0,
+                         base_server,
+#ifdef OPENSSL_NO_TLSEXT
+                         "Init: SSL server IP/port conflict: "
+#else
+                         "Init: SSL server IP/port overlap: "
+#endif
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s),
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"),
+                         ps->defn_line_number);
+            conflict = TRUE;

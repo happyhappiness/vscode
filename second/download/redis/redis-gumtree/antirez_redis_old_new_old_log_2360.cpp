@@ -1,1 +1,0 @@
-printf("%02x\n", encoding);

@@ -1,20 +1,36 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
+    
+    status = h2_stream_read_to(stream, session->bbtmp, &len, &eos);
+    if (status != APR_SUCCESS) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2_stream(%ld-%d): send_data_cb, reading stream",
+                      session->id, (int)stream_id);
+        apr_brigade_cleanup(session->bbtmp);
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+    else if (len != length) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2_stream(%ld-%d): send_data_cb, wanted %ld bytes, "
+                      "got %ld from stream",
+                      session->id, (int)stream_id, (long)length, (long)len);
+        apr_brigade_cleanup(session->bbtmp);
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+    
+    if (padlen) {
+        b = apr_bucket_immortal_create(immortal_zeros, padlen, 
+                                       session->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(session->bbtmp, b);
+    }
+    
+    status = h2_conn_io_pass(&session->io, session->bbtmp);
+    apr_brigade_cleanup(session->bbtmp);
+    
+    if (status == APR_SUCCESS) {
+        stream->out_data_frames++;
+        stream->out_data_octets += length;
         return 0;
     }
-
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                      APLOGNO(02925) 
+                      "h2_stream(%ld-%d): failed send_data_cb",

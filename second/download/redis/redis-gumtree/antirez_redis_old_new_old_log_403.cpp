@@ -1,1 +1,0 @@
-name_len = snprintf(msg, sizeof(msg),"%s: ", ctx->module->name);

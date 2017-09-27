@@ -1,14 +1,15 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+                    ap_rvputs(r, "<td>", balancer->s->sticky, NULL);
+                }
+            }
+            else {
+                ap_rputs("<td> (None) ", r);
+            }
+            ap_rprintf(r, "<td>%s</td>\n",
+                       balancer->s->sticky_force ? "On" : "Off");
+            ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
+                apr_time_sec(balancer->s->timeout));
+            ap_rprintf(r, "<td>%d</td>\n", balancer->s->max_attempts);
+            ap_rprintf(r, "<td>%s</td>\n",
+                       balancer->s->lbpname);
+            ap_rputs("<td>", r);
+            if (*balancer->s->vhost) {

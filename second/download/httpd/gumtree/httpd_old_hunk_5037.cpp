@@ -1,13 +1,33 @@
-            if (result != DECLINED)
-                return result;
-        }
+ * Make a password record from the given information.  A zero return
+ * indicates success; on failure, ctx->errstr points to the error message.
+ */
+int mkhash(struct passwd_ctx *ctx)
+{
+    char *pw;
+    char pwin[MAX_STRING_LEN];
+    char salt[16];
+    apr_status_t rv;
+    int ret = 0;
+#if CRYPT_ALGO_SUPPORTED
+    char *cbuf;
+#endif
+
+    if (ctx->cost != 0 && ctx->alg != ALG_BCRYPT) {
+        apr_file_printf(errfile,
+                        "Warning: Ignoring -C argument for this algorithm." NL);
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
+    if (ctx->passwd != NULL) {
+        pw = ctx->passwd;
+    }
+    else {
+        if ((ret = get_password(ctx)) != 0)
+            return ret;
+        pw = pwin;
     }
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+    switch (ctx->alg) {
+    case ALG_APSHA:
+        /* XXX out >= 28 + strlen(sha1) chars - fixed len SHA */
+        apr_sha1_base64(pw, strlen(pw), ctx->out);
+        break;

@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+
+            auth_line = ap_pbase64decode(r->pool, auth_line);
+            username = ap_getword_nulls(r->pool, &auth_line, ':');
+            password = auth_line;
+
+            if ((username[0] == '/') && strEQ(password, "password")) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "Encountered FakeBasicAuth spoof: %s", username);
+                return HTTP_FORBIDDEN;
+            }
+        }
     }
-    else {
+

@@ -1,13 +1,52 @@
-     fprintf(stderr, "Options are:\n");
-     fprintf(stderr, "    -n requests     Number of requests to perform\n");
-     fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
-     fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
-     fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
-     fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
-+    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
-     fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");
-     fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
-     fprintf(stderr, "                    Default is 'text/plain'\n");
-     fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
-     fprintf(stderr, "    -w              Print out results in HTML tables\n");
-     fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+     );
+ 
+     exit(1);
+ }
+ #undef NL
+ 
++static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
++{
++    apr_status_t status;
++    char errmsg[120];
++    pid_t mypid = getpid();
++
++    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
++                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
++                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
++                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
++        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
++    }
++    else {
++        if (errfile) {
++            apr_file_printf(errfile,
++                            "Could not write the pid file '%s': %s" APR_EOL_STR,
++                            pidfilename, 
++                            apr_strerror(status, errmsg, sizeof errmsg));
++        }
++        exit(1);
++    }
++}
++
+ /*
+  * main
+  */
+ int main(int argc, const char * const argv[])
+ {
+     apr_off_t max;
+     apr_time_t current, repeat, delay, previous;
+     apr_status_t status;
+     apr_pool_t *pool, *instance;
+     apr_getopt_t *o;
+     apr_finfo_t info;
++    apr_file_t *pidfile;
+     int retries, isdaemon, limit_found, intelligent, dowork;
+     char opt;
+     const char *arg;
+-    char *proxypath, *path;
++    char *proxypath, *path, *pidfilename;
+     char errmsg[1024];
+ 
+     interrupted = 0;
+     repeat = 0;
+     isdaemon = 0;
+     dryrun = 0;

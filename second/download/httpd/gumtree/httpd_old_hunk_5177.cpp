@@ -1,22 +1,12 @@
-	if (err != NULL)
-	    return ap_proxyerror(r, err);	/* give up */
-    }
+                 proxy_function, worker->s->hostname);
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    (*conn)->worker = worker;
+    (*conn)->close  = 0;
+    (*conn)->inreslist = 0;
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
-    }
+    return OK;
+}
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
+PROXY_DECLARE(int) ap_proxy_release_connection(const char *proxy_function,
+                                               proxy_conn_rec *conn,
+                                               server_rec *s)

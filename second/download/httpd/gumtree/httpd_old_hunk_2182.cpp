@@ -1,14 +1,12 @@
-#include "http_main.h"
-#include "http_request.h"
-
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
-
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n</form>\n", NULL);
+            ap_rputs("<hr />\n", r);
+        }
+        ap_rputs(ap_psignature("",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+    return OK;

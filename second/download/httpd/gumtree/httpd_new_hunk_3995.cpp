@@ -1,13 +1,14 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+{
+    apr_file_t *f = NULL;
+    struct stat finfo;
+    char time_str[APR_CTIME_LEN];
+    int log_flags = rv ? APLOG_ERR : APLOG_ERR;
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    /* Intentional no APLOGNO */
+    /* Callee provides APLOGNO in error text */
+    ap_log_rerror(APLOG_MARK, log_flags, rv, r,
+                "%s: %s", error, r->filename);
+
+    /* XXX Very expensive mainline case! Open, then getfileinfo! */
+    if (!conf->logname ||
+        ((stat(conf->logname, &finfo) == 0)

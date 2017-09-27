@@ -1,13 +1,13 @@
+        ap_listeners = lr;
+    }
 
-	    if (pos) {
-		*pos = '\0';
-	    }
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			     "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
+    /* Open the pipe to the parent process to receive the inherited socket
+     * data. The sockets have been set to listening in the parent process.
+     *
+     * *** We now do this way back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00403)
+                     "Child: Waiting for data for listening socket %pI",
+                     lr->bind_addr);

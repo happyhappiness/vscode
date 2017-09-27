@@ -1,25 +1,13 @@
-        }
-    }
-    ap_cfg_closefile(f);
-    return NULL;
-}
-
-static apr_table_t *groups_for_user(request_rec *r, char *user, char *grpfile)
+AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
 {
-    apr_pool_t *p = r->pool;
-    ap_configfile_t *f;
-    apr_table_t *grps = apr_table_make(p, 15);
-    apr_pool_t *sp;
-    char l[MAX_STRING_LEN];
-    const char *group_name, *ll, *w;
-    apr_status_t status;
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
 
-    if ((status = ap_pcfg_openfile(&f, p, grpfile)) != APR_SUCCESS) {
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                       "Could not open group file: %s", grpfile);
+    rc = log_child(p, program, &dummy, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
         return NULL;
     }
 
-    apr_pool_create(&sp, p);
-
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {

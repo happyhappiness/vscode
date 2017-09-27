@@ -1,1 +1,0 @@
-redisLog(REDIS_WARNING,"Can't rename the temp append only file into the stable one: %s", strerror(errno));

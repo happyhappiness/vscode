@@ -1,1 +1,0 @@
-fprintf(stderr,"Sentinel mode:\n");

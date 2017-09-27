@@ -1,31 +1,16 @@
-                        exit(2);
-                    }
-                }
-            }
-            else if (nLogFDprev) {
-                apr_file_close(nLogFDprev);
-            }
-            nMessCount = 0;
-        }
-        nWrite = nRead;
-        apr_file_write(nLogFD, buf, &nWrite);
-        if (nWrite != nRead) {
-            nMessCount++;
-            sprintf(errbuf,
-                    "Error writing to log file. "
-                    "%10d messages lost.\n",
-                    nMessCount);
-            nWrite = strlen(errbuf);
-            apr_file_trunc(nLogFD, 0);
-            if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", buf2);
-                exit(2);
-            }
-        }
-        else {
-            nMessCount++;
-        }
-    }
-    /* Of course we never, but prevent compiler warnings */
-    return 0;
-}
+#endif
+
+#ifdef OS
+    printf(" -D OS=\"" OS "\"\n");
+#endif
+
+#ifdef APACHE_MPM_DIR
+    printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");
+#endif
+
+#ifdef HAVE_SHMGET
+    printf(" -D HAVE_SHMGET\n");
+#endif
+
+#if APR_FILE_BASED_SHM
+    printf(" -D APR_FILE_BASED_SHM\n");

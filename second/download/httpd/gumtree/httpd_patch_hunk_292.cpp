@@ -1,14 +1,15 @@
- 
-     if (r_accept_enc) {
-         apr_table_setn(hdrs, "Accept-Encoding", r_accept_enc);
-     }
- 
-     if (emit_amble) {
--        emit_preamble(r, title);
-+        emit_preamble(r, emit_xhtml, title);
-     }
-     if (emit_H1) {
-         ap_rvputs(r, "<h1>Index of ", title, "</h1>\n", NULL);
-     }
-     if (rr != NULL) {
-         ap_destroy_sub_req(rr);
+                         * the network is up again, and restart the children.
+                         * Ben Hyde noted that temporary ENETDOWN situations
+                         * occur in mobile IP.
+                         */
+                         ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
+                             "apr_accept: giving up.");
+-                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, bucket_alloc);
++                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, 
++                                         bucket_alloc);
+                 }
+                 else {
+                         ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
+                             "apr_accept: (client socket)");
+                         clean_child_exit(1, my_worker_num, ptrans, bucket_alloc);
+                 }

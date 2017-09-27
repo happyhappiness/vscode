@@ -1,1 +1,1 @@
-ap_fputs(output, bb, t->text);
+ap_rputs("<tr>", r);

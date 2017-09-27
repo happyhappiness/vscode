@@ -1,15 +1,55 @@
-            }
-        }
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                  NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
 
-        do {
-            clen = sizeof(sa_client);
-            csd = accept(nsd, (struct sockaddr *) &sa_client, &clen);
-        } while (csd == INVALID_SOCKET && APR_STATUS_IS_EINTR(apr_get_netos_error()));
+                {
+                    unsigned long compCRC, compLen;
+                    compCRC = getLong(buf);
+                    if (ctx->crc != compCRC) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: CRC error inflating data");
+                        return APR_EGENERAL;
+                    }
+                    compLen = getLong(buf + VALIDATION_SIZE / 2);
+                    /* gzip stores original size only as 4 byte value */
+                    if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
+                        inflateEnd(&ctx->stream);
+                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);
+                        return APR_EGENERAL;
+                    }
+                }
 
-        if (csd == INVALID_SOCKET) {
-            if (APR_STATUS_IS_ECONNABORTED(apr_get_netos_error())) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
-                            "accept: (client socket)");
+                inflateEnd(&ctx->stream);
+
+                ctx->done = 1;
+
+                /* Did we have trailing data behind the closing 8 bytes? */
+                if (avail > valid) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered extra data after compressed data");
+                    return APR_EGENERAL;
+                }
             }
+
         }
-        else {
+        apr_brigade_cleanup(ctx->bb);
+    }
+
+    /* If we are about to return nothing for a 'blocking' read and we have
+     * some data in our zlib buffer, flush it out so we can return something.
+     */
+    if (block == APR_BLOCK_READ &&
+            APR_BRIGADE_EMPTY(ctx->proc_bb) &&
+            ctx->stream.avail_out < c->bufferSize) {
+        apr_bucket *tmp_heap;
+        apr_size_t len;
+        ctx->stream.next_out = ctx->buffer;
+        len = c->bufferSize - ctx->stream.avail_out;
+
+        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);

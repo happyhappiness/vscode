@@ -1,13 +1,15 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
     }
+    apr_dbm_close(dbm);
+    if (size > 0 && elts > 0)
+        avg = (int)(size / (long)elts);
+    else
+        avg = 0;
+    ap_rprintf(r, "cache type: <b>DBM</b>, maximum size: <b>unlimited</b><br>");
+    ap_rprintf(r, "current entries: <b>%d</b>, current size: <b>%ld</b> bytes<br>", elts, size);
+    ap_rprintf(r, "average entry size: <b>%d</b> bytes<br>", avg);
+    return;
+}
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+static apr_status_t socache_dbm_iterate(ap_socache_instance_t *ctx,
+                                        server_rec *s, void *userctx,
+                                        ap_socache_iterator_t *iterator,

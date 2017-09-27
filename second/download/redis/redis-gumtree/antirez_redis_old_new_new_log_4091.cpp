@@ -1,1 +1,0 @@
-printf("Reading messages... (press Ctrl-c to quit)\n");

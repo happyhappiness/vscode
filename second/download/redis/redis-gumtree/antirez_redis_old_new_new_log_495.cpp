@@ -1,1 +1,0 @@
-snprintf(seq,64,"\033[%d;%d;49m",bold,color);

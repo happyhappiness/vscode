@@ -1,25 +1,18 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+    unsigned int resp_derlen = MAX_STAPLING_DER;
+
+    rv = mc->stapling_cache->retrieve(mc->stapling_cache_context, s,
+                                      cinf->idx, sizeof(cinf->idx),
+                                      resp_der, &resp_derlen, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_get_cached_response: cache miss");
+        return TRUE;
     }
-    return;
-}
-
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    if (resp_derlen <= 1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_get_cached_response: response length invalid??");
+        return TRUE;
+    }
+    p = resp_der;
+    if (pok) {
+        if (*p)

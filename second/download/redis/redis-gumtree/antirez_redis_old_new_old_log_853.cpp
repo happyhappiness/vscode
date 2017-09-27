@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"(forcing SIGSEGV in order to print the stack trace)");

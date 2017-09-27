@@ -1,1 +1,0 @@
-snprintf(tmpfile,sizeof(tmpfile),"temp-%d.rdb", (int) childpid);

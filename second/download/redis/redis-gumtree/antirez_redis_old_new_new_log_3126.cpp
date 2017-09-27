@@ -1,1 +1,0 @@
-anetSetError(err, "accept: %s", strerror(errno));

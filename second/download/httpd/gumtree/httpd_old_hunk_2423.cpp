@@ -1,26 +1,18 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    /* OK, we're on.  Grab mutex to do our business */
+    rv = apr_global_mutex_trylock(authn_cache_mutex);
+    if (APR_STATUS_IS_EBUSY(rv)) {
+        /* don't wait around; just abandon it */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                      "authn credentials for %s not cached (mutex busy)", user);
+        return;
+    }
+    else if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "Failed to cache authn credentials for %s in %s",
+                      module, dcfg->context);
+        return;
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    /* We have the mutex, so go ahead */

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters", bits);

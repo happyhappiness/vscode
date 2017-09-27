@@ -1,15 +1,23 @@
-                        ap_rvputs(r, "</td><td>",
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts,
-                                                        desc_width), NULL);
-                    }
+                    APR_BRIGADE_INSERT_TAIL(bb, e);
                 }
                 else {
-                    ap_rputs("</td><td>&nbsp;", r);
+                    APR_BUCKET_INSERT_BEFORE(eos, e);
                 }
+                ap_pass_brigade(r->output_filters, bb);
+                /* Mark the backend connection for closing */
+                backend->close = 1;
+                /* Need to return OK to avoid sending an error message */
+                return OK;
             }
-            ap_rputs("</td></tr>\n", r);
+            else if (!c->keepalives) {
+                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                   "proxy: NOT Closing connection to client"
+                                   " although reading from backend server %s:%d"
+                                   " failed.", backend->hostname,
+                                   backend->port);
+            }
+            return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                                 "Error reading from remote server");
         }
-        else if (autoindex_opts & FANCY_INDEXING) {
-            if (!(autoindex_opts & SUPPRESS_ICON)) {
-                if (autoindex_opts & ICONS_ARE_LINKS) {
+        /* XXX: Is this a real headers length send from remote? */
+        backend->worker->s->read += len;

@@ -1,13 +1,13 @@
-#define STANDALONE_MAIN standalone_main
-
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
-
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
-
-    ap_standalone = 1;
-
-    is_graceful = 0;
+    if (field > 1 || i > 9)
+        put_int_flush_right(r, i / 10, field - 1);
+    if (i) {
+        if (r)
+            ap_rputc('0' + i % 10, r);
+        else
+            apr_file_putc('0' + i % 10, out);
+    }
+    else {
+        if (r)
+            ap_rputs("&nbsp;", r);
+        else
+            apr_file_printf(out, " ");

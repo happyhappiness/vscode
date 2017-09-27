@@ -1,1 +1,1 @@
-printf("%3d %s", (code[1] << 8) + code[2], OP_names[*code]);
+printf("    %s{", OP_names[code[3]]);

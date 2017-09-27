@@ -1,1 +1,0 @@
-printf(" --csv              Output in CSV format\n");

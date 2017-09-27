@@ -1,31 +1,28 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+                return APR_EPIPE;
+            if (APR_BRIGADE_EMPTY(bb))
+                break;
+#ifdef DEBUGGING
+            len = -1;
+            apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01016)
+                          "read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);
+#endif
+            rv = ap_pass_brigade(c_o->output_filters, bb);
+            if (rv == APR_SUCCESS) {
+                ap_fflush(c_o->output_filters, bb);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01017)
+                              "error on %s - ap_pass_brigade",
+                              name);
+            }
+        } else if (!APR_STATUS_IS_EAGAIN(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01018)
+                          "error on %s - ap_get_brigade",
+                          name);
         }
-    }
+    } while (rv == APR_SUCCESS);
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        rv = APR_SUCCESS;

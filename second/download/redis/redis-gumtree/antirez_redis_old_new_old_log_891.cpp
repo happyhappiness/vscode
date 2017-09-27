@@ -1,1 +1,0 @@
-serverLog(REDIS_VERBOSE, "Client closed connection");

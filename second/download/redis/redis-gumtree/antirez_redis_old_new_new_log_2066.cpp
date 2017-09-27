@@ -1,1 +1,0 @@
-printf(" -- %.2f seconds range\n", (float)(mstime()-history_start)/1000);

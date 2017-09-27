@@ -1,14 +1,14 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
+     */
+    if (conf->active != ACTIVE_ON ||
+        (apr_is_empty_table(conf->expiresbytype) && !conf->expiresdefault)) {
+        return;
     }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
+    ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
 }
 
-
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+static void register_hooks(apr_pool_t *p)
+{
+    /* mod_expires needs to run *before* the cache save filter which is
+     * AP_FTYPE_CONTENT_SET-1.  Otherwise, our expires won't be honored.
+     */
+    ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,

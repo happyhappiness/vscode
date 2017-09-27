@@ -1,21 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01095)
+                          "prefetch request body failed to %pI (%s)"
+                          " from %s (%s)",
+                          p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                          c->client_ip, c->remote_host ? c->remote_host: "");
+            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+        apr_brigade_length(temp_brigade, 1, &bytes);
+        bytes_read += bytes;
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+        /*

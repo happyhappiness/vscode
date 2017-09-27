@@ -1,0 +1,1 @@
+apr_pool_destroy(rec->pool);

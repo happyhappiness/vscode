@@ -1,12 +1,16 @@
-                                                    conf->recv_buffer_size))) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: FTP: apr_socket_opt_set(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-                }
-#endif
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                maxsize - AJP_HEADER_SZ);
 
-                /* make the connection */
-                apr_socket_addr_get(&data_addr, APR_REMOTE, sock);
-                apr_sockaddr_ip_get(&data_ip, data_addr);
-                apr_sockaddr_info_get(&epsv_addr, data_ip, connect_addr->family, data_port, 0, p);
-                rv = apr_socket_connect(data_sock, epsv_addr);
-                if (rv != APR_SUCCESS) {
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */
+            conn->close++;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                         "proxy: ap_get_brigade failed");
+            apr_brigade_destroy(input_brigade);
+            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
+        }
+
+        /* have something */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: APR_BUCKET_IS_EOS");

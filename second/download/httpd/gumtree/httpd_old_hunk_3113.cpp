@@ -1,14 +1,13 @@
+    vhost_md5 = ap_md5_binary(c->pool, (unsigned char *)sc->vhost_id,
+                              sc->vhost_id_len);
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
-    cache = c->fp;
+    if (!SSL_set_session_id_context(ssl, (unsigned char *)vhost_md5,
+                                    APR_MD5_DIGESTSIZE*2))
+    {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to set session id context to '%s'", vhost_md5);
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, server);
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+        c->aborted = 1;
+
+        return DECLINED; /* XXX */

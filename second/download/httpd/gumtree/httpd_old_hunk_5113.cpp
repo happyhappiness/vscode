@@ -1,17 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+        int active_children;
+        int index;
+        apr_time_t cutoff = 0;
 
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
-#endif
+        /* Close our listeners, and then ask our children to do same */
+        ap_close_listeners();
+        ap_worker_pod_killpg(pod, ap_daemons_limit, TRUE);
+        ap_relieve_child_processes(worker_note_child_killed);
 
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            ap_remove_pid(pconf, ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00296)

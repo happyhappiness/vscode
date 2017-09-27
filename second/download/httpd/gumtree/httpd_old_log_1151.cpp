@@ -1,1 +1,1 @@
-(isprint(c = code[1]);
+printf("%d}", (code[1] << 8) + code[2]);

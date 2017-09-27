@@ -1,15 +1,19 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+        PKCS7_free(p7);
+        break;
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+    default:
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02213)
+                     "Don't understand PKCS7 file %s", pkcs7);
+        ssl_die();
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
+    if (!certs) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02214)
+                     "No certificates in %s", pkcs7);
+        ssl_die();
+    }
+
+    fclose(f);
+
+    return certs;
+}

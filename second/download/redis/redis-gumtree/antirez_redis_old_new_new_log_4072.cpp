@@ -1,1 +1,0 @@
-printf("Empty file: %s\n", filename);

@@ -1,30 +1,13 @@
-        case AP_MPMQ_MAX_REQUESTS_DAEMON:
-            *result = ap_max_requests_per_child;
-            return APR_SUCCESS;
-        case AP_MPMQ_MAX_DAEMONS:
-            *result = ap_daemons_limit;
-            return APR_SUCCESS;
-        case AP_MPMQ_MPM_STATE:
-            *result = mpm_state;
-            return APR_SUCCESS;
+    if (!r->assbackwards) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_REQUEST_TIME_OUT) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            return r;
+        }
     }
-    return APR_ENOTIMPL;
-}
-
-/* a clean exit from a child with proper cleanup */ 
-static void clean_child_exit(int code) __attribute__ ((noreturn));
-static void clean_child_exit(int code)
-{
-    mpm_state = AP_MPMQ_STOPPING;
-    if (pchild) {
-        apr_pool_destroy(pchild);
-    }
-    exit(code);
-}
-
-static void just_die(int sig)
-{
-    clean_child_exit(0);
-}
-
-/*****************************************************************
+    else {

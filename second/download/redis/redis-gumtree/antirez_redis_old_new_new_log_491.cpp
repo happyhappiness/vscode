@@ -1,1 +1,0 @@
-dotPath = sdscatprintf(sdsempty(), "%s/%s", home, dotfilename);

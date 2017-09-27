@@ -1,21 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
-    }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
-    }
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+                       ctx->stream.next_in, copy_size);
+                /* Saved copy_size bytes */
+                ctx->stream.avail_in -= copy_size;
+                ctx->validation_buffer_length += copy_size;
+            }
+            if (ctx->stream.avail_in) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01407)
+                              "Zlib: %d bytes of garbage at the end of "
+                              "compressed stream.", ctx->stream.avail_in);
+                /*
+                 * There is nothing worth consuming for zlib left, because it is
+                 * either garbage data or the data has been copied to the
+                 * validation buffer (processing validation data is no business

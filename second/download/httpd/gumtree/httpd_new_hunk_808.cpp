@@ -1,42 +1,85 @@
-                sk_X509_pop_free(cert_stack, X509_free);
+        conf->ct_output_filters = apr_hash_make(cmd->pool);
+        old = NULL;
+    }
+    else {
+        old = (ap_filter_rec_t*) apr_hash_get(conf->ct_output_filters, arg2,
+                                              APR_HASH_KEY_STRING);
+        /* find last entry */
+        if (old) {
+            while (old->next) {
+                old = old->next;
             }
         }
+    }
+
+    while (*arg &&
+           (filter_name = ap_getword(cmd->pool, &arg, ';')) &&
+           strcmp(filter_name, "")) {
+        new = apr_pcalloc(cmd->pool, sizeof(ap_filter_rec_t));
+        new->name = filter_name;
+
+        /* We found something, so let's append it.  */
+        if (old) {
+            old->next = new;
+        }
         else {
-            request_rec *id = r->main ? r->main : r;
+            apr_hash_set(conf->ct_output_filters, arg2,
+                         APR_HASH_KEY_STRING, new);
+        }
+        old = new;
+    }
 
-            /* do a full renegotiation */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Performing full renegotiation: "
-                         "complete handshake protocol");
+    if (!new) {
+        return "invalid filter name";
+    }
 
-            SSL_set_session_id_context(ssl,
-                                       (unsigned char *)&id,
-                                       sizeof(id));
+    return NULL;
+}
+/*
+ * Insert filters requested by the AddOutputFilterByType
+ * configuration directive. We cannot add filters based
+ * on content-type until after the handler has started
+ * to run. Only then do we reliably know the content-type.
+ */
+void ap_add_output_filters_by_type(request_rec *r)
+{
+    core_dir_config *conf;
+    const char *ctype;
 
-            SSL_renegotiate(ssl);
-            SSL_do_handshake(ssl);
+    conf = (core_dir_config *)ap_get_module_config(r->per_dir_config,
+                                                   &core_module);
 
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation request failed");
+    /* We can't do anything with no content-type or if we don't have a
+     * filter configured.
+     */
+    if (!r->content_type || !conf->ct_output_filters) {
+        return;
+    }
 
-                r->connection->aborted = 1;
-                return HTTP_FORBIDDEN;
-            }
+    /* remove c-t decoration */
+    ctype = ap_field_noparam(r->pool, r->content_type);
+    if (ctype) {
+        ap_filter_rec_t *ct_filter;
+        ct_filter = apr_hash_get(conf->ct_output_filters, ctype,
+                                 APR_HASH_KEY_STRING);
+        while (ct_filter) {
+            ap_add_output_filter(ct_filter->name, NULL, r, r->connection);
+            ct_filter = ct_filter->next;
+        }
+    }
 
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Awaiting re-negotiation handshake");
+    return;
+}
 
-            /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
-             * However, this causes failures in perl-framework currently,
-             * perhaps pre-test if we have already negotiated?
-             */
-            SSL_set_state(ssl, SSL_ST_ACCEPT);
-            SSL_do_handshake(ssl);
+static const char *set_trace_enable(cmd_parms *cmd, void *dummy,
+                                    const char *arg1)
+{
+    core_server_config *conf = ap_get_module_config(cmd->server->module_config,
+                                                    &core_module);
 
-            if (SSL_get_state(ssl) != SSL_ST_OK) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation handshake failed: "
-                        "Not accepted by client!?");
-
-                r->connection->aborted = 1;
+    if (strcasecmp(arg1, "on") == 0) {
+        conf->trace_enable = AP_TRACE_ENABLE;
+    }
+    else if (strcasecmp(arg1, "off") == 0) {
+        conf->trace_enable = AP_TRACE_DISABLE;
+    }

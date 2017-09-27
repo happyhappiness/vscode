@@ -1,39 +1,40 @@
-        }
-    }
+                }
+                continue;
+            }
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ++err_count;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: Unknown. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                continue;
+            }
+            err_count = 0;
 
-    return OK;
-}
-
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */,
-                 apr_pool_t *ptemp, server_rec *s_main)
-{
-    apr_status_t rc = APR_SUCCESS;
-    server_rec *virt, *q;
-    int replace_stderr;
-    apr_file_t *errfile = NULL;
-
-    apr_pool_cleanup_register(p, NULL, clear_handle_list,
-                              apr_pool_cleanup_null);
-    if (open_error_log(s_main, p) != OK) {
-        return DONE;
-    }
-
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        /* replace stderr with this new log */
-        apr_file_flush(s_main->error_log);
-        if ((rc = apr_file_open_stderr(&errfile, p)) == APR_SUCCESS) {
-            rc = apr_file_dup2(errfile, s_main->error_log, p);
-        }
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
-                         "unable to replace stderr with error_log");
-        }
-        else {
-            replace_stderr = 0;
-        }
-    }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
-     * XXX: This is BS - /dev/null is non-portable
+            /* Wait for pending i/o.
+             * Wake up once per second to check for shutdown .
+             * XXX: We should be waiting on exit_event instead of polling
+             */
+            while (1) {
+                rv = WaitForSingleObject(context->Overlapped.hEvent, 1000);
+                if (rv == WAIT_OBJECT_0) {
+                    if (context->accept_socket == INVALID_SOCKET) {
+                        /* socket already closed */
+                        break;
+                    }
+                    if (!GetOverlappedResult((HANDLE)context->accept_socket,
+                                             &context->Overlapped,
+                                             &BytesRead, FALSE)) {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                     apr_get_os_error(), ap_server_conf,
+                             "winnt_accept: Asynchronous AcceptEx failed.");
+                        closesocket(context->accept_socket);
+                        context->accept_socket = INVALID_SOCKET;
+                    }
+                    break;

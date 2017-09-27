@@ -1,23 +1,20 @@
+    int hash;
 
-        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
-        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
-        klen = strlen(key);
-
-        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
-#ifdef OPENSSL_NO_TLSEXT
-            int level = APLOG_WARNING;
-            const char *problem = "conflict";
-#else
-            int level = APLOG_DEBUG;
-            const char *problem = "overlap";
+#if APR_POOL_DEBUG
+    {
+	apr_pool_t *pool;
+	pool = apr_pool_find(key);
+	if ((pool != (apr_pool_t *)key)
+            && (!apr_pool_is_ancestor(pool, t->a.pool))) {
+	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
+	    abort();
+	}
+	pool = apr_pool_find(val);
+	if ((pool != (apr_pool_t *)val)
+            && (!apr_pool_is_ancestor(pool, t->a.pool))) {
+	    fprintf(stderr, "apr_table_mergen: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
 #endif
-            ap_log_error(APLOG_MARK, level, 0, base_server,
-                         "Init: SSL server IP/port %s: "
-                         "%s (%s:%d) vs. %s (%s:%d)",
-                         problem, ssl_util_vhostid(p, s),
-                         (s->defn_name ? s->defn_name : "unknown"),
-                         s->defn_line_number,
-                         ssl_util_vhostid(p, ps),
-                         (ps->defn_name ? ps->defn_name : "unknown"),
-                         ps->defn_line_number);
-            conflict = TRUE;
+

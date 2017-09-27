@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
-                                      0, r, "[%d] auth_ldap authorise: "
-                                      "require attribute: authorisation "
-                                      "failed [%s][%s]", getpid(), 
-                                      ldc->reason, ldap_err2string(result));
+ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET-2);

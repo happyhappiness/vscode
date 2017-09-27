@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: stale cache - test conditional");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Caching URL %s",  key);

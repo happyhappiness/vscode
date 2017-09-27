@@ -1,12 +1,16 @@
-    ap_http_header_filter_handle =
-        ap_register_output_filter("HTTP_HEADER", ap_http_header_filter,
-                                  NULL, AP_FTYPE_PROTOCOL);
-    ap_chunk_filter_handle =
-        ap_register_output_filter("CHUNK", ap_http_chunk_filter,
-                                  NULL, AP_FTYPE_TRANSCODE);
-    ap_byterange_filter_handle =
-        ap_register_output_filter("BYTERANGE", ap_byterange_filter,
-                                  NULL, AP_FTYPE_PROTOCOL);
-    ap_method_registry_init(p);
-}
+    apr_bucket *e;
+    apr_off_t cl_val = 0;
+    apr_off_t bytes;
+    apr_off_t bytes_streamed = 0;
 
+    if (old_cl_val) {
+        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
+        if (APR_SUCCESS != (status = apr_strtoff(&cl_val, old_cl_val, NULL,
+                                                 0))) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    terminate_headers(bucket_alloc, header_brigade);
+
+    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    {

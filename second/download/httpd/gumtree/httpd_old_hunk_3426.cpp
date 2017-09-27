@@ -1,18 +1,13 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_get(&svc_args, key, "ConfigArgs", p);
+        ap_regkey_close(key);
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
-
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    if (rv != APR_SUCCESS) {
+        if (rv == ERROR_FILE_NOT_FOUND) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
+                         "No ConfigArgs registered for %s, perhaps "
+                         "this service is not installed?",
+                         mpm_service_name);
+            return APR_SUCCESS;
+        }
+        else

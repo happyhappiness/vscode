@@ -1,14 +1,19 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+    PKCS7 *p7;
+    STACK_OF(X509) *certs = NULL;
+    FILE *f;
 
+    f = fopen(pkcs7, "r");
+    if (!f) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02212) "Can't open %s", pkcs7);
+        ssl_die();
+    }
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+    p7 = PEM_read_PKCS7(f, NULL, NULL, NULL);
+    if (!p7) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02274)
+                     "Can't read PKCS7 object %s", pkcs7);
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_CRIT, s);
+        exit(1);
+    }
+
+    switch (OBJ_obj2nid(p7->type)) {

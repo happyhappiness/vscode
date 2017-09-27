@@ -1,24 +1,22 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
+    /* Step 3: Read records from the back end server and handle them. */
+    rv = dispatch(conn, conf, r, temp_pool, request_id,
+                  &err, &bad_request, &has_responded);
+    if (rv != APR_SUCCESS) {
+        /* If the client aborted the connection during retrieval or (partially)
+         * sending the response, don't return a HTTP_SERVICE_UNAVAILABLE, since
+         * this is not a backend problem. */
+        if (r->connection->aborted) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r, 
+                          "The client aborted the connection.");
+            conn->close = 1;
+            return OK;
+        }
 
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
+                      "Error dispatching request to %s: %s%s%s",
+                      server_portstr,
+                      err ? "(" : "",
+                      err ? err : "",
+                      err ? ")" : "");

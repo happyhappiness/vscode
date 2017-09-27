@@ -1,0 +1,14 @@
+     }
+     r->hostname = host;
+     return;
+ 
+ bad:
+     r->status = HTTP_BAD_REQUEST;
+-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00550)
+                   "Client sent malformed Host header");
+     return;
+ }
+ 
+ 
+ /* return 1 if host matches ServerName or ServerAliases */

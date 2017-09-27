@@ -1,16 +1,14 @@
+                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
+                                   ap_escape_html(r->pool,
+                                                  ws_record->client),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->vhost),
+                                   ap_escape_html(r->pool,
+                                                  ap_escape_logitem(r->pool, 
+                                                                    ws_record->request)));
+                } /* no_table_report */
+            } /* for (j...) */
+        } /* for (i...) */
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+        if (!no_table_report) {
+            ap_rputs("</table>\n \

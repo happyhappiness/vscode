@@ -1,13 +1,19 @@
+                }
             }
-        }
-        /* Moved the fixups of Date headers and those affected by
-         * ProxyPassReverse/etc from here to ap_proxy_read_headers
-         */
+            apr_brigade_cleanup(bb);
 
-        if ((proxy_status == 401) && (conf->error_override)) {
-            const char *buf;
-            const char *wa = "WWW-Authenticate";
-            if ((buf = apr_table_get(r->headers_out, wa))) {
-                apr_table_set(r->err_headers_out, wa, buf);
-            } else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                if (APR_STATUS_IS_TIMEUP(rv)) { 
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                return bail_out_on_error(ctx, f, http_error);
+            }
+
+            if (!ctx->remaining) {
+                /* Handle trailers by calling ap_get_mime_headers again! */
+                ctx->state = BODY_NONE;

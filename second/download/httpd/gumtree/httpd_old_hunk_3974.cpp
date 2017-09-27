@@ -1,20 +1,13 @@
 #endif
 
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+#if EXAMPLE_LOG_EACH
+static void example_log_each(apr_pool_t *p, server_rec *s, const char *note)
+{
+    if (s != NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "mod_example_hooks: %s", note);
+    }
+    else {
+        apr_file_t *out = NULL;
+        apr_file_open_stderr(&out, p);
+        apr_file_printf(out, "mod_example_hooks traced in non-loggable "
+                        "context: %s\n", note);

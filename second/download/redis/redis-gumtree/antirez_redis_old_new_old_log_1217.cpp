@@ -1,1 +1,0 @@
-sds event = sdscatprintf(sdsempty(), "%.7f %.7f", latitude, longitude);

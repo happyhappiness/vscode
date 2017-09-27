@@ -1,14 +1,19 @@
+      * start_mutex is used to ensure that only one child ever
+      * goes into the listen/accept loop at once.
+      */
+     status = apr_proc_mutex_lock(start_mutex);
+     if (status != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
+-                     "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
++                     "Child %lu: Failed to acquire the start_mutex. Process will exit.", my_pid);
+         exit(APEXIT_CHILDINIT);
      }
+     ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+-                 "Child %d: Acquired the start mutex.", my_pid);
++                 "Child %lu: Acquired the start mutex.", my_pid);
  
-     if (ccfg->min_rate > 0 && rv == APR_SUCCESS) {
-         extend_timeout(ccfg, bb);
-     }
- 
--    if (rv == APR_TIMEUP) {
-+    if (APR_STATUS_IS_TIMEUP(rv)) {
-         ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
-                       "Request %s read timeout", ccfg->type);
-     }
-     return rv;
- }
- 
+     /*
+      * Create the worker thread dispatch IOCompletionPort
+      * on Windows NT/2000
+      */
+     if (use_acceptex) {

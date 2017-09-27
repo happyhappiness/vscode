@@ -1,1 +1,0 @@
-serverLog(REDIS_DEBUG,"Not rewritten option: %s", option);

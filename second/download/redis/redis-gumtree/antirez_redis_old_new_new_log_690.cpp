@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Error reply to PING from master: '%s'",err);

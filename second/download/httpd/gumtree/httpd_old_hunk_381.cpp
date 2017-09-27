@@ -1,23 +1,12 @@
- */
-void ssl_log_ssl_error(const char *file, int line, int level, server_rec *s)
-{
-    unsigned long e;
-
-    while ((e = ERR_get_error())) {
-        char err[256], *annotation;
-
-        ERR_error_string_n(e, err, sizeof err);
-        annotation = ssl_log_annotation(err);
-
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s %s",
-                         e, err, annotation); 
-        }
-        else {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s",
-                         e, err); 
-        }
-    }
+    util_ald_free(cache, node->username);
+    util_ald_free(cache, node->dn);
+    util_ald_free(cache, node->bindpw);
+    util_ald_free(cache, node);
 }
+
+/* ------------------------------------------------------------------ */
+
+unsigned long util_ldap_compare_node_hash(void *n)
+{
+    util_compare_node_t *node = (util_compare_node_t *)n;
+    return util_ald_hash_string(3, node->dn, node->attrib, node->value);

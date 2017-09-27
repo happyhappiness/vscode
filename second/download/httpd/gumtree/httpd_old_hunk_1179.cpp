@@ -1,13 +1,14 @@
-        else /* if (ssl_err == SSL_ERROR_SSL) */ {
-            /*
-             * Log SSL errors
-             */
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
-                          "SSL library error %d writing data", ssl_err);
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
-        }
-        if (outctx->rc == APR_SUCCESS) {
-            outctx->rc = APR_EGENERAL;
-        }
+/**
+ * Configuration and start-up
+ */
+static int mem_cache_post_config(apr_pool_t *p, apr_pool_t *plog,
+                                 apr_pool_t *ptemp, server_rec *s)
+{
+    int threaded_mpm;
+
+    /* Sanity check the cache configuration */
+    if (sconf->min_cache_object_size >= sconf->max_cache_object_size) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "MCacheMaxObjectSize must be greater than MCacheMinObjectSize");
+        return DONE;
     }
-    else if ((apr_size_t)res != len) {

@@ -1,13 +1,13 @@
-    FD_ZERO(&listenfds);
-    for (lr = ap_listeners; lr; lr = lr->next) {
-        if (lr->sd != NULL) {
-            apr_os_sock_get(&nsd, lr->sd);
-            FD_SET(nsd, &listenfds);
-            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "Child %lu: Listening on port %d.", my_pid, lr->bind_addr->port);
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (!server_conf) {
+            destroy_and_exit_process(process, 1);
         }
-    }
+        /* sort hooks here to make sure pre_config hooks are sorted properly */
+        apr_hook_sort_all();
 
-    head_listener = ap_listeners;
-
-    while (!shutdown_in_progress) {
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed");
+            destroy_and_exit_process(process, 1);

@@ -1,17 +1,12 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
+        found = 0;
+        workers = (proxy_worker **)b->workers->elts;
+        for (i = 0; i < b->workers->nelts; i++, workers++) {
+            proxy_worker *worker = *workers;
+            if (worker->hash.def == shm->hash.def && worker->hash.fnv == shm->hash.fnv) {
+                found = 1;
+                break;
             }
         }
+        if (!found) {
+            proxy_worker **runtime;
+            runtime = apr_array_push(b->workers);

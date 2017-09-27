@@ -1,23 +1,50 @@
-#endif
 
-static void show_compile_settings(void)
+    /* add empty line at the end of the headers */
+    e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+}
+
+static int pass_brigade(apr_bucket_alloc_t *bucket_alloc,
+                                 request_rec *r, proxy_conn_rec *p_conn,
+                                 conn_rec *origin, apr_bucket_brigade *bb,
+                                 int flush)
 {
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u\n", MODULE_MAGIC_NUMBER);
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-#ifdef HAVE_MMAP
-    printf(" -D HAVE_MMAP\n");
-#endif
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
+    apr_status_t status;
+    apr_off_t transferred;
+
+    if (flush) {
+        apr_bucket *e = apr_bucket_flush_create(bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+    }
+    apr_brigade_length(bb, 0, &transferred);
+    if (transferred != -1)
+        p_conn->worker->s->transferred += transferred;
+    status = ap_pass_brigade(origin->output_filters, bb);
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01084)
+                      "pass request body failed to %pI (%s)",
+                      p_conn->addr, p_conn->hostname);
+        if (origin->aborted) {
+            const char *ssl_note;
+
+            if (((ssl_note = apr_table_get(origin->notes, "SSL_connect_rv"))
+                != NULL) && (strcmp(ssl_note, "err") == 0)) {
+                return ap_proxyerror(r, HTTP_INTERNAL_SERVER_ERROR,
+                                     "Error during SSL Handshake with"
+                                     " remote server");
+            }
+            return APR_STATUS_IS_TIMEUP(status) ? HTTP_GATEWAY_TIME_OUT : HTTP_BAD_GATEWAY;
+        }
+        else {
+            return HTTP_BAD_REQUEST;
+        }
+    }
+    apr_brigade_cleanup(bb);
+    return OK;
+}
+
+#define MAX_MEM_SPOOL 16384
+
+static int stream_reqbody_chunked(apr_pool_t *p,
+                                           request_rec *r,
+                                           proxy_conn_rec *p_conn,

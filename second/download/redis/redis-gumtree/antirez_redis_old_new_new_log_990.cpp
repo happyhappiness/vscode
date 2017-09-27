@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Non blocking connect for SYNC fired the event.");

@@ -1,13 +1,16 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
-
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
         }
 
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+        if (!r->args || !strcasecmp(r->args, "hooks")) {
+            show_active_hooks(r);
+        }
+
+        if (!r->args || !strcasecmp(r->args, "providers")) {
+            show_providers(r);
+        }
+
+        if (r->args && 0 == strcasecmp(r->args, "config")) {
+            ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);
+            mod_info_module_cmds(r, NULL, ap_conftree, 0, 0);
+            ap_rputs("</dl><hr />", r);
+        }
+        else {

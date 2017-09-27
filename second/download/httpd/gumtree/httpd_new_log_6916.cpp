@@ -1,0 +1,1 @@
+fprintf(stderr, "    -I              Disable TLS Server Name Indication (SNI) extension\n");

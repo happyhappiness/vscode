@@ -1,1 +1,0 @@
-sdsfree(curargv[j]);

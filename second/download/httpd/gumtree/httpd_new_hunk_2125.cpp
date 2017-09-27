@@ -1,17 +1,29 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-		    ap_isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
-++ apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
+                     dc && dc->charset_default ? dc->charset_default : "(none)");
+    }
+
+    if (!ctx->ran) {  /* filter never ran before */
+        chk_filter_chain(f);
+        ctx->ran = 1;
+        if (!ctx->noop && !ctx->is_sb
+            && apr_table_get(f->r->headers_in, "Content-Length")) {
+            /* A Content-Length header is present, but it won't be valid after
+             * conversion because we're not converting between two single-byte
+             * charsets.  This will affect most CGI scripts and may affect
+             * some modules.
+             * Content-Length can't be unset here because that would break
+             * being able to read the request body.
+             * Processing of chunked request bodies is not impacted by this
+             * filter since the the length was not declared anyway.
+             */
+            if (dc->debug >= DBGLVL_PMC) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                              "Request body length may change, resulting in "
+                              "misprocessing by some modules or scripts");
+            }
+        }
+    }
+
+    if (ctx->noop) {
+        return ap_get_brigade(f->next, bb, mode, block, readbytes);
+    }
+

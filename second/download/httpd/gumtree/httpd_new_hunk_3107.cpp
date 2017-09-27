@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+            if (ret != APR_SUCCESS) {
+                return ret;
+            }
+            return OK;
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01865)
+               "peruser sessions can only be saved if a user is logged in, "
+                          "session not saved: %s", r->uri);
+        }
     }
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    return DECLINED;

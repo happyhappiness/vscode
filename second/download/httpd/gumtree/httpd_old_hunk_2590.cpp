@@ -1,18 +1,15 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+            apr_sleep(AP_WD_TM_SLICE);
+        }
+    }
+    if (w->is_running) {
+        watchdog_list_t *wl = w->callbacks;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                     "%sWatchdog (%s) running (%" APR_PID_T_FMT ")",
+                     w->singleton ? "Singleton" : "",
+                     w->name, getpid());
+        apr_time_clock_hires(w->pool);
+        if (wl) {
+            apr_pool_t *ctx = NULL;
+            apr_pool_create(&ctx, w->pool);
+            while (wl && w->is_running) {
+                /* Execute watchdog callback */

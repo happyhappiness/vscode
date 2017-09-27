@@ -1,13 +1,14 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+    apr_time_t now;
+    char *path = apr_pstrcat(p, ctx->storage_path, ".tmp.XXXXXX", NULL);
+    /* TODO: Update stats file (!) */
+    rv = apr_file_mktemp(&fp, path, APR_CREATE | APR_WRITE, p);
+
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02081)
+                     "Unable to open tmp file: %s", path);
+        return rv;
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    now = apr_time_now();
+    for (hi = apr_hash_first(p, ctx->servers);
+         hi != NULL; hi = apr_hash_next(hi)) {

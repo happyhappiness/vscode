@@ -1,13 +1,46 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+
+APR_DECLARE(apr_status_t) apr_file_puts(const char *str, apr_file_t *thefile)
+{
+    return apr_file_write_full(thefile, str, strlen(str), NULL);
+}
+
+apr_status_t apr_file_flush_locked(apr_file_t *thefile)
+{
+    apr_status_t rv = APR_SUCCESS;
+
+    if (thefile->direction == 1 && thefile->bufpos) {
+        apr_ssize_t written;
+
+        do {
+            written = write(thefile->filedes, thefile->buffer, thefile->bufpos);
+        } while (written == -1 && errno == EINTR);
+        if (written == -1) {
+            rv = errno;
+        } else {
+            thefile->filePtr += written;
+            thefile->bufpos = 0;
+        }
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+    return rv;
+}
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
+APR_DECLARE(apr_status_t) apr_file_flush(apr_file_t *thefile)
+{
+    apr_status_t rv = APR_SUCCESS;
 
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    if (thefile->buffered) {
+        file_lock(thefile);
+        rv = apr_file_flush_locked(thefile);
+        file_unlock(thefile);
+    }
+    /* There isn't anything to do if we aren't buffering the output
+     * so just return success.
+     */
+    return rv; 
+}
+
+APR_DECLARE(apr_status_t) apr_file_gets(char *str, int len, apr_file_t *thefile)
+{
+    apr_status_t rv = APR_SUCCESS; /* get rid of gcc warning */
+    apr_size_t nbytes;

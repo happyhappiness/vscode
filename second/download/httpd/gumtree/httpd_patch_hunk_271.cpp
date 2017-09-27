@@ -1,22 +1,54 @@
- /* ------------------------------------------------------- */
- 
- /* display copyright information */
- static void copyright(void)
- {
-     if (!use_html) {
--	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.1 $> apache-2.0");
-+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.4 $> apache-2.0");
- 	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
- 	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
- 	printf("\n");
-     }
-     else {
- 	printf("<p>\n");
--	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.1 $");
-+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.4 $");
- 	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
- 	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
- 	printf("</p>\n<p>\n");
-     }
  }
  
+ static void set_signals(void)
+ {
+ #ifndef NO_USE_SIGACTION
+     struct sigaction sa;
++#endif
+ 
++    if (!one_process) {
++        ap_fatal_signal_setup(ap_server_conf, pconf);
++    }
++
++#ifndef NO_USE_SIGACTION
+     sigemptyset(&sa.sa_mask);
+     sa.sa_flags = 0;
+ 
+-    if (!one_process) {
+-        sa.sa_handler = sig_coredump;
+-#if defined(SA_ONESHOT)
+-        sa.sa_flags = SA_ONESHOT;
+-#elif defined(SA_RESETHAND)
+-        sa.sa_flags = SA_RESETHAND;
+-#endif
+-        if (sigaction(SIGSEGV, &sa, NULL) < 0)
+-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+-                         "sigaction(SIGSEGV)");
+-#ifdef SIGBUS
+-        if (sigaction(SIGBUS, &sa, NULL) < 0)
+-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+-                         "sigaction(SIGBUS)");
+-#endif
+-#ifdef SIGABORT
+-        if (sigaction(SIGABORT, &sa, NULL) < 0)
+-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+-                         "sigaction(SIGABORT)");
+-#endif
+-#ifdef SIGABRT
+-        if (sigaction(SIGABRT, &sa, NULL) < 0)
+-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+-                         "sigaction(SIGABRT)");
+-#endif
+-#ifdef SIGILL
+-        if (sigaction(SIGILL, &sa, NULL) < 0)
+-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+-                         "sigaction(SIGILL)");
+-#endif
+-        sa.sa_flags = 0;
+-    }
+     sa.sa_handler = sig_term;
+     if (sigaction(SIGTERM, &sa, NULL) < 0)
+         ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                      "sigaction(SIGTERM)");
+ #ifdef SIGINT
+     if (sigaction(SIGINT, &sa, NULL) < 0)

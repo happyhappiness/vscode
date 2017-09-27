@@ -1,13 +1,20 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    } while (again);
+
+    return APR_SUCCESS;
+}
+
+typedef struct header_struct {
+    apr_pool_t *pool;
+    apr_bucket_brigade *bb;
+} header_struct;
+
+/* Send a single HTTP header field to the client.  Note that this function
+ * is used in calls to table_do(), so their interfaces are co-dependent.
+ * In other words, don't change this one without checking table_do in alloc.c.
+ * It returns true unless there was a write error of some kind.
+ */
+static int form_header_field(header_struct *h,
+                             const char *fieldname, const char *fieldval)
+{
+#if APR_CHARSET_EBCDIC

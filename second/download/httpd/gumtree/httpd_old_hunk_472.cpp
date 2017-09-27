@@ -1,16 +1,13 @@
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>LDAP Filter</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>User Name</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Last Bind</b></font></td>"
-                             "</tr>\n", r
-                            );
-                    for (i=0; i < n->search_cache->size; ++i) {
-                        for (p = n->search_cache->nodes[i]; p != NULL; p = p->next) {
+{
+    unsigned char tempasn[SSL_SESSION_MAX_DER];
+    SHMCBIndex *idx;
+    SHMCBHeader *header;
+    SSL_SESSION *pSession = NULL;
+    unsigned int curr_pos, loop, count;
+    unsigned char *ptr;
+    time_t now;
 
-                            (*n->search_cache->display)(r, n->search_cache, p->payload);
-                        }
-                    }
-                    ap_rputs("</table>\n</p>\n", r);
-                    break;
-                case 'c':
-                    ap_rputs("<p>\n"
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "entering shmcb_lookup_session_id");
+
+    /* If there are entries to expire, ditch them first thing. */

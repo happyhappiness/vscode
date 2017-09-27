@@ -1,35 +1,26 @@
-die_now:
-    if (shutdown_pending)
-    {
-        int timeout = 30000;  /* Timeout is milliseconds */
-        winnt_mpm_state = AP_MPMQ_STOPPING;
+            ap_run_test_config(pconf, server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
+        }
+    }
 
-        /* This shutdown is only marginally graceful. We will give the
-         * child a bit of time to exit gracefully. If the time expires,
-         * the child will be wacked.
-         */
-        if (!strcasecmp(signal_arg, "runservice")) {
-            mpm_service_stopping();
+    signal_server = APR_RETRIEVE_OPTIONAL_FN(ap_signal_server);
+    if (signal_server) {
+        int exit_status;
+
+        if (signal_server(&exit_status, pconf) != 0) {
+            destroy_and_exit_process(process, exit_status);
         }
-        /* Signal the child processes to exit */
-        if (SetEvent(child_exit_event) == 0) {
-                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
-                             "Parent: SetEvent for child process %d failed", event_handles[CHILD_HANDLE]);
-        }
-        if (event_handles[CHILD_HANDLE]) {
-            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
-            if (rv == WAIT_OBJECT_0) {
-                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                             "Parent: Child process exited successfully.");
-                CloseHandle(event_handles[CHILD_HANDLE]);
-                event_handles[CHILD_HANDLE] = NULL;
-            }
-            else {
-                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
-                TerminateProcess(event_handles[CHILD_HANDLE], 1);
-                CloseHandle(event_handles[CHILD_HANDLE]);
-                event_handles[CHILD_HANDLE] = NULL;
-            }
-        }
-        CloseHandle(child_exit_event);
+    }
+
+    /* If our config failed, deal with that here. */
+    if (rv != OK) {
+        destroy_and_exit_process(process, 1);
+    }
+
+    apr_pool_clear(plog);
+
+    if ( ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");
+        destroy_and_exit_process(process, 1);

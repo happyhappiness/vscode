@@ -1,1 +1,0 @@
-fprintf(stderr,"Unexpected error reply, exiting...\n");

@@ -1,1 +1,0 @@
-printf("Testing %lx %lu\n", start_vect[regions], size_vect[regions]);

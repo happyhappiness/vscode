@@ -1,1 +1,0 @@
-addReplyError(c,"Protocol error: too big mbulk count string");

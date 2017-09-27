@@ -1,20 +1,38 @@
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.12 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
-    }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
-}
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
+        }
+        else {
+            request_rec *id = r->main ? r->main : r;
 
-/* display usage information */
-static void usage(const char *progname)
+            /* do a full renegotiation */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing full renegotiation: "
+                         "complete handshake protocol");
+
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
+
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Awaiting re-negotiation handshake");
+
+            SSL_set_state(ssl, SSL_ST_ACCEPT);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                        "Not accepted by client!?");
+
+                r->connection->aborted = 1;

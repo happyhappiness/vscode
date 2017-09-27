@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
+            required_ldap = 1;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                  "user's DN has not been defined; failing authorisation",

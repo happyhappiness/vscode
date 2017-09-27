@@ -1,3 +1,1 @@
-apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+apr_file_printf(errfile, "User %s not found\n", user);

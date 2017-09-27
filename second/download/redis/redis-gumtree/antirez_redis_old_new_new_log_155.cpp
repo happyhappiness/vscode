@@ -1,1 +1,0 @@
-setProtocolError("too big mbulk count string",c,0);

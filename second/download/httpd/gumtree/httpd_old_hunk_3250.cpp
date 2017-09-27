@@ -1,13 +1,16 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+            *result = dc;
+            break;
+        }
+        else {
+            if (!APR_STATUS_IS_ENOENT(status)
+                && !APR_STATUS_IS_ENOTDIR(status)) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, status, r,
+                              "%s pcfg_openfile: unable to check htaccess file, "
+                              "ensure it is readable",
+                              filename);
+                apr_table_setn(r->notes, "error-notes",
+                               "Server unable to read htaccess file, denying "
+                               "access to be safe");
+                return HTTP_FORBIDDEN;
+            }
+        }

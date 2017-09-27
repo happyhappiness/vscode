@@ -1,41 +1,12 @@
-{
-    apr_pool_destroy(process->pool); /* and destroy all descendent pools */
-    apr_terminate();
-    exit(process_exit_value);
-}
+ */
+AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
+                                            ap_out_filter_func filter_func,
+                                            ap_init_filter_func filter_init,
+                                            ap_filter_type ftype);
 
-static process_rec *create_process(int argc, const char * const *argv)
-{
-    process_rec *process;
-    apr_pool_t *cntx;
-    apr_status_t stat;
-
-    stat = apr_pool_create(&cntx, NULL);
-    if (stat != APR_SUCCESS) {
-        /* XXX From the time that we took away the NULL pool->malloc mapping
-         *     we have been unable to log here without segfaulting.
-         */
-        ap_log_error(APLOG_MARK, APLOG_ERR, stat, NULL,
-                     "apr_pool_create() failed to create "
-                     "initial context");
-        apr_terminate();
-        exit(1);
-    }
-
-    apr_pool_tag(cntx, "process");
-    ap_open_stderr_log(cntx);
-
-    process = apr_palloc(cntx, sizeof(process_rec));
-    process->pool = cntx;
-
-    apr_pool_create(&process->pconf, process->pool);
-    apr_pool_tag(process->pconf, "pconf");
-    process->argc = argc;
-    process->argv = argv;
-    process->short_name = apr_filename_of_pathname(argv[0]);
-    return process;
-}
-
-static void usage(process_rec *process)
-{
-    const char *bin = process->argv[0];
+/**
+ * Adds a named filter into the filter chain on the specified request record.
+ * The filter will be installed with the specified context pointer.
+ *
+ * Filters added in this way will always be placed at the end of the filters
+ * that have the same type (thus, the filters have the same order as the

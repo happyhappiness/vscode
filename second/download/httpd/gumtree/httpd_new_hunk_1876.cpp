@@ -1,13 +1,12 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+        case CTRL_LOGOFF_EVENT:
+        case CTRL_SHUTDOWN_EVENT:
+            /* for Terminate signals, shut down the server.
+             * Wait for Apache to terminate, but respond
+             * after a reasonable time to tell the system
+             * that we did attempt to shut ourself down.
+             */
+            fprintf(stderr, "Apache server shutdown initiated...\n");
+            ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+            Sleep(30000);
+            return TRUE;
     }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

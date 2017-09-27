@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+                 "\"<b><code>D</code></b>\" DNS Lookup,<br />\n"
+                 "\"<b><code>C</code></b>\" Closing connection, \n"
+                 "\"<b><code>L</code></b>\" Logging, \n"
+                 "\"<b><code>G</code></b>\" Gracefully finishing,<br /> \n"
+                 "\"<b><code>I</code></b>\" Idle cleanup of worker, \n"
+                 "\"<b><code>.</code></b>\" Open slot with no current process<br />\n"
+                 "<p />\n", r);
+        if (!ap_extended_status) {
+            int j;
+            int k = 0;
+            ap_rputs("PID Key: <br />\n"
+                     "<pre>\n", r);
+            for (i = 0; i < server_limit; ++i) {

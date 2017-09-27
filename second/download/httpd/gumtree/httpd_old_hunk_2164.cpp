@@ -1,22 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
     }
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    else { /* config didn't specify, we get to choose shmem type */
+        rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, NULL,
+                            global_pool); /* anonymous shared memory */
+        if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                         "Unable to create scoreboard "
+                         "(anonymous shared memory failure)");
+            return rv;
+        }
+        /* Make up a filename and do name-based shmem */
+        else if (rv == APR_ENOTIMPL) {
+            /* Make sure it's an absolute pathname */

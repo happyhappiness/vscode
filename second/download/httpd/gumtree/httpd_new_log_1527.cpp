@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header field is missing ':' "
-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
-                                  last_field);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "loaded %i intermediate CA%s for cert %i (%s)",
+                         i, i == 1 ? "" : "s", n, cert_dn);

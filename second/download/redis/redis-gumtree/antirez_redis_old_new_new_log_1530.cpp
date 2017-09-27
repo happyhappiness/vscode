@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"%dd",elapsed/(3600*24));

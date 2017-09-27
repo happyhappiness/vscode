@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " Automatically lowering MaxClients to %d.  To increase,",
-                    server_limit);
+ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %ld %s %s",
+                         e, err, annotation);

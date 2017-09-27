@@ -1,15 +1,15 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+            *cp++ = apr_toupper(c);
+        }
+        else if (c == '-') {
+            *cp++ = '_';
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                          "Not exporting header with invalid name as envvar: %s",
+                          ap_escape_logitem(r->pool, w));
+            return NULL;
+        }
     }
-#endif
+    *cp = 0;
 
-    va_start(args, fmt);
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-    va_end(args);
-
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+    return res;

@@ -1,30 +1,23 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+    char dates[APR_RFC822_DATE_LEN];
+    int status;
+    apr_pool_t *address_pool;
+
+    /* is this for us? */
+    if (proxyhost) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "declining URL %s - proxyhost %s specified:", url,
+                      proxyhost);
+        return DECLINED;        /* proxy connections are via HTTP */
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+    if (strncasecmp(url, "ftp:", 4)) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "declining URL %s - not ftp:", url);
+        return DECLINED;        /* only interested in FTP */
     }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "serving URL %s", url);
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    /*
+     * I: Who Do I Connect To? -----------------------
+     *
+     * Break up the URL to determine the host to connect to

@@ -1,16 +1,21 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
+static apr_status_t stream_release(h2_session *session, 
+                                   h2_stream *stream,
+                                   uint32_t error_code) 
+{
+    if (!error_code) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): handled, closing", 
+                      session->id, (int)stream->id);
+        if (stream->id > session->max_stream_handled) {
+            session->max_stream_handled = stream->id;
+        }
     }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): closing with err=%d %s", 
+                      session->id, (int)stream->id, (int)error_code,
+                      h2_h2_err_description(error_code));
+        h2_stream_rst(stream, error_code);
     }
-
-    /* perform sub-request for the file name without the suffix */
+    

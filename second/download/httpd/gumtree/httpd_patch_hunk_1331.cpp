@@ -1,19 +1,17 @@
-      * start_mutex is used to ensure that only one child ever
-      * goes into the listen/accept loop at once.
-      */
-     status = apr_proc_mutex_lock(start_mutex);
-     if (status != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
--                     "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
-+                     "Child %lu: Failed to acquire the start_mutex. Process will exit.", my_pid);
-         exit(APEXIT_CHILDINIT);
-     }
-     ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
--                 "Child %d: Acquired the start mutex.", my_pid);
-+                 "Child %lu: Acquired the start mutex.", my_pid);
+         if (no > 9) {                /* Ordinary character. */
+             if (c == '\\' && (*src == '$' || *src == '&'))
+                 src++;
+             len++;
+         }
+         else if (no < nmatch && pmatch[no].rm_so < pmatch[no].rm_eo) {
++            if (UTIL_SIZE_MAX - len <= pmatch[no].rm_eo - pmatch[no].rm_so) {
++                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
++                             "integer overflow or out of memory condition." );
++                return NULL;
++            }
+             len += pmatch[no].rm_eo - pmatch[no].rm_so;
+         }
  
-     /*
-      * Create the worker thread dispatch IOCompletionPort
-      * on Windows NT/2000
-      */
-     if (use_acceptex) {
+     }
+ 
+     dest = dst = apr_pcalloc(p, len + 1);

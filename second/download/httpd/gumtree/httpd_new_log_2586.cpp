@@ -1,0 +1,1 @@
+apr_file_printf(output, "Entries: %d" NL, entries);

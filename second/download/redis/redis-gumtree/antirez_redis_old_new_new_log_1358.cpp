@@ -1,1 +1,0 @@
-f("Merge test:\n");

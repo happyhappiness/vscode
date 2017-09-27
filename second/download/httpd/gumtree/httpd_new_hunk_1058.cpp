@@ -1,57 +1,37 @@
+        /* Return a once-only connection */
+        rv = dbd_construct(&rec, svr, s->process->pool);
+        return (rv == APR_SUCCESS) ? arec : NULL;
+    }
 
-static void read_connection(struct connection * c)
+    if (!svr->dbpool) {
+        if (dbd_setup_lock(pool, s) != APR_SUCCESS) {
+            return NULL;
+        }
+    }
+    rv = apr_reslist_acquire(svr->dbpool, &rec);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "Failed to acquire DBD connection from pool!");
+        return NULL;
+    }
+    rv = apr_dbd_check_conn(arec->driver, pool, arec->handle);
+    if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+        errmsg = apr_dbd_error(arec->driver, arec->handle, rv);
+        if (!errmsg) {
+            errmsg = "(unknown)";
+        }
+        ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );
+        apr_reslist_invalidate(svr->dbpool, rec);
+        return NULL;
+    }
+    return arec;
+}
+#else
+DBD_DECLARE_NONSTD(ap_dbd_t*) ap_dbd_open(apr_pool_t *pool, server_rec *s)
 {
-    apr_size_t r;
-    apr_status_t status;
-    char *part;
-    char respcode[4];       /* 3 digits and null */
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
 
-    r = sizeof(buffer);
-#ifdef USE_SSL
-    if (c->ssl) {
-        status = SSL_read(c->ssl, buffer, r);
-        if (status <= 0) {
-            int scode = SSL_get_error(c->ssl, status);
-
-            if (scode == SSL_ERROR_ZERO_RETURN) {
-                /* connection closed cleanly: */
-                good++;
-                close_connection(c);
-            }
-            else if (scode != SSL_ERROR_WANT_WRITE
-                     && scode != SSL_ERROR_WANT_READ) {
-                /* some fatal error: */
-                c->read = 0;
-                BIO_printf(bio_err, "SSL read failed - closing connection\n");
-                ERR_print_errors(bio_err);
-                close_connection(c);
-            }
-            return;
-        }
-        r = status;
-    }
-    else
-#endif
-    {
-        status = apr_socket_recv(c->aprsock, buffer, &r);
-        if (APR_STATUS_IS_EAGAIN(status))
-            return;
-        else if (r == 0 && APR_STATUS_IS_EOF(status)) {
-            good++;
-            close_connection(c);
-            return;
-        }
-        /* catch legitimate fatal apr_socket_recv errors */
-        else if (status != APR_SUCCESS) {
-            err_except++; /* XXX: is this the right error counter? */
-            /* XXX: Should errors here be fatal, or should we allow a
-             * certain number of them before completely failing? -aaron */
-            apr_err("apr_socket_recv", status);
-        }
-    }
-
-    totalread += r;
-    if (c->read == 0) {
-	c->beginread = apr_time_now();
-    }
-    c->read += r;

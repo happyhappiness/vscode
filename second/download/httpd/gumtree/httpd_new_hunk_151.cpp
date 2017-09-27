@@ -1,33 +1,28 @@
-                }
-                ap_rputs(" /></th>", r);
-            }
-            else {
-                ap_rputs("&nbsp;</th>", r);
-            }
+            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
+        }
+    }
+    else {
+        sec->filter = "objectclass=*";
+    }
 
-            ++cols;
-        }
-        ap_rputs("<th>", r);
-        emit_link(r, "Name", K_NAME, keyid, direction,
-                  colargs, static_columns);
-        if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Last modified", K_LAST_MOD, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_SIZE)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Size", K_SIZE, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_DESC)) {
-            ap_rputs("</th><th>", r);
-            emit_link(r, "Description", K_DESC, keyid, direction,
-                      colargs, static_columns);
-            ++cols;
-        }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "<tr><th colspan=\"%d\">"
+      /* "ldaps" indicates secure ldap connections desired
+      */
+    if (strncasecmp(url, "ldaps", 5) == 0)
+    {
+        sec->secure = 1;
+        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server,
+                     "LDAP: auth_ldap using SSL connections");
+    }
+    else
+    {
+        sec->secure = 0;
+        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, 
+                     "LDAP: auth_ldap not using SSL connections");
+    }
+
+    sec->have_ldap_url = 1;
+    apr_ldap_free_urldesc(urld);
+    return NULL;
+}

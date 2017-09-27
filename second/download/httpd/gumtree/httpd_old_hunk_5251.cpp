@@ -1,75 +1,88 @@
+                    return APR_EGENERAL;
+                }
 
-    ap_hard_timeout("proxy receive", r);
-/* send response */
-/* write status line */
-    if (!r->assbackwards)
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-    if (cache != NULL)
-	if (ap_bvputs(cache, "HTTP/1.0 ", r->status_line, CRLF,
-		   NULL) == -1)
-	    cache = ap_proxy_cache_error(c);
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                ap_remove_input_filter(f);
+                break;
+            }
 
-/* send headers */
-    len = resp_hdrs->nelts;
-    hdr = (struct hdr_entry *) resp_hdrs->elts;
-    for (i = 0; i < len; i++) {
-	if (hdr[i].field == NULL || hdr[i].value == NULL ||
-	    hdr[i].value[0] == '\0')
-	    continue;
-	if (!r->assbackwards)
-	    ap_rvputs(r, hdr[i].field, ": ", hdr[i].value, CRLF, NULL);
-	if (cache != NULL)
-	    if (ap_bvputs(cache, hdr[i].field, ": ", hdr[i].value, CRLF,
-		       NULL) == -1)
-		cache = ap_proxy_cache_error(c);
-    }
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_heap;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
 
-    if (!r->assbackwards)
-	ap_rputs(CRLF, r);
-    if (cache != NULL)
-	if (ap_bputs(CRLF, cache) == -1)
-	    cache = ap_proxy_cache_error(c);
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
 
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-    r->sent_bodyct = 1;
-/* send body */
-    if (!r->header_only) {
-	if (parms[0] != 'd') {
-/* we need to set this for ap_proxy_send_fb()... */
-	    c->cache_completion = 0;
-	    ap_proxy_send_fb(data, r, cache, c);
-	} else
-	    send_dir(data, r, cache, c, url);
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                 NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
 
-	if (rc == 125 || rc == 150)
-	    rc = ftp_getrc(f);
-	if (rc != 226 && rc != 250)
-	    ap_proxy_cache_error(c);
-    }
-    else {
-/* abort the transfer */
-	ap_bputs("ABOR" CRLF, f);
-	ap_bflush(f);
-	if (!pasvmode)
-	    ap_bclose(data);
-	Explain0("FTP: ABOR");
-/* responses: 225, 226, 421, 500, 501, 502 */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
-    }
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_CONCAT(bb, ctx->bb);
+                break;
+            }
 
-    ap_kill_timeout(r);
-    ap_proxy_cache_tidy(c);
+            /* sanity check - data after completed compressed body and before eos? */
+            if (ctx->done) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482)
+                              "Encountered extra data after compressed data");
+                return APR_EGENERAL;
+            }
 
-/* finish */
-    ap_bputs("QUIT" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: QUIT");
-/* responses: 221, 500 */
+            /* read */
+            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
 
-    if (pasvmode)
-	ap_bclose(data);
-    ap_bclose(f);
+            /* pass through zlib inflate. */
+            ctx->stream.next_in = (unsigned char *)data;
+            ctx->stream.avail_in = len;
 
-    ap_rflush(r);	/* flush before garbage collection */
--- apache_1.3.1/src/modules/proxy/proxy_http.c	1998-07-10 03:45:56.000000000 +0800
+            zRC = Z_OK;
+
+            while (ctx->stream.avail_in != 0) {
+                if (ctx->stream.avail_out == 0) {
+                    apr_bucket *tmp_heap;
+                    ctx->stream.next_out = ctx->buffer;
+                    len = c->bufferSize - ctx->stream.avail_out;
+
+                    ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                    tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                      NULL, f->c->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                    ctx->stream.avail_out = c->bufferSize;
+                }
+
+                zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+                if (zRC == Z_STREAM_END) {
+                    break;
+                }
+
+                if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
+            }
+            if (zRC == Z_STREAM_END) {
+                apr_bucket *tmp_heap;
+                apr_size_t avail;
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);
+

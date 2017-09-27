@@ -1,24 +1,15 @@
-            break;
-        }
-        result = ajp_parse_type(r, conn->data);
-    }
-    apr_brigade_destroy(input_brigade);
 
-    apr_brigade_destroy(output_brigade);
+        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
+        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
+        klen = strlen(key);
 
-    if (status != APR_SUCCESS) {
-        /* We had a failure: Close connection to backend */
-        conn->close++;
-        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: send body failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
-        return HTTP_SERVICE_UNAVAILABLE;
-    }
-
-    /* Nice we have answer to send to the client */
-    if (result == CMD_AJP13_END_RESPONSE && isok) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got response from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: SSL server IP/port conflict: "
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s),
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"),

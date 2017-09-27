@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
+    apr_table_t *t;
+    va_list vp;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    /* create RFC2965 compliant cookie */
+    const char *rfc2965 = apr_pstrcat(r->pool, name2, "=;Max-Age=0;",
+                                attrs2 ? attrs2 : CLEAR_ATTRS, NULL);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+                  "user '%s' removed cookie2: '%s'", r->user, rfc2965);
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    /* write the cookie to the header table(s) provided */
+    va_start(vp, attrs2);
+    while ((t = va_arg(vp, apr_table_t *))) {
+        apr_table_addn(t, SET_COOKIE2, rfc2965);

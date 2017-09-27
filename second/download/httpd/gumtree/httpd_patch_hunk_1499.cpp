@@ -1,117 +1,151 @@
- /* service_nt_main_fn is outside of the call stack and outside of the
-  * primary server thread... so now we _really_ need a placeholder!
-  * The winnt_rewrite_args has created and shared mpm_new_argv with us.
-  */
- extern apr_array_header_t *mpm_new_argv;
  
--/* ###: utf-ize */
--static void __stdcall service_nt_main_fn(DWORD argc, LPTSTR *argv)
-+#if APR_HAS_UNICODE_FS
-+static void __stdcall service_nt_main_fn_w(DWORD argc, LPWSTR *argv)
-+{
-+    const char *ignored;
-+    char *service_name;
-+    apr_size_t wslen = wcslen(argv[0]) + 1;
-+    apr_size_t slen = wslen * 3 - 2;
-+
-+    service_name = malloc(slen);
-+    (void)apr_conv_ucs2_to_utf8(argv[0], &wslen, service_name, &slen);
-+
-+    /* args and service names live in the same pool */
-+    mpm_service_set_name(mpm_new_argv->pool, &ignored, service_name);
-+
-+    memset(&globdat.ssStatus, 0, sizeof(globdat.ssStatus));
-+    globdat.ssStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-+    globdat.ssStatus.dwCurrentState = SERVICE_START_PENDING;
-+    globdat.ssStatus.dwCheckPoint = 1;
-+
-+    if (!(globdat.hServiceStatus = RegisterServiceCtrlHandlerW(argv[0], service_nt_ctrl)))
-+    {
-+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
-+                     NULL, "Failure registering service handler");
-+        return;
-+    }
-+
-+    /* Report status, no errors, and buy 3 more seconds */
-+    ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 30000);
-+
-+    /* We need to append all the command arguments passed via StartService()
-+     * to our running service... which just got here via the SCM...
-+     * but we have no interest in argv[0] for the mpm_new_argv list.
-+     */
-+    if (argc > 1)
-+    {
-+        char **cmb_data, **cmb;
-+        DWORD i;
-+
-+        mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
-+        cmb_data = malloc(mpm_new_argv->nalloc * sizeof(const char *));
-+
-+        /* mpm_new_argv remains first (of lower significance) */
-+        memcpy (cmb_data, mpm_new_argv->elts,
-+                mpm_new_argv->elt_size * mpm_new_argv->nelts);
-+
-+        /* Service args follow from StartService() invocation */
-+        memcpy (cmb_data + mpm_new_argv->nelts, argv + 1,
-+                mpm_new_argv->elt_size * (argc - 1));
-+
-+        cmb = cmb_data + mpm_new_argv->nelts;
-+
-+        for (i = 1; i < argc; ++i)
-+        {
-+            wslen = wcslen(argv[i]) + 1;
-+            slen = wslen * 3 - 2;
-+            service_name = malloc(slen);
-+            (void)apr_conv_ucs2_to_utf8(argv[i], &wslen, *(cmb++), &slen);
-+        }
-+
-+        /* The replacement arg list is complete */
-+        mpm_new_argv->elts = (char *)cmb_data;
-+        mpm_new_argv->nelts = mpm_new_argv->nalloc;
-+    }
-+
-+    /* Let the main thread continue now... but hang on to the
-+     * signal_monitor event so we can take further action
-+     */
-+    SetEvent(globdat.service_init);
-+
-+    WaitForSingleObject(globdat.service_term, INFINITE);
-+}
-+#endif /* APR_HAS_UNICODE_FS */
-+
-+
-+#if APR_HAS_ANSI_FS
-+static void __stdcall service_nt_main_fn(DWORD argc, LPSTR *argv)
+     cleanup_tables(NULL);
+ }
+ 
+ #if APR_HAS_SHARED_MEMORY
+ 
+-static void initialize_tables(server_rec *s, apr_pool_t *ctx)
++static int initialize_tables(server_rec *s, apr_pool_t *ctx)
  {
-     const char *ignored;
+     unsigned long idx;
+     apr_status_t   sts;
++    const char *tempdir; 
  
-     /* args and service names live in the same pool */
-     mpm_service_set_name(mpm_new_argv->pool, &ignored, argv[0]);
+     /* set up client list */
  
-     memset(&globdat.ssStatus, 0, sizeof(globdat.ssStatus));
-     globdat.ssStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-     globdat.ssStatus.dwCurrentState = SERVICE_START_PENDING;
-     globdat.ssStatus.dwCheckPoint = 1;
- 
--    /* ###: utf-ize */
--    if (!(globdat.hServiceStatus = RegisterServiceCtrlHandler(argv[0], service_nt_ctrl)))
-+    if (!(globdat.hServiceStatus = RegisterServiceCtrlHandlerA(argv[0], service_nt_ctrl)))
-     {
-         ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
-                      NULL, "Failure registering service handler");
-         return;
+-    sts = apr_shm_create(&client_shm, shmem_size, tmpnam(NULL), ctx);
++    sts = apr_temp_dir_get(&tempdir, ctx);
++    if (APR_SUCCESS != sts) {
++        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
++                     "Failed to find temporary directory");
++        log_error_and_cleanup("failed to find temp dir", sts, s);
++        return HTTP_INTERNAL_SERVER_ERROR;
++    }
++
++    /* Create the shared memory segment */
++
++    /* 
++     * Create a unique filename using our pid. This information is 
++     * stashed in the global variable so the children inherit it.
++     */
++    client_shm_filename = apr_psprintf(ctx, "%s/authdigest_shm.%"APR_PID_T_FMT, tempdir, 
++                                       getpid());
++
++    /* Now create that segment */
++    sts = apr_shm_create(&client_shm, shmem_size,
++                        client_shm_filename, ctx);
++    if (APR_SUCCESS != sts) {
++        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
++                     "Failed to create shared memory segment on file %s", 
++                     client_shm_filename);
++        log_error_and_cleanup("failed to initialize shm", sts, s);
++        return HTTP_INTERNAL_SERVER_ERROR;
++    }
++
++    sts = apr_rmm_init(&client_rmm,
++                       NULL, /* no lock, we'll do the locking ourselves */
++                       apr_shm_baseaddr_get(client_shm),
++                       shmem_size, ctx);
+     if (sts != APR_SUCCESS) {
+-        log_error_and_cleanup("failed to create shared memory segments", sts, s);
+-        return;
++        log_error_and_cleanup("failed to initialize rmm", sts, s);
++        return !OK;
      }
  
-     /* Report status, no errors, and buy 3 more seconds */
-     ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 30000);
+-    client_list = apr_rmm_malloc(client_rmm, sizeof(*client_list) +
+-                                            sizeof(client_entry*)*num_buckets);
++    client_list = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*client_list) +
++                                                          sizeof(client_entry*)*num_buckets));
+     if (!client_list) {
+         log_error_and_cleanup("failed to allocate shared memory", -1, s);
+-        return;
++        return !OK;
+     }
+     client_list->table = (client_entry**) (client_list + 1);
+     for (idx = 0; idx < num_buckets; idx++) {
+         client_list->table[idx] = NULL;
+     }
+     client_list->tbl_len     = num_buckets;
+     client_list->num_entries = 0;
  
-     /* We need to append all the command arguments passed via StartService()
-      * to our running service... which just got here via the SCM...
--     * but we hvae no interest in argv[0] for the mpm_new_argv list.
-+     * but we have no interest in argv[0] for the mpm_new_argv list.
-      */
-     if (argc > 1)
-     {
-         char **cmb_data;
+-    tmpnam(client_lock_name);
+-    /* FIXME: get the client_lock_name from a directive so we're portable
+-     * to non-process-inheriting operating systems, like Win32. */
+-    sts = apr_global_mutex_create(&client_lock, client_lock_name,
+-                                  APR_LOCK_DEFAULT, ctx);
++    sts = ap_global_mutex_create(&client_lock, NULL, client_mutex_type, NULL,
++                                 s, ctx, 0);
+     if (sts != APR_SUCCESS) {
+         log_error_and_cleanup("failed to create lock (client_lock)", sts, s);
+-        return;
++        return !OK;
+     }
  
-         mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
+ 
+     /* setup opaque */
+ 
+-    opaque_cntr = apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr));
++    opaque_cntr = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*opaque_cntr)));
+     if (opaque_cntr == NULL) {
+         log_error_and_cleanup("failed to allocate shared memory", -1, s);
+-        return;
++        return !OK;
+     }
+     *opaque_cntr = 1UL;
+ 
+-    tmpnam(opaque_lock_name);
+-    /* FIXME: get the opaque_lock_name from a directive so we're portable
+-     * to non-process-inheriting operating systems, like Win32. */
+-    sts = apr_global_mutex_create(&opaque_lock, opaque_lock_name,
+-                                  APR_LOCK_DEFAULT, ctx);
++    sts = ap_global_mutex_create(&opaque_lock, NULL, opaque_mutex_type, NULL,
++                                 s, ctx, 0);
+     if (sts != APR_SUCCESS) {
+         log_error_and_cleanup("failed to create lock (opaque_lock)", sts, s);
+-        return;
++        return !OK;
+     }
+ 
+ 
+     /* setup one-time-nonce counter */
+ 
+-    otn_counter = apr_rmm_malloc(client_rmm, sizeof(*otn_counter));
++    otn_counter = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(*otn_counter)));
+     if (otn_counter == NULL) {
+         log_error_and_cleanup("failed to allocate shared memory", -1, s);
+-        return;
++        return !OK;
+     }
+     *otn_counter = 0;
+     /* no lock here */
+ 
+ 
+     /* success */
+-    return;
++    return OK;
+ }
+ 
+ #endif /* APR_HAS_SHARED_MEMORY */
+ 
++static int pre_init(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp)
++{
++    apr_status_t rv;
++
++    rv = ap_mutex_register(pconf, client_mutex_type, NULL, APR_LOCK_DEFAULT, 0);
++    if (rv == APR_SUCCESS) {
++        rv = ap_mutex_register(pconf, opaque_mutex_type, NULL, APR_LOCK_DEFAULT,
++                               0);
++    }
++    if (rv != APR_SUCCESS) {
++        return rv;
++    }
++
++    return OK;
++}
+ 
+ static int initialize_module(apr_pool_t *p, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec *s)
+ {
+     void *data;
+     const char *userdata_key = "auth_digest_init";

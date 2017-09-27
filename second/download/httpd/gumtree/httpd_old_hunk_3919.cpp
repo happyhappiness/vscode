@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
-
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+        }
+        
+        /* Here, we either have gotten task and mplx for the worker or
+         * needed to give up with more than enough workers.
+         */
+        if (task) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, workers->s,
+                         "h2_worker(%d): start task(%s)",
+                         h2_worker_get_id(worker), task->id);
+            /* Since we hand out a reference to the worker, we increase
+             * its ref count.
+             */
+            h2_mplx_reference(m);

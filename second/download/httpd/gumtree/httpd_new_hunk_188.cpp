@@ -1,18 +1,29 @@
+    apr_file_close(f);
+    return ret;
+}
 
-#ifdef NO_LINGCLOSE
-    printf(" -D NO_LINGCLOSE\n");
-#endif
+/* Soak up stderr from a script and redirect it to the error log. 
+ */
+static apr_status_t log_script_err(request_rec *r, apr_file_t *script_err)
+{
+    char argsbuffer[HUGE_STRING_LEN];
+    char *newline;
+    apr_status_t rv;
 
-#if APR_HAVE_IPV6
-    printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");
-#ifdef AP_ENABLE_V4_MAPPED
-    printf("enabled)\n");
-#else
-    printf("disabled)\n");
-#endif
-#endif
+    while ((rv = apr_file_gets(argsbuffer, HUGE_STRING_LEN,
+                               script_err)) == APR_SUCCESS) {
+        newline = strchr(argsbuffer, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                      "%s", argsbuffer);            
+    }
 
-#if APR_USE_FLOCK_SERIALIZE
-    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
-#endif
+    return rv;
+}
 
+static int log_script(request_rec *r, cgi_server_conf * conf, int ret,
+                      char *dbuf, const char *sbuf, apr_bucket_brigade *bb, 
+                      apr_file_t *script_err)
+{

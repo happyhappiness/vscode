@@ -1,26 +1,34 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    exit(1);
+        else {
+            char buffer[32];
+            memset(buffer, 0, 32);
+            strncpy(buffer, name, (nlen > 31)? 31 : nlen);
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request(%d): ignoring unknown pseudo header %s",
+                          req->id, buffer);
+        }
+    }
+    else {
+        /* non-pseudo header, append to work bucket of stream */
+        status = h2_headers_add_h1(req->headers, pool, name, nlen, value, vlen);
+    }
+    
+    return status;
 }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+apr_status_t h2_request_end_headers(h2_request *req, apr_pool_t *pool, 
+                                    int eos, int push)
+{
+    const char *s;
+    
+    if (req->eoh) {
+        /* already done */
+        return APR_SUCCESS;
+    }
+
+    /* rfc7540, ch. 8.1.2.3:
+     * - if we have :authority, it overrides any Host header 
+     * - :authority MUST be ommited when converting h1->h2, so we
+     *   might get a stream without, but then Host needs to be there */
+    if (!req->authority) {
+        const char *host = apr_table_get(req->headers, "Host");

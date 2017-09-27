@@ -1,38 +1,18 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-			ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0)),
-			     "\">", NULL);
-	}
-
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs(anchor, r);
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-		       ap_escape_html(scratch, ar[x]->icon ?
-				   ar[x]->icon : d->default_icon),
-		       "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-		       "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf
-			(
-			    r,
-			    " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			    d->icon_height,
-			    d->icon_width
-			);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs("</A>", r);
-
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+            apr_md5_encode((const char *)htdbm->userpass, (const char *)salt,
+                            cpw, sizeof(cpw));
+        break;
+        case ALG_PLAIN:
+            /* XXX this len limitation is not in sync with any HTTPd len. */
+            apr_cpystrn(cpw,htdbm->userpass,sizeof(cpw));
+#if APR_HAVE_CRYPT_H
+            fprintf(stderr, "Warning: Plain text passwords aren't supported by the "
+                    "server on this platform!\n");
+#endif
+        break;
+#if APR_HAVE_CRYPT_H
+        case ALG_CRYPT:
+            (void) srand((int) time((time_t *) NULL));
+            to64(&salt[0], rand(), 8);
+            salt[8] = '\0';
+            apr_cpystrn(cpw, (char *)crypt(htdbm->userpass, salt), sizeof(cpw) - 1);
+            fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");

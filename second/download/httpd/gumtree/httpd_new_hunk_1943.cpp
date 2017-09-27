@@ -1,13 +1,15 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
-
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+                concurrency = atoi(optarg);
+                break;
+            case 'b':
+                windowsize = atoi(optarg);
+                break;
+            case 'i':
+                if (method != NO_METH)
+                    err("Cannot mix HEAD with other methods\n");
+                method = HEAD;
+                break;
+            case 'g':
+                gnuplot = strdup(optarg);
+                break;
+            case 'd':
+                percentile = 0;

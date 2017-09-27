@@ -1,20 +1,39 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+        *worker = runtime;
+    }
+    else if (route && (*balancer)->sticky_force) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: BALANCER: (%s). All workers are in error state for route (%s)",
+                     (*balancer)->name, route);
+        PROXY_THREAD_UNLOCK(*balancer);
+        return HTTP_SERVICE_UNAVAILABLE;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    PROXY_THREAD_UNLOCK(*balancer);
+    if (!*worker) {
+        runtime = find_best_worker(*balancer, r);
+        if (!runtime) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: BALANCER: (%s). All workers are in error state",
+                         (*balancer)->name);
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+            return HTTP_SERVICE_UNAVAILABLE;
+        }
+        *worker = runtime;
+    }
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    /* Rewrite the url from 'balancer://url'
+     * to the 'worker_scheme://worker_hostname[:worker_port]/url'
+     * This replaces the balancers fictional name with the
+     * real hostname of the elected worker.
+     */
+    access_status = rewrite_url(r, *worker, url);
+    /* Add the session route to request notes if present */
+    if (route) {
+        apr_table_setn(r->notes, "session-sticky", (*balancer)->sticky);
+        apr_table_setn(r->notes, "session-route", route);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: BALANCER (%s) worker (%s) rewritten to %s",
+                 (*balancer)->name, (*worker)->name, *url);
+
+    return access_status;

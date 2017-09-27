@@ -1,20 +1,67 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    info->request_time = r->request_time;
+
+    /* check last-modified date */
+    if (lastmod != APR_DATE_BAD && lastmod > date) {
+        /* if it's in the future, then replace by date */
+        lastmod = date;
+        lastmods = dates;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                     r->server,
+                     "cache: Last modified is in the future, "
+                     "replacing with now");
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    /* if no expiry date then
+     *   if Cache-Control: max-age
+     *      expiry date = date + max-age
+     *   else if lastmod
+     *      expiry date = date + min((date - lastmod) * factor, maxexpire)
+     *   else
+     *      expire date = date + defaultexpire
+     */
+    if (exp == APR_DATE_BAD) {
+        char *max_age_val;
 
-    child_timeouts = !ap_standalone || one_process;
+        if (ap_cache_liststr(r->pool, cc_out, "max-age", &max_age_val) &&
+            max_age_val != NULL) {
+            apr_int64_t x;
 
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+            errno = 0;
+            x = apr_atoi64(max_age_val);
+            if (errno) {
+                x = conf->defex;
+            }
+            else {
+                x = x * MSEC_ONE_SEC;
+            }
+            if (x < conf->minex) {
+                x = conf->minex;
+            }
+            if (x > conf->maxex) {
+                x = conf->maxex;
+            }
+            exp = date + x;
+        }
+        else if ((lastmod != APR_DATE_BAD) && (lastmod < date)) {
+            /* if lastmod == date then you get 0*conf->factor which results in
+             * an expiration time of now. This causes some problems with
+             * freshness calculations, so we choose the else path...
+             */
+            apr_time_t x = (apr_time_t) ((date - lastmod) * conf->factor);
+
+            if (x < conf->minex) {
+                x = conf->minex;
+            }
+            if (x > conf->maxex) {
+                x = conf->maxex;
+            }
+            exp = date + x;
+        }
+        else {
+            exp = date + conf->defex;
+        }
+    }
+    info->expire = exp;
+
+    /* We found a stale entry which wasn't really stale. */
+    if (cache->stale_handle) {

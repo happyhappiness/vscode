@@ -1,26 +1,12 @@
+    const char *errmsg;
+    apr_dbd_results_t *res = NULL;
+    apr_dbd_row_t *row = NULL;
+    char *ret = NULL;
+    int n = 0;
+    ap_dbd_t *db = dbd_acquire(r);
 
-    /* Pass one --- direct matches */
+    stmt = apr_hash_get(db->prepared, label, APR_HASH_KEY_STRING);
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    rv = apr_dbd_pvselect(db->driver, r->pool, db->handle, &res,
+                          stmt, 0, key, NULL);
+    if (rv != 0) {

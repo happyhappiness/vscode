@@ -1,1 +1,1 @@
-ap_fputs(r->output_filters, bb, "</D:multistatus>" DEBUG_CR);
+ap_rputs(">", r);

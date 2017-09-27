@@ -1,14 +1,18 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    b = bucket_socket_ex_create(sock_data, r->connection->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, b);
+    b = apr_bucket_eos_create(r->connection->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, b);
+
+    status = ap_scan_script_header_err_brigade_ex(r, bb, NULL,
+                                                  APLOG_MODULE_INDEX);
+    if (status != OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00860)
+                      "error reading response headers from %s:%u",
+                      conn->hostname, conn->port);
+        r->status_line = NULL;
+        apr_brigade_destroy(bb);
+        return status;
+    }
+
+    conf = ap_get_module_config(r->per_dir_config, &proxy_scgi_module);

@@ -1,27 +1,30 @@
-        }
-    }
+ * @param line The line number on which this function is called
+ * @param level The level of this error message
+ * @param status The status code from the previous command
+ * @param c The connection which we are logging for
+ * @param fmt The format string
+ * @param ... The arguments to use to fill out fmt.
+ * @note Use APLOG_MARK to fill out file and line
+ * @note If a request_rec is available, use that with ap_log_rerror()
+ * in preference to calling this function.
+ * @warning It is VERY IMPORTANT that you not include any raw data from 
+ * the network, such as the request-URI or request header fields, within 
+ * the format string.  Doing so makes the server vulnerable to a 
+ * denial-of-service attack and other messy behavior.  Instead, use a 
+ * simple format string like "%s", followed by the string containing the 
+ * untrusted data.
+ */
+AP_DECLARE(void) ap_log_cerror(const char *file, int line, int level, 
+                               apr_status_t status, const conn_rec *c, 
+                               const char *fmt, ...)
+			    __attribute__((format(printf,6,7)));
 
-    return rc;
-}
+/**
+ * Convert stderr to the error log
+ * @param s The current server
+ */
+AP_DECLARE(void) ap_error_log2stderr(server_rec *s);
 
-/* Open the error log for the given server_rec.  If IS_MAIN is
- * non-zero, s is the main server. */
-static int open_error_log(server_rec *s, int is_main, apr_pool_t *p)
-{
-    const char *fname;
-    int rc;
-
-    if (*s->error_fname == '|') {
-        apr_file_t *dummy = NULL;
-
-        /* Spawn a new child logger.  If this is the main server_rec,
-         * the new child must use a dummy stderr since the current
-         * stderr might be a pipe to the old logger.  Otherwise, the
-         * child inherits the parents stderr. */
-        rc = log_child(p, s->error_fname + 1, &dummy, is_main);
-        if (rc != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process");
-            return DONE;
-        }
-
+/**
+ * Log the current pid of the parent process
+ * @param p The pool to use for logging

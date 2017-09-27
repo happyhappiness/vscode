@@ -1,1 +1,3 @@
-ap_rvputs(r, "<td>", balancer->sticky, NULL);
+s(r, "<td><a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2),
+                          "</a>", pad_scratch + nwidth, NULL);

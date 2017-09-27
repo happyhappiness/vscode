@@ -1,1 +1,0 @@
-addReplyError(c,"The event loop API used by Redis is not able to handle the specified number of clients");

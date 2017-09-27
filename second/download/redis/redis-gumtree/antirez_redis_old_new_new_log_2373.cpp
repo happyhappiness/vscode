@@ -1,1 +1,0 @@
-s[j++]="      error(\"Script attempted to create global variable '\"..tostring(n)..\"'\", 2)\n";

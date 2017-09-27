@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+            }
+            checked_standby = checking_standby++;
+        }
+        cur_lbset++;
+    } while (cur_lbset <= max_lbset && !mycandidate);
 
-    Explain0("FTP: connected.");
+    return mycandidate;
+}
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+/*
+ * How to add additional lbmethods:
+ *   1. Create func which determines "best" candidate worker
+ *      (eg: find_best_bytraffic, above)

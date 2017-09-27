@@ -1,1 +1,0 @@
-fprintf(stderr,"Error setting DB num\n");

@@ -1,19 +1,24 @@
-    if (!method_restricted)
-	return OK;
+     * initialize the mutex handling
+     */
+    if (!ssl_mutex_init(base_server, p)) {
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+#ifdef HAVE_OCSP_STAPLING
+    ssl_stapling_ex_init();
+#endif
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    /*
+     * initialize session caching
+     */
+    ssl_scache_init(base_server, p);
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+    /*
+     *  initialize servers
+     */
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, base_server, APLOGNO(01887)
+                 "Init: Initializing (virtual) servers for SSL");
 
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
+        /*
+         * Either now skip this server when SSL is disabled for

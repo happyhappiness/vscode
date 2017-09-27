@@ -1,21 +1,24 @@
+    suexec_config_t *cfg = (suexec_config_t *) mconfig;
+    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+    if (err != NULL) {
+        return err;
+    }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+    if (!ap_unixd_config.suexec_enabled) {
+        return apr_pstrcat(cmd->pool, "SuexecUserGroup configured, but "
+                           "suEXEC is disabled: ",
+                           ap_unixd_config.suexec_disabled_reason, NULL);
+    }
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    cfg->ugid.uid = ap_uname2id(uid);
+    cfg->ugid.gid = ap_gname2id(gid);
+    cfg->ugid.userdir = 0;
+    cfg->active = 1;
+
+    return NULL;
+}
+
+static ap_unix_identity_t *get_suexec_id_doer(const request_rec *r)
+{
+    suexec_config_t *cfg =

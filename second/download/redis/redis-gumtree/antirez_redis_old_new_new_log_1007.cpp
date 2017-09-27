@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Discarding previously cached master state.");

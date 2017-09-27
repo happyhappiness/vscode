@@ -1,24 +1,14 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
+    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
+    /* set "NUL" as sysout for the child */
+    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");
     }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

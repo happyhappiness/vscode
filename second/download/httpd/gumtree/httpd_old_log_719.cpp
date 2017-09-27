@@ -1,1 +1,1 @@
-ap_rputs("</tt></dd>\n", r);
+ap_rputs(" - <i>", r);

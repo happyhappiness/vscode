@@ -1,13 +1,19 @@
+        H2_MPLX_REMOVE(m);
+    }
+    while (!H2_WORKER_LIST_EMPTY(&workers->workers)) {
+        h2_worker *w = H2_WORKER_LIST_FIRST(&workers->workers);
+        H2_WORKER_REMOVE(w);
+    }
+}
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+apr_status_t h2_workers_register(h2_workers *workers, struct h2_mplx *m)
+{
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, status, workers->s,
+                     "h2_workers: register mplx(%ld)", m->id);
+        if (in_list(workers, m)) {
+            status = APR_EAGAIN;
+        }
+        else {
+            H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);

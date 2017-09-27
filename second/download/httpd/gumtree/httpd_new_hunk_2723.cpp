@@ -1,13 +1,13 @@
+        apr_brigade_insert_file(bb, f, pos, r->finfo.size - pos, r->pool);
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01236)
+                          "mod_asis: ap_pass_brigade failed for file %s", r->filename);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    else {
+        apr_file_close(f);

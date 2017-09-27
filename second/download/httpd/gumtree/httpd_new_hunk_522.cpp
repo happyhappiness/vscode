@@ -1,42 +1,18 @@
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                         "proxy: HTTP: received 100 CONTINUE");
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
         }
 
-        /* we must accept 3 kinds of date, but generate only 1 kind of date */
-        if ((buf = apr_table_get(r->headers_out, "Date")) != NULL) {
-            apr_table_set(r->headers_out, "Date",
-                          ap_proxy_date_canon(p, buf));
-        }
-        if ((buf = apr_table_get(r->headers_out, "Expires")) != NULL) {
-            apr_table_set(r->headers_out, "Expires",
-                          ap_proxy_date_canon(p, buf));
-        }
-        if ((buf = apr_table_get(r->headers_out, "Last-Modified")) != NULL) {
-            apr_table_set(r->headers_out, "Last-Modified",
-                          ap_proxy_date_canon(p, buf));
-        }
-
-        /* munge the Location and URI response headers according to
-         * ProxyPassReverse
+        /* Presume the handle was opened with the CORRECT semantics
+         * for TransmitFile
          */
-        if ((buf = apr_table_get(r->headers_out, "Location")) != NULL) {
-            apr_table_set(r->headers_out, "Location",
-                          ap_proxy_location_reverse_map(r, conf, buf));
+        if ((rv = apr_os_file_put(&fd, &tf->hFile,
+                                  APR_READ | APR_XTHREAD, r->pool))
+                != APR_SUCCESS) {
+            return 0;
         }
-        if ((buf = apr_table_get(r->headers_out, "Content-Location")) != NULL) {
-            apr_table_set(r->headers_out, "Content-Location",
-                          ap_proxy_location_reverse_map(r, conf, buf));
+        if (tf->BytesToWrite) {
+            fsize = tf->BytesToWrite;
         }
-        if ((buf = apr_table_get(r->headers_out, "URI")) != NULL) {
-            apr_table_set(r->headers_out, "URI",
-                          ap_proxy_location_reverse_map(r, conf, buf));
-        }
-
-        if ((r->status == 401) && (conf->error_override != 0)) {
-            const char *wa = "WWW-Authenticate";
-            if ((buf = apr_table_get(r->headers_out, wa))) {
-                apr_table_set(r->err_headers_out, wa, buf);
-            } else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: origin server sent 401 without WWW-Authenticate header");

@@ -1,31 +1,43 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
+            }
 
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-    }
-#elif defined(MAP_TMPFILE)
-    {
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-	int fd = mkstemp(mfile);
-	if (fd == -1) {
-	    perror("open");
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (m == (caddr_t) - 1) {
-	    perror("mmap");
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	close(fd);
-	unlink(mfile);
-    }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+            apr_pool_cleanup_register(pconf, (void *)s, lock_remove,
+                                      apr_pool_cleanup_null);
+
+            /* setup shm for balancers */
+            bshm = ap_proxy_find_balancershm(storage, conf->bslot, balancer, &index);
+            if (bshm) {
+                if ((rv = storage->fgrab(conf->bslot, index)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02408) "balancer slotmem_fgrab failed");
+                    return !OK;
+                }
+            }
+            else {
+                if ((rv = storage->grab(conf->bslot, &index)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01181) "balancer slotmem_grab failed");
+                    return !OK;
+                }
+                if ((rv = storage->dptr(conf->bslot, index, (void *)&bshm)) != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01182) "balancer slotmem_dptr failed");
+                    return !OK;
+                }
+            }
+            if ((rv = ap_proxy_share_balancer(balancer, bshm, index)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01183) "Cannot share balancer");
+                return !OK;
+            }
+
+            /* create slotmem slots for workers */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d [%u]",
+                         balancer->s->name, balancer->s->sname,
+                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                         (int)balancer->max_workers, i);
+
+            rv = storage->create(&new, balancer->s->sname,
+                                 ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                                 balancer->max_workers, type, pconf);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01185) "worker slotmem_create failed");
+                return !OK;
+            }
+            balancer->wslot = new;
+            balancer->storage = storage;

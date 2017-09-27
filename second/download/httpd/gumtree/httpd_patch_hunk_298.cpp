@@ -1,18 +1,13 @@
-                     if (d->icon_width) {
-                         ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                     }
-                     if (d->icon_height) {
-                         ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                     }
--                    ap_rputs(" />", r);
-+
-+                    if (autoindex_opts & EMIT_XHTML) {
-+                        ap_rputs(" /", r);
-+                    }
-+                    ap_rputs(">", r);
-                 }
-                 else {
-                     ap_rputs("&nbsp;", r);
-                 }
-                 if (autoindex_opts & ICONS_ARE_LINKS) {
-                     ap_rputs("</a></td>", r);
+ 
+     rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
+                                ap_accept_lock_mech, _pconf);
+     if (rv != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                      "Couldn't create accept lock");
++        mpm_state = AP_MPMQ_STOPPING;
+         return 1;
+     }
+ 
+ #if APR_USE_SYSVSEM_SERIALIZE
+     if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
+         ap_accept_lock_mech == APR_LOCK_SYSVSEM) {

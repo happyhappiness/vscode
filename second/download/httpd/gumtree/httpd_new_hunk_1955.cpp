@@ -1,13 +1,13 @@
-
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);
+    apr_file_printf(errfile, " -D  Delete the specified user." NL);
+    apr_file_printf(errfile,
+            "On other systems than Windows and NetWare the '-p' flag will "
+            "probably not work." NL);
+    apr_file_printf(errfile,
+            "The SHA algorithm does not use a salt and is less secure than "
+            "the MD5 algorithm." NL);
+    exit(ERR_SYNTAX);
+}

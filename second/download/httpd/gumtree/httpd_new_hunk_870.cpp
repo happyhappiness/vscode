@@ -1,58 +1,58 @@
-                            APR_OS_DEFAULT, p)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                     "%s: could not open error log file %s.",
-                     ap_server_argv0, fname);
-        return rc;
-    }
-    if ((rc = apr_file_open_stderr(&stderr_log, p)) == APR_SUCCESS) {
-        apr_file_flush(stderr_log);
-        if ((rc = apr_file_dup2(stderr_log, stderr_file, p)) == APR_SUCCESS) {
-            apr_file_close(stderr_file);
+
+static unsigned int __stdcall win9x_accept(void * dummy)
+{
+    struct timeval tv;
+    fd_set main_fds;
+    int wait_time = 1;
+    SOCKET csd;
+    SOCKET nsd = INVALID_SOCKET;
+    int count_select_errors = 0;
+    int rc;
+    int clen;
+    ap_listen_rec *lr;
+    struct fd_set listenfds;
+#if APR_HAVE_IPV6
+    struct sockaddr_in6 sa_client;
+#else
+    struct sockaddr_in sa_client;
+#endif
+
+    /* Setup the listeners
+     * ToDo: Use apr_poll()
+     */
+    FD_ZERO(&listenfds);
+    for (lr = ap_listeners; lr; lr = lr->next) {
+        if (lr->sd != NULL) {
+            apr_os_sock_get(&nsd, lr->sd);
+            FD_SET(nsd, &listenfds);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "Child %d: Listening on port %d.", my_pid, lr->bind_addr->port);
         }
     }
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
-                     "unable to replace stderr with error_log");
-    }
-    return rc;
-}
 
-static void log_child_errfn(apr_pool_t *pool, apr_status_t err,
-                            const char *description)
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL,
-                 "%s", description);
-}
+    head_listener = ap_listeners;
 
-static int log_child(apr_pool_t *p, const char *progname,
-                     apr_file_t **fpin)
-{
-    /* Child process code for 'ErrorLog "|..."';
-     * may want a common framework for this, since I expect it will
-     * be common for other foo-loggers to want this sort of thing...
-     */
-    apr_status_t rc;
-    apr_procattr_t *procattr;
-    apr_proc_t *procnew;
+    while (!shutdown_in_progress) {
+	tv.tv_sec = wait_time;
+	tv.tv_usec = 0;
+	memcpy(&main_fds, &listenfds, sizeof(fd_set));
 
-    if (((rc = apr_procattr_create(&procattr, p)) == APR_SUCCESS)
-        && ((rc = apr_procattr_cmdtype_set(procattr,
-                                           APR_SHELLCMD_ENV)) == APR_SUCCESS)
-        && ((rc = apr_procattr_io_set(procattr,
-                                      APR_FULL_BLOCK,
-                                      APR_NO_PIPE,
-                                      APR_NO_PIPE)) == APR_SUCCESS)
-        && ((rc = apr_procattr_error_check_set(procattr, 1)) == APR_SUCCESS)
-        && ((rc = apr_procattr_child_errfn_set(procattr, log_child_errfn)) == APR_SUCCESS)) {
-        char **args;
-        const char *pname;
+        /* First parameter of select() is ignored on Windows */
+        rc = select(0, &main_fds, NULL, NULL, &tv);
 
-        apr_tokenize_to_argv(progname, &args, p);
-        pname = apr_pstrdup(p, args[0]);
-        procnew = (apr_proc_t *)apr_pcalloc(p, sizeof(*procnew));
-        rc = apr_proc_create(procnew, pname, (const char * const *)args,
-                             NULL, procattr, p);
-
-        if (rc == APR_SUCCESS) {
-            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
-            (*fpin) = procnew->in;
+        if (rc == 0 || (rc == SOCKET_ERROR && APR_STATUS_IS_EINTR(apr_get_netos_error()))) {
+            count_select_errors = 0;    /* reset count of errors */
+            continue;
+        }
+        else if (rc == SOCKET_ERROR) {
+            /* A "real" error occurred, log it and increment the count of
+             * select errors. This count is used to ensure we don't go into
+             * a busy loop of continuous errors.
+             */
+            ap_log_error(APLOG_MARK, APLOG_INFO, apr_get_netos_error(), ap_server_conf,
+                         "select failed with error %d", apr_get_netos_error());
+            count_select_errors++;
+            if (count_select_errors > MAX_SELECT_ERRORS) {
+                shutdown_in_progress = 1;
+                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                             "Too many errors in select loop. Child process exiting.");

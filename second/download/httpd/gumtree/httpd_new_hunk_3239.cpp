@@ -1,21 +1,43 @@
+        }
+        else {
+            cur = atol(str);
+        }
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02173)
+                     "Invalid parameters for %s", cmd->cmd->name);
+        return;
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
+        max = atol(str);
+    }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+    /* if we aren't running as root, cannot increase max */
+    if (geteuid()) {
+        limit->rlim_cur = cur;
+        if (max && (max > limit->rlim_max)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02174)
+                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+        }
+        else if (max) {
+            limit->rlim_max = max;
+        }
+    }
+    else {
+        if (cur) {
+            limit->rlim_cur = cur;
+        }
+        if (max) {
+            limit->rlim_max = max;
+        }
+    }
+#else
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02175)
+                 "Platform does not support rlimit for %s", cmd->cmd->name);
+#endif
+}
+
+APR_HOOK_STRUCT(
+               APR_HOOK_LINK(get_suexec_identity)

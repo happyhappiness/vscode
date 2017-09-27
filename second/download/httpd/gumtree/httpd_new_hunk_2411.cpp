@@ -1,13 +1,30 @@
+ * On failure, the 401 Not Authorized error screen will be redisplayed,
+ * where the login attempt can be repeated.
+ *
+ */
+static int authenticate_form_login_handler(request_rec * r)
+{
+    auth_form_config_rec *conf;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    const char *sent_user = NULL, *sent_pw = NULL, *sent_loc = NULL;
+    int rv;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    if (strcmp(r->handler, FORM_LOGIN_HANDLER)) {
+        return DECLINED;
+    }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    if (r->method_number != M_POST) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01811)
+          "the " FORM_LOGIN_HANDLER " only supports the POST method for %s",
+                      r->uri);
+        return HTTP_METHOD_NOT_ALLOWED;
+    }
+
+    conf = ap_get_module_config(r->per_dir_config, &auth_form_module);
+
+    rv = get_form_auth(r, conf->username, conf->password, conf->location,
+                       NULL, NULL, NULL,
+                       &sent_user, &sent_pw, &sent_loc,
+                       NULL, NULL, NULL, conf);
+    if (OK == rv) {
+        rv = check_authn(r, sent_user, sent_pw);

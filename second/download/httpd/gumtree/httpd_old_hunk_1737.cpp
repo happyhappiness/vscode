@@ -1,13 +1,13 @@
-#if PROXY_HAS_SCOREBOARD
-    lb_score *score = NULL;
-#else
-    void *score = NULL;
-#endif
-
-    if (worker->s && PROXY_WORKER_IS_INITIALIZED(worker)) {
-        /* The worker share is already initialized */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-              "proxy: worker %s already initialized",
-              worker->name);
-        return;
+        if (strEQ(mctx->pks->cert_files[i], chain)) {
+            skip_first = TRUE;
+            break;
+        }
     }
+
+    ERR_clear_error();
+    n = SSL_CTX_use_certificate_chain(mctx->ssl_ctx,
+                                      (char *)chain,
+                                      skip_first, NULL);
+    if (n < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Failed to configure CA certificate chain!");

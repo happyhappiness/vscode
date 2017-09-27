@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING, "%s %s %s", head, body, tail);

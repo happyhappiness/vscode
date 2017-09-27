@@ -1,29 +1,13 @@
-	}
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+        case APR_EAGAIN:
+            /* If there is no data available, our session will automatically
+             * suspend this stream and not ask for more data until we resume
+             * it. Remember at our h2_stream that we need to do this.
+             */
+            nread = 0;
+            h2_mplx_suspend_stream(session->mplx, stream->id);
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03071)
+                          "h2_stream(%ld-%d): suspending",
+                          session->id, (int)stream_id);
+            return NGHTTP2_ERR_DEFERRED;
+            
+        default:

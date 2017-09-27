@@ -1,1 +1,0 @@
-addReplySds(c,sdsnew("-NOTBUSY No scripts in execution right now.\r\n"));

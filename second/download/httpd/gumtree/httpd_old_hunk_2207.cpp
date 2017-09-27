@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
-
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+            cmd_data->mode = mInstall;
+        }
+    } else if (strcmp(var, "shared") == 0) {
+        if (cmd_data->mode == mLink) {
+            cmd_data->output = otDynamicLibraryOnly;
+        }
+        cmd_data->options.shared = 1;
+    } else if (strcmp(var, "export-all") == 0) {
+        cmd_data->options.export_all = 1;
+    } else if (strcmp(var, "dry-run") == 0) {
+        printf("Dry-run mode on!\n");
+        cmd_data->options.dry_run = 1;
+    } else if (strcmp(var, "version") == 0) {

@@ -1,1 +1,0 @@
-addReplyErrorFormat(c,"Rewriting config file: %s", strerror(errno));

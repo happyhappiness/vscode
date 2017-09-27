@@ -1,14 +1,25 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
-    }
-
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+            /*
+             * If OpenSSL wants to write more, and we were nonblocking,
+             * report as an EAGAIN.  Otherwise loop, pushing more
+             * data at the network filter.
+             *
+             * (This is usually the case when the client forces an SSL
+             * renegotation which is handled implicitly by OpenSSL.)
+             */
+            outctx->rc = APR_EAGAIN;
+        }
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
+                          "SSL output filter write failed.");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
+                          "SSL library error %d writing data", ssl_err);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, mySrvFromConn(c));
+        }
+        if (outctx->rc == APR_SUCCESS) {
+            outctx->rc = APR_EGENERAL;
+        }

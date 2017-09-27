@@ -1,14 +1,21 @@
-        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                          "apr_socket_opt_set(APR_TCP_NODELAY): "
-                          "Failed to set");
-        }
+    ap_extended_status = 0;
+    ap_min_spare_threads = DEFAULT_MIN_SPARE_THREAD;
+    ap_max_spare_threads = DEFAULT_MAX_SPARE_THREAD;
+#ifdef AP_MPM_WANT_SET_MAX_MEM_FREE
+        ap_max_mem_free = APR_ALLOCATOR_MAX_FREE_UNLIMITED;
+#endif
 
-        /* Set a timeout on the socket */
-        if (worker->timeout_set == 1) {
-            apr_socket_timeout_set(newsock, worker->timeout);
-        }
-        else if (conf->timeout_set == 1) {
-            apr_socket_timeout_set(newsock, conf->timeout);
-        }
-        else {
+    return OK;
+}
+
+
+
+static void mpmt_os2_hooks(apr_pool_t *p)
+{
+    ap_hook_pre_config(mpmt_os2_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
+}
+
+
+
+static const char *set_daemons_to_start(cmd_parms *cmd, void *dummy, const char *arg)
+{

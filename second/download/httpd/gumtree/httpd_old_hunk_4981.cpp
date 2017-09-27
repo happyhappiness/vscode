@@ -1,13 +1,13 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
-    }
+                                  hook_spec->file_name,
+                                  hook_spec->bytecode,
+                                  hook_spec->bytecode_len,
+                                  hook_spec->function_name,
+                                  "request hook");
+
+            L = ap_lua_get_lua_state(pool, spec);
+
+            if (!L) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
+                              "lua: Failed to obtain lua interpreter for %s %s",
+                              hook_spec->function_name, hook_spec->file_name);
+                return HTTP_INTERNAL_SERVER_ERROR;

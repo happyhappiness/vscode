@@ -1,14 +1,18 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    /* kick off the filter stack */
+    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    rv = ap_pass_brigade(r->output_filters, out);
+    if (rv != APR_SUCCESS) {
+        if (rv != AP_FILTER_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);
+        }
+        return rv;
+    }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    return OK;
+}
+

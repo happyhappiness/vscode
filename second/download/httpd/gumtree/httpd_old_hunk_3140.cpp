@@ -1,17 +1,27 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-		    isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
+
+        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
+        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
+        klen = strlen(key);
+
+        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
+            ap_log_error(APLOG_MARK, 
+#ifdef OPENSSL_NO_TLSEXT
+                         APLOG_WARNING, 
+#else
+                         APLOG_DEBUG, 
+#endif
+                         0,
+                         base_server,
+#ifdef OPENSSL_NO_TLSEXT
+                         "Init: SSL server IP/port conflict: "
+#else
+                         "Init: SSL server IP/port overlap: "
+#endif
+                         "%s (%s:%d) vs. %s (%s:%d)",
+                         ssl_util_vhostid(p, s),
+                         (s->defn_name ? s->defn_name : "unknown"),
+                         s->defn_line_number,
+                         ssl_util_vhostid(p, ps),
+                         (ps->defn_name ? ps->defn_name : "unknown"),
+                         ps->defn_line_number);
+            conflict = TRUE;

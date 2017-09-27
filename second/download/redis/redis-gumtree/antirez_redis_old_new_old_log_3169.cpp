@@ -1,1 +1,0 @@
-printf("val: %p\n",(void*)j->val);

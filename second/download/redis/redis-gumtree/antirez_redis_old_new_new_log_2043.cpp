@@ -1,1 +1,0 @@
-line = sdscatprintf(sdsempty(),"%s %s",option,name);

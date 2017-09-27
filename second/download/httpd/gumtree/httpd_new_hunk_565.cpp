@@ -1,58 +1,14 @@
-
-            if (rc == 0)
-                thefile->bufpos = 0;
-        }
-
-        return rc;
-    }
-
-    /* There isn't anything to do if we aren't buffering the output
-     * so just return success.
-     */
-    return APR_SUCCESS; 
-}
-
-struct apr_file_printf_data {
-    apr_vformatter_buff_t vbuff;
-    apr_file_t *fptr;
-    char *buf;
-};
-
-static int file_printf_flush(apr_vformatter_buff_t *buff)
+void ssl_io_filter_init(conn_rec *c, SSL *ssl)
 {
-    struct apr_file_printf_data *data = (struct apr_file_printf_data *)buff;
+    ssl_filter_ctx_t *filter_ctx;
 
-    if (apr_file_write_full(data->fptr, data->buf,
-                            data->vbuff.curpos - data->buf, NULL)) {
-        return -1;
-    }
+    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
 
-    data->vbuff.curpos = data->buf;
-    return 0;
-}
+    filter_ctx->config          = myConnConfig(c);
 
-APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
-                                        const char *format, ...)
-{
-    struct apr_file_printf_data data;
-    va_list ap;
-    int count;
+    filter_ctx->nobuffer        = 0;
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter_ctx, NULL, c);
 
-    data.buf = malloc(HUGE_STRING_LEN);
-    if (data.buf == NULL) {
-        return 0;
-    }
-    data.vbuff.curpos = data.buf;
-    data.vbuff.endpos = data.buf + HUGE_STRING_LEN;
-    data.fptr = fptr;
-    va_start(ap, format);
-    count = apr_vformatter(file_printf_flush,
-                           (apr_vformatter_buff_t *)&data, format, ap);
-    /* apr_vformatter does not call flush for the last bits */
-    if (count >= 0) file_printf_flush((apr_vformatter_buff_t *)&data);
-
-    va_end(ap);
-
-    free(data.buf);
-    return count;
-}
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);

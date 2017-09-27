@@ -1,1 +1,0 @@
-fprintf(stderr,"Error: %s\n",c->context->errstr);

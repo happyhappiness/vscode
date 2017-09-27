@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
-                                 ap_server_conf, "apr_poll: (listen)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Symbolic link not allowed: %s",
+                                  r->filename);

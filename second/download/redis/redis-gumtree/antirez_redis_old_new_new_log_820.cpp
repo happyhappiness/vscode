@@ -1,1 +1,0 @@
-rewriteConfigYesNoOption(state,"appendonly",server.aof_state != AOF_OFF,0);

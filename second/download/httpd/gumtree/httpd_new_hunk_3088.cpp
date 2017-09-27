@@ -1,36 +1,35 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
+        nbytes = sizeof(drain_buffer) - 1;
+        while (status == APR_SUCCESS && nbytes) {
+            status = apr_socket_recv(backend->sock, drain_buffer, &nbytes);
+            buffer[nbytes] = '\0';
+            nbytes = sizeof(drain_buffer) - 1;
+            if (strstr(drain_buffer, "\r\n\r\n") != NULL) {
                 break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+            }
+        }
+    }
+
+    /* Check for HTTP_OK response status */
+    if (status == APR_SUCCESS) {
+        int major, minor;
+        /* Only scan for three character status code */
+        char code_str[4];
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00949)
+                     "send_http_connect: response from the forward proxy: %s",
+                     buffer);
+
+        /* Extract the returned code */
+        if (sscanf(buffer, "HTTP/%u.%u %3s", &major, &minor, code_str) == 3) {
+            status = atoi(code_str);
+            if (status == HTTP_OK) {
+                status = APR_SUCCESS;
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00950)
+                             "send_http_connect: the forward proxy returned code is '%s'",
+                             code_str);
+            status = APR_INCOMPLETE;
+            }
+        }
+    }

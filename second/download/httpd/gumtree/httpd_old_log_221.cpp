@@ -1,1 +1,0 @@
-ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);

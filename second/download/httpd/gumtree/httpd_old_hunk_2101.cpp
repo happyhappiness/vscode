@@ -1,13 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+    {
+	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
+	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
+	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    COMPUTE_KEY_CHECKSUM(key, checksum);

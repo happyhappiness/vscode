@@ -1,14 +1,25 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
     else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
+        int response_status = OCSP_response_status(*prsp);
+
+        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
+                        "stapling_renew_response: query response received");
+            stapling_check_response(s, mctx, cinf, *prsp, &ok);
+            if (ok == FALSE) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
+                             "stapling_renew_response: error in retrieved response!");
+            }
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));
+        }
     }
-}
+    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
+                     "stapling_renew_response: error caching response!");
+    }
 
-
-static const handler_rec autoindex_handlers[] =
--- apache_1.3.0/src/modules/standard/mod_cern_meta.c	1998-04-11 20:00:45.000000000 +0800
+done:
+    if (id)

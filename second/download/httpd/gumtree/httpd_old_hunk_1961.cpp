@@ -1,38 +1,35 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-			ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0)),
-			     "\">", NULL);
-	}
+    /* Seems IIS does not enforce the requirement for \r\n termination
+     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
+     * ap_scan_script_header_err_strs handles this aspect for us.
+     *
+     * Parse them out, or die trying
+     */
+    if (stat) {
+        cid->r->status = ap_scan_script_header_err_strs(cid->r, NULL,
+                                        &termch, &termarg, stat, head, NULL);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else {
+        cid->r->status = ap_scan_script_header_err_strs(cid->r, NULL,
+                                        &termch, &termarg, head, NULL);
+        if (cid->ecb->dwHttpStatusCode && cid->r->status == HTTP_OK
+                && cid->ecb->dwHttpStatusCode != HTTP_OK) {
+            /* We tried every way to Sunday to get the status...
+             * so now we fall back on dwHttpStatusCode if it appears
+             * ap_scan_script_header fell back on the default code.
+             * Any other results set dwHttpStatusCode to the decoded
+             * status value.
+             */
+            cid->r->status = cid->ecb->dwHttpStatusCode;
+            cid->r->status_line = ap_get_status_line(cid->r->status);
+        }
+        else {
+            cid->ecb->dwHttpStatusCode = cid->r->status;
+        }
+    }
+    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
+        return -1;
+    }
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs(anchor, r);
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-		       ap_escape_html(scratch, ar[x]->icon ?
-				   ar[x]->icon : d->default_icon),
-		       "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-		       "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf
-			(
-			    r,
-			    " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			    d->icon_height,
-			    d->icon_width
-			);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs("</A>", r);
-
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+    /* If only Status was passed, we consumed nothing
+     */

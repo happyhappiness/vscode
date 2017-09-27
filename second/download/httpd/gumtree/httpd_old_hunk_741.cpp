@@ -1,20 +1,25 @@
-    if (script && r->prev && r->prev->prev)
-	return DECLINED;
+             * ssl_io_filter_error will disable the ssl filters when it
+             * sees this status code.
+             */
+            return HTTP_BAD_REQUEST;
+        }
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, rc, c->base_server,
+                         "SSL handshake interrupted by system "
+                         "[Hint: Stop button pressed in browser?!]");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_error(APLOG_MARK, APLOG_INFO, rc, c->base_server,
+                         "SSL library error %d in handshake "
+                         "(server %s, client %s)", ssl_err,
+                         ssl_util_vhostid(c->pool, c->base_server),
+                         c->remote_ip ? c->remote_ip : "unknown");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
 
-    /* Second, check for actions (which override the method scripts) */
-    action = r->handler ? r->handler :
-	ap_field_noparam(r->pool, r->content_type);
-    if ((t = apr_table_get(conf->action_types,
-		       action ? action : ap_default_type(r)))) {
-	script = t;
-	if (r->finfo.filetype == 0) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-			"File does not exist: %s", r->filename);
-	    return HTTP_NOT_FOUND;
-	}
-    }
-
-    if (script == NULL)
-	return DECLINED;
-
-    ap_internal_redirect_handler(apr_pstrcat(r->pool, script,
+        }
+        if (inctx->rc == APR_SUCCESS) {
+            inctx->rc = APR_EGENERAL;
+        }

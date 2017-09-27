@@ -1,27 +1,12 @@
-        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
-        status = apr_proc_create(procnew, pname, (const char * const *) args,
-                                 NULL, procattr, pl->p);
+            r->status_line = apr_pstrdup(p, &buffer[9]);
+            
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
 
-        if (status == APR_SUCCESS) {
-            pl->pid = procnew;
-            ap_piped_log_write_fd(pl) = procnew->in;
-            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
-                                          ap_piped_log_write_fd(pl), pl->p);
-        }
-        else {
-            char buf[120];
-            /* Something bad happened, give up and go away. */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "unable to start piped log program '%s': %s",
-                         pl->program, apr_strerror(status, buf, sizeof(buf)));
-            rc = -1;
-        }
-    }
-
-    return rc;
-}
-
-
-static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
-{
-    piped_log *pl = data;
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,

@@ -1,1 +1,1 @@
-ap_rputs(ap_psignature("",r), r);
+ap_rputs("<td valign=\"top\">", r);

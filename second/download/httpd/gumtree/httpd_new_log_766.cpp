@@ -1,1 +1,1 @@
-ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);
+ap_rputs("<dl><dt><tt>Sections:<br />", r);

@@ -1,1 +1,0 @@
-out = sdscatprintf(out,"(integer) %lld\n",r->integer);

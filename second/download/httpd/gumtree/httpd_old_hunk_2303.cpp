@@ -1,15 +1,16 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "inserting socache entry larger (%d) than subcache data area (%d)",
+                     total_len, header->subcache_data_size);
+        return -1;
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    /* If there are entries to expire, ditch them first. */
+    shmcb_subcache_expire(s, header, subcache, apr_time_now());
+
+    /* Loop until there is enough space to insert */
+    if (header->subcache_data_size - subcache->data_used < total_len
+        || subcache->idx_used == header->index_num) {
+        unsigned int loop = 0;
+
+        idx = SHMCB_INDEX(subcache, subcache->idx_pos);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,

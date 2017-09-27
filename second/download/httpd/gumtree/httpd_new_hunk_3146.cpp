@@ -1,14 +1,13 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+
+        /* XXX: probably a better way to determine this */
+        if (SSL_total_renegotiations(filter_ctx->pssl)) {
+            reason = "likely due to failed renegotiation";
+        }
+
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c, APLOGNO(01995)
+                      "failed to write %" APR_SSIZE_T_FMT
+                      " of %" APR_SIZE_T_FMT " bytes (%s)",
+                      len - (apr_size_t)res, len, reason);
+
+        outctx->rc = APR_EGENERAL;
+    }

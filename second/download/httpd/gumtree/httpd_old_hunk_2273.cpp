@@ -1,13 +1,30 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
         }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
+    }
 
-            if (val) {
-                ap_rputs(val, r);
+    t = require_args;
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                  "testing for group membership in \"%s\"",
+                  getpid(), t);
+
+    for (i = 0; i < sec->groupattr->nelts; i++) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                      "testing for %s: %s (%s)", getpid(),
+                      ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
+                             sec->group_attrib_is_dn ? req->dn : req->user);
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                              "authorization successful (attribute %s) [%s][%d - %s]",
+                              getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
             }
-            else {
-                ap_rputs("(none)", r);
+            case LDAP_NO_SUCH_ATTRIBUTE: 
+            case LDAP_COMPARE_FALSE: {
+                /* nested groups need searches and compares, so grab a new handle */

@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);
+ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);

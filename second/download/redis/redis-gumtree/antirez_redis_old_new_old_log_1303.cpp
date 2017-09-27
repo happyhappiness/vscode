@@ -1,1 +1,0 @@
-ERROR("Cannot stat: %s\n", rdbfilename);

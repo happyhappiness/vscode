@@ -1,28 +1,18 @@
-            apr_brigade_cleanup(bb);
-
-            /* Detect chunksize error (such as overflow) */
-            if (rv != APR_SUCCESS || ctx->remaining < 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
-                ctx->remaining = 0; /* Reset it in case we have to
-                                     * come back here later */
-                if (APR_STATUS_IS_TIMEUP(rv)) { 
-                    http_error = HTTP_REQUEST_TIME_OUT;
-                }
-                return bail_out_on_error(ctx, f, http_error);
-            }
-
-            if (!ctx->remaining) {
-                /* Handle trailers by calling ap_get_mime_headers again! */
-                ctx->state = BODY_NONE;
-                ap_get_mime_headers(f->r);
-                e = apr_bucket_eos_create(f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(b, e);
-                ctx->eos_sent = 1;
-                return APR_SUCCESS;
-            }
-        }
     }
-    else {
-        bb = ctx->bb;
+
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
     }
+    if (!log_writer) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
+                "log writer isn't correctly setup");
+         return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
+    /* xxx: do we return an error on log_writer? */
+    return OK;
+}
+
+static int multi_log_transaction(request_rec *r)
+{
+    multi_log_state *mls = ap_get_module_config(r->server->module_config,

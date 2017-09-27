@@ -1,13 +1,23 @@
-    apr_rfc822_date(dates, r->request_time);
-    apr_table_setn(r->headers_out, "Date", dates);
-    apr_table_setn(r->headers_out, "Server", ap_get_server_banner());
+    SSL_CTX_set_verify(ctx, verify, ssl_callback_SSLVerify);
 
-    /* set content-type */
-    if (dirlisting) {
-        ap_set_content_type(r, "text/html");
-    }
-    else {
-        if (r->content_type) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: Content-Type set to %s", r->content_type);
+    /*
+     * Configure Client Authentication details
+     */
+    if (mctx->auth.ca_cert_file || mctx->auth.ca_cert_path) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Configuring client authentication");
+
+        if (!SSL_CTX_load_verify_locations(ctx,
+                         MODSSL_PCHAR_CAST mctx->auth.ca_cert_file,
+                         MODSSL_PCHAR_CAST mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+            ssl_die();
         }
+
+        if (mctx->pks && (mctx->pks->ca_name_file || mctx->pks->ca_name_path)) {
+            ca_list = ssl_init_FindCAList(s, ptemp,
+                                          mctx->pks->ca_name_file,

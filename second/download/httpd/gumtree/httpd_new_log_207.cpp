@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create scoreboard \"%s\" "
-                     "(name-based shared memory failure)", fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "unknown directive \"%s\" in parsed doc %s",
+                                  apr_pstrmemdup(r->pool, ctx->directive,
+                                                 ctx->ctx->directive_length),
+                                                 r->filename);

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                "Cannot resolve host name %s --- ignoring!", host);
+fprintf(stderr, "table_set: val not in ancestor pool of t\n");

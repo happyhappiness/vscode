@@ -1,12 +1,13 @@
-                     "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
-#else
-    if (!one_process) {
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+
+    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
+                               ap_accept_lock_mech, _pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        mpm_state = AP_MPMQ_STOPPING;
+        return 1;
+    }
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
+        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {

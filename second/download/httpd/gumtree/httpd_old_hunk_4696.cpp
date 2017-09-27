@@ -1,13 +1,13 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
+
+            err = rmm_free(client_rmm, entry);
+            num_removed++;
+
+            if (err) {
+                /* Nothing we can really do but log... */
+                ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO()
+                             "Failed to free auth_digest client allocation");
+            }
+        }
     }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+
+    /* update counters and log */

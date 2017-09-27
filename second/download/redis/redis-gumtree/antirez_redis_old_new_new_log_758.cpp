@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Fatal: can't update cluster config file.");

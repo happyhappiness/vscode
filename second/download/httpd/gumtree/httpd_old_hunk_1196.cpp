@@ -1,23 +1,24 @@
-                 */
-                cert_stack = sk_new_null();
-                sk_X509_push(cert_stack, MODSSL_PCHAR_CAST cert);
-            }
+    resident_time = now - info->response_time;
+    current_age = corrected_initial_age + resident_time;
 
-            if (!cert_stack || (sk_X509_num(cert_stack) == 0)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Cannot find peer certificate chain");
+    return apr_time_sec(current_age);
+}
 
-                return HTTP_FORBIDDEN;
-            }
+CACHE_DECLARE(int) ap_cache_check_freshness(cache_handle_t *h,
+                                            request_rec *r)
+{
+    apr_int64_t age, maxage_req, maxage_cresp, maxage, smaxage, maxstale;
+    apr_int64_t minfresh;
+    const char *cc_cresp, *cc_req;
+    const char *pragma;
+    const char *agestr = NULL;
+    const char *expstr = NULL;
+    char *val;
+    apr_time_t age_c = 0;
+    cache_info *info = &(h->cache_obj->info);
+    cache_server_conf *conf =
+      (cache_server_conf *)ap_get_module_config(r->server->module_config,
+                                                &cache_module);
 
-            if (!(cert_store ||
-                  (cert_store = SSL_CTX_get_cert_store(ctx))))
-            {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Cannot find certificate storage");
-
-                return HTTP_FORBIDDEN;
-            }
-
-            if (!cert) {
-                cert = sk_X509_value(cert_stack, 0);
+    /*
+     * We now want to check if our cached data is still fresh. This depends

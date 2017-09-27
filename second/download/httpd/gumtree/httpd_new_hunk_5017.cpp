@@ -1,14 +1,13 @@
-    return res;
-}
-
-API_EXPORT(int) ap_cfg_closefile(configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, 
-        "Done with config file %s", cfp->name);
-#endif
-    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
-}
-
-/* Common structure that holds the file and pool for ap_pcfg_openfile */
-typedef struct {
+        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
+                        "stapling_renew_response: query response received");
+            stapling_check_response(s, mctx, cinf, *prsp, &ok);
+            if (ok == FALSE) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
+                             "stapling_renew_response: error in retrieved response!");
+            }
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));

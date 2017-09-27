@@ -1,36 +1,51 @@
-#endif
+}
 
-    ap_soft_timeout("send body", r);
+static int on_data_chunk_recv_cb(nghttp2_session *ngh2, uint8_t flags,
+                                 int32_t stream_id,
+                                 const uint8_t *data, size_t len, void *userp)
+{
+    h2_session *session = (h2_session *)userp;
+    apr_status_t status = APR_SUCCESS;
+    h2_stream * stream;
+    int rv;
+    
+    (void)flags;
+    if (session->aborted) {
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+    
+    stream = h2_session_get_stream(session, stream_id);
+    if (!stream) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_session:  stream(%ld-%d): on_data_chunk for unknown stream",
+                      session->id, (int)stream_id);
+        rv = nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, stream_id,
+                                       NGHTTP2_INTERNAL_ERROR);
+        if (nghttp2_is_fatal(rv)) {
+            return NGHTTP2_ERR_CALLBACK_FAILURE;
+        }
+        return 0;
+    }
+    
+    status = h2_stream_write_data(stream, (const char *)data, len);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                  "h2_stream(%ld-%d): data_chunk_recv, written %ld bytes",
+                  session->id, stream_id, (long)len);
+    if (status != APR_SUCCESS) {
+        update_window(session, stream_id, len);
+        rv = nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, stream_id,
+                                       H2_STREAM_RST(stream, H2_ERR_INTERNAL_ERROR));
+        if (nghttp2_is_fatal(rv)) {
+            return NGHTTP2_ERR_CALLBACK_FAILURE;
+        }
+    }
+    return 0;
+}
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+static apr_status_t stream_release(h2_session *session, 
+                                   h2_stream *stream,
+                                   uint32_t error_code) 
+{
+    if (!error_code) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): handled, closing", 

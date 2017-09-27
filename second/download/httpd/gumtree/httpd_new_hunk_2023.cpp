@@ -1,17 +1,13 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    if (hold_screen_on_exit > 0) {
+        hold_screen_on_exit = 0;
     }
 
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "%s configured -- resuming normal operations",
+            ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+            "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+            "AcceptMutex: %s (default: %s)",
+            apr_proc_mutex_name(accept_mutex),

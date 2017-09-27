@@ -1,96 +1,69 @@
-                                                 &headers_module);
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
+        }
+        else {
+            request_rec *id = r->main ? r->main : r;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
-                 "headers: ap_headers_output_filter()");
+            /* Additional mitigation for CVE-2009-3555: At this point,
+             * before renegotiating, an (entire) request has been read
+             * from the connection.  An attacker may have sent further
+             * data to "prefix" any subsequent request by the victim's
+             * client after the renegotiation; this data may already
+             * have been read and buffered.  Forcing a connection
+             * closure after the response ensures such data will be
+             * discarded.  Legimately pipelined HTTP requests will be
+             * retried anyway with this approach. */
+            if (has_buffered_data(r)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "insecure SSL re-negotiation required, but "
+                              "a pipelined request is present; keepalive "
+                              "disabled");
+                r->connection->keepalive = AP_CONN_CLOSE;
+            }
 
-    /* do the fixup */
-    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err);
-    do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out);
+            /* Perform a full renegotiation. */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+#if defined(SSL_get_secure_renegotiation_support)
+                          SSL_get_secure_renegotiation_support(ssl) ? 
+                          "client does" : "client does not"
+#else
+                          "server does not"
+#endif
+                );
 
-    /* remove ourselves from the filter chain */
-    ap_remove_output_filter(f);
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
 
-    /* send the data up the stack */
-    return ap_pass_brigade(f->next,in);
-}
+            /* Toggle the renegotiation state to allow the new
+             * handshake to proceed. */
+            sslconn->reneg_state = RENEG_ALLOW;
+            
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
 
-static apr_status_t ap_headers_error_filter(ap_filter_t *f,
-                                            apr_bucket_brigade *in)
-{
-    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
-                                                 &headers_module);
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");
+                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
-                 "headers: ap_headers_error_filter()");
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
 
-    /* do the fixup */
-    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err);
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Awaiting re-negotiation handshake");
 
-    /* remove ourselves from the filter chain */
-    ap_remove_output_filter(f);
+            SSL_set_state(ssl, SSL_ST_ACCEPT);
+            SSL_do_handshake(ssl);
 
-    /* send the data up the stack */
-    return ap_pass_brigade(f->next,in);
-}
+            sslconn->reneg_state = RENEG_REJECT;
 
-static apr_status_t ap_headers_fixup(request_rec *r)
-{
-    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
-                                                 &headers_module);
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation handshake failed: "
+                        "Not accepted by client!?");
 
-    /* do the fixup */
-    if (dirconf->fixup_in->nelts) {
-        do_headers_fixup(r, r->headers_in, dirconf->fixup_in);
-    }
-
-    return DECLINED;
-}
-                                        
-static const command_rec headers_cmds[] =
-{
-    AP_INIT_RAW_ARGS("Header", header_cmd, &hdr_out, OR_FILEINFO,
-                   "an optional condition, an action, header and value "
-                   "followed by optional env clause"),
-    AP_INIT_RAW_ARGS("RequestHeader", header_cmd, &hdr_in, OR_FILEINFO,
-                   "an action, header and value"),
-    {NULL}
-};
-
-static void register_format_tag_handler(apr_pool_t *p, char *tag, void *tag_handler, int def)
-{
-    const void *h = apr_palloc(p, sizeof(h));
-    h = tag_handler;
-    apr_hash_set(format_tag_hash, tag, 1, h);
-}
-static int header_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
-{
-    format_tag_hash = apr_hash_make(p);
-    register_format_tag_handler(p, "D", (void*) header_request_duration, 0);
-    register_format_tag_handler(p, "t", (void*) header_request_time, 0);
-    register_format_tag_handler(p, "e", (void*) header_request_env_var, 0);
-
-    return OK;
-}
-
-static void register_hooks(apr_pool_t *p)
-{
-    ap_hook_pre_config(header_pre_config,NULL,NULL,APR_HOOK_MIDDLE);
-    ap_hook_insert_filter(ap_headers_insert_output_filter, NULL, NULL, APR_HOOK_LAST);
-    ap_hook_insert_error_filter(ap_headers_insert_error_filter, NULL, NULL, APR_HOOK_LAST);
-    ap_hook_fixups(ap_headers_fixup, NULL, NULL, APR_HOOK_LAST);
-    ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
-                              NULL, AP_FTYPE_CONTENT_SET);
-    ap_register_output_filter("FIXUP_HEADERS_ERR", ap_headers_error_filter,
-                              NULL, AP_FTYPE_CONTENT_SET);
-}
-
-module AP_MODULE_DECLARE_DATA headers_module =
-{
-    STANDARD20_MODULE_STUFF,
-    create_headers_config,      /* dir config creater */
-    merge_headers_config,       /* dir merger --- default is to override */
-    NULL,                       /* server config */
-    NULL,                       /* merge server configs */
-    headers_cmds,               /* command apr_table_t */
-    register_hooks              /* register hooks */
-};
+                r->connection->aborted = 1;

@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Currently unable to failover: %s", msg);

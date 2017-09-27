@@ -1,25 +1,12 @@
-    if (sslconn) {
-        return sslconn;
-    }
-
-    sslconn = apr_pcalloc(c->pool, sizeof(*sslconn));
-
-    sslconn->server = c->base_server;
-
-    myConnConfigSet(c, sslconn);
-
-    return sslconn;
-}
-
-int ssl_proxy_enable(conn_rec *c)
-{
-    SSLSrvConfigRec *sc;
-
-    SSLConnRec *sslconn = ssl_init_connection_ctx(c);
-    sc = mySrvConfig(sslconn->server);
-
-    if (!sc->proxy_enabled) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "SSL Proxy requested for %s but not enabled "
-                      "[Hint: SSLProxyEngine]", sc->vhost_id);
-
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-dn") == 0) {
+            if (req->dn == NULL || strlen(req->dn) == 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                              "require dn: user's DN has not been defined; failing authorisation",
+                              getpid());
+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;

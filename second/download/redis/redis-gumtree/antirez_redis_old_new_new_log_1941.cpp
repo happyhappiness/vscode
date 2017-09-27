@@ -1,1 +1,0 @@
-printf("CANT START A FAST CYCLE\n");

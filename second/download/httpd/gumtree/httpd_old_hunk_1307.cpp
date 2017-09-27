@@ -1,15 +1,20 @@
-
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
-            exit(1);
+        else if (!(match = apr_table_get(r->headers_out, "Last-Modified"))
+                 || (strcmp(if_range, match) != 0)) {
+            return 0;
         }
-        apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
-                    argv[4], argv[3]);
-        add_password(argv[4], argv[3], f);
-        apr_file_close(f);
-        exit(0);
     }
-    else if (argc != 4)
-        usage();
 
+    if (!ap_strchr_c(range, ',')) {
+        /* a single range */
+        num_ranges = 1;
+    }
+    else {
+        /* a multiple range */
+        num_ranges = 2;
+    }
+
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = range + 6;
+
+    return num_ranges;
+}

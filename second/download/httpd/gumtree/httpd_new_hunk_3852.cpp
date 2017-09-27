@@ -1,27 +1,19 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    HANDLE hCurrentProcess = GetCurrentProcess();
+    HANDLE hDup;
+    HANDLE os_start;
+    HANDLE hScore;
+    apr_size_t BytesWritten;
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+    if ((rv = apr_file_write_full(child_in, &my_generation,
+                                  sizeof(my_generation), NULL))
+            != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(02964)
+                     "Parent: Unable to send its generation to the child");
+        return -1;
+    }
+    if (!DuplicateHandle(hCurrentProcess, child_ready_event, hProcess, &hDup,
+        EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, 0)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00392)
+                     "Parent: Unable to duplicate the ready event handle for the child");
+        return -1;
+    }

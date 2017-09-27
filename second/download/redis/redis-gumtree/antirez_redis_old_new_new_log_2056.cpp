@@ -1,1 +1,0 @@
-rewriteConfigYesNoOption(state,"slave-read-only",server.repl_slave_ro,1);

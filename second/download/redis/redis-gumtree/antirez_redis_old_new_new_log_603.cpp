@@ -1,1 +1,0 @@
-sds thisline = sdscatprintf(sdsempty(),"%s%-3d %s", prefix, lnum, line);

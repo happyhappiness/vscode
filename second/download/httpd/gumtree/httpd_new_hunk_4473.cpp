@@ -1,21 +1,13 @@
-#define APLOG_MARK	__FILE__,__LINE__
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03102)
+                     "creation of the timeout mutex failed.");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-			     const request_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
-
-void ap_log_pid (pool *p, char *fname);
-/* These are for legacy code, new code should use ap_log_error,
- * or ap_log_rerror.
- */
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
+    /* Create the main pollset */
+    for (i = 0; i < sizeof(good_methods) / sizeof(good_methods[0]); i++) {
+        rv = apr_pollset_create_ex(&event_pollset,
+                            threads_per_child*2, /* XXX don't we need more, to handle
+                                                * connections in K-A or lingering
+                                                * close?
+                                                */
+                            pchild, APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY | APR_POLLSET_NODEFAULT,

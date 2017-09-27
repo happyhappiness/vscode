@@ -1,27 +1,25 @@
-          */
-         ap_conftree = NULL;
-         apr_pool_create(&ptemp, pconf);
-         apr_pool_tag(ptemp, "ptemp");
-         ap_server_root = def_server_root;
-         server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
-+        if (!server_conf) {
-+            destroy_and_exit_process(process, 1);
-+        }
+  *   scoreboard shm handle [to recreate the ap_scoreboard]
+  */
+ void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
+                              apr_proc_mutex_t **child_start_mutex,
+                              apr_shm_t **scoreboard_shm)
+ {
++    HANDLE pipe;
+     HANDLE hScore;
+     HANDLE ready_event;
+     HANDLE os_start;
+     DWORD BytesRead;
+     void *sb_shared;
+     apr_status_t rv;
+-    
+-    /* *** We now do this was back in winnt_rewrite_args
+-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+-     */
 +
-         if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
-             ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                          0, NULL, "Pre-configuration failed");
-             destroy_and_exit_process(process, 1);
-         }
- 
--        ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
-+        if (ap_process_config_tree(server_conf, ap_conftree, process->pconf,
-+                                   ptemp) != OK) {
-+            destroy_and_exit_process(process, 1);
-+        }
-         ap_fixup_virtual_hosts(pconf, server_conf);
-         ap_fini_vhost_config(pconf, server_conf);
-         apr_hook_sort_all();
-         apr_pool_clear(plog);
-         if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-             ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
++    pipe = GetStdHandle(STD_INPUT_HANDLE);
+     if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
+                   &BytesRead, (LPOVERLAPPED) NULL)
+         || (BytesRead != sizeof(HANDLE))) {
+         ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                      "Child %d: Unable to retrieve the ready event from the parent", my_pid);
+         exit(APEXIT_CHILDINIT);

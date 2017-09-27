@@ -1,22 +1,13 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) stopped connection before %s completed",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) %s timed out",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
-	}
+        schService = OpenService(schSCManager, mpm_service_name, DELETE);
+    }
+#endif
+    if (!schService) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(10010) "Failed to open the '%s' service",
+                     mpm_display_name);
+        return (rv);
     }
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+    /* assure the service is stopped before continuing
+     *

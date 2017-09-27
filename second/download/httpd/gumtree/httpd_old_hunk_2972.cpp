@@ -1,26 +1,65 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+                                      request_rec *r)
+{
+    proxy_worker *candidate = NULL;
+    apr_status_t rv;
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Lock failed for find_best_worker()", balancer->name);
+        return NULL;
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
+    candidate = (*balancer->lbmethod->finder)(balancer, r);
 
-	    /* Nuke trailing whitespace */
+    if (candidate)
+        candidate->s->elected++;
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
+/*
+        PROXY_THREAD_UNLOCK(balancer);
+        return NULL;
+*/
 
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+        "proxy: BALANCER: (%s). Unlock failed for find_best_worker()", balancer->name);
+    }
+
+    if (candidate == NULL) {
+        /* All the workers are in error state or disabled.
+         * If the balancer has a timeout sleep for a while
+         * and try again to find the worker. The chances are
+         * that some other thread will release a connection.
+         * By default the timeout is not set, and the server
+         * returns SERVER_BUSY.
+         */
+#if APR_HAS_THREADS
+        if (balancer->timeout) {
+            /* XXX: This can perhaps be build using some
+             * smarter mechanism, like tread_cond.
+             * But since the statuses can came from
+             * different childs, use the provided algo.
+             */
+            apr_interval_time_t timeout = balancer->timeout;
+            apr_interval_time_t step, tval = 0;
+            /* Set the timeout to 0 so that we don't
+             * end in infinite loop
+             */
+            balancer->timeout = 0;
+            step = timeout / 100;
+            while (tval < timeout) {
+                apr_sleep(step);
+                /* Try again */
+                if ((candidate = find_best_worker(balancer, r)))
+                    break;
+                tval += step;
+            }
+            /* restore the timeout */
+            balancer->timeout = timeout;
+        }
+#endif
+    }
+
+    return candidate;
+
+}
+

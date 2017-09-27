@@ -1,22 +1,32 @@
+                    ap_rputs(")\n", r);
+                    ap_rprintf(r,
+                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
+                               ap_escape_html(r->pool,
+                                              ws_record->client),
+                               ap_escape_html(r->pool,
+                                              ws_record->request),
+                               ap_escape_html(r->pool,
+                                              ws_record->vhost));
+                }
+                else { /* !no_table_report */
+                    if (ws_record->status == SERVER_DEAD)
+                        ap_rprintf(r,
+                                   "<tr><td><b>%d-%d</b></td><td>-</td><td>%d/%lu/%lu",
+                                   i, (int)worker_generation,
+                                   (int)conn_lres, my_lres, lres);
+                    else
+                        ap_rprintf(r,
+                                   "<tr><td><b>%d-%d</b></td><td>%"
+                                   APR_PID_T_FMT
+                                   "</td><td>%d/%lu/%lu",
+                                   i, (int)worker_generation,
+                                   worker_pid,
+                                   (int)conn_lres,
+                                   my_lres, lres);
 
-    case HSE_REQ_ABORTIVE_CLOSE:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
-                          " is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
-
-    case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_GET_CERT_INFO_EX "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
-
-    case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
-    {
-        HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
-
+                    switch (ws_record->status) {
+                    case SERVER_READY:
+                        ap_rputs("</td><td>_", r);
+                        break;
+                    case SERVER_STARTING:
+                        ap_rputs("</td><td><b>S</b>", r);

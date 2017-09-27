@@ -1,0 +1,1 @@
+task->output.sent_response = 1;

@@ -1,1 +1,0 @@
-notifyKeyspaceEvent(NOTIFY_LIST,"lpush",dstkey,c->db->id);

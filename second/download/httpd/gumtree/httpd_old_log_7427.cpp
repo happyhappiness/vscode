@@ -1,0 +1,1 @@
+fprintf(stderr, "   -t   The last param is username comment.\n");

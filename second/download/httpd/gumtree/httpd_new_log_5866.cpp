@@ -1,0 +1,1 @@
+ap_add_output_filter(logio_ttfb_filter_name, NULL, r, r->connection);

@@ -1,42 +1,31 @@
-                           "apr_file_read(child output), len %" APR_SIZE_T_FMT,
-                           !rv ? len : -1);
-         }
-         if (rv != APR_SUCCESS) {
-             return rv;
-         }
--        bb = apr_brigade_create(r->pool, c->bucket_alloc);
--        b = apr_bucket_transient_create(buf, len, c->bucket_alloc);
-+        b = apr_bucket_heap_create(buf, len, NULL, c->bucket_alloc);
-         APR_BRIGADE_INSERT_TAIL(bb, b);
--        if ((rv = ap_pass_brigade(f->next, bb)) != APR_SUCCESS) {
--            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
--                          "ap_pass_brigade()");
--            return rv;
--        }
-+        return APR_SUCCESS;
-     }
-     /* we should never get here; if we do, a bogus error message would be
--     * the least of our problems 
-+     * the least of our problems
-      */
-     return APR_ANONYMOUS;
- }
+     if (script && r->prev && r->prev->prev)
+ 	return DECLINED;
  
--static apr_status_t pass_data_to_filter(ap_filter_t *f, const char *data, 
--                                        apr_size_t len)
-+static apr_status_t pass_data_to_filter(ap_filter_t *f, const char *data,
-+                                        apr_size_t len, apr_bucket_brigade *bb)
- {
-     ef_ctx_t *ctx = f->ctx;
-     ef_dir_t *dc = ctx->dc;
-     apr_status_t rv;
-     apr_size_t bytes_written = 0;
-     apr_size_t tmplen;
--    
+     /* Second, check for actions (which override the method scripts) */
+     action = r->handler ? r->handler :
+ 	ap_field_noparam(r->pool, r->content_type);
+-    if ((t = apr_table_get(conf->action_types,
+-		       action ? action : ap_default_type(r)))) {
+-	script = t;
+-	if (r->finfo.filetype == 0) {
++    action = action ? action : ap_default_type(r);
 +
-     do {
-         tmplen = len - bytes_written;
-         rv = apr_file_write(ctx->proc->in,
-                        (const char *)data + bytes_written,
-                        &tmplen);
-         bytes_written += tmplen;
++    if ((t = apr_table_get(conf->action_types, action))) {
++        if (*t++ == '0' && r->finfo.filetype == 0) {
+ 	    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+-			"File does not exist: %s", r->filename);
++                          "File does not exist: %s", r->filename);
+ 	    return HTTP_NOT_FOUND;
+ 	}
++
++        script = t;
++        /* propagate the handler name to the script
++         * (will be REDIRECT_HANDLER there)
++         */
++        apr_table_setn(r->subprocess_env, "HANDLER", action);
+     }
+ 
+     if (script == NULL)
+ 	return DECLINED;
+ 
+     ap_internal_redirect_handler(apr_pstrcat(r->pool, script,

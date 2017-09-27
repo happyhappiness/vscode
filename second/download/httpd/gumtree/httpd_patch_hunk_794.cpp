@@ -1,32 +1,23 @@
-              * ssl_io_filter_error will disable the ssl filters when it
-              * sees this status code.
-              */
-             return HTTP_BAD_REQUEST;
-         }
-         else if (ssl_err == SSL_ERROR_SYSCALL) {
--            ap_log_error(APLOG_MARK, APLOG_INFO, rc, c->base_server,
--                         "SSL handshake interrupted by system "
--                         "[Hint: Stop button pressed in browser?!]");
-+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-+                          "SSL handshake interrupted by system "
-+                          "[Hint: Stop button pressed in browser?!]");
-         }
-         else /* if (ssl_err == SSL_ERROR_SSL) */ {
-             /*
-              * Log SSL errors and any unexpected conditions.
-              */
--            ap_log_error(APLOG_MARK, APLOG_INFO, rc, c->base_server,
--                         "SSL library error %d in handshake "
--                         "(server %s, client %s)", ssl_err,
--                         ssl_util_vhostid(c->pool, c->base_server),
--                         c->remote_ip ? c->remote_ip : "unknown");
-+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-+                          "SSL library error %d in handshake "
-+                          "(server %s)", ssl_err,
-+                          ssl_util_vhostid(c->pool, c->base_server));
-             ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
- 
-         }
-         if (inctx->rc == APR_SUCCESS) {
-             inctx->rc = APR_EGENERAL;
-         }
+ 	GETUSERMODE();
+     }
+ #else
+     /* Only try to switch if we're running as root */
+     if (!geteuid() && (
+ #ifdef _OSD_POSIX
+-	os_init_job_environment(server_conf, unixd_config.user_name, one_process) != 0 || 
++        os_init_job_environment(NULL, unixd_config.user_name, ap_exists_config_define("DEBUG")) != 0 ||
+ #endif
+ 	setuid(unixd_config.user_id) == -1)) {
+ 	ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+ 		    "setuid: unable to change to uid: %ld",
+                     (long) unixd_config.user_id);
+ 	return -1;
+     }
+-#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE) 
++#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE)
+     /* this applies to Linux 2.4+ */
+ #ifdef AP_MPM_WANT_SET_COREDUMPDIR
+     if (ap_coredumpdir_configured) {
+         if (prctl(PR_SET_DUMPABLE, 1)) {
+             ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                          "set dumpable failed - this child will not coredump"

@@ -1,16 +1,15 @@
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "connecting to remote proxy %s on port %d",
+                  connectname, connectport);
+
+    /* Check if it is an allowed port */
+    if(!allowed_port(c_conf, uri.port)) {
+              return ap_proxyerror(r, HTTP_FORBIDDEN,
+                                   "Connect to remote machine blocked");
+    }
+
+    /*
+     * Step Two: Make the Connection
+     *
+     * We have determined who to connect to. Now make the connection.

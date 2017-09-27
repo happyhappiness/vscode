@@ -1,20 +1,13 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    void *reported;
+
+    apr_pool_userdata_get(&reported, SUEXEC_POST_CONFIG_USERDATA,
+                          s->process->pool);
+
+    if ((reported == NULL) && ap_unixd_config.suexec_enabled) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+
+        apr_pool_userdata_set((void *)1, SUEXEC_POST_CONFIG_USERDATA,
+                              apr_pool_cleanup_null, s->process->pool);
     }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);

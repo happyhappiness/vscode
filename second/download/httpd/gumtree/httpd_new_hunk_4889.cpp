@@ -1,48 +1,23 @@
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
+                if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01042)
+                                  "apr_socket_opt_set(APR_TCP_NODELAY): "
+                                  "Failed to set");
+                }
 
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-#ifdef CHARSET_EBCDIC
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-#endif
-
-    /* Get the request... */
-
-    ap_keepalive_timeout("read request line", r);
-    if (!read_request_line(r)) {
-        ap_kill_timeout(r);
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: URI too long");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-        return NULL;
-    }
-    if (!r->assbackwards) {
-        ap_hard_timeout("read request headers", r);
-        get_mime_headers(r);
-        ap_kill_timeout(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                         "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_bflush(r->connection->client);
-	    ap_log_transaction(r);
-            return r;
-	}
-    }
-    else {
-        ap_kill_timeout(r);
+                rv = apr_socket_connect(data_sock, &epsv_addr);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01043)
+                                  "EPSV attempt to connect to %pI failed - "
+                                  "Firewall/NAT?", &epsv_addr);
+                    return ftp_proxyerror(r, backend, HTTP_BAD_GATEWAY, apr_psprintf(r->pool,
+                                                                           "EPSV attempt to connect to %pI failed - firewall/NAT?", &epsv_addr));
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                                  "connected data socket to %pI", &epsv_addr);
+                    connect = 1;
+                }
+            }
+        }
     }
 
-    r->status = HTTP_OK;                         /* Until further notice. */
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read
-     */

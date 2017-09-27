@@ -1,64 +1,82 @@
-     * this on Win32, though, since we haven't fork()'d.
-     */
-    r->server->error_log = stderr;
-#endif
+            if (cert_stack != SSL_get_peer_cert_chain(ssl)) {
+                /* we created this ourselves, so free it */
+                sk_X509_pop_free(cert_stack, X509_free);
+            }
+        }
+        else {
+            const char *reneg_support;
+            request_rec *id = r->main ? r->main : r;
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL) {
-        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set CPU usage limit");
-	}
-    }
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL) {
-        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set process limit");
-	}
-    }
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_AS): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_DATA): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
+            /* Additional mitigation for CVE-2009-3555: At this point,
+             * before renegotiating, an (entire) request has been read
+             * from the connection.  An attacker may have sent further
+             * data to "prefix" any subsequent request by the victim's
+             * client after the renegotiation; this data may already
+             * have been read and buffered.  Forcing a connection
+             * closure after the response ensures such data will be
+             * discarded.  Legimately pipelined HTTP requests will be
+             * retried anyway with this approach. */
+            if (has_buffered_data(r)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02259)
+                              "insecure SSL re-negotiation required, but "
+                              "a pipelined request is present; keepalive "
+                              "disabled");
+                r->connection->keepalive = AP_CONN_CLOSE;
+            }
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+#if defined(SSL_get_secure_renegotiation_support)
+            reneg_support = SSL_get_secure_renegotiation_support(ssl) ?
+                            "client does" : "client does not";
+#else
+            reneg_support = "server does not";
+#endif
+            /* Perform a full renegotiation. */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02260)
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+                          reneg_support);
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
+
+            /* Toggle the renegotiation state to allow the new
+             * handshake to proceed. */
+            sslconn->reneg_state = RENEG_ALLOW;
+
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02225)
+                              "Re-negotiation request failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
+
+                r->connection->keepalive = AP_CONN_CLOSE;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02226)
+                          "Awaiting re-negotiation handshake");
+
+            /* XXX: Should replace setting state with SSL_renegotiate(ssl);
+             * However, this causes failures in perl-framework currently,
+             * perhaps pre-test if we have already negotiated?
+             */
+#ifdef OPENSSL_NO_SSL_INTERN
+            SSL_set_state(ssl, SSL_ST_ACCEPT);
+#else
+            ssl->state = SSL_ST_ACCEPT;
+#endif
+            SSL_do_handshake(ssl);
+
+            sslconn->reneg_state = RENEG_REJECT;
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02261)
+                              "Re-negotiation handshake failed: "
+                              "Not accepted by client!?");
+
+                r->connection->keepalive = AP_CONN_CLOSE;
+                return HTTP_FORBIDDEN;
+            }

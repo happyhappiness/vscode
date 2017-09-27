@@ -1,22 +1,18 @@
- *   scoreboard shm handle [to recreate the ap_scoreboard]
- */
-void get_handles_from_parent(server_rec *s, HANDLE *child_exit_event,
-                             apr_proc_mutex_t **child_start_mutex,
-                             apr_shm_t **scoreboard_shm)
-{
-    HANDLE hScore;
-    HANDLE ready_event;
-    HANDLE os_start;
-    DWORD BytesRead;
-    void *sb_shared;
-    apr_status_t rv;
+    apr_uri_t uri;
+    const char *connectname;
+    int connectport = 0;
 
-    /* *** We now do this was back in winnt_rewrite_args
-     * pipe = GetStdHandle(STD_INPUT_HANDLE);
-     */
-    if (!ReadFile(pipe, &ready_event, sizeof(HANDLE),
-                  &BytesRead, (LPOVERLAPPED) NULL)
-        || (BytesRead != sizeof(HANDLE))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the ready event from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+    /* is this for us? */
+    if (r->method_number != M_CONNECT) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                     "proxy: CONNECT: declining URL %s", url);
+        return DECLINED;
+    }
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                 "proxy: CONNECT: serving URL %s", url);
+
+
+    /*
+     * Step One: Determine Who To Connect To
+     *
+     * Break up the URL to determine the host to connect to

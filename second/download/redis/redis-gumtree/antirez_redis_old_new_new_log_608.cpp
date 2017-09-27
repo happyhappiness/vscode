@@ -1,1 +1,0 @@
-s = sdscatprintf(s,"%s at %p",typename,p);

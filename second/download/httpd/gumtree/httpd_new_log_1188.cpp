@@ -1,1 +1,1 @@
-RRETURN(MATCH_NOMATCH);
+(namecount <= 0;

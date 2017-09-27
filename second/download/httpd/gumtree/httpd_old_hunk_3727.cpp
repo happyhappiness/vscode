@@ -1,15 +1,31 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+    /*
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
 
-        r->read_chunked = 1;
+    if (backend_failed || output_failed) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00890)
+                      "Processing of request failed backend: %i, "
+                      "output: %i", backend_failed, output_failed);
+        /* We had a failure: Close connection to backend */
+        conn->close = 1;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
+        }
     }
-    else if (lenp) {
-        char *pos = lenp;
-
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
+    else if (!request_ended) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00891)
+                      "Processing of request didn't terminate cleanly");
+        /* We had a failure: Close connection to backend */
+        conn->close = 1;
+        backend_failed = 1;
+        /* Return DONE to avoid error messages being added to the stream */
+        if (data_sent) {
+            rv = DONE;
         }
+    }
+    else if (!conn_reuse) {
+        /* Our backend signalled connection close */
+        conn->close = 1;

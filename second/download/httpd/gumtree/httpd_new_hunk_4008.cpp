@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
-
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
+/*******************************************************************************
+ * Once per lifetime init, retrieve optional functions
+ */
+apr_status_t h2_h2_init(apr_pool_t *pool, server_rec *s)
 {
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    (void)pool;
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "h2_h2, child_init");
+    opt_ssl_engine_disable = APR_RETRIEVE_OPTIONAL_FN(ssl_engine_disable);
+    opt_ssl_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+    opt_ssl_var_lookup = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+    
+    if (!opt_ssl_is_https || !opt_ssl_var_lookup) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,

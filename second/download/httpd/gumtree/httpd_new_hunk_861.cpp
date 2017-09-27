@@ -1,85 +1,38 @@
-        conf->ct_output_filters = apr_hash_make(cmd->pool);
-        old = NULL;
+    }
+
+    set_signals();
+
+    if (one_process) {
+        AP_MONCONTROL(1);
+        make_child(ap_server_conf, 0);
     }
     else {
-        old = (ap_filter_rec_t*) apr_hash_get(conf->ct_output_filters, arg2,
-                                              APR_HASH_KEY_STRING);
-        /* find last entry */
-        if (old) {
-            while (old->next) {
-                old = old->next;
-            }
-        }
-    }
+    if (ap_daemons_max_free < ap_daemons_min_free + 1)	/* Don't thrash... */
+	ap_daemons_max_free = ap_daemons_min_free + 1;
 
-    while (*arg &&
-           (filter_name = ap_getword(cmd->pool, &arg, ';')) &&
-           strcmp(filter_name, "")) {
-        new = apr_pcalloc(cmd->pool, sizeof(ap_filter_rec_t));
-        new->name = filter_name;
-
-        /* We found something, so let's append it.  */
-        if (old) {
-            old->next = new;
-        }
-        else {
-            apr_hash_set(conf->ct_output_filters, arg2,
-                         APR_HASH_KEY_STRING, new);
-        }
-        old = new;
-    }
-
-    if (!new) {
-        return "invalid filter name";
-    }
-
-    return NULL;
-}
-/*
- * Insert filters requested by the AddOutputFilterByType
- * configuration directive. We cannot add filters based
- * on content-type until after the handler has started
- * to run. Only then do we reliably know the content-type.
- */
-void ap_add_output_filters_by_type(request_rec *r)
-{
-    core_dir_config *conf;
-    const char *ctype;
-
-    conf = (core_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                   &core_module);
-
-    /* We can't do anything with no content-type or if we don't have a
-     * filter configured.
+    /* If we're doing a graceful_restart then we're going to see a lot
+     * of children exiting immediately when we get into the main loop
+     * below (because we just sent them AP_SIG_GRACEFUL).  This happens pretty
+     * rapidly... and for each one that exits we'll start a new one until
+     * we reach at least daemons_min_free.  But we may be permitted to
+     * start more than that, so we'll just keep track of how many we're
+     * supposed to start up without the 1 second penalty between each fork.
      */
-    if (!r->content_type || !conf->ct_output_filters) {
-        return;
+    remaining_children_to_start = ap_daemons_to_start;
+    if (remaining_children_to_start > ap_daemons_limit) {
+	remaining_children_to_start = ap_daemons_limit;
+    }
+    if (!is_graceful) {
+	startup_children(remaining_children_to_start);
+	remaining_children_to_start = 0;
+    }
+    else {
+	/* give the system some time to recover before kicking into
+         * exponential mode
+         */
+	hold_off_on_exponential_spawning = 10;
     }
 
-    /* remove c-t decoration */
-    ctype = ap_field_noparam(r->pool, r->content_type);
-    if (ctype) {
-        ap_filter_rec_t *ct_filter;
-        ct_filter = apr_hash_get(conf->ct_output_filters, ctype,
-                                 APR_HASH_KEY_STRING);
-        while (ct_filter) {
-            ap_add_output_filter(ct_filter->name, NULL, r, r->connection);
-            ct_filter = ct_filter->next;
-        }
-    }
-
-    return;
-}
-
-static const char *set_trace_enable(cmd_parms *cmd, void *dummy,
-                                    const char *arg1)
-{
-    core_server_config *conf = ap_get_module_config(cmd->server->module_config,
-                                                    &core_module);
-
-    if (strcasecmp(arg1, "on") == 0) {
-        conf->trace_enable = AP_TRACE_ENABLE;
-    }
-    else if (strcasecmp(arg1, "off") == 0) {
-        conf->trace_enable = AP_TRACE_DISABLE;
-    }
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		"%s configured -- resuming normal operations",
+		ap_get_server_version());

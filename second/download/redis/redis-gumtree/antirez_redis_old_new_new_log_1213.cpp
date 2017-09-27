@@ -1,1 +1,0 @@
-addReplyError(c,"COUNT must be > 0");

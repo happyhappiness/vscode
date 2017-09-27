@@ -1,14 +1,14 @@
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+						  &ldap_module);
 
-    /* do syntatic check.
-     * We break the URL into host, port, path, search
-     */
-    port = def_port;
-    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
-    if (err)
-        return HTTP_BAD_REQUEST;
+    st->cache_bytes = atol(bytes);
 
-    /* now parse path/search args, according to rfc1738 */
-    /* N.B. if this isn't a true proxy request, then the URL _path_
-     * has already been decoded.  True proxy requests have r->uri
-     * == r->unparsed_uri, and no others have that property.
-     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
+                      getpid(), st->cache_bytes);
+
+    return NULL;
+}
+
+static const char *util_ldap_set_cache_file(cmd_parms *cmd, void *dummy, const char *file)
+{

@@ -1,40 +1,86 @@
-static void accept_mutex_on(void)
-{
-    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
-    if (rv != APR_SUCCESS) {
-        const char *msg = "couldn't grab the accept mutex";
+                                   NULL,                 // no load svc group
+                                   NULL,                 // no tag identifier
+                                   "Tcpip\0Afd\0",       // dependencies
+                                   NULL,                 // use SYSTEM account
+                                   NULL);                // no password
 
-        if (ap_my_generation != 
-            ap_scoreboard_image->global->running_generation) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
-            clean_child_exit(0);
+            if (!schService) 
+            {
+                rv = apr_get_os_error();
+                ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                             "Failed to create WinNT Service Profile");
+                CloseServiceHandle(schSCManager);
+                return (rv);
+            }
         }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
-            exit(APEXIT_CHILDFATAL);
+	
+        CloseServiceHandle(schService);
+        CloseServiceHandle(schSCManager);
+    }
+    else /* osver.dwPlatformId != VER_PLATFORM_WIN32_NT */
+    {
+        /* Store the launch command in the registry */
+        launch_cmd = apr_psprintf(ptemp, "\"%s\" -n %s -k runservice", 
+                                 exe_path, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, SERVICECONFIG9X, 
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv == APR_SUCCESS) {
+            rv = ap_regkey_value_set(key, mpm_service_name, 
+                                     launch_cmd, 0, pconf);
+            ap_regkey_close(key);
+        }
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to add the RunServices registry entry.", 
+                         mpm_display_name);
+            return (rv);
+        }
+
+        apr_snprintf(key_name, sizeof(key_name), SERVICECONFIG, mpm_service_name);
+        rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name, 
+                            APR_READ | APR_WRITE | APR_CREATE, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to create the registry service key.", 
+                         mpm_display_name);
+            return (rv);
+        }
+        rv = ap_regkey_value_set(key, "ImagePath", launch_cmd, 0, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to store ImagePath in the registry.", 
+                         mpm_display_name);
+            ap_regkey_close(key);
+            return (rv);
+        }
+        rv = ap_regkey_value_set(key, "DisplayName", 
+                                 mpm_display_name, 0, pconf);
+        ap_regkey_close(key);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                         "%s: Failed to store DisplayName in the registry.", 
+                         mpm_display_name);
+            return (rv);
         }
     }
-}
 
-static void accept_mutex_off(void)
-{
-    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
-    if (rv != APR_SUCCESS) {
-        const char *msg = "couldn't release the accept mutex";
+    set_service_description();
 
-        if (ap_my_generation != 
-            ap_scoreboard_image->global->running_generation) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
-            /* don't exit here... we have a connection to
-             * process, after which point we'll see that the
-             * generation changed and we'll exit cleanly
-             */
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
-            exit(APEXIT_CHILDFATAL);
-        }
+    /* For both WinNT & Win9x store the service ConfigArgs in the registry...
+     */
+    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
+    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name, 
+                        APR_READ | APR_WRITE | APR_CREATE, pconf);
+    if (rv == APR_SUCCESS) {
+        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
+        ap_regkey_close(key);
     }
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                     "%s: Failed to store the ConfigArgs in the registry.", 
+                     mpm_display_name);
+        return (rv);
+    }
+    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
+    return APR_SUCCESS;
 }
-
-/* On some architectures it's safe to do unserialized accept()s in the single

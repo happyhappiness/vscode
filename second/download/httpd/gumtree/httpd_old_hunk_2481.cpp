@@ -1,46 +1,89 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
+        /* OS/2 doesn't support groups. */
+        /*
+         * Set the GID before initgroups(), since on some platforms
+         * setgid() is known to zap the group list.
+         */
+        if (setgid(ap_unixd_config.group_id) == -1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "setgid: unable to set group id to Group %ld",
+                        (long)ap_unixd_config.group_id);
+            return -1;
+        }
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
+        /* Reset `groups' attributes. */
 
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
+        if (initgroups(name, ap_unixd_config.group_id) == -1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "initgroups: unable to set groups for User %s "
+                        "and Group %ld", name, (long)ap_unixd_config.group_id);
+            return -1;
+        }
+#endif /* !defined(OS2) */
+    }
+    return 0;
+}
 
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
 
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+static int 
+unixd_drop_privileges(apr_pool_t *pool, server_rec *s)
+{
+    int rv = set_group_privs();
+
+    if (rv) {
+        return rv;
     }
 
-/* set request */
-    len = decodeenc(path);
+    if (NULL != ap_unixd_config.chroot_dir) {
+        if (geteuid()) {
+            rv = errno;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Cannot chroot when not started as root");
+            return rv;
+        }
+
+        if (chdir(ap_unixd_config.chroot_dir) != 0) {
+            rv = errno;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Can't chdir to %s", ap_unixd_config.chroot_dir);
+            return rv;
+        }
+
+        if (chroot(ap_unixd_config.chroot_dir) != 0) {
+            rv = errno;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Can't chroot to %s", ap_unixd_config.chroot_dir);
+            return rv;
+        }
+
+        if (chdir("/") != 0) {
+            rv = errno;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Can't chdir to new root");
+            return rv;
+        }
+    }
+
+    /* Only try to switch if we're running as root */
+    if (!geteuid() && (
+#ifdef _OSD_POSIX
+        os_init_job_environment(NULL, ap_unixd_config.user_name, ap_exists_config_define("DEBUG")) != 0 ||
+#endif
+        setuid(ap_unixd_config.user_id) == -1)) {
+        rv = errno;
+        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                    "setuid: unable to change to uid: %ld",
+                    (long) ap_unixd_config.user_id);
+        return rv;
+    }
+#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE)
+    /* this applies to Linux 2.4+ */
+    if (ap_coredumpdir_configured) {
+        if (prctl(PR_SET_DUMPABLE, 1)) {
+            rv = errno;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "set dumpable failed - this child will not coredump"
+                         " after software errors");
+            return rv;
+        }
+    }
+#endif

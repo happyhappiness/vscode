@@ -1,12 +1,13 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-}
+static apr_status_t ap_headers_output_filter(ap_filter_t *f,
+                                             apr_bucket_brigade *in)
+{
+    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
+                                                 &headers_module);
 
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01502)
+                 "headers: ap_headers_output_filter()");
 
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+    /* do the fixup */
+    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err, 0);
+    do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out, 0);
+

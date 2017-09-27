@@ -1,1 +1,2 @@
-printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");

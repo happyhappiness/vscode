@@ -1,2 +1,0 @@
-fprintf(stderr, "zmalloc: Out of memory trying to allocate %zu bytes\n",
-        size);

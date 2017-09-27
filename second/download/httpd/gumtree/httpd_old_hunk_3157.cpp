@@ -1,15 +1,13 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+    if (mode == AP_MODE_READBYTES) {
+        apr_bucket *e;
+
+        /* Partition the buffered brigade. */
+        rv = apr_brigade_partition(ctx->bb, bytes, &e);
+        if (rv && rv != APR_INCOMPLETE) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not partition buffered SSL brigade");
+            ap_remove_input_filter(f);
+            return rv;
+        }
+
+        /* If the buffered brigade contains less then the requested

@@ -1,1 +1,1 @@
-printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");
+printf(" -D OS=\"" OS "\"\n");

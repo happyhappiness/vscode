@@ -1,31 +1,33 @@
-     const char *key;
-     apr_ssize_t klen;
+         ssl_die();
+     }
+     shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
+     shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
  
-     BOOL conflict = FALSE;
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+-                 "shmcb_init allocated %" APR_SIZE_T_FMT 
++                 "shmcb_init allocated %" APR_SIZE_T_FMT
+                  " bytes of shared memory",
+                  shm_segsize);
+     if (!shmcb_init_memory(s, shm_segment, shm_segsize)) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                      "Failure initialising 'shmcb' shared memory");
+         ssl_die();
+     }
+     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                  "Shared memory session cache initialised");
  
-     /*
--     * Give out warnings when a server has HTTPS configured 
-+     * Give out warnings when a server has HTTPS configured
-      * for the HTTP port or vice versa
+-    /* 
+-     * Success ... we hack the memory block into place by cheating for
+-     * now and stealing a member variable the original shared memory
+-     * cache was using. :-)
++    /*
++     * Success ...
       */
-     for (s = base_server; s; s = s->next) {
-         sc = mySrvConfig(s);
+-    mc->tSessionCacheDataTable = (table_t *) shm_segment;
++    mc->tSessionCacheDataTable = shm_segment;
+     return;
+ }
  
--        if (sc->enabled && (s->port == DEFAULT_HTTP_PORT)) {
-+        if ((sc->enabled == SSL_ENABLED_TRUE) && (s->port == DEFAULT_HTTP_PORT)) {
-             ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                          base_server,
-                          "Init: (%s) You configured HTTPS(%d) "
-                          "on the standard HTTP(%d) port!",
-                          ssl_util_vhostid(p, s),
-                          DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
-         }
- 
--        if (!sc->enabled && (s->port == DEFAULT_HTTPS_PORT)) {
-+        if ((sc->enabled == SSL_ENABLED_FALSE) && (s->port == DEFAULT_HTTPS_PORT)) {
-             ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                          base_server,
-                          "Init: (%s) You configured HTTP(%d) "
-                          "on the standard HTTPS(%d) port!",
-                          ssl_util_vhostid(p, s),
-                          DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);
+ void ssl_scache_shmcb_kill(server_rec *s)
+ {
+     SSLModConfigRec *mc = myModConfig(s);

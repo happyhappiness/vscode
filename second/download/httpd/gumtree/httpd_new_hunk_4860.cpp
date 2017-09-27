@@ -1,13 +1,13 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
+    include_server_config *sconf= ap_get_module_config(r->server->module_config,
+                                                       &include_module);
 
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
+    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01374)
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed: %s", r->uri);
+        ap_remove_output_filter(f);
+        return ap_pass_brigade(f->next, b);
+    }
 
-    return HTTP_MOVED_PERMANENTLY;
+    if (!f->ctx) {
+        struct ssi_internal_ctx *intern;

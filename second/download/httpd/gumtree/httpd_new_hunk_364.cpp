@@ -1,20 +1,14 @@
-            apr_strerror(rv, errbuf, sizeof(errbuf));
-            exit(ERR_FILEPERM);
-        }
-        fprintf(stdout, "Database %s %s.\n", h->filename, 
-                h->create ? "created" : (changed ? "modified" : "updated"));
+        return ap_pass_brigade(f->next, bb);
     }
-    if (cmd == HTDBM_NOFILE) {
-        if (!need_cmnt) {
-            fprintf(stderr, "%s:%s\n", h->username, h->userpass);
-        }
-        else {
-            fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
-                    h->comment);
-        }
-    }
-    htdbm_terminate(h);
-    apr_terminate();
-    
-    return 0; /* Suppress compiler warning. */
-}
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: running CACHE_OUT filter");
+
+    /* recall_body() was called in cache_select_url() */
+    cache->provider->recall_body(cache->handle, r->pool, bb);
+
+    /* This filter is done once it has served up its content */
+    ap_remove_output_filter(f);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: serving %s", r->uri);

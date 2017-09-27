@@ -1,13 +1,13 @@
-		       "<tt>Max Daemons: %d Threaded: %s Forked: %s</tt></dt>\n",
-                       max_daemons, threaded ? "yes" : "no",
-                       forked ? "yes" : "no");
-            ap_rprintf(r, "<dt><strong>Server Root:</strong> "
-                        "<tt>%s</tt></dt>\n", ap_server_root);
-            ap_rprintf(r, "<dt><strong>Config File:</strong> "
-		       "<tt>%s</tt></dt>\n", ap_conftree->filename);
-            ap_rputs("</dl><hr />", r);
-        }
-        for (modp = ap_top_module; modp; modp = modp->next) {
-            if (!r->args || !strcasecmp(modp->name, r->args)) {
-                ap_rprintf(r, "<dl><dt><a name=\"%s\"><strong>Module Name:</strong> "
-                            "<font size=\"+1\"><tt>%s</tt></font></a></dt>\n",
+            child_handles[i] = (HANDLE) _beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE) worker_main,
+                                                       (void *) i, 0, &tid);
+            if (child_handles[i] == 0) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                             "Child %d: _beginthreadex failed. Unable to create all worker threads. "
+                             "Created %d of the %d threads requested with the ThreadsPerChild configuration directive.", 
+                             my_pid, threads_created, ap_threads_per_child);
+                ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
+                goto shutdown;
+            }
+            threads_created++;
+            /* Save the score board index in ht keyed to the thread handle. We need this 
+             * when cleaning up threads down below...

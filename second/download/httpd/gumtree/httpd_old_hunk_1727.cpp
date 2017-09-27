@@ -1,33 +1,12 @@
-                 * which may be confusing.
-                 */
-                if (found && strcmp(found, ent[i].real)) {
-                    found = apr_pstrcat(r->pool, "proxy:", found, NULL);
-                }
-                else {
-                    found = apr_pstrcat(r->pool, "proxy:", ent[i].real, r->uri,
-                                        NULL);
-                }
-            }
-        }
-        else {
-            len = alias_match(r->uri, ent[i].fake);
 
-            if (len > 0) {
-                if ((ent[i].real[0] == '!') && (ent[i].real[1] == '\0')) {
-                    return DECLINED;
-                }
-
-                found = apr_pstrcat(r->pool, "proxy:", ent[i].real,
-                                    r->uri + len, NULL);
-            }
-        }
-        if (found) {
-            r->filename = found;
-            r->handler = "proxy-server";
-            r->proxyreq = PROXYREQ_REVERSE;
-            return OK;
-        }
-    }
-    return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "%s compiled against Server: %s, Library: %s",
+                 modver, AP_SERVER_BASEVERSION, incver);
 }
 
+/*
+ *  Per-module initialization
+ */
+int ssl_init_Module(apr_pool_t *p, apr_pool_t *plog,
+                    apr_pool_t *ptemp,
+                    server_rec *base_server)

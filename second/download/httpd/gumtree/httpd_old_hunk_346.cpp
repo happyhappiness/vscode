@@ -1,13 +1,13 @@
-    }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
-                 "Child %d: All worker threads have exited.", my_pid);
+    int  changed;
+    int  cmd = HTDBM_MAKE;
+    int  i;
+    int args_left = 2;
 
-    CloseHandle(allowed_globals.jobsemaphore);
-    apr_thread_mutex_destroy(allowed_globals.jobmutex);
-    if (osver.dwPlatformId != VER_PLATFORM_WIN32_WINDOWS) {
-    	apr_thread_mutex_destroy(qlock);
-        CloseHandle(qwait_event);
-    }
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
 
-    apr_pool_destroy(pchild);
-    CloseHandle(exit_event);
+    if ((rv = htdbm_init(&pool, &h)) != APR_SUCCESS) {
+        fprintf(stderr, "Unable to initialize htdbm terminating!\n");
+        apr_strerror(rv, errbuf, sizeof(errbuf));
+        exit(1);
+    }

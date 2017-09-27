@@ -1,17 +1,13 @@
-	    int cond_status = OK;
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00226)
+            "caught SIGTERM, shutting down");
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+        mpm_main_cleanup();
+        return 1;

@@ -1,13 +1,16 @@
-            * exponential mode */
-        hold_off_on_exponential_spawning = 10;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                "%s configured -- resuming normal operations",
-                ap_get_server_version());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                "Server built: %s", ap_get_server_built());
-#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                "AcceptMutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
+    /* Set the alias dereferencing option */
+    ldap_option = ldc->deref;
+    ldap_set_option(ldc->ldap, LDAP_OPT_DEREF, &ldap_option);
+
+/*XXX All of the #ifdef's need to be removed once apr-util 1.2 is released */
+#ifdef APR_LDAP_OPT_VERIFY_CERT
+    apr_ldap_set_option(r->pool, ldc->ldap,
+                        APR_LDAP_OPT_VERIFY_CERT, &(st->verify_svr_cert), &(result));
+#else
+#if defined(LDAPSSL_VERIFY_SERVER)
+    if (st->verify_svr_cert) {
+        result->rc = ldapssl_set_verify_mode(LDAPSSL_VERIFY_SERVER);
+    }
+    else {

@@ -1,13 +1,14 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00763)
+            "cache: running CACHE_OUT filter");
+
+    /* clean out any previous response up to EOS, if any */
+    while (!APR_BRIGADE_EMPTY(in)) {
+        apr_bucket *e = APR_BRIGADE_FIRST(in);
+        if (APR_BUCKET_IS_EOS(e)) {
+            apr_bucket_brigade *bb = apr_brigade_create(r->pool,
+                    r->connection->bucket_alloc);
+
+            /* restore content type of cached response if available */
+            /* Needed especially when stale content gets served. */

@@ -1,9 +1,51 @@
-/* Automatically generated file - do not edit */
+        apr_pool_tag(ptemp, "ptemp");
+        ap_server_root = def_server_root;
+        ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+        if (!ap_server_conf) {
+            destroy_and_exit_process(process, 1);
+        }
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+        if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Pre-configuration failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_process_config_tree(ap_server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, ap_server_conf);
+        ap_fini_vhost_config(pconf, ap_server_conf);
+        apr_hook_sort_all();
+
+        if (ap_run_check_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }
+
+        if (ap_run_post_config(pconf, plog, ptemp, ap_server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed");
+            destroy_and_exit_process(process, 1);
+        }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+
+        ap_run_optional_fn_retrieve();
+
+        if (ap_run_mpm(pconf, plog, ap_server_conf) != OK)
+            break;
+
+        apr_pool_lock(pconf, 0);
+    }
+

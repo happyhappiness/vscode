@@ -1,0 +1,1 @@
+ap_rvputs(r, "</table>\n<input type=hidden name='w' id='w' ",  NULL);

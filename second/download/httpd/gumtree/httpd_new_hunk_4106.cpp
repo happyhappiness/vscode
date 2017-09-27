@@ -1,16 +1,12 @@
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "canonicalising URL %s", url);
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    return OK;
+}
+
+/* CONNECT handler */
+static int proxy_connect_handler(request_rec *r, proxy_worker *worker,
+                                 proxy_server_conf *conf,
+                                 char *url, const char *proxyname,
+                                 apr_port_t proxyport)
+{

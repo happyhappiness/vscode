@@ -1,1 +1,3 @@
-fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "SNI extension for SSL Proxy request set to '%s'",
+                              hostname_note);

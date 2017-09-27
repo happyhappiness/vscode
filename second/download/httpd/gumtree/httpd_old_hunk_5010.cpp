@@ -1,16 +1,13 @@
-                --cp;
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die(s);
+            }
         }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01886)
+                     "SSL FIPS mode disabled");
+    }
 #endif
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                            "access to %s failed for %s", r->uri,
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-                                            REMOTE_NOLOOKUP));
-            return HTTP_FORBIDDEN;
-        }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+
+    /*
+     * read server private keys/public certs into memory.

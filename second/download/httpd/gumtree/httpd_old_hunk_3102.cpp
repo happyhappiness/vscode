@@ -1,22 +1,35 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
+    apr_int64_t expiry = (apr_int64_t) apr_time_now();
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    session_dbd_dir_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                      &session_dbd_module);
+
+    if (conf->selectlabel == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "no SessionDBDselectlabel has been specified");
+        return APR_EGENERAL;
+    }
+
+    rv = dbd_init(r, conf->selectlabel, &dbd, &statement);
+    if (rv) {
+        return rv;
+    }
+    rv = apr_dbd_pvbselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                          0, key, &expiry, NULL);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "query execution error saving session '%s' "
+                      "in database using query '%s': %s", key, conf->selectlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+        return APR_EGENERAL;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, LOG_PREFIX
+                          "error retrieving results while saving '%s' "
+                          "in database using query '%s': %s", key, conf->selectlabel,
+                           apr_dbd_error(dbd->driver, dbd->handle, rv));
+            return APR_EGENERAL;
+        }
+        if (*val == NULL) {

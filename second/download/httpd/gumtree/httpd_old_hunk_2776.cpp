@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+
+        /*
+         * If next != NULL then we left the while above because of
+         * next->frec == ap_http_header_filter
+         */
+        if (next) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Custom error page caused AP_FILTER_ERROR");
+            type = HTTP_INTERNAL_SERVER_ERROR;
+        }
+        else {
+            return;
+        }

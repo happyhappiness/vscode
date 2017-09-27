@@ -1,13 +1,14 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+    if (lua_isboolean(L, 3)) {
+        raw = lua_toboolean(L, 3);
     }
-
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    string = lua_tolstring(L, 2, &len);
+    
+    if (raw != 1) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                        "Websocket: Writing framed message to client");
+        
+        prelude = 0x81; /* text frame, FIN */
+        ap_rputc(prelude, r);
+        if (len < 126) {
+            ap_rputc(len, r);
+        } 

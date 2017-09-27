@@ -1,52 +1,21 @@
- */
-
-API_EXPORT(int) ap_setup_client_block(request_rec *r, int read_policy)
-{
-    const char *tenc = ap_table_get(r->headers_in, "Transfer-Encoding");
-    const char *lenp = ap_table_get(r->headers_in, "Content-Length");
-
-    r->read_body = read_policy;
-    r->read_chunked = 0;
-    r->remaining = 0;
-
-    if (tenc) {
-        if (strcasecmp(tenc, "chunked")) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Unknown Transfer-Encoding %s", tenc);
-            return HTTP_NOT_IMPLEMENTED;
+            return HTTP_UNAUTHORIZED;
         }
-        if (r->read_body == REQUEST_CHUNKED_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "chunked Transfer-Encoding forbidden: %s", r->uri);
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+    }
+    else {
+        const char *exp_digest;
+        int match = 0, idx;
+        for (idx = 0; conf->qop_list[idx] != NULL; idx++) {
+            if (!strcasecmp(conf->qop_list[idx], resp->message_qop)) {
+                match = 1;
+                break;
+            }
         }
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        const char *pos = lenp;
-
-        while (ap_isdigit(*pos) || ap_isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
-
-        r->remaining = atol(lenp);
-    }
-
-    if ((r->read_body == REQUEST_NO_BODY) &&
-        (r->read_chunked || (r->remaining > 0))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "%s with body is not allowed for %s", r->method, r->uri);
-        return HTTP_REQUEST_ENTITY_TOO_LARGE;
-    }
-
-    return OK;
-}
-
-API_EXPORT(int) ap_should_client_block(request_rec *r)
-{
-    /* First check if we have already read the request body */
+        if (!match
+            && !(conf->qop_list[0] == NULL
+                 && !strcasecmp(resp->message_qop, "auth"))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01793)
+                          "invalid qop `%s' received: %s",
+                          resp->message_qop, r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;

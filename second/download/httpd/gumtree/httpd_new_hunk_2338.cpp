@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
-
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "proxy: error processing end");
+                    output_failed = 1;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                request_ended = 1;

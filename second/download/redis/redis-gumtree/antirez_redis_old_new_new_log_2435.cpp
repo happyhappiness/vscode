@@ -1,1 +1,0 @@
-luaPushError(lua, shared.oomerr->ptr);

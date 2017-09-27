@@ -1,13 +1,13 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+    DosGetInfoBlocks(&ptib, &ppib);
+    DosQueryModuleName(ppib->pib_hmte, sizeof(progname), progname);
+    rc = DosExecPgm(fail_module, sizeof(fail_module), EXEC_ASYNCRESULT,
+                    ppib->pib_pchcmd, NULL, &proc_rc, progname);
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
+                     "error spawning child, slot %d", slot);
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    if (ap_max_daemons_limit < slot) {
+        ap_max_daemons_limit = slot;
+    }

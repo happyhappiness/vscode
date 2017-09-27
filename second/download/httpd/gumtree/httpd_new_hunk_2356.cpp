@@ -1,17 +1,15 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-		    ap_isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
-++ apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -T                 : start without DocumentRoot(s) check");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -X                 : debug mode (only one worker, do not detach)");
+
+    destroy_and_exit_process(process, 1);
+}
+
+int main(int argc, const char * const argv[])
+{

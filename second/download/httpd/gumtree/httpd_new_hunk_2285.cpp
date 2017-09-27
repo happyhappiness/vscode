@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    const char *orig_groups = NULL;
+    const char *realm = ap_auth_name(r);
+    const char *groups;
+    char *v;
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    if (!user) {
+        return AUTHZ_DENIED_NO_USER;
+    }
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    if (!conf->grpfile) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;

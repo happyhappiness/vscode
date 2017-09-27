@@ -1,1 +1,1 @@
-(*code == OP_TYPEMINUPTO;
+(*code == OP_NOTMINUPTO;

@@ -1,14 +1,28 @@
- 		nuri = apr_pstrcat(r->pool, nuri, "?", r->parsed_uri.query, NULL);
- 
-             apr_table_setn(r->headers_out, "Location",
- 			  ap_construct_url(r->pool, nuri, r));
- 
-             ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
--			  r, 
-+                          r,
- 			  ref ? "Fixed spelling: %s to %s from %s"
- 			      : "Fixed spelling: %s to %s",
- 			  r->uri, nuri, ref);
- 
-             return HTTP_MOVED_PERMANENTLY;
+                     ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                   "could not read bucket for SSL buffer");
+                     return HTTP_INTERNAL_SERVER_ERROR;
+                 }
+                 total += len;
+             }
+-                
++
+             rv = apr_bucket_setaside(e, ctx->pool);
+             if (rv != APR_SUCCESS) {
+                 ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                               "could not setaside bucket for SSL buffer");
+                 return HTTP_INTERNAL_SERVER_ERROR;
+             }
+-            
++
+             APR_BUCKET_REMOVE(e);
+             APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
          }
+ 
+-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
++        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                       "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                       total, eos);
+ 
+         /* Fail if this exceeds the maximum buffer size. */
+         if (total > SSL_MAX_IO_BUFFER) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

@@ -1,42 +1,78 @@
-	ap_destroy_sub_req(pa_req);
-    }
+    APR_BRIGADE_INSERT_TAIL(brigade, e);
+    e = apr_bucket_eos_create(c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(brigade, e);
 }
 
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
+/*
+ * Transform buckets from one bucket allocator to another one by creating a
+ * transient bucket for each data bucket and let it use the data read from
+ * the old bucket. Metabuckets are transformed by just recreating them.
+ * Attention: Currently only the following bucket types are handled:
+ *
+ * All data buckets
+ * FLUSH
+ * EOS
+ *
+ * If an other bucket type is found its type is logged as a debug message
+ * and APR_EGENERAL is returned.
+ */
+PROXY_DECLARE(apr_status_t)
+ap_proxy_buckets_lifetime_transform(request_rec *r, apr_bucket_brigade *from,
+                                    apr_bucket_brigade *to)
 {
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
+    apr_bucket *e;
+    apr_bucket *new;
+    const char *data;
+    apr_size_t bytes;
+    apr_status_t rv = APR_SUCCESS;
 
-    if (buffer)
-	*buffer = '\0';
-    w = buffer ? buffer : x;
+    apr_brigade_cleanup(to);
+    for (e = APR_BRIGADE_FIRST(from);
+         e != APR_BRIGADE_SENTINEL(from);
+         e = APR_BUCKET_NEXT(e)) {
+        if (!APR_BUCKET_IS_METADATA(e)) {
+            apr_bucket_read(e, &data, &bytes, APR_BLOCK_READ);
+            new = apr_bucket_transient_create(data, bytes, r->connection->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(to, new);
+        }
+        else if (APR_BUCKET_IS_FLUSH(e)) {
+            new = apr_bucket_flush_create(r->connection->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(to, new);
+        }
+        else if (APR_BUCKET_IS_EOS(e)) {
+            new = apr_bucket_eos_create(r->connection->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(to, new);
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: Unhandled bucket type of type %s in"
+                          " ap_proxy_buckets_lifetime_transform", e->type->name);
+            rv = APR_EGENERAL;
+        }
+    }
+    return rv;
+}
 
-    ap_hard_timeout("read script header", r);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015')
-		w[p - 2] = '\0';
-	    else
-		w[p - 1] = '\0';
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+/*
+ * Provide a string hashing function for the proxy.
+ * We offer 2 method: one is the APR model but we
+ * also provide our own, based on SDBM. The reason
+ * is in case we want to use both to ensure no
+ * collisions
+ */
+PROXY_DECLARE(unsigned int)
+ap_proxy_hashfunc(const char *str, proxy_hash_t method)
+{
+    if (method == PROXY_HASHFUNC_APR) {
+        apr_ssize_t slen = strlen(str);
+        return apr_hashfunc_default(str, &slen);
+    } else {
+        /* SDBM model */
+        unsigned int hash;
+        for(hash = 0; *str; str++) {
+            hash = (*str) + (hash << 6) + (hash << 16) - hash;
+        }
+        return hash;
+    }
+    
+}

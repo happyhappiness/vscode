@@ -1,24 +1,27 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+            if (APLOGctrace2(session->c)) {
+                char buffer[256];
+                
+                h2_util_frame_print(frame, buffer,
+                                    sizeof(buffer)/sizeof(buffer[0]));
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                              H2_SSSN_MSG(session, "on_frame_rcv %s"), buffer);
+            }
+            break;
     }
-
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-                "see the\n", HARD_SERVER_LIMIT);
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_threads_per_child < 1) {
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-	ap_threads_per_child = 1;
-    }
-
-    return NULL;
+    return 0;
 }
 
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+static int h2_session_continue_data(h2_session *session) {
+    if (h2_mplx_has_master_events(session->mplx)) {
+        return 0;
+    }
+    if (h2_conn_io_needs_flush(&session->io)) {
+        return 0;
+    }
+    return 1;
+}
+
+static char immortal_zeros[H2_MAX_PADLEN];
+
+static int on_send_data_cb(nghttp2_session *ngh2, 
+                           nghttp2_frame *frame, 

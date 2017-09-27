@@ -1,17 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+                      "pre_connection setup failed (%d)", rc);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
-#endif
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                  "connection complete to %pI (%s)",
+                  connect_addr, connectname);
+    apr_table_setn(r->notes, "proxy-source-port", apr_psprintf(r->pool, "%hu",
+                   backconn->local_addr->port));
 
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+    /* If we are connecting through a remote proxy, we need to pass
+     * the CONNECT request on to it.
+     */

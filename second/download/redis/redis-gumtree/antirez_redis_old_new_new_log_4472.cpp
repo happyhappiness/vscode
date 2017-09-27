@@ -1,1 +1,0 @@
-printf("(empty list or set)\n");

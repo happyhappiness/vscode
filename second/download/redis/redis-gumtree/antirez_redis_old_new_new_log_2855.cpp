@@ -1,1 +1,0 @@
-printf("--%s-- (%d)\n", reply,(int)(p-reply-1));

@@ -1,26 +1,14 @@
-     }
+     case HSE_REQ_REFRESH_ISAPI_ACL:
+         if (cid->dconf.log_unsupported)
+             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction "
+                           "HSE_REQ_REFRESH_ISAPI_ACL "
+                           "is not supported: %s", r->filename);
+-        SetLastError(ERROR_INVALID_PARAMETER);
++        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+         return 0;
  
-     /* Create a pipe to send handles to the child */
-     if ((rv = apr_procattr_io_set(attr, APR_FULL_BLOCK, 
-                                   APR_NO_PIPE, APR_NO_PIPE)) != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
--                        "Parent: Unable to create child stdin pipe.\n");
-+                        "Parent: Unable to create child stdin pipe.");
-         apr_pool_destroy(ptemp);
-         return -1;
-     }
+     case HSE_REQ_IS_KEEP_CONN:
+         *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+         return 1;
  
-     /* Open a null handle to soak info from the child */
-     if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE, 
-                              APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
-         || ((rv = apr_procattr_child_out_set(attr, child_out, NULL)) 
-                 != APR_SUCCESS)) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
--                        "Parent: Unable to connect child stdout to NUL.\n");
-+                        "Parent: Unable to connect child stdout to NUL.");
-         apr_pool_destroy(ptemp);
-         return -1;
-     }
- 
-     /* Connect the child's initial stderr to our main server error log 
-      * or share our own stderr handle.

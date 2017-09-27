@@ -1,14 +1,17 @@
-        info->status = r->status;
-    }
 
-    if (rv != OK) {
-        /* Caching layer declined the opportunity to cache the response */
-        ap_remove_output_filter(f);
-        ap_cache_remove_lock(conf, r, cache->handle ?
-                (char *)cache->handle->cache_obj->key : NULL, NULL);
-        return ap_pass_brigade(f->next, in);
+            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
+                    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+            exit(1);
+        }
+        apr_cpystrn(user, argv[4], sizeof(user));
+        apr_cpystrn(realm, argv[3], sizeof(realm));
+        apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
+                    user, realm);
+        add_password(user, realm, f);
+        apr_file_close(f);
+        exit(0);
     }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: Caching url: %s", r->unparsed_uri);
+    else if (argc != 4)
+        usage();
 

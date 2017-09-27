@@ -1,1 +1,1 @@
-fprintf (stderr, "Next token is %d (%s", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);
+fprintf (stderr, "Error: state stack now");

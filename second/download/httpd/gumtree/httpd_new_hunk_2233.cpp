@@ -1,49 +1,13 @@
-	    return cond_status;
-	}
-
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#endif
+    exit(EINVAL);

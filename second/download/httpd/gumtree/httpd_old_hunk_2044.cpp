@@ -1,13 +1,13 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+                        while (cmd) {
+                            if (cmd->name) {
+                                ap_rprintf(r, "<dd><tt>%s%s - <i>",
+                                           ap_escape_html(r->pool, cmd->name),
+                                           cmd->name[0] == '<' ? "&gt;" : "");
+                                if (cmd->errmsg) {
+                                    ap_rputs(cmd->errmsg, r);
+                                }
+                                ap_rputs("</i></tt></dd>\n", r);
+                            }
+                            else {
+                                break;
+                            }

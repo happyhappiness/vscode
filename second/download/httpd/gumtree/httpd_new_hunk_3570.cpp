@@ -1,13 +1,14 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    if (!current_auth || strcasecmp(current_auth, "Basic")) {
+        return DECLINED;
+    }
+
+    /* We need an authentication realm. */
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01615)
+                      "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    r->ap_auth_type = (char*)current_auth;
+
+    res = get_basic_auth(r, &sent_user, &sent_pw);

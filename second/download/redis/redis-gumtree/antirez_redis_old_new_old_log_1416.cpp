@@ -1,1 +1,0 @@
-sprintf(cfg->number_fmt, "%%.%dg", prec);

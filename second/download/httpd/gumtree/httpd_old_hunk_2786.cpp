@@ -1,22 +1,21 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
+                        cp++;
+                    }
+                    else if (*cp == '\0' || *cp == ';') {
+                        break;
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                     "Cannot get media parameter.");
+                        return (NULL);
+                    }
+                }
+            }
+            value = zap_sp_and_dup(p, mp, cp, NULL);
+            if (value == NULL || *value == '\0') {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                             "Cannot get media parameter.");
+                return (NULL);
+            }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+            pp = apr_palloc(p, sizeof(param));
+            pp->attr = attribute;

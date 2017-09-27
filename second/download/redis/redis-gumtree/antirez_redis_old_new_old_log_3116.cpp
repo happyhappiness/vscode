@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt SO_KEEPALIVE: %s\n", strerror(errno));

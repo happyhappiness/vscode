@@ -1,13 +1,13 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+            kill(proc->pid, SIGHUP); /* send signal to daemon telling it to die */
 
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+            /* Remove the cgi socket, we must do it here in order to try and
+             * guarantee the same permissions as when the socket was created.
+             */
+            if (unlink(sockname) < 0 && errno != ENOENT) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, errno, NULL,
+                             "Couldn't unlink unix domain socket %s",
+                             sockname);
+            }
+            break;
     }
-
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+}

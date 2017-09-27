@@ -1,46 +1,80 @@
-	ap_destroy_sub_req(pa_req);
+                          input->task->id);
+            return status;
+        }
     }
-}
-
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-				       int (*getsfunc) (char *, int, void *),
-				       void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
-
-    if (buffer) {
-	*buffer = '\0';
+    
+    if ((bblen == 0) && input->task->input_eos) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_input(%s): eos", input->task->id);
+        return APR_EOF;
     }
-    w = buffer ? buffer : x;
-
-    ap_hard_timeout("read script header", r);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015') {
-		w[p - 2] = '\0';
-	    }
-	    else {
-		w[p - 1] = '\0';
-	    }
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+    
+    while (bblen == 0) {
+        /* Get more data for our stream from mplx.
+         */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_input(%s): get more data from mplx, block=%d, "
+                      "readbytes=%ld, queued=%ld",
+                      input->task->id, block, 
+                      (long)readbytes, (long)bblen);
+        
+        /* Override the block mode we get called with depending on the input's
+         * setting. 
+         */
+        status = h2_mplx_in_read(input->task->mplx, block,
+                                 input->task->stream_id, input->bb, 
+                                 f->r? f->r->trailers_in : NULL, 
+                                 input->task->io);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_input(%s): mplx in read returned",
+                      input->task->id);
+        if (APR_STATUS_IS_EAGAIN(status) 
+            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
+            /* chunked input handling does not seem to like it if we
+             * return with APR_EAGAIN from a GETLINE read... 
+             * upload 100k test on test-ser.example.org hangs */
+            status = APR_SUCCESS;
+        }
+        else if (status != APR_SUCCESS) {
+            return status;
+        }
+        
+        status = apr_brigade_length(input->bb, 1, &bblen);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_input(%s): mplx in read, %ld bytes in brigade",
+                      input->task->id, (long)bblen);
+        if (h2_task_logio_add_bytes_in) {
+            h2_task_logio_add_bytes_in(f->c, bblen);
+        }
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                  "h2_task_input(%s): read, mode=%d, block=%d, "
+                  "readbytes=%ld, queued=%ld",
+                  input->task->id, mode, block, 
+                  (long)readbytes, (long)bblen);
+           
+    if (!APR_BRIGADE_EMPTY(input->bb)) {
+        if (mode == AP_MODE_EXHAUSTIVE) {
+            /* return all we have */
+            status = h2_util_move(bb, input->bb, readbytes, NULL, 
+                                  "task_input_read(exhaustive)");
+        }
+        else if (mode == AP_MODE_READBYTES) {
+            status = h2_util_move(bb, input->bb, readbytes, NULL, 
+                                  "task_input_read(readbytes)");
+        }
+        else if (mode == AP_MODE_SPECULATIVE) {
+            /* return not more than was asked for */
+            status = h2_util_copy(bb, input->bb, readbytes,  
+                                  "task_input_read(speculative)");
+        }
+        else if (mode == AP_MODE_GETLINE) {
+            /* we are reading a single LF line, e.g. the HTTP headers */
+            status = apr_brigade_split_line(bb, input->bb, block, 
+                                            HUGE_STRING_LEN);
+            if (APLOGctrace1(f->c)) {

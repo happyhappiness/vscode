@@ -1,1 +1,1 @@
-ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);
+ap_rputs(" -D APR_FILE_BASED_SHM\n", r);

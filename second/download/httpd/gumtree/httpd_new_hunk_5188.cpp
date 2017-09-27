@@ -1,24 +1,21 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-                "see the\n", HARD_SERVER_LIMIT);
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_threads_per_child < 1) {
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-	ap_threads_per_child = 1;
-    }
-
-    return NULL;
+                 modver, AP_SERVER_BASEVERSION, incver);
 }
 
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
+/*
+ *  Per-module initialization
+ */
+apr_status_t ssl_init_Module(apr_pool_t *p, apr_pool_t *plog,
+                             apr_pool_t *ptemp,
+                             server_rec *base_server)
 {
+    SSLModConfigRec *mc = myModConfig(base_server);
+    SSLSrvConfigRec *sc;
+    server_rec *s;
+    apr_status_t rv;
+    apr_array_header_t *pphrases;
+
+    if (SSLeay() < SSL_LIBRARY_VERSION) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01882)
+                     "Init: this version of mod_ssl was compiled against "
+                     "a newer library (%s, version currently loaded is %s)"
+                     " - may result in undefined or erroneous behavior",

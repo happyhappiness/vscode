@@ -1,12 +1,13 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
+                      "Unable to compile VM for authz provider %s", prov_spec->name);
+        return AUTHZ_GENERAL_ERROR;
     }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+    lua_getglobal(L, prov_spec->function_name);
+    if (!lua_isfunction(L, -1)) {
+        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
+                      "Unable to find function %s in %s",
+                      prov_spec->function_name, prov_spec->file_name);
+        ap_lua_release_state(L, spec, r);
+        return AUTHZ_GENERAL_ERROR;
+    }
+    ap_lua_run_lua_request(L, r);
+    if (prov_spec->args) {

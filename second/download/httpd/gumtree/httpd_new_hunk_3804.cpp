@@ -1,28 +1,15 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+            }
+            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
+                         "%s: fam %d socket created to connect to %s",
+                         proxy_function, backend_addr->family, worker->s->hostname);
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+            if (conf->source_address_set) {
+                local_addr = apr_pmemdup(conn->scpool, conf->source_address,
+                                         sizeof(apr_sockaddr_t));
+                local_addr->pool = conn->scpool;
+                rv = apr_socket_bind(newsock, local_addr);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00956)
+                                 "%s: failed to bind socket to local address",
+                                 proxy_function);
+                }

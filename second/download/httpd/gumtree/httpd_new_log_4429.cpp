@@ -1,0 +1,1 @@
+ap_rputs("<tr><td>Disable Failover:</td>", r);

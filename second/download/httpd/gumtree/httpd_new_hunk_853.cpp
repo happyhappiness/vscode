@@ -1,49 +1,40 @@
-
-    arr_param->curr_idx = arr_param->array->nelts;
-
-    return 0;
-}
-
-static const char *process_command_config(server_rec *s,
-                                          apr_array_header_t *arr,
-                                          ap_directive_t **conftree,
-                                          apr_pool_t *p,
-                                          apr_pool_t *ptemp)
+static void accept_mutex_on(void)
 {
-    const char *errmsg;
-    cmd_parms parms;
-    arr_elts_param_t arr_parms;
+    apr_status_t rv = apr_proc_mutex_lock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't grab the accept mutex";
 
-    arr_parms.curr_idx = 0;
-    arr_parms.array = arr;
-
-    if (ap_config_hash == NULL) {
-        rebuild_conf_hash(s->process->pconf, 1);
+        if (ap_my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);
+            clean_child_exit(0);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);
+            exit(APEXIT_CHILDFATAL);
+        }
     }
-
-    parms = default_parms;
-    parms.pool = p;
-    parms.temp_pool = ptemp;
-    parms.server = s;
-    parms.override = (RSRC_CONF | OR_ALL) & ~(OR_AUTHCFG | OR_LIMIT);
-    parms.override_opts = OPT_ALL | OPT_INCNOEXEC | OPT_SYM_OWNER | OPT_MULTI;
-
-    parms.config_file = ap_pcfg_open_custom(p, "-c/-C directives",
-                                            &arr_parms, NULL,
-                                            arr_elts_getstr, arr_elts_close);
-
-    errmsg = ap_build_config(&parms, p, ptemp, conftree);
-    ap_cfg_closefile(parms.config_file);
-
-    if (errmsg) {
-        return apr_pstrcat(p, "Syntax error in -C/-c directive: ", errmsg,
-                           NULL);
-    }
-
-    return NULL;
 }
 
-typedef struct {
-    char *fname;
-} fnames;
+static void accept_mutex_off(void)
+{
+    apr_status_t rv = apr_proc_mutex_unlock(accept_mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't release the accept mutex";
 
+        if (ap_my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, "%s", msg);
+            /* don't exit here... we have a connection to
+             * process, after which point we'll see that the
+             * generation changed and we'll exit cleanly
+             */
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);
+            exit(APEXIT_CHILDFATAL);
+        }
+    }
+}
+
+/* On some architectures it's safe to do unserialized accept()s in the single

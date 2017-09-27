@@ -1,13 +1,14 @@
-#define STANDALONE_MAIN standalone_main
+                      c->id, engine_type);
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
+                      "H2: hosting engine %s", ctx->engine_id);
+    }
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+    return h2_proxy_fifo_push(ctx->requests, r);
+}
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-
-    ap_standalone = 1;
-
-    is_graceful = 0;
+static int proxy_http2_handler(request_rec *r, 
+                               proxy_worker *worker,
+                               proxy_server_conf *conf,
+                               char *url, 

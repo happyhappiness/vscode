@@ -1,14 +1,13 @@
-    ap_hard_timeout("send directory", r);
-
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "   -b   Use the password from the command line rather "
+                    "than prompting for it.\n");
+    fprintf(stderr, "   -c   Create a new database.\n");
+    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
+    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
+#if APR_HAVE_CRYPT_H
+    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
+#endif
+    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
+    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
+    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
+    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");

@@ -1,18 +1,21 @@
-	    hold_off_on_exponential_spawning = 10;
-	}
+                          "Awaiting re-negotiation handshake");
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+            /* XXX: Should replace setting state with SSL_renegotiate(ssl);
+             * However, this causes failures in perl-framework currently,
+             * perhaps pre-test if we have already negotiated?
+             */
+            /* Need to trigger renegotiation handshake by reading.
+             * Peeking 0 bytes actually works.
+             * See: http://marc.info/?t=145493359200002&r=1&w=2
+             */
+            SSL_peek(ssl, peekbuf, 0);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+            sslconn->reneg_state = RENEG_REJECT;
+
+            if (!SSL_is_init_finished(ssl)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02261)
+                              "Re-negotiation handshake failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
+
+                r->connection->keepalive = AP_CONN_CLOSE;
+                return HTTP_FORBIDDEN;

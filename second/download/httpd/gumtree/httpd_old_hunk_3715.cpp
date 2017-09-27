@@ -1,111 +1,294 @@
-  (void *)XtOffsetOf (server_rec, srm_confname), RSRC_CONF, TAKE1,
-  "The filename of the resource config file" },
-{ "ServerAlias", set_server_alias, NULL, RSRC_CONF, RAW_ARGS,
-  "A name or names alternately used to access the server" },
-{ "ServerPath", set_serverpath, NULL, RSRC_CONF, TAKE1,
-  "The pathname the server can be reached at" },
-{ "Timeout", set_timeout, NULL, RSRC_CONF, TAKE1, "Timeout duration (sec)"},
-{ "KeepAliveTimeout", set_keep_alive_timeout, NULL, RSRC_CONF, TAKE1, "Keep-Alive timeout duration (sec)"},
-{ "MaxKeepAliveRequests", set_keep_alive_max, NULL, RSRC_CONF, TAKE1, "Maximum number of Keep-Alive requests per connection, or 0 for infinite" },
-{ "KeepAlive", set_keep_alive, NULL, RSRC_CONF, TAKE1, "Whether persistent connections should be On or Off" },
-{ "IdentityCheck", set_idcheck, NULL, RSRC_CONF|ACCESS_CONF, FLAG, "Enable identd (RFC 1413) user lookups - SLOW" },
-{ "ContentDigest", set_content_md5, NULL, RSRC_CONF|ACCESS_CONF|OR_AUTHCFG, FLAG, "whether or not to send a Content-MD5 header with each request" },
-{ "UseCanonicalName", set_use_canonical_name, NULL, RSRC_CONF|ACCESS_CONF|OR_AUTHCFG, FLAG, "whether or not to always use the canonical ServerName : Port when constructing URLs" },
-{ "StartServers", set_daemons_to_start, NULL, RSRC_CONF, TAKE1, "Number of child processes launched at server startup" },
-{ "MinSpareServers", set_min_free_servers, NULL, RSRC_CONF, TAKE1, "Minimum number of idle children, to handle request spikes" },
-{ "MaxSpareServers", set_max_free_servers, NULL, RSRC_CONF, TAKE1, "Maximum number of idle children" },
-{ "MaxServers", set_max_free_servers, NULL, RSRC_CONF, TAKE1, "Deprecated equivalent to MaxSpareServers" },
-{ "ServersSafetyLimit", set_server_limit, NULL, RSRC_CONF, TAKE1, "Deprecated equivalent to MaxClients" },
-{ "MaxClients", set_server_limit, NULL, RSRC_CONF, TAKE1, "Maximum number of children alive at the same time" },
-{ "MaxRequestsPerChild", set_max_requests, NULL, RSRC_CONF, TAKE1, "Maximum number of requests a particular child serves before dying." },
-{ "RLimitCPU",
-#ifdef RLIMIT_CPU
- set_limit_cpu, (void*)XtOffsetOf(core_dir_config, limit_cpu),
-#else
- no_set_limit, NULL,
-#endif
-      OR_ALL, TAKE12, "soft/hard limits for max CPU usage in seconds" },
-{ "RLimitMEM",
-#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined (RLIMIT_AS)
- set_limit_mem, (void*)XtOffsetOf(core_dir_config, limit_mem),
-#else
- no_set_limit, NULL,
-#endif
-      OR_ALL, TAKE12, "soft/hard limits for max memory usage per process" },
-{ "RLimitNPROC",
-#ifdef RLIMIT_NPROC
- set_limit_nproc, (void*)XtOffsetOf(core_dir_config, limit_nproc),
-#else
- no_set_limit, NULL,
-#endif
-      OR_ALL, TAKE12, "soft/hard limits for max number of processes per uid" },
-{ "BindAddress", set_bind_address, NULL, RSRC_CONF, TAKE1,
-  "'*', a numeric IP address, or the name of a host with a unique IP address"},
-{ "Listen", set_listener, NULL, RSRC_CONF, TAKE1,
-      "a port number or a numeric IP address and a port number"},
-{ "SendBufferSize", set_send_buffer_size, NULL, RSRC_CONF, TAKE1, "send buffer size in bytes"},
-{ "AddModule", add_module_command, NULL, RSRC_CONF, ITERATE,
-  "the name of a module" },
-{ "ClearModuleList", clear_module_list_command, NULL, RSRC_CONF, NO_ARGS, NULL },
-{ "ThreadsPerChild", set_threads, NULL, RSRC_CONF, TAKE1, "Number of threads a child creates" },
-{ "ExcessRequestsPerChild", set_excess_requests, NULL, RSRC_CONF, TAKE1, "Maximum number of requests a particular child serves after it is ready to die." },
-{ "ListenBacklog", set_listenbacklog, NULL, RSRC_CONF, TAKE1, "maximum length of the queue of pending connections, as used by listen(2)" },
-{ "CoreDumpDirectory", set_coredumpdir, NULL, RSRC_CONF, TAKE1, "The location of the directory Apache changes to before dumping core" },
-{ "Include", include_config, NULL, RSRC_CONF, TAKE1, "config file to be included" },
-{ "LogLevel", set_loglevel, NULL, RSRC_CONF, TAKE1, "set level of verbosity in error logging" },
-{ "NameVirtualHost", ap_set_name_virtual_host, NULL, RSRC_CONF, TAKE1,
-  "a numeric ip address:port, or the name of a host" },
-#ifdef _OSD_POSIX
-{ "BS2000AuthFile", set_bs2000_authfile, NULL, RSRC_CONF, TAKE1,
-  "server User's bs2000 logon password file (read-protected)" },
-#endif
-{ "ServerTokens", set_serv_tokens, NULL, RSRC_CONF, TAKE1,
-  "Determine tokens displayed in the Server: header - Min(imal), OS or Full" },
-{ NULL },
-};
+                e = apr_bucket_pool_create(tmp, len, f->r->pool,
+                                           f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_HEAD(bb, e);
+                e = apr_bucket_flush_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(bb, e);
 
-/*****************************************************************
- *
- * Core handlers for various phases of server operation...
- */
+                ap_pass_brigade(f->c->output_filters, bb);
+            }
+        }
 
-static int core_translate (request_rec *r)
-{
-    void *sconf = r->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-  
-    if (r->proxyreq) return HTTP_FORBIDDEN;
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
+        /* We can't read the chunk until after sending 100 if required. */
+        if (ctx->state == BODY_CHUNK) {
+            apr_brigade_cleanup(bb);
+
+            rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                block, 0);
+
+            /* for timeout */
+            if (block == APR_NONBLOCK_READ &&
+                ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                  (APR_STATUS_IS_EAGAIN(rv)) )) {
+                ctx->state = BODY_CHUNK_PART;
+                return APR_EAGAIN;
+            }
+
+            if (rv == APR_SUCCESS) {
+                rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
+                if (APR_STATUS_IS_EAGAIN(rv)) {
+                    apr_brigade_cleanup(bb);
+                    ctx->state = BODY_CHUNK_PART;
+                    return rv;
+                }
+                if (rv == APR_SUCCESS) {
+                    ctx->remaining = get_chunk_size(ctx->chunk_ln);
+                    if (ctx->remaining == INVALID_CHAR) {
+                        rv = APR_EGENERAL;
+                        http_error = HTTP_BAD_REQUEST;
+                    }
+                }
+            }
+            apr_brigade_cleanup(bb);
+
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01589) "Error reading first chunk %s ",
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                return bail_out_on_error(ctx, f, http_error);
+            }
+
+            if (!ctx->remaining) {
+                return read_chunked_trailers(ctx, f, b,
+                        conf->merge_trailers == AP_MERGE_TRAILERS_ENABLE);
+            }
+        }
     }
-    
-    if (r->server->path &&
-	!strncmp(r->uri, r->server->path, r->server->pathlen) &&
-	(r->server->path[r->server->pathlen - 1] == '/' ||
-	 r->uri[r->server->pathlen] == '/' ||
-	 r->uri[r->server->pathlen] == '\0'))
-      r->filename = ap_pstrcat (r->pool, conf->ap_document_root,
-			     (r->uri + r->server->pathlen), NULL);
-    else
-      r->filename = ap_pstrcat (r->pool, conf->ap_document_root, r->uri, NULL);
+    else {
+        bb = ctx->bb;
+    }
 
-    return OK;
+    if (ctx->eos_sent) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+        return APR_SUCCESS;
+    }
+
+    if (!ctx->remaining) {
+        switch (ctx->state) {
+        case BODY_NONE:
+            break;
+        case BODY_LENGTH:
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(b, e);
+            ctx->eos_sent = 1;
+            return APR_SUCCESS;
+        case BODY_CHUNK:
+        case BODY_CHUNK_PART:
+            {
+                apr_brigade_cleanup(bb);
+
+                /* We need to read the CRLF after the chunk.  */
+                if (ctx->state == BODY_CHUNK) {
+                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                        block, 0);
+                    if (block == APR_NONBLOCK_READ &&
+                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                          (APR_STATUS_IS_EAGAIN(rv)) )) {
+                        return APR_EAGAIN;
+                    }
+                    /* If we get an error, then leave */
+                    if (rv == APR_EOF) {
+                        return APR_INCOMPLETE;
+                    }
+                    if (rv != APR_SUCCESS) {
+                        return rv;
+                    }
+                    /*
+                     * We really don't care whats on this line. If it is RFC
+                     * compliant it should be only \r\n. If there is more
+                     * before we just ignore it as long as we do not get over
+                     * the limit for request lines.
+                     */
+                    rv = get_remaining_chunk_line(ctx, bb,
+                                                  f->r->server->limit_req_line);
+                    apr_brigade_cleanup(bb);
+                    if (APR_STATUS_IS_EAGAIN(rv)) {
+                        return rv;
+                    }
+                } else {
+                    rv = APR_SUCCESS;
+                }
+
+                if (rv == APR_SUCCESS) {
+                    /* Read the real chunk line. */
+                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                        block, 0);
+                    /* Test timeout */
+                    if (block == APR_NONBLOCK_READ &&
+                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                          (APR_STATUS_IS_EAGAIN(rv)) )) {
+                        ctx->state = BODY_CHUNK_PART;
+                        return APR_EAGAIN;
+                    }
+                    ctx->state = BODY_CHUNK;
+                    if (rv == APR_SUCCESS) {
+                        rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
+                        if (APR_STATUS_IS_EAGAIN(rv)) {
+                            ctx->state = BODY_CHUNK_PART;
+                            apr_brigade_cleanup(bb);
+                            return rv;
+                        }
+                        if (rv == APR_SUCCESS) {
+                            ctx->remaining = get_chunk_size(ctx->chunk_ln);
+                            if (ctx->remaining == INVALID_CHAR) {
+                                rv = APR_EGENERAL;
+                                http_error = HTTP_BAD_REQUEST;
+                            }
+                        }
+                    }
+                    apr_brigade_cleanup(bb);
+                }
+
+                /* Detect chunksize error (such as overflow) */
+                if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590) "Error reading chunk %s ",
+                                  (ctx->remaining < 0) ? "(overflow)" : "");
+                    if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
+                        http_error = HTTP_REQUEST_TIME_OUT;
+                    }
+                    ctx->remaining = 0; /* Reset it in case we have to
+                                         * come back here later */
+                    return bail_out_on_error(ctx, f, http_error);
+                }
+
+                if (!ctx->remaining) {
+                    return read_chunked_trailers(ctx, f, b,
+                            conf->merge_trailers == AP_MERGE_TRAILERS_ENABLE);
+                }
+            }
+            break;
+        }
+    }
+
+    /* Ensure that the caller can not go over our boundary point. */
+    if (ctx->state == BODY_LENGTH || ctx->state == BODY_CHUNK) {
+        if (ctx->remaining < readbytes) {
+            readbytes = ctx->remaining;
+        }
+        AP_DEBUG_ASSERT(readbytes > 0);
+    }
+
+    rv = ap_get_brigade(f->next, b, mode, block, readbytes);
+
+    if (rv == APR_EOF && ctx->state != BODY_NONE &&
+            ctx->remaining > 0) {
+        return APR_INCOMPLETE;
+    }
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    /* How many bytes did we just read? */
+    apr_brigade_length(b, 0, &totalread);
+
+    /* If this happens, we have a bucket of unknown length.  Die because
+     * it means our assumptions have changed. */
+    AP_DEBUG_ASSERT(totalread >= 0);
+
+    if (ctx->state != BODY_NONE) {
+        ctx->remaining -= totalread;
+        if (ctx->remaining > 0) {
+            e = APR_BRIGADE_LAST(b);
+            if (APR_BUCKET_IS_EOS(e)) {
+                apr_bucket_delete(e);
+                return APR_INCOMPLETE;
+            }
+        }
+    }
+
+    /* If we have no more bytes remaining on a C-L request,
+     * save the callter a roundtrip to discover EOS.
+     */
+    if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+    }
+
+    /* We have a limit in effect. */
+    if (ctx->limit) {
+        /* FIXME: Note that we might get slightly confused on chunked inputs
+         * as we'd need to compensate for the chunk lengths which may not
+         * really count.  This seems to be up for interpretation.  */
+        ctx->limit_used += totalread;
+        if (ctx->limit < ctx->limit_used) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01591)
+                          "Read content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
+            apr_brigade_cleanup(bb);
+            e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
+                                       f->r->pool,
+                                       f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            ctx->eos_sent = 1;
+            return ap_pass_brigade(f->r->output_filters, bb);
+        }
+    }
+
+    return APR_SUCCESS;
 }
 
-static int do_nothing (request_rec *r) { return OK; }
-
-#ifdef USE_MMAP_FILES
-struct mmap {
-    void *mm;
-    size_t length;
-};
-
-static void mmap_cleanup (void *mmv)
+/**
+ * Parse a chunk extension, detect overflow.
+ * There are two error cases:
+ *  1) If the conversion would require too many bits, a -1 is returned.
+ *  2) If the conversion used the correct number of bits, but an overflow
+ *     caused only the sign bit to flip, then that negative number is
+ *     returned.
+ * In general, any negative number can be considered an overflow error.
+ */
+static long get_chunk_size(char *b)
 {
-    struct mmap *mmd = mmv;
+    long chunksize = 0;
+    size_t chunkbits = sizeof(long) * 8;
 
-    munmap(mmd->mm, mmd->length);
+    ap_xlate_proto_from_ascii(b, strlen(b));
+
+    if (!apr_isxdigit(*b)) {
+        /*
+         * Detect invalid character at beginning. This also works for empty
+         * chunk size lines.
+         */
+        return INVALID_CHAR;
+    }
+    /* Skip leading zeros */
+    while (*b == '0') {
+        ++b;
+    }
+
+    while (apr_isxdigit(*b) && (chunkbits > 0)) {
+        int xvalue = 0;
+
+        if (*b >= '0' && *b <= '9') {
+            xvalue = *b - '0';
+        }
+        else if (*b >= 'A' && *b <= 'F') {
+            xvalue = *b - 'A' + 0xa;
+        }
+        else if (*b >= 'a' && *b <= 'f') {
+            xvalue = *b - 'a' + 0xa;
+        }
+
+        chunksize = (chunksize << 4) | xvalue;
+        chunkbits -= 4;
+        ++b;
+    }
+    if (apr_isxdigit(*b)) {
+        /* overflow */
+        return -1;
+    }
+
+    return chunksize;
 }
-#endif
+
+typedef struct header_struct {
+    apr_pool_t *pool;
+    apr_bucket_brigade *bb;
+} header_struct;

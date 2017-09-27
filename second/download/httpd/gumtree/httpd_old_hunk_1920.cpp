@@ -1,20 +1,13 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+     * restarts, so we'll create a global pool and never clean it.
+     */
+    rv = apr_pool_create(&global_pool, NULL);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Fatal error: unable to create global pool "
+                     "for use with the scoreboard");
+        return rv;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    /* The config says to create a name-based shmem */
+    if (ap_scoreboard_fname) {
+        /* make sure it's an absolute pathname */

@@ -1,1 +1,0 @@
-printf("CRC64 checksum is OK\n");

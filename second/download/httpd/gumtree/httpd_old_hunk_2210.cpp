@@ -1,26 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+            if (argused == 0 && a + 1 < argc) {
+                if (arg[1] == 'o' && !arg[2]) {
+                    arg = argv[++a];
+                    argused = parse_output_file_name(arg, cmd_data);
+                } else if (strcmp(arg+1, "MT") == 0) {
+                    if (!cmd_data->options.silent) {
+                        printf("Adding: %s", arg);
+                    }
+                    push_count_chars(cmd_data->arglist, arg);
+                    arg = argv[++a];
+                    if (!cmd_data->options.silent) {
+                        printf(" %s\n", arg);
+                    }

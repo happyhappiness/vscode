@@ -1,49 +1,15 @@
-	    return cond_status;
-	}
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_event_pod_killpg(pod, ap_daemons_limit, FALSE);
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+        ap_reclaim_child_processes(1,  /* Start with SIGTERM */
+                                   event_note_child_killed);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00494)
+                     "SIGHUP received.  Attempting to restart");
+    }
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    return OK;
+}
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {

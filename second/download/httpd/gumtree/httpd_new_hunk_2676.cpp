@@ -1,31 +1,24 @@
+}
 
-    /* Pass one --- direct matches */
+static apr_status_t pass_data_to_filter(ap_filter_t *f, const char *data,
+                                        apr_size_t len, apr_bucket_brigade *bb)
+{
+    ef_ctx_t *ctx = f->ctx;
+    apr_status_t rv;
+    apr_size_t bytes_written = 0;
+    apr_size_t tmplen;
 
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+    do {
+        tmplen = len - bytes_written;
+        rv = apr_file_write(ctx->proc->in,
+                       (const char *)data + bytes_written,
+                       &tmplen);
+        bytes_written += tmplen;
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_EAGAIN(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01461)
+                          "apr_file_write(child input), len %" APR_SIZE_T_FMT,
+                          tmplen);
+            return rv;
         }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+        if (APR_STATUS_IS_EAGAIN(rv)) {
+            /* XXX handle blocking conditions here...  if we block, we need

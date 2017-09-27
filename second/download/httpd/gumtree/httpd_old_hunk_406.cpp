@@ -1,53 +1,29 @@
-
-    apr_file_printf(f, "\n");
-}
-
-static void usage(void)
-{
-    fprintf(stderr, "Usage: htdigest [-c] passwordfile realm username\n");
-    fprintf(stderr, "The -c flag creates a new file.\n");
-    exit(1);
-}
-
-static void interrupted(void)
-{
-    fprintf(stderr, "Interrupted.\n");
-    cleanup_tempfile_and_exit(1);
-}
-
-static void terminate(void)
-{
-#ifdef NETWARE
-    pressanykey();
-#endif
-    apr_terminate();
-}
-
-int main(int argc, const char * const argv[])
-{
-    apr_file_t *f;
-    apr_status_t rv;
-    char tn[] = "htdigest.tmp.XXXXXX";
-    char user[MAX_STRING_LEN];
-    char realm[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char l[MAX_STRING_LEN];
-    char w[MAX_STRING_LEN];
-    char x[MAX_STRING_LEN];
-    char command[MAX_STRING_LEN];
-    int found;
-   
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate); 
-    apr_pool_create(&cntxt, NULL);
-
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (rv) {
-        fprintf(stderr, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
+                "be a multiple of the rotation time, so you can synchronize\n"
+                "cron scripts with it). At the end of each rotation time or "
+                "when the file size\nis reached a new log is started.\n");
         exit(1);
     }
-#endif
-    
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
+
+    szLogRoot = argv[1];
+
+    ptr = strchr (argv[2], 'M');
+    if (ptr) {
+        if (*(ptr+1) == '\0') {
+            sRotation = atoi(argv[2]) * 1048576;
+        }
+        if (sRotation == 0) {
+            fprintf(stderr, "Invalid rotation size parameter\n");
+            exit(1);
+        }
+    }
+    else {
+        if (argc >= 4) {
+            utc_offset = atoi(argv[3]) * 60;
+        }
+        tRotation = atoi(argv[2]);
+        if (tRotation <= 0) {
+            fprintf(stderr, "Rotation time must be > 0\n");
+            exit(6);
+        }
+    }
+

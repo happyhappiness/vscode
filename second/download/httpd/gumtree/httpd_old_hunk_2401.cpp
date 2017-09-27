@@ -1,18 +1,19 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+
+    /* check for existence and syntax of Auth header */
+
+    if (resp->auth_hdr_sts != VALID) {
+        if (resp->auth_hdr_sts == NOT_DIGEST) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: client used wrong authentication scheme "
+                          "`%s': %s", resp->scheme, r->uri);
+        }
+        else if (resp->auth_hdr_sts == INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: missing user, realm, nonce, uri, digest, "
+                          "cnonce, or nonce_count in authorization header: %s",
+                          r->uri);
+        }
+        /* else (resp->auth_hdr_sts == NO_HEADER) */
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;

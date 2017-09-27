@@ -1,13 +1,21 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+}
+
+static void child_init(apr_pool_t *p, server_rec *s)
+{
+    proxy_worker *reverse = NULL;
+
+    apr_status_t rv = apr_global_mutex_child_init(&proxy_mutex,
+                                      apr_global_mutex_lockfile(proxy_mutex),
+                                      p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(02479)
+                     "could not init proxy_mutex in child");
+        exit(1); /* Ugly, but what else? */
     }
-#elif defined(OS2)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+
+    /* TODO */
+    while (s) {
+        void *sconf = s->module_config;
+        proxy_server_conf *conf;
+        proxy_worker *worker;
+        int i;

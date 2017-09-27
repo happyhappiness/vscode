@@ -1,1 +1,1 @@
-printf("Named substrings\n");
+err("Request too long\n");

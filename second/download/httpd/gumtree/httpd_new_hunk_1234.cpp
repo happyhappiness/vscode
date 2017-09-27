@@ -1,17 +1,15 @@
-                                  "Error reading from remote server");
-        }
-        if (rc != 229 && rc != 500 && rc != 501 && rc != 502) {
-            return ftp_proxyerror(r, backend, HTTP_BAD_GATEWAY, ftpmessage);
-        }
-        else if (rc == 229) {
-            /* Parse the port out of the EPSV reply. */
-            data_port = parse_epsv_reply(ftpmessage);
-
-            if (data_port) {
-                apr_sockaddr_t *epsv_addr;
-
+                 * To help mitigate HTTP Splitting, unset Content-Length
+                 * and shut down the backend server connection
+                 * XXX: We aught to treat such a response as uncachable
+                 */
+                apr_table_unset(r->headers_out, "Content-Length");
                 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                       "proxy: FTP: EPSV contacting remote host on port %d",
-                             data_port);
+                             "proxy: server %s:%d returned Transfer-Encoding"
+                             " and Content-Length", backend->hostname,
+                             backend->port);
+                backend->close += 1;
+            }
 
-                if ((rv = apr_socket_create(&data_sock, connect_addr->family, SOCK_STREAM, 0, r->pool)) != APR_SUCCESS) {
+            /*
+             * Save a possible Transfer-Encoding header as we need it later for
+             * ap_http_filter to know where to end.

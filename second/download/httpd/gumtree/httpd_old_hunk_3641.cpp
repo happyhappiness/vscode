@@ -1,20 +1,14 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+        }
     }
+    while ((backend_addr || conn->uds_path) && !connected) {
+#if APR_HAVE_SYS_UN_H
+        if (conn->uds_path)
+        {
+            struct sockaddr_un sa;
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+            rv = apr_socket_create(&newsock, AF_UNIX, SOCK_STREAM, 0,
+                                   conn->scpool);
+            if (rv != APR_SUCCESS) {
+                loglevel = APLOG_ERR;
+                ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(02453)
+                             "%s: error creating Unix domain socket for "

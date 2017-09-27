@@ -1,13 +1,15 @@
+    if (rv != APR_SUCCESS) {
+        mkdir_structure(conf, dobj->hdrsfile, r->pool);
+    }
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
+    rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile, r->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "disk_cache: rename tempfile to hdrsfile failed: %s -> %s",
+                     dobj->tempfile, dobj->hdrsfile);
+        return rv;
+    }
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+    dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

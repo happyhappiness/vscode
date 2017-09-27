@@ -1,12 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
+        break;
+#if (!(defined(WIN32) || defined(NETWARE)))
+        case ALG_CRYPT:
+            (void) srand((int) time((time_t *) NULL));
+            to64(&salt[0], rand(), 8);
+            salt[8] = '\0';
+            apr_cpystrn(cpw, crypt(htdbm->userpass, salt), sizeof(cpw) - 1);
+            fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");
+#endif
+        default:
+        break;
     }
-    service_set_status(SERVICE_STOPPED);
-
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
-
-    ap_destroy_mutex(start_mutex);
-    return (0);
+    htdbm->userpass = apr_pstrdup(htdbm->pool, cpw);

@@ -1,12 +1,18 @@
-            }
-            else {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                               "unknown parameter \"%s\" to tag if in %s", tag, 
-                               r->filename);
-                CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, *inserted_head);
-            }
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");
+            return 1;
         }
     }
-    return 0;
-}
 
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
+            return 1;
+        }
+        /* fix the generation number in the global score; we just got a new,
+         * cleared scoreboard
+         */
+        ap_scoreboard_image->global->running_generation = ap_my_generation;

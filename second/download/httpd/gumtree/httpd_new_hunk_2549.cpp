@@ -1,30 +1,23 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+        }
+        if (!expired) {
+            rv = iterator(ctx, s, userctx,
+                             (unsigned char *)dbmkey.dptr, dbmkey.dsize,
+                             (unsigned char *)dbmval.dptr + sizeof(apr_time_t),
+                             dbmval.dsize - sizeof(apr_time_t), pool);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(00816)
+                         "dbm `%s' entry iterated", ctx->data_file);
+            if (rv != APR_SUCCESS)
+                return rv;
+        }
+        rv = apr_dbm_nextkey(dbm, &dbmkey);
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+    apr_dbm_close(dbm);
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+    if (rv != APR_SUCCESS && rv != APR_EOF) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00817)
+                     "Failure reading first/next socache DBM file `%s' record",
+                     ctx->data_file);
+        return rv;
     }
-
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
-
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    return APR_SUCCESS;
+}

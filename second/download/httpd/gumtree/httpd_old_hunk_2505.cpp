@@ -1,12 +1,18 @@
-}
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+        /* Need to peek into the file figure out what it really is...
+         * ### aught to go back and build a cache for this one of these days.
+         */
+        if ((rv = apr_file_open(&fh, *cmd, APR_READ | APR_BUFFERED,
+                                 APR_OS_DEFAULT, r->pool)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to open cgi file %s for testing", *cmd);
+            return rv;
+        }
+        if ((rv = apr_file_read(fh, buffer, &bytes)) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to read cgi file %s for testing", *cmd);
+            return rv;
+        }
+        apr_file_close(fh);
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+        /* Some twisted character [no pun intended] at MS decided that a

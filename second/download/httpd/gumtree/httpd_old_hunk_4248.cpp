@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
-
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+            }
+            else {
+                status = APR_EINVAL;
+            }
+            break;
+        case NGHTTP2_DATA:
+            stream = h2_session_get_stream(session, frame->hd.stream_id);
+            if (stream) {
+                int eos = (frame->hd.flags & NGHTTP2_FLAG_END_STREAM);
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                              "h2_stream(%ld-%d): DATA, len=%ld, eos=%d", 
+                              session->id, frame->hd.stream_id, 
+                              (long)frame->hd.length, eos);

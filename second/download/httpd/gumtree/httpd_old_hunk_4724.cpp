@@ -1,12 +1,12 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
+            ret = prvdraliasrec->provider->
+                check_authorization(r, prvdraliasrec->provider_args,
+                                    prvdraliasrec->provider_parsed_args);
+
+            r->per_dir_config = orig_dir_config;
+        }
+    }
+
+    return ret;
 }
 
-
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+static const authz_provider authz_alias_provider =

@@ -1,19 +1,25 @@
-                          "(BasicConstraints: pathlen == %d > 0 !?)",
-                          ssl_asn1_keystr(type), pathlen);
-         }
-     }
  
-     if (SSL_X509_getCN(ptemp, cert, &cn)) {
--        int fnm_flags = FNM_PERIOD|FNM_CASE_BLIND;
-+        int fnm_flags = APR_FNM_PERIOD|APR_FNM_CASE_BLIND;
+ #define KEYMAX 1024
  
-         if (apr_fnmatch_test(cn) &&
-             (apr_fnmatch(cn, s->server_hostname,
--                         fnm_flags) == FNM_NOMATCH))
-+                         fnm_flags) == APR_FNM_NOMATCH))
-         {
-             ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                          "%s server certificate wildcard CommonName (CN) `%s' "
-                          "does NOT match server name!?",
-                          ssl_asn1_keystr(type), cn);
+     ssl_mutex_on(s);
+     for (;;) {
+         /* allocate the key array in a memory sub pool */
+-        apr_pool_sub_make(&p, mc->pPool, NULL);
++        apr_pool_create_ex(&p, mc->pPool, NULL, NULL);
+         if (p == NULL)
+             break;
+         if ((keylist = apr_palloc(p, sizeof(dbmkey)*KEYMAX)) == NULL) {
+             apr_pool_destroy(p);
+             break;
          }
+ 
+         /* pass 1: scan DBM database */
+         keyidx = 0;
+-        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile, 
++        if ((rv = apr_dbm_open(&dbm, mc->szSessionCacheDataFile,
+                                APR_DBM_RWCREATE,SSL_DBM_FILE_MODE,
+                                p)) != APR_SUCCESS) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "Cannot open SSLSessionCache DBM file `%s' for "
+                          "scanning",
+                          mc->szSessionCacheDataFile);

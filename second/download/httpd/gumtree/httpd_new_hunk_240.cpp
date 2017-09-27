@@ -1,13 +1,16 @@
+            {
+                renegotiate = TRUE;
+                /* optimization */
 
-	    if (APR_SUCCESS != (rv = apr_socket_opt_set(sock, APR_SO_REUSEADDR, one))) {
-		apr_socket_close(sock);
-#ifndef _OSD_POSIX              /* BS2000 has this option "always on" */
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-			      "proxy: FTP: error setting reuseaddr option: apr_socket_opt_set(APR_SO_REUSEADDR)");
-                connect_addr = connect_addr->next;
-		continue;
-#endif                          /* _OSD_POSIX */
-	    }
+                if ((dc->nOptions & SSL_OPT_OPTRENEGOTIATE) &&
+                    (verify_old == SSL_VERIFY_NONE) &&
+                    ((peercert = SSL_get_peer_certificate(ssl)) != NULL))
+                {
+                    renegotiate_quick = TRUE;
+                    X509_free(peercert);
+                }
 
-	    /* Set a timeout on the socket */
-	    if (conf->timeout_set == 1) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "Changed client verification type will force "
+                             "%srenegotiation",

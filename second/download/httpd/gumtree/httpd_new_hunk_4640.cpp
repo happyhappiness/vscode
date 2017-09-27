@@ -1,24 +1,22 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01924)
+                    "Bad OCSP responder answer (bad nonce)");
+        rc = V_OCSP_CERTSTATUS_UNKNOWN;
+    }
+
+    if (rc == V_OCSP_CERTSTATUS_GOOD) {
+        /* Check if OCSP certificate verification required */
+        if (sc->server->ocsp_noverify != TRUE) {
+            /* Modify OCSP response verification to include OCSP Responder cert */
+            if (OCSP_basic_verify(basicResponse, sc->server->ocsp_certs, X509_STORE_CTX_get0_store(ctx),
+                                  sc->server->ocsp_verify_flags) != 1) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01925)
+                            "failed to verify the OCSP response");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+                rc = V_OCSP_CERTSTATUS_UNKNOWN;
+            }
         }
     }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
-#endif
 
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
-
+    if (rc == V_OCSP_CERTSTATUS_GOOD) {
+        int reason = -1, status;
+        ASN1_GENERALIZEDTIME *thisup = NULL, *nextup = NULL;

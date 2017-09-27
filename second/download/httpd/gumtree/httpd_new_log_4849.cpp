@@ -1,0 +1,1 @@
+ap_add_output_filter(ssl_io_coalesce, NULL, r, c);

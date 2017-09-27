@@ -1,17 +1,19 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (isprint((((unsigned long) m) >> 24) & 255) &&
-		    isprint((((unsigned long) m) >> 16) & 255) &&
-		    isprint((((unsigned long) m) >> 8) & 255) &&
-		    isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
--- apache_1.3.0/src/modules/standard/mod_negotiation.c	1998-05-31 03:15:38.000000000 +0800
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01003)
+                  "proxy_express: looking for %s", name);
+    key.dptr = (char *)name;
+    key.dsize = strlen(key.dptr);
+
+    rv = apr_dbm_fetch(db, key, &val);
+    apr_dbm_close(db);
+    if (rv != APR_SUCCESS) {
+        return DECLINED;
+    }
+
+    backend = apr_pstrmemdup(r->pool, val.dptr, val.dsize);
+    if (!backend) {
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01004)
+                  "proxy_express: found %s -> %s", name, backend);
+    r->filename = apr_pstrcat(r->pool, "proxy:", backend, r->uri, NULL);

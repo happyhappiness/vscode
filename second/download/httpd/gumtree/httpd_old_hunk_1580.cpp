@@ -1,34 +1,18 @@
-            ap_rprintf(r, "<td>%s</td>\n",
-                       balancer->lbmethod->name);
-            ap_rputs("</table>\n<br />", r);
-            ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Status</th>"
-                "</tr>\n", r);
+    if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't create unix domain socket");
+        return errno;
+    }
 
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
+    memset(&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    apr_cpystrn(unix_addr.sun_path, sockname, sizeof unix_addr.sun_path);
 
-                ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
-                          balancer->name + sizeof("balancer://") - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->name),
-                          "\">", NULL);
-                ap_rvputs(r, worker->name, "</a></td>", NULL);
-                ap_rvputs(r, "<td>", worker->s->route, NULL);
-                ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);
-                ap_rprintf(r, "</td><td>%d</td><td>", worker->s->lbfactor);
-                if (worker->s->status & PROXY_WORKER_DISABLED)
-                    ap_rputs("Dis", r);
-                else if (worker->s->status & PROXY_WORKER_IN_ERROR)
-                    ap_rputs("Err", r);
-                else if (worker->s->status & PROXY_WORKER_INITIALIZED)
-                    ap_rputs("Ok", r);
-                else
-                    ap_rputs("-", r);
-                ap_rputs("</td></tr>\n", r);
-
-                ++worker;
-            }
-            ap_rputs("</table>\n", r);
-            ++balancer;
+    omask = umask(0077); /* so that only Apache can use socket */
+    rc = bind(sd, (struct sockaddr *)&unix_addr, sizeof(unix_addr));
+    umask(omask); /* can't fail, so can't clobber errno */
+    if (rc < 0) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't bind unix domain socket %s",
+                     sockname);
+        return errno;

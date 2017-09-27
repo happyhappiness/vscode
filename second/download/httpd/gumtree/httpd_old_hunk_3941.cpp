@@ -1,13 +1,21 @@
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
+        r->user = (char *) *sent_user;
+    }
 
-    while ((c = *s++) != '\0') {
-	if (isspace((unsigned char) c))
-	    break;
-	if (p >= pmax) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-			MODNAME ": string too long: %s", origs);
-	    break;
-	}
+    /* a missing username or missing password means auth denied */
+    if (!sent_user || !*sent_user) {
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "form parsed, but username field '%s' was missing or empty, unauthorized",
+                      username);
+
+        return HTTP_UNAUTHORIZED;
+    }
+    if (!sent_pw || !*sent_pw) {
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "form parsed, but password field '%s' was missing or empty, unauthorized",
+                      password);
+
+        return HTTP_UNAUTHORIZED;
+    }
+

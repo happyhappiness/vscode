@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+apr_file_printf(errfile, "%s: username contains illegal "
+                        "character '%c'\n", argv[0], *arg);

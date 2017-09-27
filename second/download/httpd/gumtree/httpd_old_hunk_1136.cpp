@@ -1,13 +1,17 @@
-    int error_index = ap_index_of_response(type);
-    char *custom_response = ap_response_code_string(r, error_index);
-    int recursive_error = 0;
-    request_rec *r_1st_err = r;
+            if (cipher_list_old) {
+                cipher_list_old = sk_SSL_CIPHER_dup(cipher_list_old);
+            }
+        }
 
-    if (type == AP_FILTER_ERROR) {
-        return;
-    }
+        /* configure new state */
+        if (!modssl_set_cipher_list(ssl, dc->szCipherSuite)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         r->server,
+                         "Unable to reconfigure (per-directory) "
+                         "permitted SSL ciphers");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);
 
-    if (type == DONE) {
-        ap_finalize_request_protocol(r);
-        return;
-    }
+            if (cipher_list_old) {
+                sk_SSL_CIPHER_free(cipher_list_old);
+            }
+

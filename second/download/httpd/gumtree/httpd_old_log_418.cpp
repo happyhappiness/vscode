@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                             r->server,
-                             "cache: nonconditional - add cache_conditional "
-                             "and DECLINE");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Cached body for URL %s",  dobj->name);

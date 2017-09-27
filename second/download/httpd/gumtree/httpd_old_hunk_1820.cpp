@@ -1,27 +1,53 @@
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
+    apr_file_t *dummy = NULL;
+    int rc;
+
+    rc = log_child(p, program, &dummy, cmdtype, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
     }
 
-    for (;;) {
-        nRead = sizeof(buf);
-        if (apr_file_read(f_stdin, buf, &nRead) != APR_SUCCESS) {
-            exit(3);
-        }
-        if (tRotation) {
-            /*
-             * Check for our UTC offset every time through the loop, since
-             * it might change if there's a switch between standard and
-             * daylight savings time.
-             */
-            if (use_localtime) {
-                apr_time_exp_t lt;
-                apr_time_exp_lt(&lt, apr_time_now());
-                utc_offset = lt.tm_gmtoff;
-            }
-            now = (int)(apr_time_now() / APR_USEC_PER_SEC) + utc_offset;
-            if (nLogFD != NULL && now >= tLogEnd) {
-                nLogFDprev = nLogFD;
-                nLogFD = NULL;
-            }
-        }
-        else if (sRotation) {
+    pl = apr_palloc(p, sizeof (*pl));
+    pl->p = p;
+    ap_piped_log_read_fd(pl) = NULL;
+    ap_piped_log_write_fd(pl) = dummy;
+    apr_pool_cleanup_register(p, pl, piped_log_cleanup, piped_log_cleanup);
+
+    return pl;
+}
+
+#endif
+
+AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p,
+                                          const char *program)
+{
+    apr_cmdtype_e cmdtype = APR_SHELLCMD_ENV;
+
+    /* In 2.4 favor PROGRAM_ENV, accept "||prog" syntax for compatibility
+     * and "|$cmd" to override the default.
+     * Any 2.2 backport would continue to favor SHELLCMD_ENV so there 
+     * accept "||prog" to override, and "|$cmd" to ease conversion.
+     */
+    if (*program == '|') {
+        cmdtype = APR_PROGRAM_ENV;
+        ++program;
+    }
+    if (*program == '$')
+        ++program;
+
+    return ap_open_piped_log_ex(p, program, cmdtype);
+}
+
+AP_DECLARE(void) ap_close_piped_log(piped_log *pl)
+{
+    apr_pool_cleanup_run(pl->p, pl, piped_log_cleanup);
+}
+
+AP_IMPLEMENT_HOOK_VOID(error_log,
+                       (const char *file, int line, int level,
+                        apr_status_t status, const server_rec *s,
+                        const request_rec *r, apr_pool_t *pool,
+                        const char *errstr), (file, line, level,
+                        status, s, r, pool, errstr))
+

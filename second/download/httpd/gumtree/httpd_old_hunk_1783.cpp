@@ -1,14 +1,87 @@
-        return err;
+         * There is one special filter callback, which is set
+         * very early depending on the base_server's log level.
+         * If this is not the first vhost we're now selecting
+         * (and the first vhost doesn't use APLOG_DEBUG), then
+         * we need to set that callback here.
+         */
+        if (s->loglevel >= APLOG_DEBUG) {
+            BIO_set_callback(SSL_get_rbio(ssl), ssl_io_data_cb);
+            BIO_set_callback_arg(SSL_get_rbio(ssl), (void *)ssl);
+        }
+
+        return 1;
     }
 
-    /* Throw a warning if we're in <Location> or <Files> */
-    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "Useless use of AllowOverride in line %d.",
-                     cmd->directive->line_num);
+    return 0;
+}
+#endif
+
+#ifdef HAVE_TLS_SESSION_TICKETS
+/*
+ * This callback function is executed when OpenSSL needs a key for encrypting/
+ * decrypting a TLS session ticket (RFC 5077) and a ticket key file has been
+ * configured through SSLSessionTicketKeyFile.
+ */
+int ssl_callback_SessionTicket(SSL *ssl,
+                               unsigned char *keyname,
+                               unsigned char *iv,
+                               EVP_CIPHER_CTX *cipher_ctx,
+                               HMAC_CTX *hctx,
+                               int mode)
+{
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s = mySrvFromConn(c);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(c);
+    modssl_ctx_t *mctx = myCtxConfig(sslconn, sc);
+    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+
+    if (mode == 1) {
+        /* 
+         * OpenSSL is asking for a key for encrypting a ticket,
+         * see s3_srvr.c:ssl3_send_newsession_ticket()
+         */
+
+        if (ticket_key == NULL) {
+            /* should never happen, but better safe than sorry */
+            return -1;
+        }
+
+        memcpy(keyname, ticket_key->key_name, 16);
+        RAND_pseudo_bytes(iv, EVP_MAX_IV_LENGTH);
+        EVP_EncryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
+                           ticket_key->aes_key, iv);
+        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
+
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "TLS session ticket key for %s successfully set, "
+                      "creating new session ticket", sc->vhost_id);
+
+        return 0;
+    }
+    else if (mode == 0) {
+        /* 
+         * OpenSSL is asking for the decryption key,
+         * see t1_lib.c:tls_decrypt_ticket()
+         */
+
+        /* check key name */
+        if (ticket_key == NULL || memcmp(keyname, ticket_key->key_name, 16)) {
+            return 0;
+        }
+
+        EVP_DecryptInit_ex(cipher_ctx, EVP_aes_128_cbc(), NULL,
+                           ticket_key->aes_key, iv);
+        HMAC_Init_ex(hctx, ticket_key->hmac_secret, 16, tlsext_tick_md(), NULL);
+
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "TLS session ticket key for %s successfully set, "
+                      "decrypting existing session ticket", sc->vhost_id);
+
+        return 1;
     }
 
-    d->override = OR_NONE;
-    while (l[0]) {
-        w = ap_getword_conf(cmd->pool, &l);
-
+    /* OpenSSL is not expected to call us with modes other than 1 or 0 */
+    return -1;
+}
+#endif

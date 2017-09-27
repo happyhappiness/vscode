@@ -1,1 +1,3 @@
-printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");
+printf("error reading postfile: read only %"
+	       APR_SIZE_T_FMT " bytes",
+	       length);

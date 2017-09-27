@@ -1,64 +1,57 @@
-     * this on Win32, though, since we haven't fork()'d.
-     */
-    r->server->error_log = stderr;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);
+    return OK;
+}
+
+#define USE_ALTERNATE_IS_CONNECTED 1
+
+#if !defined(APR_MSG_PEEK) && defined(MSG_PEEK)
+#define APR_MSG_PEEK MSG_PEEK
 #endif
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL) {
-        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set CPU usage limit");
-	}
-    }
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL) {
-        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set process limit");
-	}
-    }
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_AS): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_DATA): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
+#if USE_ALTERNATE_IS_CONNECTED && defined(APR_MSG_PEEK)
+static int is_socket_connected(apr_socket_t *socket)
+{
+    apr_pollfd_t pfds[1];
+    apr_status_t status;
+    apr_int32_t  nfds;
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+    pfds[0].reqevents = APR_POLLIN;
+    pfds[0].desc_type = APR_POLL_SOCKET;
+    pfds[0].desc.s = socket;
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+    do {
+        status = apr_poll(&pfds[0], 1, &nfds, 0);
+    } while (APR_STATUS_IS_EINTR(status));
+
+    if (status == APR_SUCCESS && nfds == 1 &&
+        pfds[0].rtnevents == APR_POLLIN) {
+        apr_sockaddr_t unused;
+        apr_size_t len = 1;
+        char buf[1];
+        /* The socket might be closed in which case
+         * the poll will return POLLIN.
+         * If there is no data available the socket
+         * is closed.
+         */
+        status = apr_socket_recvfrom(&unused, socket, APR_MSG_PEEK,
+                                     &buf[0], &len);
+        if (status == APR_SUCCESS && len)
+            return 1;
+        else
+            return 0;
+    }
+    else if (APR_STATUS_IS_EAGAIN(status)) {
+        return 1;
+    }
+    return 0;
+
+}
+#else
+static int is_socket_connected(apr_socket_t *sock)
+
+{
+    apr_size_t buffer_len = 1;
+    char test_buffer[1];
+    apr_status_t socket_status;

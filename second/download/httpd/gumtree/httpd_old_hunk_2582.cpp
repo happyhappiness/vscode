@@ -1,13 +1,19 @@
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
+    from.pool = p;
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+    rv = apr_socket_recvfrom(&from, ctx->sock, 0, buf, &len);
+
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: would block");
+        return APR_SUCCESS;
+    }
+    else if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: recvfrom failed");
+        return rv;
+    }
+
+    hm_processmsg(ctx, p, &from, buf, len);
+
+    return rv;

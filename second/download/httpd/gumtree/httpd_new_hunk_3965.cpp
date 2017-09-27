@@ -1,16 +1,14 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
+                                   (void *)wl->data, w->pool);
+            }
+            wl = wl->next;
+        }
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                 APLOGNO(02973) "%sWatchdog (%s) stopping",
+                 w->singleton ? "Singleton " : "", w->name);
+
+    if (locked)
+        apr_proc_mutex_unlock(w->mutex);
+    apr_thread_exit(w->thread, APR_SUCCESS);
+
+    return NULL;

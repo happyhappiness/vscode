@@ -1,13 +1,12 @@
-         * Read in server certificate(s): This is the easy part
-         * because this file isn't encrypted in any way.
-         */
-        if (sc->server->pks->cert_files[0] == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
-                         "Server should be SSL-aware but has no certificate "
-                         "configured [Hint: SSLCertificateFile]");
-            ssl_die();
-        }
-        algoCert = SSL_ALGO_UNKNOWN;
-        algoKey  = SSL_ALGO_UNKNOWN;
-        for (i = 0, j = 0; i < SSL_AIDX_MAX && sc->server->pks->cert_files[i] != NULL; i++) {
+     * Seed the Pseudo Random Number Generator (PRNG)
+     * only need ptemp here; nothing inside allocated from the pool
+     * needs to live once we return from ssl_rand_seed().
+     */
+    ssl_rand_seed(base_server, ptemp, SSL_RSCTX_STARTUP, "Init: ");
 
+    /*
+     * read server private keys/public certs into memory.
+     * decrypting any encrypted keys via configured SSLPassPhraseDialogs
+     * anything that needs to live longer than ptemp needs to also survive
+     * restarts, in which case they'll live inside s->process->pool.
+     */

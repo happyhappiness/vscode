@@ -1,10 +1,14 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    buffer = "";
+    if (maxage) {
+        buffer = apr_pstrcat(r->pool, "Max-Age=", apr_ltoa(r->pool, maxage), ";", NULL);
+    }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    /* create RFC2109 compliant cookie */
+    rfc2109 = apr_pstrcat(r->pool, name, "=", val, ";", buffer,
+                          attrs && *attrs ? attrs : DEFAULT_ATTRS, NULL);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+                  "user '%s' set cookie: '%s'", r->user, rfc2109);
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    /* write the cookie to the header table(s) provided */
+    va_start(vp, maxage);
+    while ((t = va_arg(vp, apr_table_t *))) {

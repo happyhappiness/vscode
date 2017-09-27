@@ -1,18 +1,13 @@
-	exit(0);
-    }
-    else if (argc != 3)
-	usage();
-
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
-
-    if (!(f = fopen(argv[1], "r"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+                        }
+                        return HTTP_BAD_REQUEST;
+                    }
+                    /* sync all timestamps */
+                    bsel->wupdated = bsel->s->wupdated = nworker->s->updated = apr_time_now();
+                    /* by default, all new workers are disabled */
+                    ap_proxy_set_wstatus('D', 1, nworker);
+                }
+                if ((rv = PROXY_GLOBAL_UNLOCK(bsel)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01203)
+                                  "%s: Unlock failed for adding worker",
+                                  bsel->s->name);
+                }

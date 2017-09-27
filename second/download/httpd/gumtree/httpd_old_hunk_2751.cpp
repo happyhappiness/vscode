@@ -1,14 +1,40 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
--- apache_1.3.0/src/ap/ap_snprintf.c	1998-05-12 01:49:21.000000000 +0800
+     * get rid of the cleanup we registered when we created the socket.
+     */
+
+    apr_os_pipe_put_ex(&tempsock, &sd, 1, r->pool);
+    apr_pool_cleanup_kill(r->pool, (void *)((long)sd), close_unix_socket);
+
+    if ((argv0 = strrchr(r->filename, '/')) != NULL)
+        argv0++;
+    else
+        argv0 = r->filename;
+
+    /* Transfer any put/post args, CERN style...
+     * Note that we already ignore SIGPIPE in the core server.
+     */
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    seen_eos = 0;
+    child_stopped_reading = 0;
+    if (conf->logname) {
+        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
+        dbpos = 0;
+    }
+    do {
+        apr_bucket *bucket;
+
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "Timeout during reading request entity data");
+                return HTTP_REQUEST_TIME_OUT;
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);

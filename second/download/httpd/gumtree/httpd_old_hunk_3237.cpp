@@ -1,12 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+        /* Make user name all upper case - for some versions of ufork() */
+        ap_str_toupper(username);
+
+        pid = ufork(username);
+        if (pid == -1 && errno == EPERM) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         NULL, "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);
+            exit(1);
+        }
+        break;
+
+      default:

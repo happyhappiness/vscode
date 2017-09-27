@@ -1,13 +1,24 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+        cur_lbset++;
+
+    } while (cur_lbset <= max_lbset && !mycandidate);
+
+    if (mycandidate) {
+        mycandidate->s->lbstatus -= total_factor;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);
+
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    return mycandidate;
+
+}
+
+static apr_status_t reset(proxy_balancer *balancer, server_rec *s) {
+        return APR_SUCCESS;
+}
+
+static apr_status_t age(proxy_balancer *balancer, server_rec *s) {
+        return APR_SUCCESS;
+}
+

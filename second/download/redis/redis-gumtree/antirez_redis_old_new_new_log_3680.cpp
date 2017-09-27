@@ -1,1 +1,0 @@
-setDeferredMultiBulkLength(c,replylen,count);

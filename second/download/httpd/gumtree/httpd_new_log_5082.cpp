@@ -1,0 +1,1 @@
+apr_file_printf(out, "Define: %s=%s\n", name, val);

@@ -1,21 +1,20 @@
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "%s: fam %d socket created to connect to %s",
+                      proxy_function, backend_addr->family, backend_name);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+        if (conf->source_address) {
+            apr_sockaddr_t *local_addr;
+            /* Make a copy since apr_socket_bind() could change
+             * conf->source_address, which we don't want.
+             */
+            local_addr = apr_pmemdup(r->pool, conf->source_address,
+                                     sizeof(apr_sockaddr_t));
+            local_addr->pool = r->pool;
+            rv = apr_socket_bind(*newsock, local_addr);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00938)
+                              "%s: failed to bind socket to local address",
+                              proxy_function);
+            }
+        }

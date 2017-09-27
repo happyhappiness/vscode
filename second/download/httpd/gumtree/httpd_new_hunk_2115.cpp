@@ -1,27 +1,18 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s in database", user);
+        return AUTH_GENERAL_ERROR;
+    }
+    if (conf->realm == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserRealmQuery has been specified.");
+        return AUTH_GENERAL_ERROR;
+    }
+    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserRealmQuery, key '%s'.", conf->realm);
+        return AUTH_GENERAL_ERROR;
+    }
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, realm, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s:%s in database", user, realm);

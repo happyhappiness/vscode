@@ -1,24 +1,49 @@
+
+        apr_hook_debug_current = m->name;
+        m->register_hooks(p);
+    }
+}
+
+/* One-time setup for precompiled modules --- NOT to be done on restart */
+
+AP_DECLARE(void) ap_add_module(module *m, apr_pool_t *p)
 {
-    conn_rec *c = r->connection;
-    struct modssl_buffer_ctx *ctx;
-    apr_bucket_brigade *tempb;
-    apr_off_t total = 0; /* total length buffered */
-    int eos = 0; /* non-zero once EOS is seen */
-    
-    /* Create the context which will be passed to the input filter;
-     * containing a setaside pool and a brigade which constrain the
-     * lifetime of the buffered data. */
-    ctx = apr_palloc(r->pool, sizeof *ctx);
-    apr_pool_create(&ctx->pool, r->pool);
-    ctx->bb = apr_brigade_create(ctx->pool, c->bucket_alloc);
+    /* This could be called from an AddModule httpd.conf command,
+     * after the file has been linked and the module structure within it
+     * teased out...
+     */
 
-    /* ... and a temporary brigade. */
-    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
+    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "%s: module \"%s\" is not compatible with this "
+                     "version of Apache (found %d, need %d).",
+                     ap_server_argv0, m->name, m->version,
+                     MODULE_MAGIC_NUMBER_MAJOR);
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Please contact the vendor for the correct version.");
+        exit(1);
+    }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "filling buffer");
+    if (m->next == NULL) {
+        m->next = ap_top_module;
+        ap_top_module = m;
+    }
 
-    do {
-        apr_status_t rv;
-        apr_bucket *e, *next;
+    if (m->module_index == -1) {
+        m->module_index = total_modules++;
+        dynamic_modules++;
 
-        /* The request body is read from the protocol-level input
+        if (dynamic_modules > DYNAMIC_MODULE_LIMIT) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s: module \"%s\" could not be loaded, because"
+                         " the dynamic", ap_server_argv0, m->name);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "module limit was reached. Please increase "
+                         "DYNAMIC_MODULE_LIMIT and recompile.");
+            exit(1);
+        }
+    }
+
+    /* Some C compilers put a complete path into __FILE__, but we want
+     * only the filename (e.g. mod_includes.c). So check for path
+     * components (Unix and DOS), and remove them.

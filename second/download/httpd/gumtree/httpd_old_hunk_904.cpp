@@ -1,55 +1,21 @@
-    }
-
-    ap_threads_max_free = atoi(arg);
-    return NULL;
+        ReportStatusToSCMgr(SERVICE_STOP_PENDING, // service state
+                            NO_ERROR,             // exit code
+                            30000);               // wait hint
 }
 
-static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *arg) 
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
 
-    ap_threads_limit = atoi(arg);
-    if (ap_threads_limit > HARD_THREAD_LIMIT) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    "WARNING: MaxThreads of %d exceeds compile time limit "
-                    "of %d threads,", ap_threads_limit, HARD_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering MaxThreads to %d.  To increase, please "
-                    "see the", HARD_THREAD_LIMIT);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    " HARD_THREAD_LIMIT define in %s.",
-                    AP_MPM_HARD_LIMITS_FILE);
-       ap_threads_limit = HARD_THREAD_LIMIT;
-    } 
-    else if (ap_threads_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-            "WARNING: Require MaxThreads > 0, setting to 1");
-        ap_threads_limit = 1;
-    }
-    return NULL;
-}
-
-static const char *set_thread_stacksize(cmd_parms *cmd, void *dummy, 
-                                        const char *arg)
+apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc, 
+                                 const char * const * argv, int reconfig)
 {
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+    char key_name[MAX_PATH];
+    char exe_path[MAX_PATH];
+    char *launch_cmd;
+    ap_regkey_t *key;
+    apr_status_t rv;
     
-    ap_thread_stack_size = atoi(arg);
-    return NULL;
-}
+    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+		   : "Installing the %s service\n", mpm_display_name);
 
-static const command_rec netware_mpm_cmds[] = {
-AP_INIT_TAKE1("ThreadStackSize", set_thread_stacksize, NULL, RSRC_CONF,
-              "Stack size each created thread will use."),
-LISTEN_COMMANDS,
-AP_INIT_TAKE1("StartThreads", set_threads_to_start, NULL, RSRC_CONF,
-              "Number of worker threads launched at server startup"),
-AP_INIT_TAKE1("MinSpareThreads", set_min_free_threads, NULL, RSRC_CONF,
-              "Minimum number of idle threads, to handle request spikes"),
-AP_INIT_TAKE1("MaxSpareThreads", set_max_free_threads, NULL, RSRC_CONF,
+    /* ###: utf-ize */
+    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
+    {

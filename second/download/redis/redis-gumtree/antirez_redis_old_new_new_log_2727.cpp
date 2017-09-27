@@ -1,1 +1,0 @@
-printf("Closing file...\n");

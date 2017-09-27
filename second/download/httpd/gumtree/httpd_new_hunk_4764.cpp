@@ -1,13 +1,16 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
-    }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+                            /* suck in all the rest */
+                            if (status != OK) {
+                                apr_bucket *tmp_b;
+                                apr_brigade_cleanup(ob);
+                                tmp_b = apr_bucket_eos_create(c->bucket_alloc);
+                                APR_BRIGADE_INSERT_TAIL(ob, tmp_b);
+                                r->status = status;
+                                ap_pass_brigade(r->output_filters, ob);
+                                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01070)
+                                              "Error parsing script headers");
+                                rv = APR_EINVAL;
+                                break;
+                            }
+
+                            if (conf->error_override &&
+                                ap_is_HTTP_ERROR(r->status)) {

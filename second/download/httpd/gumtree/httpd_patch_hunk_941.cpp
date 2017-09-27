@@ -1,47 +1,32 @@
  
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                  "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+     if (!strcmp(dash_k_arg, "graceful")) {
+         if (!running) {
+             printf("httpd not running, trying to start\n");
+         }
+         else {
+-            *exit_status = send_signal(otherpid, SIGUSR1);
++            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL);
+             return 1;
+         }
+     }
+ 
++    if (!strcmp(dash_k_arg, "graceful-stop")) {
++#ifdef AP_MPM_WANT_SET_GRACEFUL_SHUTDOWN
++        if (!running) {
++            printf("%s\n", status);
++        }
++        else {
++            *exit_status = send_signal(otherpid, AP_SIG_GRACEFUL_STOP);
++        }
++#else
++        printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");
++#endif
++        return 1;
++    }
++
+     return 0;
  }
  
- 
--static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId, 
-+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
-                                    apr_file_t *child_in)
+ void ap_mpm_rewrite_args(process_rec *process)
  {
-     apr_status_t rv;
-     int lcnt = 0;
-     ap_listen_rec *lr;
-     LPWSAPROTOCOL_INFO  lpWSAProtocolInfo;
--    DWORD BytesWritten;
-+    apr_size_t BytesWritten;
- 
--    /* Run the chain of open sockets. For each socket, duplicate it 
--     * for the target process then send the WSAPROTOCOL_INFO 
-+    /* Run the chain of open sockets. For each socket, duplicate it
-+     * for the target process then send the WSAPROTOCOL_INFO
-      * (returned by dup socket) to the child.
-      */
-     for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
--        int nsd;
-+        apr_os_sock_t nsd;
-         lpWSAProtocolInfo = apr_pcalloc(p, sizeof(WSAPROTOCOL_INFO));
-         apr_os_sock_get(&nsd,lr->sd);
-         ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
--                     "Parent: Duplicating socket %d and sending it to child process %d", 
-+                     "Parent: Duplicating socket %d and sending it to child process %d",
-                      nsd, dwProcessId);
-         if (WSADuplicateSocket(nsd, dwProcessId,
-                                lpWSAProtocolInfo) == SOCKET_ERROR) {
-             ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                          "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", lr->sd );
-             return -1;
-         }
- 
--        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo, 
-+        if ((rv = apr_file_write_full(child_in, lpWSAProtocolInfo,
-                                       sizeof(WSAPROTOCOL_INFO), &BytesWritten))
-                 != APR_SUCCESS) {
-             ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                          "Parent: Unable to write duplicated socket %d to the child.", lr->sd );
-             return -1;
-         }
+     apr_array_header_t *mpm_new_argv;

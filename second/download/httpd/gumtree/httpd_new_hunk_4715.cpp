@@ -1,13 +1,13 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+        add_password(user, realm, tfp);
     }
-#endif
+    apr_file_close(f);
 
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, argv[1], APR_OS_DEFAULT, cntxt) !=
+                APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n",
+                        argv[0], argv[1]);
+    }
+    apr_file_close(tfp);
 
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);

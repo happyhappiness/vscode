@@ -1,24 +1,25 @@
-                    mod_info_html_cmd_string(r, htmlstring, 0);
-                    ap_rputs("</tt></dd>\n", r);
-		}
-		if (nest == 2) {
-		    ap_rprintf(r, "<dd><tt>&nbsp;&nbsp;&nbsp;&nbsp;%s "
-			       "<i>%s</i></tt></dd>\n",
-                               ap_escape_html(r->pool,tmptree->directive), 
-                               ap_escape_html(r->pool,tmptree->args));
-		} else if (nest == 1) {
-		    ap_rprintf(r,
-			       "<dd><tt>&nbsp;&nbsp;%s <i>%s</i></tt></dd>\n",
-                               ap_escape_html(r->pool,tmptree->directive), 
-                               ap_escape_html(r->pool,tmptree->args));
-		} else {
-                    ap_rputs("<dd><tt>", r);
-                    mod_info_html_cmd_string(r, tmptree->directive, 0);
-                    ap_rprintf(r, " <i>%s</i></tt></dd>\n", 
-                               ap_escape_html(r->pool,tmptree->args));
-		}
-	    }
-	    ++cmd;
-	}
-	if (tmptree->first_child != NULL) {
-	    tmptree = tmptree->first_child;
+                 "Child %d: Acquired the start mutex.", my_pid);
+
+    /*
+     * Create the worker thread dispatch IOCompletionPort
+     * on Windows NT/2000
+     */
+    if (use_acceptex) {
+        /* Create the worker thread dispatch IOCP */
+        ThreadDispatchIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
+                                                    NULL,
+                                                    0,
+                                                    0); /* CONCURRENT ACTIVE THREADS */
+        apr_thread_mutex_create(&qlock, APR_THREAD_MUTEX_DEFAULT, pchild);
+        qwait_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        if (!qwait_event) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %d: Failed to create a qwait event.", my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
+    }
+
+    /* 
+     * Create the pool of worker threads
+     */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 

@@ -1,15 +1,14 @@
-    }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
-    }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+            intelligent = 1;
+            dowork = 1;
+            break;
+        }
+
+        if (dowork && !interrupted) {
+            if (!process_dir(path, instance) && !interrupted) {
+                purge(path, instance, max);
+            }
+            else if (!isdaemon && !interrupted) {
+                apr_file_printf(errfile, "An error occurred, cache cleaning "
+                                         "aborted." APR_EOL_STR);
+                return 1;
+            }

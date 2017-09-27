@@ -1,0 +1,1 @@
+fprintf(output, "Entries: %d\n", entries);

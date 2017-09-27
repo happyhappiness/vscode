@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
-
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+            }
+            break;
+            
+        case H2_PROXYS_ST_BUSY:
+        case H2_PROXYS_ST_LOCAL_SHUTDOWN:
+        case H2_PROXYS_ST_REMOTE_SHUTDOWN:
+            have_written = send_loop(session);
+            
+            if (nghttp2_session_want_read(session->ngh2)) {
+                status = h2_proxy_session_read(session, 0, 0);
+                if (status == APR_SUCCESS) {
+                    have_read = 1;
+                }

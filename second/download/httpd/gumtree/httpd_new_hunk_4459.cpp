@@ -1,21 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+                if ((err = PROXY_THREAD_LOCK(worker)) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, APLOGNO(00945) "lock");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
-    }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
-    }
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+                /*
+                 * Worker can have the single constant backend address.
+                 * The single DNS lookup is used once per worker.
+                 * If dynamic change is needed then set the addr to NULL
+                 * inside dynamic config to force the lookup.
+                 */
+                err = apr_sockaddr_info_get(&(worker->cp->addr),
+                                            conn->hostname, APR_UNSPEC,

@@ -1,13 +1,6 @@
-
-    /* Reject requests with an unescaped hash character, as these may
-     * be more destructive than the user intended. */
-    if (r->parsed_uri.fragment != NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "buggy client used un-escaped hash in Request-URI");
-        return dav_error_response(r, HTTP_BAD_REQUEST,
-                                  "The request was invalid: the URI included "
-                                  "an un-escaped hash character");
-    }
-
-    /* ### do we need to do anything with r->proxyreq ?? */
+AP_DECLARE(void) ap_clear_method_list(ap_method_list_t *l)
+{
+    l->method_mask = 0;
+    l->method_list->nelts = 0;
+}
 

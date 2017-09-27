@@ -1,13 +1,13 @@
-            X509_REVOKED *revoked =
-                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
 
-            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
-                if (s->loglevel >= APLOG_DEBUG) {
-                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
-                    long serial = ASN1_INTEGER_get(sn);
-
-                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                                 "Certificate with serial %ld (0x%lX) "
-                                 "revoked per CRL from issuer %s",
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {

@@ -1,1 +1,0 @@
-printf("\nTesting against Unix socket connection (%s):\n", cfg.unix_sock.path);

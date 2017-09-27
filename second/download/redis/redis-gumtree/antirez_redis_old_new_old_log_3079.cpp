@@ -1,1 +1,0 @@
-redisLog(REDIS_WARNING, "Failed saving the DB: %s", strerror(errno));

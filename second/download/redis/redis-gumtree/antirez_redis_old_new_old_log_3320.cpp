@@ -1,1 +1,0 @@
-sprintf(tmp.name,"@%s",commandGroups[i]);

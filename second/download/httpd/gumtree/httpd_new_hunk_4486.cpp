@@ -1,16 +1,14 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+        ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf, APLOGNO(00045)
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);
+        /* FALLTHROUGH */
+    case SEND_SIGTERM_NOLOG:
+        kill(pid, SIGTERM);
+        break;
 
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-	exit(1);
-    }
-
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+    case SEND_SIGKILL:
+        ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf, APLOGNO(00046)

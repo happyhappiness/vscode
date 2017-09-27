@@ -1,14 +1,20 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+                    node.ready = 0;
+                }
 
+                if (apr_table_get(hbt, "lastseen")) {
+                    node.seen = atoi(apr_table_get(hbt, "lastseen"));
+                } else {
+                    node.seen = SEEN_TIMEOUT;
+                }
+                seen = fage + node.seen;
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+                if (apr_table_get(hbt, "port")) {
+                    node.port = atoi(apr_table_get(hbt, "port"));
+                } else {
+                    node.port = 80;
+                }
+                apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
+                                ip, node.ready, node.busy, (unsigned int) seen, node.port);
+            } else {
+                apr_time_t seen;
+                seen = apr_time_sec(now - s->seen);

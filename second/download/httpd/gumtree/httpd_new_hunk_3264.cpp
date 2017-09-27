@@ -1,13 +1,21 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+}
+#endif
+
+static const char *set_recursion_limit(cmd_parms *cmd, void *dummy,
+                                       const char *arg1, const char *arg2)
+{
+    core_server_config *conf =
+        ap_get_core_module_config(cmd->server->module_config);
+    int limit = atoi(arg1);
+
+    if (limit <= 0) {
+        return "The recursion limit must be greater than zero.";
+    }
+    if (limit < 4) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00119)
+                     "Limiting internal redirects to very low numbers may "
+                     "cause normal requests to fail.");
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    conf->redirect_limit = limit;
+

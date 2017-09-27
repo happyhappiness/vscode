@@ -1,13 +1,12 @@
+    shutdown_pending = os_check_server(tpf_server_name);
+    ap_check_signals();
+    sleep(1);
+#endif /*TPF */
     }
-    if (autoindex_opts & TABLE_INDEXING) {
-        ap_rvputs(r, breakrow, "</table>\n", NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            ap_rputs("<hr /></pre>\n", r);
-        }
-        else {
-            ap_rputs("</pre>\n", r);
-        }
-    }
-    else {
+
+    if (shutdown_pending) {
+	/* Time to gracefully shut down:
+	 * Kill child processes, tell them to call child_exit, etc...
+	 */
+	if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
+	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGTERM");

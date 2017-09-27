@@ -1,1 +1,0 @@
-fprintf(stderr, "EOF from client\n");

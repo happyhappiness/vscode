@@ -1,24 +1,12 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
     }
+    ap_fputs(x.f, x.bb, CRLF_ASCII);
+    ap_fflush(x.f, x.bb);
+    apr_brigade_destroy(x.bb);
+}
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
 
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+AP_IMPLEMENT_HOOK_VOID(pre_read_request,
+                       (request_rec *r, conn_rec *c),
+                       (r, c))
+AP_IMPLEMENT_HOOK_RUN_ALL(int,post_read_request,
+                          (request_rec *r), (r), OK, DECLINED)

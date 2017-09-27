@@ -1,13 +1,17 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
 
-    Explain0("FTP: connected.");
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv,
+                            r, APLOGNO(00752) "Cache locked for url, not caching "
+                            "response: %s", r->uri);
+                    /* cache_select() may have added conditional headers */
+                    if (cache->stale_headers) {
+                        r->headers_in = cache->stale_headers;
+                    }
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+                }
+            }
+            else {
+                if (cache->stale_headers) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r, APLOGNO(00753) "Restoring request headers for %s",

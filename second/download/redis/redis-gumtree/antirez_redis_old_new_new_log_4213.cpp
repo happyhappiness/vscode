@@ -1,1 +1,0 @@
-fprintf(stderr, "example: redis-cli -r 100 lpush mylist x\n");

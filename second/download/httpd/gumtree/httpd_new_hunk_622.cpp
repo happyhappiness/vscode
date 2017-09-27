@@ -1,14 +1,22 @@
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
-    }
 
-    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
-    /* set "NUL" as sysout for the child */
-    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
-    }
+    case HSE_REQ_ABORTIVE_CLOSE:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
+                          " is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
+
+    case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
+
+    case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
+    {
+        HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
+

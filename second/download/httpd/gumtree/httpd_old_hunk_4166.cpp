@@ -1,35 +1,21 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
+    pconf = _pconf;
+    ap_server_conf = s;
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+    if (setup_listeners(s)) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s, APLOGNO(00223)
+            "no listening sockets available, shutting down");
+        return -1;
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
 
-    r->status = 200;
-    r->status_line = "200 OK";
+    restart_pending = shutdown_pending = 0;
+    worker_thread_count = 0;
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
+            return 1;
+        }
+    }
+
+    /* Only set slot 0 since that is all NetWare will ever have. */
+    ap_scoreboard_image->parent[0].pid = getpid();
+    ap_run_child_status(ap_server_conf,

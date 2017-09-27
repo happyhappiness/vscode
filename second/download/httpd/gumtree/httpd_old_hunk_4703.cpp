@@ -1,13 +1,15 @@
-	perror("Unable to gethostname");
-	exit(1);
+                      m->id, (int)h2_ihash_count(m->shold));
+        h2_ihash_iter(m->shold, unexpected_stream_iter, m);
     }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-	exit(1);
-    }
+    
+    H2_MPLX_LEAVE(m);
 
-    return server_hostname;
+    /* 5. unregister again, now that our workers are done */
+    h2_workers_unregister(m->workers, m);
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): released", m->id);
 }
 
+apr_status_t h2_mplx_stream_cleanup(h2_mplx *m, h2_stream *stream)
+{

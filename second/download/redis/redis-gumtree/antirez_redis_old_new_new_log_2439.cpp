@@ -1,1 +1,0 @@
-printf("Please keep the test running several minutes per GB of memory.\n");

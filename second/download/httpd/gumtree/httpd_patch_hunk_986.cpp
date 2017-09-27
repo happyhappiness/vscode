@@ -1,125 +1,91 @@
- 
-     max_spare_threads = atoi(arg);
-     return NULL;
- }
- 
- static const char *set_max_clients (cmd_parms *cmd, void *dummy,
--                                     const char *arg) 
-+                                     const char *arg)
- {
-     int max_clients;
-     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-     if (err != NULL) {
-         return err;
-     }
- 
-     /* It is ok to use ap_threads_per_child here because we are
-      * sure that it gets set before MaxClients in the pre_config stage. */
-     max_clients = atoi(arg);
-     if (max_clients < ap_threads_per_child) {
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: MaxClients (%d) must be at least as large",
-                     max_clients);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " as ThreadsPerChild (%d). Automatically",
-                     ap_threads_per_child);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " increasing MaxClients to %d.",
-                     ap_threads_per_child);
-        max_clients = ap_threads_per_child;
-     }
-     ap_daemons_limit = max_clients / ap_threads_per_child;
-     if ((max_clients > 0) && (max_clients % ap_threads_per_child)) {
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: MaxClients (%d) is not an integer multiple",
-                     max_clients);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " of ThreadsPerChild (%d), lowering MaxClients to %d",
-                     ap_threads_per_child,
-                     ap_daemons_limit * ap_threads_per_child);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " for a maximum of %d child processes,",
-                     ap_daemons_limit);
--       max_clients = ap_daemons_limit * ap_threads_per_child; 
-+       max_clients = ap_daemons_limit * ap_threads_per_child;
-     }
-     if (ap_daemons_limit > server_limit) {
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: MaxClients of %d would require %d servers,",
-                     max_clients, ap_daemons_limit);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " and would exceed the ServerLimit value of %d.",
-                     server_limit);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " Automatically lowering MaxClients to %d.  To increase,",
-                     server_limit * ap_threads_per_child);
--       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " please see the ServerLimit directive.");
-        ap_daemons_limit = server_limit;
--    } 
-+    }
-     else if (ap_daemons_limit < 1) {
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                      "WARNING: Require MaxClients > 0, setting to 1");
-         ap_daemons_limit = 1;
-     }
-     return NULL;
- }
- 
- static const char *set_threads_per_child (cmd_parms *cmd, void *dummy,
--                                          const char *arg) 
-+                                          const char *arg)
- {
-     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-     if (err != NULL) {
-         return err;
-     }
- 
-     ap_threads_per_child = atoi(arg);
-     if (ap_threads_per_child > thread_limit) {
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                      "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                      "value of %d", ap_threads_per_child,
-                      thread_limit);
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                      "threads, lowering ThreadsPerChild to %d. To increase, please"
-                      " see the", thread_limit);
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                      " ThreadLimit directive.");
-         ap_threads_per_child = thread_limit;
-     }
-     else if (ap_threads_per_child < 1) {
--        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                      "WARNING: Require ThreadsPerChild > 0, setting to 1");
-         ap_threads_per_child = 1;
-     }
-     return NULL;
- }
- 
--static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *arg) 
-+static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *arg)
- {
-     int tmp_server_limit;
--    
++/*************************************************
++*           PCRE DEMONSTRATION PROGRAM           *
++*************************************************/
 +
-     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-     if (err != NULL) {
-         return err;
-     }
++/* This is a demonstration program to illustrate the most straightforward ways
++of calling the PCRE regular expression library from a C program. See the
++pcresample documentation for a short discussion.
++
++Compile thuswise:
++  gcc -Wall pcredemo.c -I/usr/local/include -L/usr/local/lib \
++    -R/usr/local/lib -lpcre
++
++Replace "/usr/local/include" and "/usr/local/lib" with wherever the include and
++library files for PCRE are installed on your system. Only some operating
++systems (e.g. Solaris) use the -R option.
++*/
++
++
+ #include <stdio.h>
+ #include <string.h>
+ #include <pcre.h>
  
-     tmp_server_limit = atoi(arg);
+-/* Compile thuswise:
+-  gcc -Wall pcredemo.c -I/opt/local/include -L/opt/local/lib \
+-    -R/opt/local/lib -lpcre
+-*/
+-
+ #define OVECCOUNT 30    /* should be a multiple of 3 */
+ 
++
+ int main(int argc, char **argv)
+ {
+ pcre *re;
+ const char *error;
++char *pattern;
++char *subject;
++unsigned char *name_table;
+ int erroffset;
++int find_all;
++int namecount;
++int name_entry_size;
+ int ovector[OVECCOUNT];
++int subject_length;
+ int rc, i;
+ 
+-if (argc != 3)
++
++/**************************************************************************
++* First, sort out the command line. There is only one possible option at  *
++* the moment, "-g" to request repeated matching to find all occurrences,  *
++* like Perl's /g option. We set the variable find_all to a non-zero value *
++* if the -g option is present. Apart from that, there must be exactly two *
++* arguments.                                                              *
++**************************************************************************/
++
++find_all = 0;
++for (i = 1; i < argc; i++)
++  {
++  if (strcmp(argv[i], "-g") == 0) find_all = 1;
++    else break;
++  }
++
++/* After the options, we require exactly two arguments, which are the pattern,
++and the subject string. */
++
++if (argc - i != 2)
+   {
+   printf("Two arguments required: a regex and a subject string\n");
+   return 1;
+   }
+ 
+-/* Compile the regular expression in the first argument */
++pattern = argv[i];
++subject = argv[i+1];
++subject_length = (int)strlen(subject);
++
++
++/*************************************************************************
++* Now we are going to compile the regular expression pattern, and handle *
++* and errors that are detected.                                          *
++*************************************************************************/
+ 
+ re = pcre_compile(
+-  argv[1],              /* the pattern */
++  pattern,              /* the pattern */
+   0,                    /* default options */
+   &error,               /* for error message */
+   &erroffset,           /* for error offset */
+   NULL);                /* use default character tables */
+ 
+ /* Compilation failed: print the error message and exit */

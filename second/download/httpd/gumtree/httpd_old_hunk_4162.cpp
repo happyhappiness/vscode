@@ -1,18 +1,13 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+                               ap_calc_scoreboard_size(),
+                               PAG_COMMIT|PAG_READ|PAG_WRITE);
+
+        if (rc) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00205)
+                         "unable to allocate shared memory for scoreboard , exiting");
+            return FALSE;
+        }
+
+        ap_init_scoreboard(sb_mem);
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    ap_scoreboard_image->global->restart_time = apr_time_now();

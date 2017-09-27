@@ -1,0 +1,1 @@
+fprintf(output, "    - No reverse: %d\n", errors[NO_REVERSE]);

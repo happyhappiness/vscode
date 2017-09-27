@@ -1,22 +1,21 @@
-    apr_bucket *e;
-    apr_off_t cl_val = 0;
-    apr_off_t bytes;
-    apr_off_t bytes_streamed = 0;
-
-    if (old_cl_val) {
-        char *endstr;
-
-        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
-        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
-        
-        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                          "proxy: could not parse request Content-Length (%s)",
-                          old_cl_val);
-            return HTTP_BAD_REQUEST;
-        }
+        apr_ctime(timestamp, apr_time_now());
+        apr_file_open_stderr(&se, dbc->pool);
+        apr_file_printf(se, "[%s] %s\n", timestamp, dbc->lastError);
     }
-    terminate_headers(bucket_alloc, header_brigade);
+}
 
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
-    {
+static APR_INLINE int odbc_check_rollback(apr_dbd_t *handle)
+{
+    if (handle->can_commit == APR_DBD_TRANSACTION_ROLLBACK) {
+        handle->lasterrorcode = SQL_ERROR;
+        strcpy(handle->lastError, "[dbd_odbc] Rollback pending ");
+        return 1;
+    }
+    return 0;
+}
+/*
+*   public functions per DBD driver API
+*/
+
+/** init: allow driver to perform once-only initialisation. **/
+static void odbc_init(apr_pool_t *pool)

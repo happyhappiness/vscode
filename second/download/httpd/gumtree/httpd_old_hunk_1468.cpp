@@ -1,12 +1,16 @@
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
-            return AJP_EOVERFLOW;
+    void *sconf = s->module_config;
+    proxy_server_conf *conf =
+        (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
+
+    if (conn->sock) {
+        if (!(connected = is_socket_connected(conn->sock))) {
+            socket_cleanup(conn);
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: %s: backend socket is disconnected.",
+                         proxy_function);
         }
     }
-    /* Use the environment vars prefixed with AJP_
-     * and pass it to the header striping that prefix.
-     */
-    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
-        if (!strncmp(elts[i].key, "AJP_", 4)) {
-            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+    while (backend_addr && !connected) {
+        if ((rv = apr_socket_create(&newsock, backend_addr->family,
+                                SOCK_STREAM, APR_PROTO_TCP,
+                                conn->scpool)) != APR_SUCCESS) {

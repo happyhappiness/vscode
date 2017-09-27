@@ -1,34 +1,34 @@
-
-    ap_kill_timeout(r);
-    return total_bytes_rcv;
-}
-
-/*
- * Sends response line and headers.  Uses the client fd and the 
- * headers_out array from the passed request_rec to talk to the client
- * and to properly set the headers it sends for things such as logging.
- * 
- * A timeout should be set before calling this routine.
- */
-void ap_proxy_send_headers(request_rec *r, const char *respline, table *t)
-{
-    int i;
-    BUFF *fp = r->connection->client;
-    table_entry *elts = (table_entry *) ap_table_elts(t)->elts;
-
-    ap_bputs(respline, fp);
-    ap_bputs(CRLF, fp);
-
-    for (i = 0; i < ap_table_elts(t)->nelts; ++i) {
-	if (elts[i].key != NULL) {
-	    ap_bvputs(fp, elts[i].key, ": ", elts[i].val, CRLF, NULL);
-	    /* FIXME: @@@ This used to be ap_table_set(), but I think
-	     * ap_table_addn() is correct. MnKr */
-	    ap_table_addn(r->headers_out, elts[i].key, elts[i].val);
-	}
-    }
-
-    ap_bputs(CRLF, fp);
-}
-
-
+            /* if it doesn't contain "content", ignore, don't crash! */
+            if (p != NULL) {
+                while (*p) {
+                    p += 7;
+                    while (apr_isspace(*p))
+                        ++p;
+                    /* XXX Should we search for another content= pattern? */
+                    if (*p != '=')
+                        break;
+                    while (*p && apr_isspace(*++p));
+                    if ((*p == '\'') || (*p == '"')) {
+                        delim = *p++;
+                        for (q = p; *q && *q != delim; ++q);
+                        /* No terminating delimiter found? Skip the boggus directive */
+                        if (*q != delim)
+                           break;
+                    } else {
+                        for (q = p; *q && !apr_isspace(*q) && (*q != '>'); ++q);
+                    }
+                    content = apr_pstrndup(r->pool, p, q-p);
+                    break;
+                }
+            }
+        }
+        else if (!strncasecmp(header, "Content-Type", 12)) {
+            ret = apr_palloc(r->pool, sizeof(meta));
+            ret->start = offs+pmatch[0].rm_so;
+            ret->end = offs+pmatch[0].rm_eo;
+        }
+        if (header && content) {
+#ifndef GO_FASTER
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "Adding header [%s: %s] from HTML META",
+                          header, content); 

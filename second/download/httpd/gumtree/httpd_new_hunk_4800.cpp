@@ -1,13 +1,13 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-	exit(1);
-    }
 
-    return server_hostname;
-}
+        rv = mc->stapling_cache->init(mc->stapling_cache_context,
+                                     "mod_ssl-stapling", &hints, s, p);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01872)
+                         "Could not initialize stapling cache. Exiting.");
+            ssl_die(s);
+        }
+    }
+#endif
 
+    /*
+     * Warn the user that he should use the session cache.

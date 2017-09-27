@@ -1,13 +1,24 @@
-            if (result != DECLINED)
-                return result;
+        /* first try to attach to existing slotmem */
+        if (next) {
+            for (;;) {
+                if (strcmp(next->name, fname) == 0) {
+                    /* we already have it */
+                    *new = next;
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02603)
+                                 "create found %s in global list", fname);
+                    return APR_SUCCESS;
+                }
+                if (!next->next) {
+                     break;
+                }
+                next = next->next;
+            }
         }
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02602)
+                     "create didn't find %s in global list", fname);
+    }
+    else {
+        fbased = 0;
+        fname = "none";
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {

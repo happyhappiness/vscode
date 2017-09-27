@@ -1,21 +1,13 @@
+    }
 #endif
+    if (schService == NULL) {
+        /* Could not open the service */
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(10014) "Failed to open the '%s' service",
+                     mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return;
+    }
 
-static void show_compile_settings(void)
-{
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u:%u\n",
-	   MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
-#ifdef HAVE_MMAP
-    printf(" -D HAVE_MMAP\n");
-#endif
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
+    if (!QueryServiceStatus(schService, &globdat.ssStatus)) {

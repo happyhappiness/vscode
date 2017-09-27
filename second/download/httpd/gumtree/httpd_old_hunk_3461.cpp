@@ -1,25 +1,13 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+     *
+     * In spite of these problems, failure here is not a shooting offense.
+     */
+    apr_status_t status = apr_socket_opt_set(s, APR_TCP_NODELAY, 1);
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, status, ap_server_conf,
+                     "apr_socket_opt_set: (TCP_NODELAY)");
     }
-    return;
 }
+#endif
 
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+#ifdef HAVE_GETPWNAM

@@ -1,1 +1,0 @@
-fprintf(fp,"[%d] %s %c %s\n",(int)getpid(),buf,c[level],msg);

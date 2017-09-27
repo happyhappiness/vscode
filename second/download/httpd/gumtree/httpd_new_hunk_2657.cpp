@@ -1,13 +1,13 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
+            putLong((unsigned char *)&buf[0], ctx->crc);
+            putLong((unsigned char *)&buf[4], ctx->stream.total_in);
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+            b = apr_bucket_pool_create(buf, VALIDATION_SIZE, r->pool,
+                                       f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01384)
+                          "Zlib: Compressed %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+            /* leave notes for logging */
+            if (c->note_input_name) {
+                apr_table_setn(r->notes, c->note_input_name,

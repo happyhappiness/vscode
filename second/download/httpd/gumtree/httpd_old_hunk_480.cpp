@@ -1,24 +1,27 @@
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                 NULL, procattr, pl->p);
+
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            ap_piped_log_write_fd(pl) = procnew->in;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          ap_piped_log_write_fd(pl), pl->p);
+        }
+        else {
+            char buf[120];
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));
+            rc = -1;
+        }
     }
 
-    if (pkp->cert_path) {
-        SSL_X509_INFO_load_path(ptemp, sk, pkp->cert_path);
-    }
-
-    if ((ncerts = sk_X509_INFO_num(sk)) > 0) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "loaded %d client certs for SSL proxy",
-                     ncerts);
-
-        pkp->certs = sk;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "no client certs found for SSL proxy");
-        sk_X509_INFO_free(sk);
-    }
+    return rc;
 }
 
-static void ssl_init_proxy_ctx(server_rec *s,
-                               apr_pool_t *p,
-                               apr_pool_t *ptemp,
-                               SSLSrvConfigRec *sc)
+
+static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+{
+    piped_log *pl = data;

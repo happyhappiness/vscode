@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Last valid command offset is invalid");

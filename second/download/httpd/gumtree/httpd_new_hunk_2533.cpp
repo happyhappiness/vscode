@@ -1,18 +1,295 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+ * admin. The CACHE filter is then removed.
+ *
+ * This allows caching to be performed before the content is passed to the
+ * INCLUDES filter, or to a filter that might perform transformations unique
+ * to the specific request and that would otherwise be non-cacheable.
+ */
+static apr_status_t cache_filter(ap_filter_t *f, apr_bucket_brigade *in)
+{
+
+    cache_server_conf
+            *conf =
+                    (cache_server_conf *) ap_get_module_config(f->r->server->module_config,
+                            &cache_module);
+
+    /* was the quick handler enabled */
+    if (conf->quick) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r, APLOGNO(00776)
+                "cache: CACHE filter was added in quick handler mode and "
+                "will be ignored: %s", f->r->unparsed_uri);
+    }
+    /* otherwise we may have been bypassed, nothing to see here */
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r, APLOGNO(00777)
+                "cache: CACHE filter was added twice, or was added where "
+                "the cache has been bypassed and will be ignored: %s",
+                f->r->unparsed_uri);
+    }
+
+    /* we are just a marker, so let's just remove ourselves */
+    ap_remove_output_filter(f);
+    return ap_pass_brigade(f->next, in);
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+/**
+ * If configured, add the status of the caching attempt to the subprocess
+ * environment, and if configured, to headers in the response.
+ *
+ * The status is saved below the broad category of the status (hit, miss,
+ * revalidate), as well as a single cache-status key. This can be used for
+ * conditional logging.
+ *
+ * The status is optionally saved to an X-Cache header, and the detail of
+ * why a particular cache entry was cached (or not cached) is optionally
+ * saved to an X-Cache-Detail header. This extra detail is useful for
+ * service developers who may need to know whether their Cache-Control headers
+ * are working correctly.
+ */
+static int cache_status(cache_handle_t *h, request_rec *r,
+        apr_table_t *headers, ap_cache_status_e status, const char *reason)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    cache_server_conf
+            *conf =
+                    (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                            &cache_module);
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    cache_dir_conf *dconf = ap_get_module_config(r->per_dir_config, &cache_module);
+    int x_cache = 0, x_cache_detail = 0;
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    switch (status) {
+    case AP_CACHE_HIT: {
+        apr_table_setn(r->subprocess_env, AP_CACHE_HIT_ENV, reason);
+        break;
+    }
+    case AP_CACHE_REVALIDATE: {
+        apr_table_setn(r->subprocess_env, AP_CACHE_REVALIDATE_ENV, reason);
+        break;
+    }
+    case AP_CACHE_MISS: {
+        apr_table_setn(r->subprocess_env, AP_CACHE_MISS_ENV, reason);
+        break;
+    }
+    case AP_CACHE_INVALIDATE: {
+        apr_table_setn(r->subprocess_env, AP_CACHE_INVALIDATE_ENV, reason);
+        break;
+    }
+    }
+
+    apr_table_setn(r->subprocess_env, AP_CACHE_STATUS_ENV, reason);
+
+    if (dconf && dconf->x_cache_set) {
+        x_cache = dconf->x_cache;
+    }
+    else {
+        x_cache = conf->x_cache;
+    }
+    if (x_cache) {
+        apr_table_setn(headers, "X-Cache",
+                apr_psprintf(r->pool, "%s from %s",
+                        status == AP_CACHE_HIT ? "HIT" : status
+                                == AP_CACHE_REVALIDATE ? "REVALIDATE" : "MISS",
+                        r->server->server_hostname));
+    }
+
+    if (dconf && dconf->x_cache_detail_set) {
+        x_cache_detail = dconf->x_cache_detail;
+    }
+    else {
+        x_cache_detail = conf->x_cache_detail;
+    }
+    if (x_cache_detail) {
+        apr_table_setn(headers, "X-Cache-Detail", apr_psprintf(r->pool,
+                "\"%s\" from %s", reason, r->server->server_hostname));
+    }
+
+    return OK;
+}
+
+/**
+ * If an error has occurred, but we have a stale cached entry, restore the
+ * filter stack from the save filter onwards. The canned error message will
+ * be discarded in the process, and replaced with the cached response.
+ */
+static void cache_insert_error_filter(request_rec *r)
+{
+    void *dummy;
+    cache_dir_conf *dconf;
+
+    /* ignore everything except for 5xx errors */
+    if (r->status < HTTP_INTERNAL_SERVER_ERROR) {
+        return;
+    }
+
+    dconf = ap_get_module_config(r->per_dir_config, &cache_module);
+
+    if (!dconf->stale_on_error) {
+        return;
+    }
+
+    /* RFC2616 13.8 Errors or Incomplete Response Cache Behavior:
+     * If a cache receives a 5xx response while attempting to revalidate an
+     * entry, it MAY either forward this response to the requesting client,
+     * or act as if the server failed to respond. In the latter case, it MAY
+     * return a previously received response unless the cached entry
+     * includes the "must-revalidate" cache-control directive (see section
+     * 14.9).
+     *
+     * This covers the case where the error was generated by our server via
+     * ap_die().
+     */
+    apr_pool_userdata_get(&dummy, CACHE_CTX_KEY, r->pool);
+    if (dummy) {
+        cache_request_rec *cache = (cache_request_rec *) dummy;
+
+        ap_remove_output_filter(cache->remove_url_filter);
+
+        if (cache->stale_handle && cache->save_filter
+                && !cache->stale_handle->cache_obj->info.control.must_revalidate
+                && !cache->stale_handle->cache_obj->info.control.proxy_revalidate) {
+            const char *warn_head;
+            cache_server_conf
+                    *conf =
+                            (cache_server_conf *) ap_get_module_config(r->server->module_config,
+                                    &cache_module);
+
+            /* morph the current save filter into the out filter, and serve from
+             * cache.
+             */
+            cache->handle = cache->stale_handle;
+            if (r->main) {
+                cache->save_filter->frec = cache_out_subreq_filter_handle;
+            }
+            else {
+                cache->save_filter->frec = cache_out_filter_handle;
+            }
+
+            r->output_filters = cache->save_filter;
+
+            r->err_headers_out = cache->stale_handle->resp_hdrs;
+
+            /* add a revalidation warning */
+            warn_head = apr_table_get(r->err_headers_out, "Warning");
+            if ((warn_head == NULL) || ((warn_head != NULL)
+                    && (ap_strstr_c(warn_head, "111") == NULL))) {
+                apr_table_mergen(r->err_headers_out, "Warning",
+                        "111 Revalidation failed");
+            }
+
+            cache_run_cache_status(
+                    cache->handle,
+                    r,
+                    r->err_headers_out,
+                    AP_CACHE_HIT,
+                    apr_psprintf(
+                            r->pool,
+                            "cache hit: %d status; stale content returned",
+                            r->status));
+
+            /* give someone else the chance to cache the file */
+            cache_remove_lock(conf, cache, r, NULL);
+
+        }
+    }
+
+    return;
+}
+
+/* -------------------------------------------------------------- */
+/* Setup configurable data */
+
+static void *create_dir_config(apr_pool_t *p, char *dummy)
+{
+    cache_dir_conf *dconf = apr_pcalloc(p, sizeof(cache_dir_conf));
+
+    dconf->no_last_mod_ignore = 0;
+    dconf->store_expired = 0;
+    dconf->store_private = 0;
+    dconf->store_nostore = 0;
+
+    /* maximum time to cache a document */
+    dconf->maxex = DEFAULT_CACHE_MAXEXPIRE;
+    dconf->minex = DEFAULT_CACHE_MINEXPIRE;
+    /* default time to cache a document */
+    dconf->defex = DEFAULT_CACHE_EXPIRE;
+
+    /* factor used to estimate Expires date from LastModified date */
+    dconf->factor = DEFAULT_CACHE_LMFACTOR;
+
+    dconf->x_cache = DEFAULT_X_CACHE;
+    dconf->x_cache_detail = DEFAULT_X_CACHE_DETAIL;
+
+    dconf->stale_on_error = DEFAULT_CACHE_STALE_ON_ERROR;
+
+    /* array of providers for this URL space */
+    dconf->cacheenable = apr_array_make(p, 10, sizeof(struct cache_enable));
+
+    return dconf;
+}
+
+static void *merge_dir_config(apr_pool_t *p, void *basev, void *addv) {
+    cache_dir_conf *new = (cache_dir_conf *) apr_pcalloc(p, sizeof(cache_dir_conf));
+    cache_dir_conf *add = (cache_dir_conf *) addv;
+    cache_dir_conf *base = (cache_dir_conf *) basev;
+
+    new->no_last_mod_ignore = (add->no_last_mod_ignore_set == 0) ? base->no_last_mod_ignore : add->no_last_mod_ignore;
+    new->no_last_mod_ignore_set = add->no_last_mod_ignore_set || base->no_last_mod_ignore_set;
+
+    new->store_expired = (add->store_expired_set == 0) ? base->store_expired : add->store_expired;
+    new->store_expired_set = add->store_expired_set || base->store_expired_set;
+    new->store_private = (add->store_private_set == 0) ? base->store_private : add->store_private;
+    new->store_private_set = add->store_private_set || base->store_private_set;
+    new->store_nostore = (add->store_nostore_set == 0) ? base->store_nostore : add->store_nostore;
+    new->store_nostore_set = add->store_nostore_set || base->store_nostore_set;
+
+    /* maximum time to cache a document */
+    new->maxex = (add->maxex_set == 0) ? base->maxex : add->maxex;
+    new->maxex_set = add->maxex_set || base->maxex_set;
+    new->minex = (add->minex_set == 0) ? base->minex : add->minex;
+    new->minex_set = add->minex_set || base->minex_set;
+
+    /* default time to cache a document */
+    new->defex = (add->defex_set == 0) ? base->defex : add->defex;
+    new->defex_set = add->defex_set || base->defex_set;
+
+    /* factor used to estimate Expires date from LastModified date */
+    new->factor = (add->factor_set == 0) ? base->factor : add->factor;
+    new->factor_set = add->factor_set || base->factor_set;
+
+    new->x_cache = (add->x_cache_set == 0) ? base->x_cache : add->x_cache;
+    new->x_cache_set = add->x_cache_set || base->x_cache_set;
+    new->x_cache_detail = (add->x_cache_detail_set == 0) ? base->x_cache_detail
+            : add->x_cache_detail;
+    new->x_cache_detail_set = add->x_cache_detail_set
+            || base->x_cache_detail_set;
+
+    new->stale_on_error = (add->stale_on_error_set == 0) ? base->stale_on_error
+            : add->stale_on_error;
+    new->stale_on_error_set = add->stale_on_error_set
+            || base->stale_on_error_set;
+
+    new->cacheenable = add->enable_set ? apr_array_append(p, base->cacheenable,
+            add->cacheenable) : base->cacheenable;
+    new->enable_set = add->enable_set || base->enable_set;
+    new->disable = (add->disable_set == 0) ? base->disable : add->disable;
+    new->disable_set = add->disable_set || base->disable_set;
+
+    return new;
+}
+
+static void * create_cache_config(apr_pool_t *p, server_rec *s)
+{
+    const char *tmppath;
+    cache_server_conf *ps = apr_pcalloc(p, sizeof(cache_server_conf));
+
+    /* array of URL prefixes for which caching is enabled */
+    ps->cacheenable = apr_array_make(p, 10, sizeof(struct cache_enable));
+    /* array of URL prefixes for which caching is disabled */
+    ps->cachedisable = apr_array_make(p, 10, sizeof(struct cache_disable));
+    ps->ignorecachecontrol = 0;
+    ps->ignorecachecontrol_set = 0;
+    /* array of headers that should not be stored in cache */
+    ps->ignore_headers = apr_array_make(p, 10, sizeof(char *));
+    ps->ignore_headers_set = CACHE_IGNORE_HEADERS_UNSET;
+    /* flag indicating that query-string should be ignored when caching */
+    ps->ignorequerystring = 0;
+    ps->ignorequerystring_set = 0;

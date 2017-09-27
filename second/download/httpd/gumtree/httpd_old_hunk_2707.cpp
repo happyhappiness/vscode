@@ -1,22 +1,26 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
+    case PARSE_ARG_POSTNAME:
+        intern->current_arg->name = apr_pstrmemdup(ctx->dpool,
+                                                 intern->current_arg->name,
+                                                 intern->current_arg->name_len);
+        if (!intern->current_arg->name_len) {
+            intern->error = 1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
+                          "argument name for value to tag %s in %s",
+                          apr_pstrmemdup(intern->r->pool, intern->directive,
+                                         intern->directive_len),
+                                         intern->r->filename);
+        }
+        else {
+            char *sp = intern->current_arg->name;
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+            /* normalize the name */
+            while (*sp) {
+                *sp = apr_tolower(*sp);
+                ++sp;
+            }
+        }
+
+        intern->state = PARSE_ARG_EQ;
+        /* continue with next state immediately */
+
+    case PARSE_ARG_EQ:

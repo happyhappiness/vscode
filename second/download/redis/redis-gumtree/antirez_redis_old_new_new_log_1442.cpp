@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"%s:<unknown-slave-port>",ip);

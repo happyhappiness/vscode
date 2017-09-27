@@ -1,13 +1,17 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-	exit(1);
-    }
+                }
 
-    return server_hostname;
-}
+                /* Detect chunksize error (such as overflow) */
+                if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590) "Error reading chunk %s ",
+                                  (ctx->remaining < 0) ? "(overflow)" : "");
+                    if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
+                        http_error = HTTP_REQUEST_TIME_OUT;
+                    }
+                    ctx->remaining = 0; /* Reset it in case we have to
+                                         * come back here later */
+                    return bail_out_on_error(ctx, f, http_error);
+                }
 
+                if (!ctx->remaining) {
+                    /* Handle trailers by calling ap_get_mime_headers again! */
+                    ctx->state = BODY_NONE;

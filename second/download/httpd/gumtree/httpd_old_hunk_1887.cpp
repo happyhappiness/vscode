@@ -1,14 +1,14 @@
-#include "http_main.h"
-#include "http_request.h"
+                    if (APR_STATUS_IS_EINTR(rv)) {
+                        continue;
+                    }
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+                    /* apr_pollset_poll() will only return errors in catastrophic
+                     * circumstances. Let's try exiting gracefully, for now. */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                                 (const server_rec *) ap_server_conf,
+                                 "apr_pollset_poll: (listen)");
+                    signal_threads(ST_GRACEFUL);
+                }
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+                if (listener_may_exit) break;
+

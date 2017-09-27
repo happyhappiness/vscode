@@ -1,48 +1,49 @@
-/*  _________________________________________________________________
-**
-**  Module Initialization
-**  _________________________________________________________________
-*/
+#endif /* APR_CHARSET_EBCDIC */
 
-static char *ssl_add_version_component(apr_pool_t *p,
-                                       server_rec *s,
-                                       char *name)
-{
-    char *val = ssl_var_lookup(p, s, NULL, NULL, name);
+#define MAX_STRING_LEN 256
 
-    if (val && *val) {
-        ap_add_version_component(p, val);
-    }
+#define ERR_OVERFLOW 5
 
-    return val;
-}
+#ifndef HAVE_GETPASS
 
-static char *version_components[] = {
-    "SSL_VERSION_PRODUCT",
-    "SSL_VERSION_INTERFACE",
-    "SSL_VERSION_LIBRARY",
-    NULL
-};
+/* MPE, Win32, NetWare and BeOS all lack a native getpass() */
 
-static void ssl_add_version_components(apr_pool_t *p,
-                                       server_rec *s)
-{
-    char *vals[sizeof(version_components)/sizeof(char *)];
-    int i;
-
-    for (i=0; version_components[i]; i++) {
-        vals[i] = ssl_add_version_component(p, s,
-                                            version_components[i]);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Server: %s, Interface: %s, Library: %s",
-                 AP_SERVER_BASEVERSION,
-                 vals[1],  /* SSL_VERSION_INTERFACE */
-                 vals[2]); /* SSL_VERSION_LIBRARY */
-}
-
-
+#if !defined(HAVE_TERMIOS_H) && !defined(WIN32) && !defined(NETWARE)
 /*
- *  Initialize SSL library
+ * MPE lacks getpass() and a way to suppress stdin echo.  So for now, just
+ * issue the prompt and read the results with echo.  (Ugh).
  */
+
+static char *getpass(const char *prompt)
+{
+    static char password[MAX_STRING_LEN];
+
+    fputs(prompt, stderr);
+    fgets((char *) &password, sizeof(password), stdin);
+
+    return (char *) &password;
+}
+
+#elif defined (HAVE_TERMIOS_H)
+#include <stdio.h>
+
+static char *getpass(const char *prompt)
+{
+    struct termios attr;
+    static char password[MAX_STRING_LEN];
+    int n=0;
+    fputs(prompt, stderr);
+    fflush(stderr);
+	
+    if (tcgetattr(STDIN_FILENO, &attr) != 0)
+        return NULL;
+    attr.c_lflag &= ~(ECHO);
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr) != 0)
+	    return NULL;
+    while ((password[n] = getchar()) != '\n') {
+        if (n < sizeof(password) - 1 && password[n] >= ' ' && password[n] <= '~') {
+            n++;
+        } else {
+            fprintf(stderr,"\n");
+            fputs(prompt, stderr);

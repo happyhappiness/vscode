@@ -1,45 +1,20 @@
- * that environment variable, if it exists. If the
- * environment value does not exist, leave the ${ENV}
- * construct alone; it means something else.
+ * 20020903.6 (2.0.49-dev) add insert_error_filter hook
+ * 20020903.7 (2.0.49-dev) added XHTML Doctypes
+ * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
+ *                         ap_finalize_sub_req_protocol on Win32 and NetWare
+ * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+ *                         calling ap_setup_prelinked_modules
  */
-AP_DECLARE(const char *) ap_resolve_env(apr_pool_t *p, const char * word)
-{
-       char tmp[ MAX_STRING_LEN ];
-       const char *s, *e;
-       tmp[0] = '\0';
 
-       if (!(s=ap_strchr_c(word,'$')))
-               return word;
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
-       do {
-               /* XXX - relies on strncat() to add '\0'
-                */
-               strncat(tmp,word,s - word);
-               if ((s[1] == '{') && (e=ap_strchr_c(s,'}'))) {
-                       const char *e2 = e;
-                       char *var;
-                       word = e + 1;
-                       var = apr_pstrndup(p, s+2, e2-(s+2));
-                       e = getenv(var);
-                       if (e) {
-                           strcat(tmp,e);
-                       } else {
-                           strncat(tmp, s, e2-s);
-                           strcat(tmp,"}");
-                       }
-               } else {
-                       /* ignore invalid strings */
-                       word = s+1;
-                       strcat(tmp,"$");
-               };
-       } while ((s=ap_strchr_c(word,'$')));
-       strcat(tmp,word);
-
-       return apr_pstrdup(p,tmp);
-}
-AP_DECLARE(int) ap_cfg_closefile(ap_configfile_t *cfp)
-{
-#ifdef DEBUG
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, 
-        "Done with config file %s", cfp->name);
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
 #endif
+#define MODULE_MAGIC_NUMBER_MINOR 9                     /* 0...n */
+
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

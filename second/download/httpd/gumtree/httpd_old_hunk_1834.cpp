@@ -1,38 +1,15 @@
-                            mc->nSessionCacheDataSize,
-                            mc->szSessionCacheDataFile,
-                            mc->pPool);
-    }
+    ap_max_mem_free = APR_ALLOCATOR_MAX_FREE_UNLIMITED;
+#endif
 
-    if (rv != APR_SUCCESS) {
-        char buf[100];
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Cannot allocate shared memory: (%d)%s", rv,
-                     apr_strerror(rv, buf, sizeof(buf)));
-        ssl_die();
-    }
-    shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
-    shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init allocated %" APR_SIZE_T_FMT
-                 " bytes of shared memory",
-                 shm_segsize);
-    if (!shmcb_init_memory(s, shm_segment, shm_segsize)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Failure initialising 'shmcb' shared memory");
-        ssl_die();
-    }
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Shared memory session cache initialised");
-
-    /*
-     * Success ...
-     */
-    mc->tSessionCacheDataTable = shm_segment;
-    return;
+    return OK;
 }
 
-void ssl_scache_shmcb_kill(server_rec *s)
+static void netware_mpm_hooks(apr_pool_t *p)
 {
-    SSLModConfigRec *mc = myModConfig(s);
+    ap_hook_pre_config(netware_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
+}
 
+void netware_rewrite_args(process_rec *process)
+{
+    char *def_server_root;
+    char optbuf[3];

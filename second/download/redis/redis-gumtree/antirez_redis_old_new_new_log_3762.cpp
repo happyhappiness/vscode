@@ -1,1 +1,0 @@
-_addReplyStringToBuffer(c,obj->ptr,sdslen(obj->ptr));

@@ -1,14 +1,15 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+            apr_status_t rv;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+            /* flush the remaining data from the zlib buffers */
+            zRC = flush_libz_buffer(ctx, c, f->c->bucket_alloc, deflate,
+                                    Z_SYNC_FLUSH, NO_UPDATE_CRC);
+            if (zRC != Z_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01385)
+                              "Zlib error %d flushing zlib output buffer (%s)",
+                              zRC, ctx->stream.msg);
+                return APR_EGENERAL;
+            }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+            /* Remove flush bucket from old brigade anf insert into the new. */
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);

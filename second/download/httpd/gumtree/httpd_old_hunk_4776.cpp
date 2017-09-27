@@ -1,12 +1,13 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
-}
+                                           mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01895)
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die();
+        }
 
-
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+        if (mctx->pks && (mctx->pks->ca_name_file || mctx->pks->ca_name_path)) {
+            ca_list = ssl_init_FindCAList(s, ptemp,
+                                          mctx->pks->ca_name_file,
+                                          mctx->pks->ca_name_path);

@@ -1,13 +1,14 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
 
-    /* Run it. */
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02117)
+                          "ap_pass_brigade failed to "
+                          "complete the response: %s ", r->filename);
+        }
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+        return OK; /* NOT r->status, even if it has changed. */
     }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32

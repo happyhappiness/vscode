@@ -1,12 +1,12 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-                      "[%d] ldap cache init: %s", 
-                      getpid(), buf);
-}
+ */
+static int dav_handler(request_rec *r)
+{
+    if (strcmp(r->handler, DAV_HANDLER_NAME) != 0)
+        return DECLINED;
 
+    /* ### do we need to do anything with r->proxyreq ?? */
 
-command_rec util_ldap_cmds[] = {
-    AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
-                  "Sets the size of the shared memory cache in bytes. "
-                  "Zero means disable the shared memory cache. Defaults to 100KB."),
-
-    AP_INIT_TAKE1("LDAPCacheEntries", util_ldap_set_cache_entries, NULL, RSRC_CONF,
+    /*
+     * ### anything else to do here? could another module and/or
+     * ### config option "take over" the handler here? i.e. how do
+     * ### we lock down this hierarchy so that we are the ultimate

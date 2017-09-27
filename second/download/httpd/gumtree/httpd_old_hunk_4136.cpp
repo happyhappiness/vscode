@@ -1,20 +1,14 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    /* Check for overrides with ForceType / SetHandler
+     */
+    if (conf->mime_type && strcmp(conf->mime_type, "none"))
+        ap_set_content_type(r, (char*) conf->mime_type);
 
-    child_timeouts = !ap_standalone || one_process;
+    if (conf->handler && strcmp(conf->handler, "none"))
+        r->handler = conf->handler;
 
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+    /* Deal with the poor soul who is trying to force path_info to be
+     * accepted within the core_handler, where they will let the subreq
+     * address its contents.  This is toggled by the user in the very
+     * beginning of the fixup phase (here!), so modules should override the user's
+     * discretion in their own module fixup phase.  It is tristate, if

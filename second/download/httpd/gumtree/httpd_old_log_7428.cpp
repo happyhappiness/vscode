@@ -1,0 +1,1 @@
+fprintf(stderr, "   -v   Verify the username/password.\n");

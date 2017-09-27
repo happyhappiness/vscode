@@ -1,13 +1,14 @@
-	return ap_proxyerror(r, err);	/* give up */
+{
+    apr_file_t *f = NULL;
+    apr_finfo_t finfo;
+    char time_str[APR_CTIME_LEN];
+    int log_flags = rv ? APLOG_ERR : APLOG_ERR;
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    /* Intentional no APLOGNO */
+    /* Callee provides APLOGNO in error text */
+    ap_log_rerror(APLOG_MARK, log_flags, rv, r,
+                  "%s%s: %s", logno ? logno : "", error, r->filename);
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    /* XXX Very expensive mainline case! Open, then getfileinfo! */
+    if (!conf->logname ||
+        ((apr_stat(&finfo, conf->logname,

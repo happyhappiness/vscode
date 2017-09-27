@@ -1,1 +1,0 @@
-s[j++]="function global(...)\n";

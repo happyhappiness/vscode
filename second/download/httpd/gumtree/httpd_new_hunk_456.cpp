@@ -1,39 +1,30 @@
-    /* Initialize the cache_handle */
-    h->cache_obj = obj;
-    h->req_hdrs = NULL;  /* Pick these up in recall_headers() */
-    return OK;
-}
+    /* eliminate the '.' if there is one */
+    if (*ext == '.')
+        ++ext;
 
-/* remove_entity()
- * Notes: 
- *   refcount should be at least 1 upon entry to this function to account
- *   for this thread's reference to the object. If the refcount is 1, then
- *   object has been removed from the cache by another thread and this thread
- *   is the last thread accessing the object.
- */
-static int remove_entity(cache_handle_t *h) 
-{
-    cache_object_t *obj = h->cache_obj;
-    cache_object_t *tobj = NULL;
+    /* check if we have a registered command for the extension*/
+    new_cmd = apr_table_get(d->file_type_handlers, ext);
+    e_info->detached = AP_PROC_DETACHED;
+    if (new_cmd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Could not find a command associated with the %s extension", ext);
+        return APR_EBADF;
+    }
+    if (stricmp(new_cmd, "OS")) {
+        /* If we have a registered command then add the file that was passed in as a
+          parameter to the registered command. */
+        *cmd = apr_pstrcat (p, new_cmd, " ", cmd_only, NULL);
 
-    if (sconf->lock) {
-        apr_thread_mutex_lock(sconf->lock);
+        /* Run in its own address space if specified */
+        if(apr_table_get(d->file_handler_mode, ext))
+            e_info->detached |= AP_PROC_NEWADDRSPACE;
     }
 
-    /* If the entity is still in the cache, remove it and decrement the
-     * refcount. If the entity is not in the cache, do nothing. In both cases
-     * decrement_refcount called by the last thread referencing the object will 
-     * trigger the cleanup.
-     */
-    tobj = cache_find(sconf->cache_cache, obj->key);
-    if (tobj == obj) {
-        cache_remove(sconf->cache_cache, obj);
-        apr_atomic_dec(&obj->refcount);
-    }
-    
-    if (sconf->lock) {
-        apr_thread_mutex_unlock(sconf->lock);
-    }
+    /* Tokenize the full command string into its arguments */
+    apr_tokenize_to_argv(*cmd, (char***)argv, p);
 
-    return OK;
+    /* The first argument should be the executible */
+    *cmd = ap_server_root_relative(p, *argv[0]);
+
+    return APR_SUCCESS;
 }

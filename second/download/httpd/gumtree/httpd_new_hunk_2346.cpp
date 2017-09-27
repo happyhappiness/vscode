@@ -1,27 +1,34 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "proxy: *: found forward proxy worker for %s",
+                              *url);
+                *balancer = NULL;
+                *worker = conf->forward;
+                access_status = OK;
+                /*
+                 * The forward worker does not keep connections alive, so
+                 * ensure that mod_proxy_http does the correct thing
+                 * regarding the Connection header in the request.
+                 */
+                apr_table_set(r->subprocess_env, "proxy-nokeepalive", "1");
+            }
+        }
+        else if (r->proxyreq == PROXYREQ_REVERSE) {
+            if (conf->reverse) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "proxy: *: found reverse proxy worker for %s",
+                               *url);
+                *balancer = NULL;
+                *worker = conf->reverse;
+                access_status = OK;
+                /*
+                 * The reverse worker does not keep connections alive, so
+                 * ensure that mod_proxy_http does the correct thing
+                 * regarding the Connection header in the request.
+                 */
+                apr_table_set(r->subprocess_env, "proxy-nokeepalive", "1");
+            }
+        }
+    }
+    else if (access_status == DECLINED && *balancer != NULL) {
+        /* All the workers are busy */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

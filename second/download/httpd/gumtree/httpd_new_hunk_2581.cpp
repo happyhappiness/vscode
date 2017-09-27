@@ -1,13 +1,30 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+        apr_table_get(tbl, "busy") != NULL &&
+        apr_table_get(tbl, "ready") != NULL) {
+        char *ip;
+        int port = 80;
+        hm_server_t *s;
+        /* TODO: REMOVE ME BEFORE PRODUCTION (????) */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(02086)
+                     "%pI busy=%s ready=%s", from,
+                     apr_table_get(tbl, "busy"), apr_table_get(tbl, "ready"));
 
-    /* Run it. */
+        apr_sockaddr_ip_get(&ip, from);
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        const char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+        if (apr_table_get(tbl, "port") != NULL)
+            port = atoi(apr_table_get(tbl, "port"));
+
+        s = hm_get_server(ctx, ip, port);
+
+        s->busy = atoi(apr_table_get(tbl, "busy"));
+        s->ready = atoi(apr_table_get(tbl, "ready"));
+        s->seen = apr_time_now();
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ctx->s, APLOGNO(02087)
+                     "malformed message from %pI",
+                     from);
     }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+}
+/* Read message from multicast socket */
+#define MAX_MSG_LEN (1000)

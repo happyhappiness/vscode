@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+        return result;
     }
-    else if (lenp) {
-        char *pos = lenp;
+    /* note: doc == NULL if no request body */
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    if (doc == NULL || !dav_validate_root(doc, "propertyupdate")) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "a \"propertyupdate\" element.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    /* Check If-Headers and existing locks */

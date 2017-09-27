@@ -1,14 +1,18 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+/* r:addoutputfilter(name|function) */
+static int req_add_output_filter(lua_State *L)
+{
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    const char *name = luaL_checkstring(L, 2);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "adding output filter %s",
+                  name);
+    ap_add_output_filter(name, L, r, r->connection);
+    return 0;
+}
+
+/* BEGIN dispatch mathods for request_rec fields */
+
+/* not really a field, but we treat it like one */
+static const char *req_document_root(request_rec *r)
+{
+    return ap_document_root(r);

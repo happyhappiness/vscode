@@ -1,13 +1,12 @@
+             */
+            rv = apr_file_write_full(tempsock, data, len, NULL);
 
-    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
+            }
+        }
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
 
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
-
-    if (err != NULL)
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "%s", err);
-
-    r->hostname = host;
-
-    return host;		/* ought to return the port, too */
-}

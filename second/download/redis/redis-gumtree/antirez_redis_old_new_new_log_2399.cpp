@@ -1,1 +1,0 @@
-log = sdsnew("\n--- WATCHDOG TIMER EXPIRED ---\n");

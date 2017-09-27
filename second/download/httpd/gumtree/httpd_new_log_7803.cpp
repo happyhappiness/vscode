@@ -1,0 +1,1 @@
+ap_rputs(ap_escape_html(r->pool, lua_response), r);

@@ -1,0 +1,14 @@
+     for (i = 0; i < arr->nelts; i++) {
+         if (reuse) {
+             ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
+                          "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                          elts[i].key, elts[i].val, ap_proxy_worker_name(cmd->pool, worker));
+         } else {
+-            err = set_worker_param(cmd->pool, worker, elts[i].key,
++            err = set_worker_param(cmd->pool, cmd->server, worker, elts[i].key,
+                                                elts[i].val);
+             if (err)
+                 return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+         }
+     }
+ 

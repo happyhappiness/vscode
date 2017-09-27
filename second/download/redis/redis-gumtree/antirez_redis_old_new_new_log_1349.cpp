@@ -1,1 +1,0 @@
-printf("Stress with random payloads of different encoding:\n");

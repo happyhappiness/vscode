@@ -1,1 +1,0 @@
-addReplyError(c,"bit should be 0 or 1");

@@ -1,87 +1,143 @@
-	    }
-	}
-#endif
-	return (pid);
+     */
+    if (!retained->first_thread_limit) {
+        retained->first_thread_limit = thread_limit;
     }
-#else
-    if (ap_suexec_enabled &&
-	((r->server->server_uid != ap_user_id) ||
-	 (r->server->server_gid != ap_group_id) ||
-	 (!strncmp("/~", r->uri, 2)))) {
-
-	char *execuser, *grpname;
-	struct passwd *pw;
-	struct group *gr;
-
-	if (!strncmp("/~", r->uri, 2)) {
-	    gid_t user_gid;
-	    char *username = ap_pstrdup(r->pool, r->uri + 2);
-	    char *pos = strchr(username, '/');
-
-	    if (pos)
-		*pos = '\0';
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
-	    if ((gr = getgrgid(user_gid)) == NULL) {
-		if ((grpname = ap_palloc(r->pool, 16)) == NULL)
-		    return (pid);
-		else
-		    ap_snprintf(grpname, 16, "%ld", (long) user_gid);
-	    }
-	    else
-		grpname = gr->gr_name;
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		            "getpwuid: invalid userid %ld",
-		            (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		            "getgrgid: invalid groupid %ld",
-		            (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-
-	if (shellcmd)
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0, NULL, env);
-
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '='))
-	    execle(SUEXEC_BIN, SUEXEC_BIN, execuser, grpname, argv0, NULL, env);
-
-	else {
-	    execve(SUEXEC_BIN,
-		   create_argv(r->pool, SUEXEC_BIN, execuser, grpname,
-			       argv0, r->args),
-		   env);
-	}
+    else if (thread_limit != retained->first_thread_limit) {
+        /* don't need a startup console version here */
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "changing ThreadLimit to %d from original value of %d "
+                     "not allowed during restart",
+                     thread_limit, retained->first_thread_limit);
+        thread_limit = retained->first_thread_limit;
     }
-    else {
-	if (shellcmd)
-	    execle(SHELL_PATH, SHELL_PATH, "-c", argv0, NULL, env);
 
-	else if ((!r->args) || (!r->args[0]) || strchr(r->args, '='))
-	    execle(r->filename, argv0, NULL, env);
-
-	else
-	    execve(r->filename,
-		   create_argv(r->pool, NULL, NULL, NULL, argv0, r->args),
-		   env);
+    if (threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         threads_per_child, thread_limit);
+        }
+        threads_per_child = thread_limit;
     }
-    return (pid);
-#endif
-}
--- apache_1.3.0/src/main/util_uri.c	1998-05-30 09:54:30.000000000 +0800
+    else if (threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", threads_per_child);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);
+        }
+        threads_per_child = 1;
+    }
+
+    if (max_clients < threads_per_child) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is less than "
+                         "ThreadsPerChild of", max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d, increasing to %d.  MaxClients must be at "
+                         "least as large",
+                         threads_per_child, threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " as the number of threads in a single server.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_clients, threads_per_child);
+        }
+        max_clients = threads_per_child;
+    }
+
+    ap_daemons_limit = max_clients / threads_per_child;
+
+    if (max_clients % threads_per_child) {
+        int tmp_max_clients = ap_daemons_limit * threads_per_child;
+
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is not an integer "
+                         "multiple of", max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d,", threads_per_child,
+                         tmp_max_clients);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " for a maximum of %d servers.",
+                         ap_daemons_limit);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is not an integer multiple of "
+                         "ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d", max_clients, threads_per_child,
+                         tmp_max_clients);
+        }
+        max_clients = tmp_max_clients;
+    }
+
+    if (ap_daemons_limit > server_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d would require %d "
+                         "servers and ", max_clients, ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " would exceed ServerLimit of %d, decreasing to %d.",
+                         server_limit, server_limit * threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ServerLimit "
+                         "directive.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d would require %d servers and "
+                         "exceed ServerLimit of %d, decreasing to %d",
+                         max_clients, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);
+        }
+        ap_daemons_limit = server_limit;
+    }
+
+    /* ap_daemons_to_start > ap_daemons_limit checked in ap_mpm_run() */
+    if (ap_daemons_to_start < 0) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);
+        }
+        ap_daemons_to_start = 1;
+    }
+
+    if (min_spare_threads < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         min_spare_threads);
+        }
+        min_spare_threads = 1;
+    }
+

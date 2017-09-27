@@ -1,1 +1,1 @@
-ap_rputs(" -D NO_LINGCLOSE\n", r);
+ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);

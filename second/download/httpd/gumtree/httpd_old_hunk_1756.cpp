@@ -1,12 +1,24 @@
-    case MAPTYPE_DBM:
-        rv = apr_stat(&st, s->checkfile, APR_FINFO_MIN, r->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "mod_rewrite: can't access DBM RewriteMap file %s",
-                          s->checkfile);
-            rewritelog((r, 1, NULL,
-                        "can't open DBM RewriteMap file, see error log"));
-            return NULL;
+                                  "could not read bucket for SSL buffer");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                total += len;
+            }
+
+            rv = apr_bucket_setaside(e, ctx->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "could not setaside bucket for SSL buffer");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            APR_BUCKET_REMOVE(e);
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
         }
 
-        value = get_cache_value(s->cachename, st.mtime, key, r->pool);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
+                      total, eos);
+
+        /* Fail if this exceeds the maximum buffer size. */
+        if (total > maxlen) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,

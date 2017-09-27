@@ -1,13 +1,35 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+
+    /* We don't want to have to recreate the scoreboard after
+     * restarts, so we'll create a global pool and never clean it.
+     */
+    rv = apr_pool_create(&global_pool, NULL);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Fatal error: unable to create global pool "
+                     "for use by the scoreboard");
+        return rv;
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+    /* The config says to create a name-based shmem */
+    if (ap_scoreboard_fname) {
+        /* make sure it's an absolute pathname */
+        fname = ap_server_root_relative(pconf, ap_scoreboard_fname);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, APR_EBADPATH, NULL,
+                         "Fatal error: Invalid Scoreboard path %s",
+                         ap_scoreboard_fname);
+            return APR_EBADPATH;
+        }
+        return create_namebased_scoreboard(global_pool, fname);
+    }
+    else { /* config didn't specify, we get to choose shmem type */
+        rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, NULL,
+                            global_pool); /* anonymous shared memory */
+        if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                         "Unable to create or access scoreboard "
+                         "(anonymous shared memory failure)");
+            return rv;
+        }
+        /* Make up a filename and do name-based shmem */
+        else if (rv == APR_ENOTIMPL) {

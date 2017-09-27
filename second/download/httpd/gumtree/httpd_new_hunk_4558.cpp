@@ -1,50 +1,51 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
+        
+        if (!stream->pref_priority) {
+            stream->pref_priority = h2_stream_get_priority(stream, headers);
+        }
+        h2_session_set_prio(session, stream, stream->pref_priority);
+        
+        note = apr_table_get(headers->notes, H2_FILTER_DEBUG_NOTE);
+        if (note && !strcmp("on", note)) {
+            int32_t connFlowIn, connFlowOut;
 
-/* This list displays the compiled-in default paths: */
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-#ifdef SUEXEC_BIN
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-#endif
-#ifdef SHARED_CORE_DIR
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-#endif
-#ifdef DEFAULT_PIDLOG
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-#endif
-#ifdef DEFAULT_SCOREBOARD
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-#endif
-#ifdef DEFAULT_LOCKFILE
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-#endif
-#ifdef DEFAULT_XFERLOG
-    printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");
-#endif
-#ifdef DEFAULT_ERRORLOG
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-#endif
-#ifdef TYPES_CONFIG_FILE
-    printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
-#endif
-#ifdef SERVER_CONFIG_FILE
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-#endif
-#ifdef ACCESS_CONFIG_FILE
-    printf(" -D ACCESS_CONFIG_FILE=\"" ACCESS_CONFIG_FILE "\"\n");
-#endif
-#ifdef RESOURCE_CONFIG_FILE
-    printf(" -D RESOURCE_CONFIG_FILE=\"" RESOURCE_CONFIG_FILE "\"\n");
-#endif
-}
-
-
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+            connFlowIn = nghttp2_session_get_effective_local_window_size(session->ngh2); 
+            connFlowOut = nghttp2_session_get_remote_window_size(session->ngh2);
+            headers = h2_headers_copy(stream->pool, headers);
+            apr_table_setn(headers->headers, "conn-flow-in", 
+                           apr_itoa(stream->pool, connFlowIn));
+            apr_table_setn(headers->headers, "conn-flow-out", 
+                           apr_itoa(stream->pool, connFlowOut));
+        }
+        
+        if (headers->status == 103 
+            && !h2_config_geti(session->config, H2_CONF_EARLY_HINTS)) {
+            /* suppress sending this to the client, it might have triggered 
+             * pushes and served its purpose nevertheless */
+            rv = 0;
+            goto leave;
+        }
+        
+        status = h2_res_create_ngheader(&ngh, stream->pool, headers);
+        if (status == APR_SUCCESS) {
+            rv = nghttp2_submit_response(session->ngh2, stream->id,
+                                         ngh->nv, ngh->nvlen, pprovider);
+            stream->has_response = h2_headers_are_response(headers);
+            session->have_written = 1;
+            
+            if (stream->initiated_on) {
+                ++session->pushes_submitted;
+            }
+            else {
+                ++session->responses_submitted;
+            }
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_STRM_LOG(APLOGNO(10025), stream, "invalid response"));
+            h2_stream_rst(stream, NGHTTP2_PROTOCOL_ERROR);
+        }
+    }
+    
+leave:
+    if (nghttp2_is_fatal(rv)) {
+        status = APR_EGENERAL;

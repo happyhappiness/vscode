@@ -1,14 +1,14 @@
-                    ap_rputs(")\n", r);
-                    ap_rprintf(r,
-                               " <i>%s {%s}</i> <b>[%s]</b><br />\n\n",
-                               ap_escape_html(r->pool,
-                                              ws_record->client),
-                               ap_escape_html(r->pool,
-                                              ap_escape_logitem(r->pool,
-                                                                ws_record->request)),
-                               ap_escape_html(r->pool,
-                                              ws_record->vhost));
-                }
-                else { /* !no_table_report */
-                    if (ws_record->status == SERVER_DEAD)
-                        ap_rprintf(r,
+    if (script && r->prev && r->prev->prev)
+        return DECLINED;
+
+    /* Second, check for actions (which override the method scripts) */
+    action = r->handler ? r->handler :
+        ap_field_noparam(r->pool, r->content_type);
+
+    if (action && (t = apr_table_get(conf->action_types, action))) {
+        if (*t++ == '0' && r->finfo.filetype == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "File does not exist: %s", r->filename);
+            return HTTP_NOT_FOUND;
+        }
+

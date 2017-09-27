@@ -1,26 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+                else {
+                    session->wait_timeout = H2MIN(apr_time_from_msec(100), 
+                                                  2*session->wait_timeout);
+                }
+                
+                status = h2_proxy_session_read(session, 1, session->wait_timeout);
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                              APLOGNO(03365)
+                              "h2_proxy_session(%s): WAIT read, timeout=%fms", 
+                              session->id, (float)session->wait_timeout/1000.0);
+                if (status == APR_SUCCESS) {
+                    have_read = 1;
+                    dispatch_event(session, H2_PROXYS_EV_DATA_READ, 0, NULL);

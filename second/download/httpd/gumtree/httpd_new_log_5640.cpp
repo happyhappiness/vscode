@@ -1,0 +1,1 @@
+fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");

@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+        if (!current_provider) {
+            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
+                                          AUTHN_DEFAULT_PROVIDER,
+                                          AUTHN_PROVIDER_VERSION);
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+            if (!provider || !provider->check_password) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                              "no authn provider configured");
+                auth_result = AUTH_GENERAL_ERROR;
+                break;
+            }
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
+        }

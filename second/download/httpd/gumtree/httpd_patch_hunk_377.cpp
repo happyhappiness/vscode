@@ -1,20 +1,40 @@
-             
- 
-             /* read the headers. */
-             /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-             /* Also, take care with headers with multiple occurences. */
- 
-+            /* First, tuck away all already existing cookies */
-+            save_table = apr_table_make(r->pool, 2);
-+            apr_table_do(addit_dammit, save_table, r->err_headers_out, "Set-Cookie", NULL);
-+            apr_table_do(addit_dammit, save_table, r->headers_out, "Set-Cookie", NULL);
+ static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
+ {
+     util_ldap_state_t *st = 
+         (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+ 						  &ldap_module);
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
++    apr_finfo_t finfo;
++    apr_status_t rv;
 +
-             r->headers_out = ap_proxy_read_headers(r, rp, buffer,
-                                                    sizeof(buffer), origin);
+     if (err != NULL) {
+         return err;
+     }
+ 
+     ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                       "LDAP: SSL trusted certificate authority file - %s", 
+                        file);
+ 
+     st->cert_auth_file = ap_server_root_relative(cmd->pool, file);
+ 
++    if (st->cert_auth_file && 
++        ((rv = apr_stat (&finfo, st->cert_auth_file, APR_FINFO_MIN, cmd->pool)) != APR_SUCCESS))
++    {
++        ap_log_error(APLOG_MARK, APLOG_ERR, rv, cmd->server, 
++                     "LDAP: Could not open SSL trusted certificate authority file - %s", 
++                     st->cert_auth_file == NULL ? file : st->cert_auth_file);
++        return "Invalid file path";
++    }
 +
-             if (r->headers_out == NULL) {
-                 ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                              r->server, "proxy: bad HTTP/%d.%d header "
-                              "returned by %s (%s)", major, minor, r->uri,
-                              r->method);
-                 p_conn->close += 1;
+     return(NULL);
+ }
+ 
+ 
+-const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
++static const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
+ {
+     util_ldap_state_t *st = 
+     (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
+                                               &ldap_module);
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+     if (err != NULL) {

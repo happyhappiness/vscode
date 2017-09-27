@@ -1,19 +1,13 @@
-    }
-}
+    
+    if (is_graceful) {
+	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+		    "Graceful restart requested, doing restart");
 
-static void cgi_child_errfn(apr_pool_t *pool, apr_status_t err,
-                            const char *description)
-{
-    request_rec *r;
-    void *vr;
+	/* kill off the idle ones */
+        ap_mpm_pod_killpg(pod, ap_daemons_limit);
 
-    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, pool);
-    r = vr;
-
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", description);
-}
-
-static apr_status_t run_cgi_child(apr_file_t **script_out,
-                                  apr_file_t **script_in,
-                                  apr_file_t **script_err, 
-                                  const char *command,
+	/* This is mostly for debugging... so that we know what is still
+	    * gracefully dealing with existing request.  This will break
+	    * in a very nasty way if we ever have the scoreboard totally
+	    * file-based (no shared memory)
+	    */

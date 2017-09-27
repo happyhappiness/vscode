@@ -1,21 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+    char *value;
+    apr_status_t rv;
+
+    if ((rv = apr_dbm_open_ex(&dbmfp, dbmtype, file, APR_DBM_READONLY,
+                              APR_OS_DEFAULT, r->pool)) != APR_SUCCESS)
+    {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00656)
+                      "mod_rewrite: can't open DBM RewriteMap %s", file);
+        return NULL;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    dbmkey.dptr  = key;
+    dbmkey.dsize = strlen(key);

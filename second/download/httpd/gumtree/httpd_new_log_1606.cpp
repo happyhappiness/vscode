@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
-                            "Inflated content ratio is larger than the "
-                            "configured limit %i by %i time(s)",
-                            dc->ratio_limit, dc->ratio_burst);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid response status %i", type);

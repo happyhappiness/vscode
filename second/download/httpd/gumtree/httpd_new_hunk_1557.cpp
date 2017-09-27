@@ -1,22 +1,23 @@
-        char *obuf;
-        if (apr_bucket_read(b, &buf, &nbytes, APR_BLOCK_READ) == APR_SUCCESS) {
-            if (nbytes) {
-                obuf = malloc(nbytes+1);    /* use pool? */
-                memcpy(obuf, buf, nbytes);
-                obuf[nbytes] = '\0';
-                ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server,
-                     "mod_dumpio:  %s (%s-%s): %s",
-                     f->frec->name,
-                     (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                     b->type->name,
-                     obuf);
-                free(obuf);
+                }
             }
-        } else {
-            ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server,
-                 "mod_dumpio:  %s (%s-%s): %s",
-                 f->frec->name,
-                 (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                 b->type->name,
-                 "error reading data");
+
+            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
+
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
         }
+
+        apr_bucket_delete(e);
+    }
+
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
+}
+
+/* This is the deflate input filter (inflates).  */
+static apr_status_t deflate_in_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb,
+                                      ap_input_mode_t mode,
+                                      apr_read_type_e block,
+                                      apr_off_t readbytes)

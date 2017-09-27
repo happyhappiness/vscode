@@ -1,0 +1,1 @@
+tmp_field = last_field + last_len - 1;

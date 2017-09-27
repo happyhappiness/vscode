@@ -1,13 +1,13 @@
-                    return (-1);
-                }
-            }
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                         "Init: Requesting pass phrase via piped dialog");
-        }
-        else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */ 
-#ifdef WIN32
-            PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-            memset(buf, 0, (unsigned int)bufsize);
-            return (-1);
-#else
-            /*
+    apr_pool_create(&pcommands, pglobal);
+    apr_pool_tag(pcommands, "pcommands");
+    ap_server_pre_read_config  = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_post_read_config = apr_array_make(pcommands, 1, sizeof(char *));
+    ap_server_config_defines   = apr_array_make(pcommands, 1, sizeof(char *));
+
+    ap_setup_prelinked_modules(process);
+
+    ap_run_rewrite_args(process);
+
+    /* Maintain AP_SERVER_BASEARGS list in http_main.h to allow the MPM
+     * to safely pass on our args from its rewrite_args() handler.
+     */

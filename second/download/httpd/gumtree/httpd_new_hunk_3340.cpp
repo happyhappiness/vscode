@@ -1,21 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+    ULONG rc;
+
+    printf("%s \n", ap_get_server_description());
+    set_signals();
+
+    if (ap_setup_listeners(ap_server_conf) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00202)
+                     "no listening sockets available, shutting down");
+        return FALSE;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
-
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    /* Allocate a shared memory block for the array of listeners */
+    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {

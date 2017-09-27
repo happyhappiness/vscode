@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Starting automatic rewriting of AOF on %lld%% growth",growth);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to connect child stdout to NUL.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing full renegotiation: "
+                         "complete handshake protocol");

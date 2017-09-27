@@ -1,2 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "unable to compile pattern \"%s\"", rexp);
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);

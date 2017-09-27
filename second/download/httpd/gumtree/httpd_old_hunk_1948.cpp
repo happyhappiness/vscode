@@ -1,35 +1,48 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+    /* process remaining entries oldest to newest, the check for an emtpy
+     * ring actually isn't necessary except when the compiler does
+     * corrupt 64bit arithmetics which happend to me once, so better safe
+     * than sorry
+     */
+    while (sum > max && !interrupted && !APR_RING_EMPTY(&root, _entry, link)) {
+        oldest = APR_RING_FIRST(&root);
+
+        for (e = APR_RING_NEXT(oldest, link);
+             e != APR_RING_SENTINEL(&root, _entry, link);
+             e = APR_RING_NEXT(e, link)) {
+            if (e->dtime < oldest->dtime) {
+                oldest = e;
+            }
+        }
+
+        delete_entry(path, oldest->basename, pool);
+        sum -= oldest->hsize;
+        sum -= oldest->dsize;
+        entries--;
+        APR_RING_REMOVE(oldest, link);
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
 
-    r->status = 200;
-    r->status_line = "200 OK";
+    if (!interrupted) {
+        printstats(total, sum, max, etotal, entries);
+    }
+}
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+/*
+ * usage info
+ */
+#define NL APR_EOL_STR
+static void usage(const char *error)
+{
+    if (error) {
+    	apr_file_printf(errfile, "%s error: %s\n", shortname, error);
+    }
+	apr_file_printf(errfile,
+    "%s -- program for cleaning the disk cache."                             NL
+    "Usage: %s [-Dvtrn] -pPATH -lLIMIT [-PPIDFILE]"                          NL
+    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT [-PPIDFILE]"                 NL
+                                                                             NL
+    "Options:"                                                               NL
+    "  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."     NL
+    "       This option is mutually exclusive with the -D, -v and -r"        NL
+    "       options."                                                        NL
+                                                                             NL

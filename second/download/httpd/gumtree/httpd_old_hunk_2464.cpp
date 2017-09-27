@@ -1,41 +1,24 @@
-	    return cond_status;
-	}
+    SecureProtoInfo.iSecurityScheme = SECURITY_PROTOCOL_SSL;
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    s = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP,
+            (LPWSAPROTOCOL_INFO)&SecureProtoInfo, 0, 0);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    if (s == INVALID_SOCKET) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: failed to get a socket for %s",
+                     addr);
+        return -1;
+    }
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+    if (!mutual) {
+        optParam = SO_SSL_ENABLE | SO_SSL_SERVER;
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+        if (WSAIoctl(s, SO_SSL_SET_FLAGS, (char *)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
+        }
+    }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {

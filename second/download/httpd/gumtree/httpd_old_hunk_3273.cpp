@@ -1,13 +1,16 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+AP_DECLARE(int) ap_sys_privileges_handlers(int inc)
+{
+    sys_privileges += inc;
+    return sys_privileges;
+}
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
+static int core_pre_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp)
+{
+    ap_mutex_init(pconf);
+    return APR_SUCCESS;
+}
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+static int core_post_config(apr_pool_t *pconf, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
+{
+    ap__logio_add_bytes_out = APR_RETRIEVE_OPTIONAL_FN(ap_logio_add_bytes_out);
+    ident_lookup = APR_RETRIEVE_OPTIONAL_FN(ap_ident_lookup);

@@ -1,59 +1,57 @@
-     if (cur_timeout != conn->base_server->timeout) {
-         apr_socket_timeout_set(csd, conn->base_server->timeout);
-         cur_timeout = conn->base_server->timeout;
-     }
+      * signal_monitor event so we can take further action
+      */
+     SetEvent(globdat.service_init);
  
-     if (!r->assbackwards) {
-+        const char *tenc;
-+
-         ap_get_mime_headers_core(r, tmp_bb);
-         if (r->status != HTTP_OK) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                           "request failed: error reading the headers");
-             ap_send_error_response(r, 0);
-             ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-             ap_run_log_transaction(r);
-             apr_brigade_destroy(tmp_bb);
-             return r;
-         }
+     WaitForSingleObject(globdat.service_term, INFINITE);
+ }
++#endif
  
--        if (apr_table_get(r->headers_in, "Transfer-Encoding")
--            && apr_table_get(r->headers_in, "Content-Length")) {
--            /* 2616 section 4.4, point 3: "if both Transfer-Encoding
--             * and Content-Length are received, the latter MUST be
--             * ignored"; so unset it here to prevent any confusion
--             * later. */
-+        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-+        if (tenc) {
-+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-+             * Section 3.3.3.3: "If a Transfer-Encoding header field is
-+             * present in a request and the chunked transfer coding is not
-+             * the final encoding ...; the server MUST respond with the 400
-+             * (Bad Request) status code and then close the connection".
-+             */
-+            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
-+                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
-+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-+                              "client sent unknown Transfer-Encoding "
-+                              "(%s): %s", tenc, r->uri);
-+                r->status = HTTP_BAD_REQUEST;
-+                conn->keepalive = AP_CONN_CLOSE;
-+                ap_send_error_response(r, 0);
-+                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-+                ap_run_log_transaction(r);
-+                apr_brigade_destroy(tmp_bb);
-+                return r;
-+            }
-+
-+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-+             * Section 3.3.3.3: "If a message is received with both a
-+             * Transfer-Encoding and a Content-Length header field, the
-+             * Transfer-Encoding overrides the Content-Length. ... A sender
-+             * MUST remove the received Content-Length field".
-+             */
-             apr_table_unset(r->headers_in, "Content-Length");
-         }
+ 
+ static DWORD WINAPI service_nt_dispatch_thread(LPVOID nada)
+ {
+-    apr_status_t rv = APR_SUCCESS;
+-
+-    SERVICE_TABLE_ENTRY dispatchTable[] =
++#if APR_HAS_UNICODE_FS
++    SERVICE_TABLE_ENTRYW dispatchTable_w[] =
++    {
++        { L"", service_nt_main_fn_w },
++        { NULL, NULL }
++    };
++#endif /* APR_HAS_UNICODE_FS */
++#if APR_HAS_ANSI_FS
++    SERVICE_TABLE_ENTRYA dispatchTable[] =
+     {
+         { "", service_nt_main_fn },
+         { NULL, NULL }
+     };
++#endif
++    apr_status_t rv;
+ 
+-    /* ###: utf-ize */
+-    if (!StartServiceCtrlDispatcher(dispatchTable))
+-    {
++#if APR_HAS_UNICODE_FS
++    IF_WIN_OS_IS_UNICODE
++        rv = StartServiceCtrlDispatcherW(dispatchTable_w);
++#endif
++#if APR_HAS_ANSI_FS
++    ELSE_WIN_OS_IS_ANSI
++         rv = StartServiceCtrlDispatcherA(dispatchTable);
++#endif
++    if (rv) {
++        apr_status_t rv = APR_SUCCESS;
++    }
++    else {
+         /* This is a genuine failure of the SCM. */
+         rv = apr_get_os_error();
+         ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                      "Error starting service control dispatcher");
      }
-     else {
-         if (r->header_only) {
-             /*
+-
+     return (rv);
+ }
+ 
+ 
+ apr_status_t mpm_service_set_name(apr_pool_t *p, const char **display_name,
+                                   const char *set_name)

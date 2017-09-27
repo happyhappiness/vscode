@@ -1,1 +1,0 @@
-addReplyError(c,"value is not a valid float");

@@ -1,14 +1,12 @@
-
-        apr_hash_set(table, key, klen, s);
-    }
-
-    if (conflict) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server,
-                     "Init: You should not use name-based "
-                     "virtual hosts in conjunction with SSL!!");
-    }
-}
-
-#ifdef SSLC_VERSION_NUMBER
-static int ssl_init_FindCAList_X509NameCmp(char **a, char **b)
 {
+    cache_server_conf *conf;
+    cache_request_rec *cache;
+    char *port_str, *hn, *lcs;
+    const char *hostname, *scheme;
+    int i;
+
+    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
+                                                       &cache_module);
+    if (!cache) {
+        /* This should never happen */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,

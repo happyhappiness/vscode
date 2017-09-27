@@ -1,12 +1,12 @@
+     * delayed interlinking from SSL back to request_rec
+     */
+    ssl = sslconn->ssl;
+    if (!ssl) {
+        return DECLINED;
     }
+    SSL_set_app_data2(ssl, r);
 
-    if (d->style_sheet != NULL) {
-        ap_rvputs(r, "  <link rel=\"stylesheet\" href=\"", d->style_sheet,
-                "\" type=\"text/css\"", xhtml ? " />\n" : ">\n", NULL);
-    }
-    ap_rvputs(r, " </head>\n <body>\n", NULL);
-}
-
-static void push_item(apr_array_header_t *arr, char *type, const char *to,
-                      const char *path, const char *data)
-{
+    /*
+     * Log information about incoming HTTPS requests
+     */
+    if (r->server->loglevel >= APLOG_INFO && ap_is_initial_req(r)) {

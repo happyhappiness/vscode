@@ -1,0 +1,1 @@
+ap_rvputs(r, "value=\"", wsel->redirect, NULL);

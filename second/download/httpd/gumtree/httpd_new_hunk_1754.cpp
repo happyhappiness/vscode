@@ -1,21 +1,18 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't bind unix domain socket %s",
-                     sockname);
-        return errno;
-    }
+    int eos = 0; /* non-zero once EOS is seen */
 
-    /* Not all flavors of unix use the current umask for AF_UNIX perms */
-    rv = apr_file_perms_set(sockname, APR_FPROT_UREAD|APR_FPROT_UWRITE|APR_FPROT_UEXECUTE);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, main_server,
-                     "Couldn't set permissions on unix domain socket %s",
-                     sockname);
-        return rv;
-    }
+    /* Create the context which will be passed to the input filter;
+     * containing a setaside pool and a brigade which constrain the
+     * lifetime of the buffered data. */
+    ctx = apr_palloc(r->pool, sizeof *ctx);
+    ctx->bb = apr_brigade_create(r->pool, c->bucket_alloc);
 
-    if (listen(sd, DEFAULT_CGID_LISTENBACKLOG) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't listen on unix domain socket");
-        return errno;
-    }
+    /* ... and a temporary brigade. */
+    tempb = apr_brigade_create(r->pool, c->bucket_alloc);
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "filling buffer, max size "
+                  "%" APR_SIZE_T_FMT " bytes", maxlen);
+
+    do {
+        apr_status_t rv;
+        apr_bucket *e, *next;
 

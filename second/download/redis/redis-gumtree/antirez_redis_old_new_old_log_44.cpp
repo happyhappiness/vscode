@@ -1,1 +1,0 @@
-printf("Failed lookup: %f\n", (double)(ustime()-start)/1000000);

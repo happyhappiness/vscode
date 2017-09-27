@@ -1,14 +1,13 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+        if (rv != APR_SUCCESS)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "WriteClient ap_pass_brigade failed: %s",
+                          r->filename);
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+    if ((flags & HSE_IO_ASYNC) && cid->completion) {
+        if (rv == APR_SUCCESS) {

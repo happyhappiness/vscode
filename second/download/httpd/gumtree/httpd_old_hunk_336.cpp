@@ -1,43 +1,42 @@
-}
 
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
 
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+/* Debugging tools: */
 
-    if (!one_process) {
-	sa.sa_handler = sig_coredump;
-#if defined(SA_ONESHOT)
-	sa.sa_flags = SA_ONESHOT;
-#elif defined(SA_RESETHAND)
-	sa.sa_flags = SA_RESETHAND;
-#endif
-	if (sigaction(SIGSEGV, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGSEGV)");
-#ifdef SIGBUS
-	if (sigaction(SIGBUS, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGBUS)");
-#endif
-#ifdef SIGABORT
-	if (sigaction(SIGABORT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");
+#ifdef APR_RING_DEBUG
+#include <stdio.h>
+#define APR_RING_CHECK_ONE(msg, ptr)					\
+	fprintf(stderr, "*** %s %p\n", msg, ptr)
+#define APR_RING_CHECK(hp, elem, link, msg)				\
+	APR_RING_CHECK_ELEM(APR_RING_SENTINEL(hp, elem, link), elem, link, msg)
+#define APR_RING_CHECK_ELEM(ep, elem, link, msg) do {			\
+	struct elem *start = (ep);					\
+	struct elem *this = start;					\
+	fprintf(stderr, "*** ring check start -- %s\n", msg);		\
+	do {								\
+	    fprintf(stderr, "\telem %p\n", this);			\
+	    fprintf(stderr, "\telem->next %p\n",			\
+		    APR_RING_NEXT(this, link));				\
+	    fprintf(stderr, "\telem->prev %p\n",			\
+		    APR_RING_PREV(this, link));				\
+	    fprintf(stderr, "\telem->next->prev %p\n",			\
+		    APR_RING_PREV(APR_RING_NEXT(this, link), link));	\
+	    fprintf(stderr, "\telem->prev->next %p\n",			\
+		    APR_RING_NEXT(APR_RING_PREV(this, link), link));	\
+	    if (APR_RING_PREV(APR_RING_NEXT(this, link), link) != this) { \
+		fprintf(stderr, "\t*** this->next->prev != this\n");	\
+		break;							\
+	    }								\
+	    if (APR_RING_NEXT(APR_RING_PREV(this, link), link) != this) { \
+		fprintf(stderr, "\t*** this->prev->next != this\n");	\
+		break;							\
+	    }								\
+	    this = APR_RING_NEXT(this, link);				\
+	} while (this != start);					\
+	fprintf(stderr, "*** ring check end\n");			\
+    } while (0)
+#else
+/**
+ * Print a single pointer value to STDERR
+ *   (This is a no-op unless APR_RING_DEBUG is defined.)
+ * @param msg Descriptive message
+ * @param ptr Pointer value to print

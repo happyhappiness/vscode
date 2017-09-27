@@ -1,13 +1,24 @@
+                server_hostname = apr_pstrdup(a, str);
+            } else {
+                apr_sockaddr_ip_get(&hostname, sockaddr);
+                server_hostname = apr_pstrdup(a, hostname);
+            }
+        } else {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                         "%s: apr_sockaddr_info_get() failed for %s",
+                         ap_server_argv0, str);
+        }
+    }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    if (!server_hostname)
+        server_hostname = apr_pstrdup(a, "127.0.0.1");
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    ap_log_perror(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, a,
+                 "%s: Could not reliably determine the server's fully qualified "
+                 "domain name, using %s for ServerName",
+                 ap_server_argv0, server_hostname);
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    return server_hostname;
+}
+
+/* simple 'pool' alloc()ing glue to apr_base64.c

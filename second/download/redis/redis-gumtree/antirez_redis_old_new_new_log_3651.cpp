@@ -1,1 +1,0 @@
-addReplyLongLong(c,dictSize(c->db->dict));

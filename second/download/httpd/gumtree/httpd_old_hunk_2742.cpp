@@ -1,13 +1,13 @@
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
+            apr_status_t rv;
 
-    while ((c = *s++) != '\0') {
-	if (isspace((unsigned char) c))
-	    break;
-	if (p >= pmax) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-			MODNAME ": string too long: %s", origs);
-	    break;
-	}
+            pid = (pid_t)((long)apr_hash_get(script_hash, &cgid_req.conn_id, sizeof(cgid_req.conn_id)));
+            rv = sock_write(sd2, &pid, sizeof(pid));
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                             main_server,
+                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
+            }
+            close(sd2);
+            continue;
+        }
+

@@ -1,22 +1,20 @@
-    int csd;
-    ap_sb_handle_t *sbh;
+            
 
-    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
-    apr_os_sock_get(&csd, sock);
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
 
-    if (csd >= FD_SETSIZE) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "new file descriptor %d is too large; you probably need "
-                     "to rebuild Apache with a larger FD_SETSIZE "
-                     "(currently %d)", 
-                     csd, FD_SETSIZE);
-        apr_socket_close(sock);
-        return;
-    }
+            /* First, tuck away all already existing cookies */
+            save_table = apr_table_make(r->pool, 2);
+            apr_table_do(addit_dammit, save_table, r->err_headers_out, "Set-Cookie", NULL);
+            apr_table_do(addit_dammit, save_table, r->headers_out, "Set-Cookie", NULL);
 
-    current_conn = ap_run_create_connection(p, ap_server_conf, sock,
-                                            conn_id, sbh, bucket_alloc);
-    if (current_conn) {
-        ap_process_connection(current_conn, sock);
-        ap_lingering_close(current_conn);
-    }
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);
+                p_conn->close += 1;

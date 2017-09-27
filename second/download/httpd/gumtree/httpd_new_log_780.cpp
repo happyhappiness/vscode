@@ -1,1 +1,0 @@
-ap_rputs("</tt></dt></dl><hr />", r);

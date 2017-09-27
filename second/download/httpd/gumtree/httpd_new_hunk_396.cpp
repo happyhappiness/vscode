@@ -1,12 +1,14 @@
-    int csd;
-    ap_sb_handle_t *sbh;
-
-    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
-    apr_os_sock_get(&csd, sock);
-
-    current_conn = ap_run_create_connection(p, ap_server_conf, sock,
-                                            conn_id, sbh, bucket_alloc);
-    if (current_conn) {
-        ap_process_connection(current_conn, sock);
-        ap_lingering_close(current_conn);
+        break;
     }
+
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                     "Child %d: Terminating %d threads that failed to exit.", 
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */

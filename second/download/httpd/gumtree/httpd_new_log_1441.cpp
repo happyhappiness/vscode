@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Lock failed for post_request",
-            balancer->name);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                "  -T                 : start without DocumentRoot(s) check");

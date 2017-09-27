@@ -1,13 +1,13 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+             * In case the CPING / CPONG failed for the first time we might be
+             * just out of luck and got a faulty backend connection, but the
+             * backend might be healthy nevertheless. So ensure that the backend
+             * TCP connection gets closed and try it once again.
+             */
+            if (status != APR_SUCCESS) {
+                backend->close++;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00897)
+                              "cping/cpong failed to %pI (%s)",
+                              worker->cp->addr, worker->s->hostname);
+                status = HTTP_SERVICE_UNAVAILABLE;
+                retry++;
+                continue;

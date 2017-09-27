@@ -1,13 +1,13 @@
+    for (direct_connect = i = 0; i < conf->dirconn->nelts &&
+                                        !direct_connect; i++) {
+        direct_connect = list[i].matcher(&list[i], r);
+    }
+#if DEBUGGING
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
+                r->uri);
+#endif
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+    do {
+        char *url = uri;
+        /* Try to obtain the most suitable worker */

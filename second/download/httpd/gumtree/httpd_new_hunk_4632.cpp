@@ -1,13 +1,18 @@
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
+    ap_add_output_filter(ssl_io_coalesce, NULL, r, c);
 
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                       filter_ctx, r, c);
 
-	/* Reset `groups' attributes. */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+#else
+    filter_ctx->pbioWrite       = BIO_new(bio_filter_out_method);
+#endif
+    BIO_set_data(filter_ctx->pbioWrite, (void *)bio_filter_out_ctx_new(filter_ctx, c));
 
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+    /* write is non blocking for the benefit of async mpm */
+    if (c->cs) {
+        BIO_set_nbio(filter_ctx->pbioWrite, 1);
+    }
+

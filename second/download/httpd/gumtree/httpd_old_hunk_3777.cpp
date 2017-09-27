@@ -1,13 +1,21 @@
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
+            if ((access_status = ap_run_access_checker(r)) != OK) {
+                return decl_die(access_status,
+                                "check access (with Satisfy All)", r);
+            }
 
-    while ((c = *s++) != '\0') {
-	if (isspace((unsigned char) c))
-	    break;
-	if (p >= pmax) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-			MODNAME ": string too long: %s", origs);
-	    break;
-	}
+            access_status = ap_run_access_checker_ex(r);
+            if (access_status == OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                              "request authorized without authentication by "
+                              "access_checker_ex hook: %s", r->uri);
+            }
+            else if (access_status != DECLINED) {
+                return decl_die(access_status, "check access", r);
+            }
+            else {
+                if ((access_status = ap_run_check_user_id(r)) != OK) {
+                    return decl_die(access_status, "check user", r);
+                }
+                if (r->user == NULL) {
+                    /* don't let buggy authn module crash us in authz */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00027)

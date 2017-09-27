@@ -1,21 +1,39 @@
-         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-           "proxy: FTP: an error occurred creating the transfer connection");
-         return HTTP_INTERNAL_SERVER_ERROR;
-     }
+                               apr_status_t status, const server_rec *s,
+                               const char *fmt, ...)
+ {
+     va_list args;
  
-     /* set up the connection filters */
--    ap_run_pre_connection(data, data_sock);
-+    rc = ap_run_pre_connection(data, data_sock);
-+    if (rc != OK && rc != DONE) {
-+        data->aborted = 1;
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                     "proxy: FTP: pre_connection setup failed (%d)",
-+                     rc);
-+        return rc;
-+    }
+     va_start(args, fmt);
+-    log_error_core(file, line, level, status, s, NULL, NULL, fmt, args);
++    log_error_core(file, line, level, status, s, NULL, NULL, NULL, fmt, args);
+     va_end(args);
+ }
+ 
+ AP_DECLARE(void) ap_log_perror(const char *file, int line, int level,
+                                apr_status_t status, apr_pool_t *p,
+                                const char *fmt, ...)
+ {
+     va_list args;
+ 
+     va_start(args, fmt);
+-    log_error_core(file, line, level, status, NULL, NULL, p, fmt, args);
++    log_error_core(file, line, level, status, NULL, NULL, NULL, p, fmt, args);
+     va_end(args);
+ }
+ 
+ AP_DECLARE(void) ap_log_rerror(const char *file, int line, int level,
+                                apr_status_t status, const request_rec *r,
+                                const char *fmt, ...)
+ {
+     va_list args;
+ 
+     va_start(args, fmt);
+-    log_error_core(file, line, level, status, r->server, r, NULL, fmt, args);
++    log_error_core(file, line, level, status, r->server, NULL, r, NULL, fmt,
++                   args);
  
      /*
-      * VI: Receive the Response ------------------------
-      *
-      * Get response from the remote ftp socket, and pass it up the filter chain.
-      */
+      * IF APLOG_TOCLIENT is set,
+      * AND the error level is 'warning' or more severe,
+      * AND there isn't already error text associated with this request,
+      * THEN make the message text available to ErrorDocument and

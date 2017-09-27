@@ -1,14 +1,13 @@
-            
+        rv = apr_file_open_stderr(&child_err, ptemp);
+    }
+    if (rv == APR_SUCCESS) {
+        if ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                            "Parent: Unable to connect child stderr.");
+            apr_pool_destroy(ptemp);
+            return -1;
+        }
+    }
 
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
-
-            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
-                                                   sizeof(buffer), origin);
-            if (r->headers_out == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d header "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
-                p_conn->close += 1;
+    /* Create the child_ready_event */

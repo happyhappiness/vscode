@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Sending command to master in replication handshake: %s", err);

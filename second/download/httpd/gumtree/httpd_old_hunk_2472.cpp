@@ -1,22 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    if (r) {
+        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
+        csd = csd_data->csd;
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");
+        return ap_pass_brigade(f->next, bb);
+    }
+
+
+    /* Send the interim 101 response. */

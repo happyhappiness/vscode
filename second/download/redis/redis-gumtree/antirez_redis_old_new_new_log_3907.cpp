@@ -1,1 +1,0 @@
-printf("ERROR: Could not access index -4\n");

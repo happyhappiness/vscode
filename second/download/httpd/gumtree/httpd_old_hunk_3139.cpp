@@ -1,16 +1,22 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
+     */
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
+        if ((sc->enabled == SSL_ENABLED_TRUE) && (s->port == DEFAULT_HTTP_PORT)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTPS(%d) "
+                         "on the standard HTTP(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
+        }
 
-    /* perform sub-request for the file name without the suffix */
+        if ((sc->enabled == SSL_ENABLED_FALSE) && (s->port == DEFAULT_HTTPS_PORT)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTP(%d) "
+                         "on the standard HTTPS(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);
+        }
+    }

@@ -1,13 +1,13 @@
+        additional = apr_time_from_sec(additional_sec);
+        break;
+    default:
+        /* expecting the add_* routines to be case-hardened this
+         * is just a reminder that module is beta
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    "internal error: bad expires code: %s", r->filename);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    expires = base + additional;
+    if (expires < r->request_time) {

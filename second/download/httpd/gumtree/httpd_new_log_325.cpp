@@ -1,2 +1,1 @@
-printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...", 
-                    worker_thread_count);
+ap_fatal_signal_setup(ap_server_conf, pconf);

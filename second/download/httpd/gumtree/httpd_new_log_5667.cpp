@@ -1,0 +1,1 @@
+fprintf(stderr, "Unable to open stdout\n");

@@ -1,0 +1,1 @@
+c = stream->session->c;

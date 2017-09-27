@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"RDB file was saved with checksum disabled: no check performed.");

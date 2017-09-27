@@ -1,24 +1,63 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-                "see the\n", HARD_SERVER_LIMIT);
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_threads_per_child < 1) {
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-	ap_threads_per_child = 1;
-    }
+#include "mod_lua.h"
+#include "lua_apr.h"
+APLOG_USE_MODULE(lua);
 
-    return NULL;
+req_table_t *ap_lua_check_apr_table(lua_State *L, int index)
+{
+    req_table_t* t;
+    luaL_checkudata(L, index, "Apr.Table");
+    t = lua_unboxpointer(L, index);
+    return t;
 }
 
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
+
+void ap_lua_push_apr_table(lua_State *L, req_table_t *t)
 {
+    lua_boxpointer(L, t);
+    luaL_getmetatable(L, "Apr.Table");
+    lua_setmetatable(L, -2);
+}
+
+static int lua_table_set(lua_State *L)
+{
+    req_table_t    *t = ap_lua_check_apr_table(L, 1);
+    const char     *key = luaL_checkstring(L, 2);
+    const char     *val = luaL_checkstring(L, 3);
+    /* Unless it's the 'notes' table, check for newline chars */
+    /* t->r will be NULL in case of the connection notes, but since 
+       we aren't going to check anything called 'notes', we can safely 
+       disregard checking whether t->r is defined.
+    */
+    if (strcmp(t->n, "notes") && ap_strchr_c(val, '\n')) {
+        char *badchar;
+        char *replacement = apr_pstrdup(t->r->pool, val);
+        badchar = replacement;
+        while ( (badchar = ap_strchr(badchar, '\n')) ) {
+            *badchar = ' ';
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, t->r, 
+                APLOGNO(02614) "mod_lua: Value for '%s' in table '%s' contains newline!",
+                  key, t->n);
+        apr_table_set(t->t, key, replacement);
+    }
+    else {
+        apr_table_set(t->t, key, val);
+    }
+    return 0;
+}
+
+static int lua_table_get(lua_State *L)
+{
+    req_table_t    *t = ap_lua_check_apr_table(L, 1);
+    const char     *key = luaL_checkstring(L, 2);
+    const char     *val = apr_table_get(t->t, key);
+    lua_pushstring(L, val);
+    return 1;
+}
+
+static const luaL_Reg lua_table_methods[] = {
+    {"set", lua_table_set},

@@ -1,12 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
 
-    if (pparent) {
-	ap_destroy_pool(pparent);
-    }
+    /* for the DBM we need the data file */
+    if (ctx->data_file == NULL) {
+        const char *path = apr_pstrcat(p, DEFAULT_DBM_PREFIX, namespace,
+                                       NULL);
 
-    ap_destroy_mutex(start_mutex);
-    return (0);
+        ctx->data_file = ap_server_root_relative(p, path);
+
+        if (ctx->data_file == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00803)
+                         "could not use default path '%s' for DBM socache",
+                         path);
+            return APR_EINVAL;

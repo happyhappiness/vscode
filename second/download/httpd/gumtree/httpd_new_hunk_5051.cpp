@@ -1,31 +1,14 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
+            const char *data;
+            apr_size_t len;
 
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
-    }
-#elif defined(MAP_TMPFILE)
-    {
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-	int fd = mkstemp(mfile);
-	if (fd == -1) {
-	    perror("open");
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (m == (caddr_t) - 1) {
-	    perror("mmap");
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	close(fd);
-	unlink(mfile);
-    }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                if (!ctx->done) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481)
+                                  "Encountered premature end-of-stream while inflating");
+                    return APR_EGENERAL;
+                }
+
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);

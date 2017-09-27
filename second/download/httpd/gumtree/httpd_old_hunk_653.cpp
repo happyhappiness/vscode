@@ -1,34 +1,23 @@
-        if (d_uri.hostname) {
-            ap_unescape_url(d_uri.hostname);
-        }
-        if (d_uri.path) {
-            ap_unescape_url(d_uri.path);
-        }
-        if (d_uri.query) {
-            ap_unescape_url(d_uri.query);
-        }
-        else if (r_uri.query) {
-            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't 
-             * include the query string in the uri Authorization component
-             * or when computing the response component.  the second part
-             * works out ok, since we can hash the header and get the same
-             * result.  however, the uri from the request line won't match
-             * the uri Authorization component since the header lacks the 
-             * query string, leaving us incompatable with a (broken) MSIE.
-             * 
-             * the workaround is to fake a query string match if in the proper
-             * environment - BrowserMatch MSIE, for example.  the cool thing
-             * is that if MSIE ever fixes itself the simple match ought to 
-             * work and this code won't be reached anyway, even if the
-             * environment is set.
-             */
-            
-            if (apr_table_get(r->subprocess_env, 
-                              "AuthDigestEnableQueryStringHack")) {
-                d_uri.query = r_uri.query;
-            }
-        }
+     * came in over the network.
+     */
+    apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+#ifdef AP_UNSAFE_ERROR_LOG_UNESCAPED
+                    description
+#else
+                    ap_escape_logitem(pool, description)
+#endif
+                    );
+}
 
-        if (r->method_number == M_CONNECT) {
-            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+static apr_status_t run_cgi_child(apr_file_t **script_out,
+                                  apr_file_t **script_in,
+                                  apr_file_t **script_err, 
+                                  const char *command,
+                                  const char * const argv[],
+                                  request_rec *r,
+                                  apr_pool_t *p,
+                                  cgi_exec_info_t *e_info)
+{

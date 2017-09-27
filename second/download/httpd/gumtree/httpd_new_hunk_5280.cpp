@@ -1,13 +1,12 @@
-
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
-
-#ifndef OS2
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+                            }
+                            if (uri.fragment) {
+                                found = apr_pstrcat(r->pool, found, "#",
+                                                    uri.fragment, NULL);
+                            }
+                       }
+                    }
+                    else {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00672)
+                                      "Regex substitution in '%s' failed. "
+                                      "Replacement too long?", alias->real);
+                        return PREGSUB_ERROR;

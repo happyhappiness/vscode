@@ -1,13 +1,19 @@
-                        while (cmd) {
-                            if (cmd->name) {
-                                ap_rprintf(r, "<dd><tt>%s%s - <i>",
-                                           ap_escape_html(r->pool, cmd->name),
-                                           cmd->name[0] == '<' ? "&gt;" : "");
-                                if (cmd->errmsg) {
-                                    ap_rputs(ap_escape_html(r->pool, cmd->errmsg), r);
-                                }
-                                ap_rputs("</i></tt></dd>\n", r);
-                            }
-                            else {
-                                break;
-                            }
+    ap_hook_pre_connection(logio_pre_conn, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_pre_config(logio_pre_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
+    ap_hook_log_transaction(logio_transaction, pre, NULL, APR_HOOK_MIDDLE);
+
+    ap_register_input_filter(logio_filter_name, logio_in_filter, NULL,
+                             AP_FTYPE_NETWORK - 1);
+
+    APR_REGISTER_OPTIONAL_FN(ap_logio_add_bytes_out);
+    APR_REGISTER_OPTIONAL_FN(ap_logio_add_bytes_in);
+    APR_REGISTER_OPTIONAL_FN(ap_logio_get_last_bytes);
+}
+
+AP_DECLARE_MODULE(logio) =
+{
+    STANDARD20_MODULE_STUFF,
+    NULL,                       /* create per-dir config */
+    NULL,                       /* merge per-dir config */
+    NULL,                       /* server config */
+    NULL,                       /* merge server config */

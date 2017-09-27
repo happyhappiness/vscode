@@ -1,1 +1,0 @@
-serverLogFromHandler(REDIS_WARNING, "You insist... exiting now.");

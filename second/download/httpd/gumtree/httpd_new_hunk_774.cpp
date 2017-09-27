@@ -1,59 +1,13 @@
- *  ssl_engine_init.c
- *  Initialization of Servers
- */
-                             /* ``Recursive, adj.;
-                                  see Recursive.''
-                                        -- Unknown   */
-#include "ssl_private.h"
 
-/*  _________________________________________________________________
-**
-**  Module Initialization
-**  _________________________________________________________________
-*/
+    apr_file_puts(prompt, writetty);
 
-static char *ssl_add_version_component(apr_pool_t *p,
-                                       server_rec *s,
-                                       char *name)
-{
-    char *val = ssl_var_lookup(p, s, NULL, NULL, name);
+    buf[0]='\0';
+    rc = apr_file_gets(buf, length, readtty);
+    apr_file_puts(APR_EOL_STR, writetty);
 
-    if (val && *val) {
-        ap_add_version_component(p, val);
+    if (rc != APR_SUCCESS || apr_file_eof(readtty)) {
+	memset(buf, 0, length);
+        return 1;  /* failure */
     }
-
-    return val;
-}
-
-static char *version_components[] = {
-    "SSL_VERSION_PRODUCT",
-    "SSL_VERSION_INTERFACE",
-    "SSL_VERSION_LIBRARY",
-    NULL
-};
-
-static void ssl_add_version_components(apr_pool_t *p,
-                                       server_rec *s)
-{
-    char *vals[sizeof(version_components)/sizeof(char *)];
-    int i;
-
-    for (i=0; version_components[i]; i++) {
-        vals[i] = ssl_add_version_component(p, s,
-                                            version_components[i]);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Server: %s, Interface: %s, Library: %s",
-                 AP_SERVER_BASEVERSION,
-                 vals[1],  /* SSL_VERSION_INTERFACE */
-                 vals[2]); /* SSL_VERSION_LIBRARY */
-}
-
-
-/*
- * Handle the Temporary RSA Keys and DH Params
- */
-
-#define MODSSL_TMP_KEY_FREE(mc, type, idx) \
-    if (mc->pTmpKeys[idx]) { \
+    if ((p = strchr(buf, '\n')) != NULL) {
+	*p = '\0';

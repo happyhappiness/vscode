@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+     * SSL external crypto device ("engine") support
+     */
+#if defined(HAVE_OPENSSL_ENGINE_H) && defined(HAVE_ENGINE_INIT)
+    ssl_init_Engine(base_server, p);
+#endif
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01883)
+                 "Init: Initialized %s library", SSL_LIBRARY_NAME);
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+    /*
+     * Seed the Pseudo Random Number Generator (PRNG)
+     * only need ptemp here; nothing inside allocated from the pool
+     * needs to live once we return from ssl_rand_seed().

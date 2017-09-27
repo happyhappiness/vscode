@@ -1,21 +1,13 @@
-	GETUSERMODE();
+        }
+        if (i != SERVER_DEAD)
+            total+=status_array[i];
     }
-#else
-    /* Only try to switch if we're running as root */
-    if (!geteuid() && (
-#ifdef _OSD_POSIX
-        os_init_job_environment(NULL, unixd_config.user_name, ap_exists_config_define("DEBUG")) != 0 ||
+    printf ("Total Running:\t%d\tout of: \t%d\n", total, ap_threads_limit);
+    printf ("Requests per interval:\t%d\n", reqs);
+
+#ifdef DBINFO_ON
+    printf ("Would blocks:\t%d\n", wblock);
+    printf ("Successful retries:\t%d\n", retry_success);
+    printf ("Failed retries:\t%d\n", retry_fail);
+    printf ("Avg retries:\t%d\n", retry_success == 0 ? 0 : avg_retries / retry_success);
 #endif
-	setuid(unixd_config.user_id) == -1)) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-		    "setuid: unable to change to uid: %ld",
-                    (long) unixd_config.user_id);
-	return -1;
-    }
-#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE)
-    /* this applies to Linux 2.4+ */
-#ifdef AP_MPM_WANT_SET_COREDUMPDIR
-    if (ap_coredumpdir_configured) {
-        if (prctl(PR_SET_DUMPABLE, 1)) {
-            ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "set dumpable failed - this child will not coredump"

@@ -1,24 +1,13 @@
-        else {
-            /*
-             * Dumb user has given us a bad url to redirect to --- fake up
-             * dying with a recursive server error...
-             */
-            recursive_error = SERVER_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid error redirection directive: %s",
-                        custom_response);
+                    "Cannot parse vary entry for key: %s", key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return DECLINED;
         }
-    }
-    ap_send_error_response(r, recursive_error);
-}
 
-static void decl_die(int status, char *phase, request_rec *r)
-{
-    if (status == DECLINED) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r->server,
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-        ap_die(SERVER_ERROR, r);
-    }
-    else
-        ap_die(status, r);
-}
+        nkey = regen_key(r->pool, r->headers_in, varray, key);
+
+        /* attempt to retrieve the cached entry */
+        if (socache_mutex) {
+            apr_status_t status = apr_global_mutex_lock(socache_mutex);
+            if (status != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02355)

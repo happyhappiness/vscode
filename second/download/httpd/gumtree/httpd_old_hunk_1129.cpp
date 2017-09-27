@@ -1,14 +1,32 @@
+ * ap_hook_process_connection hook.
+ */
+static int ssl_io_filter_connect(ssl_filter_ctx_t *filter_ctx)
+{
+    conn_rec *c         = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+    SSLConnRec *sslconn = myConnConfig(c);
+    SSLSrvConfigRec *sc = mySrvConfig(c->base_server);
+    X509 *cert;
+    int n;
+    int ssl_err;
+    long verify_result;
 
-        rv = connection_constructor((void **)&(worker->cp->conn), worker, worker->cp->pool);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-             "proxy: initialized single connection worker %d in child %" APR_PID_T_FMT " for (%s)",
-             worker->id, getpid(), worker->hostname);
+    if (SSL_is_init_finished(filter_ctx->pssl)) {
+        return APR_SUCCESS;
     }
-    if (rv == APR_SUCCESS)
-        worker->s->status |= (worker->status | PROXY_WORKER_INITIALIZED);
-    return rv;
-}
 
-PROXY_DECLARE(int) ap_proxy_retry_worker(const char *proxy_function,
-                                         proxy_worker *worker,
-                                         server_rec *s)
+    if (sslconn->is_proxy) {
+        if ((n = SSL_connect(filter_ctx->pssl)) <= 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
+            /* ensure that the SSL structures etc are freed, etc: */
+            ssl_filter_io_shutdown(filter_ctx, c, 1);
+            return HTTP_BAD_GATEWAY;
+        }
+
+        return APR_SUCCESS;
+    }
+
+    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                     (filter_ctx->pbioRead->ptr);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                    "disk_cache: rename tempfile to varyfile failed: %s -> %s",
-                    dobj->tempfile, dobj->hdrsfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Zlib error %d deflating data (%s)", zRC,
+                              ctx->stream.msg);

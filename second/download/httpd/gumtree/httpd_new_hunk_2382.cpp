@@ -1,20 +1,40 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
+ * @param r the current request
+ * @return The number of bytes sent
+ */
+AP_DECLARE(int) ap_rputc(int c, request_rec *r);
+
+/**
+ * Write a buffer for the current request
+ * @param buf The buffer to write
+ * @param nbyte The number of bytes to send from the buffer
+ * @param r The current request
+ * @return The number of bytes sent
+ */
+AP_DECLARE(int) ap_rwrite(const void *buf, int nbyte, request_rec *r);
+
+/**
+ * Output a string for the current request
+ * @param str The string to output
+ * @param r The current request
+ * @return The number of bytes sent
+ * @note ap_rputs may be implemented as macro or inline function
+ */
+static APR_INLINE int ap_rputs(const char *str, request_rec *r)
 {
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
+    return ap_rwrite(str, strlen(str), r);
+}
 
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
+/**
+ * Write an unspecified number of strings to the request
+ * @param r The current request
+ * @param ... The strings to write
+ * @return The number of bytes sent
+ */
+AP_DECLARE_NONSTD(int) ap_rvputs(request_rec *r,...)
+                       AP_FN_ATTR_SENTINEL;
 
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+/**
+ * Output data to the client in a printf format
+ * @param r The current request
+ * @param fmt The format string
+ * @param vlist The arguments to use to fill out the format string

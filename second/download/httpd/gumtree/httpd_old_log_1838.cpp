@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "mime type is %s; no translation selected",
-                          mime_type);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid flags %02x", ctx->zlib_flags);

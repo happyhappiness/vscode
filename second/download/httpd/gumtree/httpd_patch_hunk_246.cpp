@@ -1,14 +1,28 @@
-  * After this registration is performed, then a filter may be added 
-  * into the filter chain by using ap_add_output_filter() and simply 
-  * specifying the name.
-  *
-  * @param name The name to attach to the filter function
-  * @param filter_func The filter function to name
-+ * @param filter_init The function to call before the filter handlers 
-+ *                    are invoked
-  * @param ftype The type of filter function, either ::AP_FTYPE_CONTENT or
-  *              ::AP_FTYPE_CONNECTION
-  * @see ap_add_output_filter()
-  */
- AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
-                                             ap_out_filter_func filter_func,
+      * working.  (IMHO what they really fix is a bug in the users of the code
+      * - failing to program correctly for shadow passwords).  We need,
+      * therefore, to provide a password. This password can be matched by
+      * adding the string "xxj31ZMTZzkVA" as the password in the user file.
+      * This is just the crypted variant of the word "password" ;-)
+      */
+-    apr_snprintf(buf1, sizeof(buf1), "%s:password", clientdn);
+-    ssl_util_uuencode(buf2, buf1, FALSE);
+-
+-    apr_snprintf(buf1, sizeof(buf1), "Basic %s", buf2);
+-    apr_table_set(r->headers_in, "Authorization", buf1);
++    auth_line = apr_pstrcat(r->pool, "Basic ", 
++                            ap_pbase64encode(r->pool, 
++                                             apr_pstrcat(r->pool, clientdn, 
++                                                         ":password", NULL)),
++                            NULL);
++    apr_table_set(r->headers_in, "Authorization", auth_line);
+ 
+     ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+-                 "Faking HTTP Basic Auth header: \"Authorization: %s\"", buf1);
++                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",
++                 auth_line);
+ 
+     return DECLINED;
+ }
+ 
+ /* authorization phase */
+ int ssl_hook_Auth(request_rec *r)

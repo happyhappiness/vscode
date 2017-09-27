@@ -1,14 +1,17 @@
-        return err;
+         * There is one special filter callback, which is set
+         * very early depending on the base_server's log level.
+         * If this is not the first vhost we're now selecting
+         * (and the first vhost doesn't use APLOG_DEBUG), then
+         * we need to set that callback here.
+         */
+        if (APLOGdebug(s)) {
+            BIO_set_callback(SSL_get_rbio(ssl), ssl_io_data_cb);
+            BIO_set_callback_arg(SSL_get_rbio(ssl), (void *)ssl);
+        }
+
+        return 1;
     }
 
-    /* Throw a warning if we're in <Location> or <Files> */
-    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "Useless use of AllowOverride in line %d of %s.",
-                     cmd->directive->line_num, cmd->directive->filename);
-    }
-
-    d->override = OR_NONE;
-    while (l[0]) {
-        w = ap_getword_conf(cmd->pool, &l);
-
+    return 0;
+}
+#endif

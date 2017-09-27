@@ -1,13 +1,18 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+        tmp_bb = ctx->linebb;
+        ctx->linebb = ctx->linesbb;
+        ctx->linesbb = tmp_bb;
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+    return APR_SUCCESS;
+err:
+    if (rv == APR_ENOMEM)
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01328) "Line too long, URI %s",
+                      f->r->uri);
+    apr_pool_clear(ctx->tpool);
+    return rv;
+}
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+static const char *set_pattern(cmd_parms *cmd, void *cfg, const char *line)
+{
+    char *from = NULL;
+    char *to = NULL;

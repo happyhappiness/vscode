@@ -1,16 +1,13 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
-
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
+    else {
+        /*
+         * We have just bound the connection to a different user and password
+         * combination, which might be reused unintentionally next time this
+         * connection is used from the connection pool.
+         */
+        ldc->must_rebind = 0;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "LDC %pp used for authn, must be rebound", ldc);
     }
 
-    /* perform sub-request for the file name without the suffix */
+    /*
+     * Get values for the provided attributes.
+     */

@@ -1,14 +1,21 @@
-      */
-     rc = apr_ldap_ssl_init(p,
-                       NULL,
-                       0,
-                       &(result_err));
-     if (APR_SUCCESS == rc) {
--        rc = apr_ldap_set_option(p, NULL, APR_LDAP_OPT_TLS_CERT,
-+        rc = apr_ldap_set_option(ptemp, NULL, APR_LDAP_OPT_TLS_CERT,
-                                  (void *)st->global_certs, &(result_err));
-     }
+              */
+             backend_addr = backend_addr->next;
+             continue;
+         }
+         conn->connection = NULL;
  
-     if (APR_SUCCESS == rc) {
-         st->ssl_supported = 1;
-         ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+-#if !defined(TPF) && !defined(BEOS)
+         if (worker->recv_buffer_size > 0 &&
+             (rv = apr_socket_opt_set(newsock, APR_SO_RCVBUF,
+                                      worker->recv_buffer_size))) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                          "ProxyReceiveBufferSize, using default");
+         }
+-#endif
+ 
+         rv = apr_socket_opt_set(newsock, APR_TCP_NODELAY, 1);
+         if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+              ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                           "apr_socket_opt_set(APR_TCP_NODELAY): "
+                           "Failed to set");

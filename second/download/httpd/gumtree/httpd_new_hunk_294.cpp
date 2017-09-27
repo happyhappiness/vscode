@@ -1,14 +1,20 @@
-                      colargs, static_columns);
-            ++cols;
+                show_settings = 1;
+                display_settings();
+            }
         }
-        if (!(autoindex_opts & SUPPRESS_RULES)) {
-            breakrow = apr_psprintf(r->pool,
-                                    "<tr><th colspan=\"%d\">"
-                                    "<hr%s></th></tr>\n", cols,
-                                    (autoindex_opts & EMIT_XHTML) ? " /" : "");
+        else {
+            show_settings = 0;
+            if (strnicmp("HELP",&szcommandLine[iCommandLen],3))
+                printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
+            printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
+            printf("Commands:\n");
+            printf("\tDIRECTIVES - Show directives\n");
+            printf("\tHELP       - Display this help information\n");
+            printf("\tMODULES    - Show a list of the loaded modules\n");
+            printf("\tRESTART    - Reread the configuration file and restart Apache\n");
+            printf("\tSETTINGS   - Show current thread status\n");
+            printf("\tSHUTDOWN   - Shutdown Apache\n");
+            printf("\tVERSION    - Display the server version information\n");
         }
-        ap_rvputs(r, "</th></tr>", breakrow, NULL);
-    }
-    else if (autoindex_opts & FANCY_INDEXING) {
-        ap_rputs("<pre>", r);
-        if (!(autoindex_opts & SUPPRESS_ICON)) {
+
+        /*  Tell NetWare we handled the command */

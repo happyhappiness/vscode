@@ -1,1 +1,0 @@
-printf("SLOT %d added to %.40s\n", slot, n->name);

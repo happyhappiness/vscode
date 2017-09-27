@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
-
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
+         * while (m && m->next && m->next->cont_level != 0 && ( m = m->next
+         * ))
+         */
+        m = m->next;
+        while (m && (m->cont_level != 0)) {
+#if MIME_MAGIC_DEBUG
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01534)
+                        MODNAME ": match line=%d cont=%d type=%d %s",
+                        m->lineno, m->cont_level, m->type,
+                        (m->type == STRING) ? m->value.s : "");
 #endif
-
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+            if (cont_level >= m->cont_level) {
+                if (cont_level > m->cont_level) {

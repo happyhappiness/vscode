@@ -1,12 +1,13 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
+                                          mctx->auth.ca_cert_file,
+                                          mctx->auth.ca_cert_path);
+        if (sk_X509_NAME_num(ca_list) <= 0) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01896)
+                    "Unable to determine list of acceptable "
+                    "CA certificates for client authentication");
+            ssl_die(s);
+        }
 
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
+        SSL_CTX_set_client_CA_list(ctx, ca_list);
     }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+
+    /*

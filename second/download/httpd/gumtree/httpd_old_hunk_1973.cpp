@@ -1,13 +1,12 @@
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
+{
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
 
-    while ((c = *s++) != '\0') {
-	if (isspace((unsigned char) c))
-	    break;
-	if (p >= pmax) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-			MODNAME ": string too long: %s", origs);
-	    break;
-	}
+    if (!svr->persist) {
+        /* Return a once-only connection */
+        rv = dbd_construct(&rec, svr, s->process->pool);
+        return (rv == APR_SUCCESS) ? arec : NULL;
+    }
+

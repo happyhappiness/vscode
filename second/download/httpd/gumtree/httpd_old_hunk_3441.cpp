@@ -1,61 +1,18 @@
+            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
 
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
 
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs
-	(
-	    r,
-	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
-	    title,
-	    "</TITLE>\n </HEAD>\n <BODY>\n",
-	    NULL
-	);
-}
+            my_info = (proc_info *)malloc(sizeof(proc_info));
+            if (my_info == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                             "malloc: out of memory");
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
 
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to)
-	to = "";
-    if (!path)
-	path = "";
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    else if (to)
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    else
-	p->apply_to = NULL;
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH)
-	if (!strcmp(to, "**DIRECTORY**"))
-	    to = "^^DIRECTORY^^";
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
-    }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
-    return NULL;
-}
-
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
-{
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,

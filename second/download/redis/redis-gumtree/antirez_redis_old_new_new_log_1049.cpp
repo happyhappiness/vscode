@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Removing the unix socket file.");

@@ -1,31 +1,13 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+        cert->path = ap_server_root_relative(cmd->pool, file);
+        if (cert->path &&
+            ((rv = apr_stat (&finfo, cert->path, APR_FINFO_MIN, cmd->pool))
+                != APR_SUCCESS))
+        {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cmd->server,
+                         "LDAP: Could not open SSL client certificate "
+                         "file - %s",
+                         cert->path == NULL ? file : cert->path);
+            return "Invalid client certificate file path";
+        }
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);

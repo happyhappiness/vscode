@@ -1,14 +1,12 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+#ifdef HAVE_TLSV1_X
+#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
+#else
+#define TLS1_X_HELP_MSG ""
+#endif
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");
+    fprintf(stderr, "                    (" SSL2_HELP_MSG SSL3_HELP_MSG "TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+#endif
+    exit(EINVAL);
+}

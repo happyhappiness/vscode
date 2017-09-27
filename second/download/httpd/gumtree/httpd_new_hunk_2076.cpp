@@ -1,29 +1,19 @@
-	}
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                         "ProxyReceiveBufferSize, using default");
+        }
 #endif
-	return 0;
+
+        rv = apr_socket_opt_set(*newsock, APR_TCP_NODELAY, 1);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");
+        }
+
+        /* Set a timeout on the socket */
+        if (conf->timeout_set == 1) {
+            apr_socket_timeout_set(*newsock, conf->timeout);
+        }
+        else {
+             apr_socket_timeout_set(*newsock, s->timeout);

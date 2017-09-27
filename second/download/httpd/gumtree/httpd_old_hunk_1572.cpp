@@ -1,27 +1,15 @@
-                }
-                break;
-            case CMD_AJP13_SEND_BODY_CHUNK:
-                /* AJP13_SEND_BODY_CHUNK: piece of data */
-                status = ajp_parse_data(r, conn->data, &size, &buff);
-                if (status == APR_SUCCESS) {
-                    e = apr_bucket_transient_create(buff, size,
-                                                    r->connection->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+        }
+        else {
+            t2 = t;
+        }
 
-                    if ( (conn->worker->flush_packets == flush_on) ||
-                         ( (conn->worker->flush_packets == flush_auto) &&
-                           (apr_poll(conn_poll, 1, &conn_poll_fd,
-                                     conn->worker->flush_wait)
-                             == APR_TIMEUP) ) ) {
-                        e = apr_bucket_flush_create(r->connection->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                    }
-                    apr_brigade_length(output_brigade, 0, &bb_len);
-                    if (bb_len != -1)
-                        conn->worker->s->read += bb_len;
-                    if (ap_pass_brigade(r->output_filters,
-                                        output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "proxy: error processing body");
-                        isok = 0;
-                    }
+        if (autoindex_opts & TABLE_INDEXING) {
+            ap_rputs("<tr>", r);
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,

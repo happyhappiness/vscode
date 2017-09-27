@@ -1,17 +1,15 @@
-
-AP_DECLARE(apr_status_t) unixd_accept(void **accepted, ap_listen_rec *lr,
-                                        apr_pool_t *ptrans)
-{
-    apr_socket_t *csd;
-    apr_status_t status;
-
-    *accepted = NULL;
-    status = apr_accept(&csd, lr->sd, ptrans);
-    if (status == APR_SUCCESS) { 
-        *accepted = csd;
-        return APR_SUCCESS;
+    printf("   Listening on port(s):");
+    lr = ap_listeners;
+    do {
+       printf(" %d", lr->bind_addr->port);
+       lr = lr->next;
+    } while(lr && lr != ap_listeners);
+    
+    /* Display dynamic modules loaded */
+    printf("\n");    
+    for (m = ap_loaded_modules; *m != NULL; m++) {
+        if (((module*)*m)->dynamic_load_handle) {
+            printf("   Loaded dynamic module %s\n", ((module*)*m)->name);
+        }
     }
-
-    if (APR_STATUS_IS_EINTR(status)) {
-        return status;
-    }
+}

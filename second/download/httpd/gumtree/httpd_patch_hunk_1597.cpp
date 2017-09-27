@@ -1,14 +1,14 @@
-         }
-     }
- }
- 
- static void show_compile_settings(void)
  {
--    printf("Server version: %s\n", ap_get_server_version());
-+    printf("Server version: %s\n", ap_get_server_description());
-     printf("Server built:   %s\n", ap_get_server_built());
-     printf("Server's Module Magic Number: %u:%u\n",
-            MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
-     printf("Server loaded:  APR %s, APR-Util %s\n",
-            apr_version_string(), apu_version_string());
-     printf("Compiled using: APR %s, APR-Util %s\n",
+     void *reported;
+ 
+     apr_pool_userdata_get(&reported, SUEXEC_POST_CONFIG_USERDATA,
+                           s->process->pool);
+ 
+-    if ((reported == NULL) && unixd_config.suexec_enabled) {
++    if ((reported == NULL) && ap_unixd_config.suexec_enabled) {
+         ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                      "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
+ 
+         apr_pool_userdata_set((void *)1, SUEXEC_POST_CONFIG_USERDATA,
+                               apr_pool_cleanup_null, s->process->pool);
+     }

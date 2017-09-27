@@ -1,5 +1,1 @@
-fprintf(stderr,
-            "Usage: %s [-l] <logfile> "
-            "{<rotation time in seconds>|<rotation size in megabytes>} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
+ap_rvputs(r, "</td><td>", worker->s->route, NULL);

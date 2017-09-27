@@ -1,1 +1,1 @@
-ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
+ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);

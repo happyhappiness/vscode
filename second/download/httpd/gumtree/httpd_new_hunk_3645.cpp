@@ -1,13 +1,25 @@
-
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+                    rv = apr_file_read(fp, digest, &ds);
+                    if ((rv == APR_SUCCESS || rv == APR_EOF) &&
+                        ds == APR_MD5_DIGESTSIZE) {
+                        rv = APR_SUCCESS;
+                        apr_md5(digest2, ptr, nbytes);
+                        if (memcmp(digest, digest2, APR_MD5_DIGESTSIZE)) {
+                            ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
+                                         APLOGNO(02551) "bad md5 match");
+                            rv = APR_EGENERAL;
+                        }
+                    }
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                                 APLOGNO(02552) "at EOF... bypassing md5 match check (old persist file?)");
+                }
+            }
+            else if (nbytes != size) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
+                             APLOGNO(02553) "Expected %" APR_SIZE_T_FMT ": Read %" APR_SIZE_T_FMT,
+                             size, nbytes);
+                rv = APR_EGENERAL;
+            }
+            apr_file_close(fp);
+        }

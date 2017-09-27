@@ -1,1 +1,0 @@
-shared.colon = createObject(REDIS_STRING,sdsnew(":"));

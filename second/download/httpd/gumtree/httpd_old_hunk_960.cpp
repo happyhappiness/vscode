@@ -1,23 +1,24 @@
-        if (!schSCManager) {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "Failed to open the WinNT service manager.");
-            return (rv);
-        }
-        
-        /* ###: utf-ize */
-        schService = OpenService(schSCManager, mpm_service_name, DELETE);
+    apr_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
 
-        if (!schService) {
-           rv = apr_get_os_error();
-           ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-			"%s: OpenService failed", mpm_display_name);
-           return (rv);
-        }
-        
-        /* assure the service is stopped before continuing
-         *
-         * This may be out of order... we might not be able to be
-         * granted all access if the service is running anyway.
-         *
-         * And do we want to make it *this easy* for them
+    while (1) {
+
+	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
+	    ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+			  "Premature end of script headers: %s", 
+                          apr_filename_of_pathname(r->filename));
+	    return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
+	/* Delete terminal (CR?)LF */
+
+	p = strlen(w);
+	     /* Indeed, the host's '\n':
+	        '\012' for UNIX; '\015' for MacOS; '\025' for OS/390
+	         -- whatever the script generates.
+	     */                                  
+	if (p > 0 && w[p - 1] == '\n') {
+	    if (p > 1 && w[p - 2] == CR) {
+		w[p - 2] = '\0';
+	    }
+	    else {
+		w[p - 1] = '\0';

@@ -1,34 +1,27 @@
-        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
-        if (!any_dying_threads) {
-            last_non_dead = i;
-            ++total_non_dead;
         }
     }
 
-    if (sick_child_detected) {
-        if (active_thread_count > 0) {
-            /* some child processes appear to be working.  don't kill the
-             * whole server.
-             */
-            sick_child_detected = 0;
-        }
-        else {
-            /* looks like a basket case.  give up.  
-             */
-            shutdown_pending = 1;
-            child_fatal = 1;
-            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf,
-                         "No active workers found..."
-                         " Apache is exiting!");
-            /* the child already logged the failure details */
-            return;
-        }
-    }
-                                                    
-    ap_max_daemons_limit = last_non_dead + 1;
+    return rc;
+}
 
-    if (idle_thread_count > max_spare_threads) {
-        /* Kill off one child */
-        ap_mpm_pod_signal(pod, TRUE);
-        idle_spawn_rate = 1;
+/* Open the error log for the given server_rec.  If IS_MAIN is
+ * non-zero, s is the main server. */
+static int open_error_log(server_rec *s, int is_main, apr_pool_t *p)
+{
+    const char *fname;
+    int rc;
+
+    if (*s->error_fname == '|') {
+        apr_file_t *dummy = NULL;
+
+        /* Spawn a new child logger.  If this is the main server_rec,
+         * the new child must use a dummy stderr since the current
+         * stderr might be a pipe to the old logger.  Otherwise, the
+         * child inherits the parents stderr. */
+        rc = log_child(p, s->error_fname + 1, &dummy, is_main);
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "Couldn't start ErrorLog process");
+            return DONE;
+        }
+

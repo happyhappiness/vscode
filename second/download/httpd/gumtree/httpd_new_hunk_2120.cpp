@@ -1,13 +1,13 @@
-}
-
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
 {
-    char tag[MAX_STRING_LEN];
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    r->status = status;
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    /* ### I really don't think this is needed; gotta test */
+    r->status_line = ap_get_status_line(status);
+
+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+
+    /* begin the response now... */
+    ap_rvputs(r,
+              DAV_RESPONSE_BODY_1,
+              r->status_line,
+              DAV_RESPONSE_BODY_2,

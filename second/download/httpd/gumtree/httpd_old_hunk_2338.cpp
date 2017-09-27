@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
-
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing end");
+                    output_failed = 1;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                request_ended = 1;

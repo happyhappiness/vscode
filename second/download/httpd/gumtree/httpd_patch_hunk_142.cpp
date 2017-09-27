@@ -1,101 +1,37 @@
-                  "Set to off to disable auth_ldap, even if it's been enabled in a higher tree"),
-  
-     AP_INIT_FLAG("AuthLDAPFrontPageHack", ap_set_flag_slot,
-                  (void *)APR_OFFSETOF(mod_auth_ldap_config_t, frontpage_hack), OR_AUTHCFG,
-                  "Set to 'on' to support Microsoft FrontPage"),
+     /* WooHoo, we have a file to put in the cache */
+     new_file = apr_pcalloc(cmd->pool, sizeof(a_file));
+     new_file->finfo = tmp.finfo;
  
--#ifdef APU_HAS_LDAP_STARTTLS
--    AP_INIT_FLAG("AuthLDAPStartTLS", ap_set_flag_slot,
--                 (void *)APR_OFFSETOF(mod_auth_ldap_config_t, starttls), OR_AUTHCFG,
--                 "Set to 'on' to start TLS after connecting to the LDAP server."),
--#endif /* APU_HAS_LDAP_STARTTLS */
-+    AP_INIT_TAKE1("AuthLDAPCharsetConfig", set_charset_config, NULL, RSRC_CONF,
-+                  "Character set conversion configuration file. If omitted, character set"
-+                  "conversion is disabled."),
- 
-     {NULL}
- };
- 
-+static int auth_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
-+{
-+    ap_configfile_t *f;
-+    char l[MAX_STRING_LEN];
-+    const char *charset_confname = ap_get_module_config(s->module_config,
-+                                                      &auth_ldap_module);
-+    apr_status_t status;
-+    
-+    /*
-+    mod_auth_ldap_config_t *sec = (mod_auth_ldap_config_t *)
-+                                    ap_get_module_config(s->module_config, 
-+                                                         &auth_ldap_module);
-+
-+    if (sec->secure)
-+    {
-+        if (!util_ldap_ssl_supported(s))
-+        {
-+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-+                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
-+            return(!OK);
-+        }
-+    }
-+    */
-+
-+    if (!charset_confname) {
-+        return OK;
-+    }
-+
-+    charset_confname = ap_server_root_relative(p, charset_confname);
-+    if (!charset_confname) {
-+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-+                     "Invalid charset conversion config path %s", 
-+                     (const char *)ap_get_module_config(s->module_config,
-+                                                        &auth_ldap_module));
-+        return HTTP_INTERNAL_SERVER_ERROR;
-+    }
-+    if ((status = ap_pcfg_openfile(&f, ptemp, charset_confname)) 
-+                != APR_SUCCESS) {
-+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-+                     "could not open charset conversion config file %s.", 
-+                     charset_confname);
-+        return HTTP_INTERNAL_SERVER_ERROR;
-+    }
-+
-+    charset_conversions = apr_hash_make(p);
-+
-+    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-+        const char *ll = l;
-+        char *lang;
-+
-+        if (l[0] == '#') {
-+            continue;
-+        }
-+        lang = ap_getword_conf(p, &ll);
-+        ap_str_tolower(lang);
-+
-+        if (ll[0]) {
-+            char *charset = ap_getword_conf(p, &ll);
-+            apr_hash_set(charset_conversions, lang, APR_HASH_KEY_STRING, charset);
-+        }
-+    }
-+    ap_cfg_closefile(f);
-+    
-+    to_charset = derive_codepage_from_lang (p, "utf-8");
-+    if (to_charset == NULL) {
-+        ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-+                     "could not find the UTF-8 charset in the file %s.", 
-+                     charset_confname);
-+        return HTTP_INTERNAL_SERVER_ERROR;
-+    }
-+
-+    return OK;
-+}
-+
- static void mod_auth_ldap_register_hooks(apr_pool_t *p)
- {
-+    ap_hook_post_config(auth_ldap_post_config,NULL,NULL,APR_HOOK_MIDDLE);
-     ap_hook_check_user_id(mod_auth_ldap_check_user_id, NULL, NULL, APR_HOOK_MIDDLE);
-     ap_hook_auth_checker(mod_auth_ldap_auth_checker, NULL, NULL, APR_HOOK_MIDDLE);
- }
- 
- module auth_ldap_module = {
-    STANDARD20_MODULE_STUFF,
+ #if APR_HAS_MMAP
+     if (mmap) {
+-        apr_mmap_t *mm;
+-
+         /* MMAPFile directive. MMAP'ing the file
+          * XXX: APR_HAS_LARGE_FILES issue; need to reject this request if
+          * size is greater than MAX(apr_size_t) (perhaps greater than 1M?).
+          */
+-        if ((rc = apr_mmap_create(&mm, fd, 0, 
++        if ((rc = apr_mmap_create(&new_file->mm, fd, 0, 
+                                   (apr_size_t)new_file->finfo.size,
+                                   APR_MMAP_READ, cmd->pool)) != APR_SUCCESS) { 
+             apr_file_close(fd);
+             ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                          "mod_file_cache: unable to mmap %s, skipping", filename);
+             return;
+         }
+         apr_file_close(fd);
+-        /* We want to cache an apr_mmap_t that's marked as "non-owner"
+-         * to pass to each request so that mmap_setaside()'s call to
+-         * apr_mmap_dup() will never try to move the apr_mmap_t to a
+-         * different pool.  This apr_mmap_t is already going to live
+-         * longer than any request, but mmap_setaside() has no way to
+-         * know that because it's allocated out of cmd->pool,
+-         * which is disjoint from r->pool.
+-         */
+-        apr_mmap_dup(&new_file->mm, mm, cmd->pool, 0);
+         new_file->is_mmapped = TRUE;
+     }
+ #endif
+ #if APR_HAS_SENDFILE
+     if (!mmap) {
+         /* CacheFile directive. Caching the file handle */

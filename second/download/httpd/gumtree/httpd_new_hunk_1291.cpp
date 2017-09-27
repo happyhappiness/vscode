@@ -1,21 +1,18 @@
-                    return decl_die(access_status, "check access", r);
-                }
+    /* Build the env array */
+    for (envc = 0; _environ[envc]; ++envc) {
+        ;
+    }
+    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
+    memcpy(env, _environ, envc * sizeof (char*));
+    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%lu", parent_pid);
+    env[envc] = pidbuf;
+    env[envc + 1] = NULL;
 
-                if (((access_status = ap_run_check_user_id(r)) != 0)
-                    || !ap_auth_type(r)) {
-                    return decl_die(access_status, ap_auth_type(r)
-                                  ? "check user.  Check your authn provider!"
-                                  : "perform authentication. AuthType not set!",
-                                  r);
-                }
-
-                if (((access_status = ap_run_auth_checker(r)) != 0)
-                    || !ap_auth_type(r)) {
-                    return decl_die(access_status, ap_auth_type(r)
-                                  ? "check access.  Check your 'Require' directive"
-                                  : "perform authentication. AuthType not set!",
-                                  r);
-                }
-            }
-            break;
-        }
+    rv = apr_proc_create(&new_child, cmd, (const char * const *)args, 
+                         (const char * const *)env, attr, ptemp);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to create the child process.");
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);

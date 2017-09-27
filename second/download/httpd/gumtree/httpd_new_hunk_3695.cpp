@@ -1,16 +1,14 @@
+    ap_rputs("  <H2>Connection-specific callbacks so far:</H2>\n", r);
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    status =  apr_pool_userdata_get(&conn_data, CONN_NOTE,
+                                    r->connection->pool);
+    if ((status == APR_SUCCESS) && conn_data) {
+        ap_rprintf(r, "  <OL>\n%s  </OL>\n", (char *) conn_data);
+    }
+    else {
+        ap_rputs("  <P>No connection-specific callback information was "
+                 "retrieved.</P>\n", r);
+    }
+
+    ap_rputs("  <H2>Request-specific callbacks so far:</H2>\n", r);
+    ap_rprintf(r, "  <OL>\n%s  </OL>\n", apr_table_get(r->notes, TRACE_NOTE));

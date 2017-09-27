@@ -1,13 +1,17 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-        ap_die(BAD_REQUEST, r);
-        return;
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            ap_remove_pid(pconf, ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, APLOGNO(00491) "caught SIGTERM, shutting down");
+        }
+
+        return DONE;
     }
 
-    /* Ignore embedded %2F's in path for proxy requests */
+    if (retained->mpm->shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        int active_children;
+        int index;
+        apr_time_t cutoff = 0;

@@ -1,113 +1,106 @@
-                             mc->nSessionCacheDataSize,
-                             mc->szSessionCacheDataFile,
-                             mc->pPool);
-     }
+     ap_max_mem_free = APR_ALLOCATOR_MAX_FREE_UNLIMITED;
+ #endif
  
-     if (rv != APR_SUCCESS) {
--        char buf[100];
--        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
--                     "Cannot allocate shared memory: (%d)%s", rv,
--                     apr_strerror(rv, buf, sizeof(buf)));
-+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-+                     "could not allocate shared memory for shmcb "
-+                     "session cache");
-         ssl_die();
-     }
-+
-     shm_segment = apr_shm_baseaddr_get(mc->pSessionCacheDataMM);
-     shm_segsize = apr_shm_size_get(mc->pSessionCacheDataMM);
--
-+    if (shm_segsize < (5 * sizeof(SHMCBHeader))) {
-+        /* the segment is ridiculously small, bail out */
-+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-+                     "shared memory segment too small");
-+        ssl_die();
-+    }
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "shmcb_init allocated %" APR_SIZE_T_FMT
-                  " bytes of shared memory",
-                  shm_segsize);
--    if (!shmcb_init_memory(s, shm_segment, shm_segsize)) {
-+    /* Discount the header */
-+    shm_segsize -= sizeof(SHMCBHeader);
-+    /* Select the number of subcaches to create and how many indexes each
-+     * should contain based on the size of the memory (the header has already
-+     * been subtracted). Typical non-client-auth sslv3/tlsv1 sessions are
-+     * around 150 bytes, so erring to division by 120 helps ensure we would
-+     * exhaust data storage before index storage (except sslv2, where it's
-+     * *slightly* the other way). From there, we select the number of subcaches
-+     * to be a power of two, such that the number of indexes per subcache at
-+     * least twice the number of subcaches. */
-+    num_idx = (shm_segsize) / 120;
-+    num_subcache = 256;
-+    while ((num_idx / num_subcache) < (2 * num_subcache))
-+        num_subcache /= 2;
-+    num_idx /= num_subcache;
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "for %" APR_SIZE_T_FMT " bytes (%" APR_SIZE_T_FMT 
-+                 " including header), recommending %u subcaches, "
-+                 "%u indexes each", shm_segsize,
-+                 shm_segsize + sizeof(SHMCBHeader), num_subcache, num_idx);
-+    if (num_idx < 5) {
-+        /* we're still too small, bail out */
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
--                     "Failure initialising 'shmcb' shared memory");
-+                     "shared memory segment too small");
-         ssl_die();
-     }
-+    /* OK, we're sorted */
-+    header = shm_segment;
-+    header->stat_stores = 0;
-+    header->stat_expiries = 0;
-+    header->stat_scrolled = 0;
-+    header->stat_retrieves_hit = 0;
-+    header->stat_retrieves_miss = 0;
-+    header->stat_removes_hit = 0;
-+    header->stat_removes_miss = 0;
-+    header->subcache_num = num_subcache;
-+    /* Convert the subcache size (in bytes) to a value that is suitable for
-+     * structure alignment on the host platform, by rounding down if necessary.
-+     * This assumes that sizeof(unsigned long) provides an appropriate
-+     * alignment unit.  */
-+    header->subcache_size = ((size_t)(shm_segsize / num_subcache) &
-+                             ~(size_t)(sizeof(unsigned long) - 1));
-+    header->subcache_data_offset = sizeof(SHMCBSubcache) +
-+                                   num_idx * sizeof(SHMCBIndex);
-+    header->subcache_data_size = header->subcache_size -
-+                                 header->subcache_data_offset;
-+    header->index_num = num_idx;
-+
-+    /* Output trace info */
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "shmcb_init_memory choices follow");
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "subcache_num = %u", header->subcache_num);
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "subcache_size = %u", header->subcache_size);
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "subcache_data_offset = %u", header->subcache_data_offset);
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "subcache_data_size = %u", header->subcache_data_size);
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "index_num = %u", header->index_num);
-+    /* The header is done, make the caches empty */
-+    for (loop = 0; loop < header->subcache_num; loop++) {
-+        SHMCBSubcache *subcache = SHMCB_SUBCACHE(header, loop);
-+        subcache->idx_pos = subcache->idx_used = 0;
-+        subcache->data_pos = subcache->data_used = 0;
-+    }
-     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                  "Shared memory session cache initialised");
--
--    /*
--     * Success ...
--     */
-+    /* Success ... */
-     mc->tSessionCacheDataTable = shm_segment;
--    return;
+     return OK;
  }
  
- void ssl_scache_shmcb_kill(server_rec *s)
++static int netware_check_config(apr_pool_t *p, apr_pool_t *plog,
++                                apr_pool_t *ptemp, server_rec *s)
++{
++    static int restart_num = 0;
++    int startup = 0;
++
++    /* we want this only the first time around */
++    if (restart_num++ == 0) {
++        startup = 1;
++    }
++
++    if (ap_threads_limit > HARD_THREAD_LIMIT) {
++        if (startup) {
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         "WARNING: MaxThreads of %d exceeds compile-time "
++                         "limit of", ap_threads_limit);
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         " %d threads, decreasing to %d.",
++                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         " To increase, please see the HARD_THREAD_LIMIT"
++                         "define in");
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);
++        } else {
++            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
++                         "MaxThreads of %d exceeds compile-time limit "
++                         "of %d, decreasing to match",
++                         ap_threads_limit, HARD_THREAD_LIMIT);
++        }
++        ap_threads_limit = HARD_THREAD_LIMIT;
++    }
++    else if (ap_threads_limit < 1) {
++        if (startup) {
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         "WARNING: MaxThreads of %d not allowed, "
++                         "increasing to 1.", ap_threads_limit);
++        } else {
++            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
++                         "MaxThreads of %d not allowed, increasing to 1",
++                         ap_threads_limit);
++        }
++        ap_threads_limit = 1;
++    }
++
++    /* ap_threads_to_start > ap_threads_limit effectively checked in
++     * call to startup_workers(ap_threads_to_start) in ap_mpm_run()
++     */
++    if (ap_threads_to_start < 0) {
++        if (startup) {
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         "WARNING: StartThreads of %d not allowed, "
++                         "increasing to 1.", ap_threads_to_start);
++        } else {
++            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
++                         "StartThreads of %d not allowed, increasing to 1",
++                         ap_threads_to_start);
++        }
++        ap_threads_to_start = 1;
++    }
++
++    if (ap_threads_min_free < 1) {
++        if (startup) {
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         "WARNING: MinSpareThreads of %d not allowed, "
++                         "increasing to 1", ap_threads_min_free);
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         " to avoid almost certain server failure.");
++            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
++                         " Please read the documentation.");
++        } else {
++            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
++                         "MinSpareThreads of %d not allowed, increasing to 1",
++                         ap_threads_min_free);
++        }
++        ap_threads_min_free = 1;
++    }
++
++    /* ap_threads_max_free < ap_threads_min_free + 1 checked in ap_mpm_run() */
++
++    return OK;
++}
++
+ static void netware_mpm_hooks(apr_pool_t *p)
  {
-     SSLModConfigRec *mc = myModConfig(s);
+     ap_hook_pre_config(netware_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
++    ap_hook_check_config(netware_check_config, NULL, NULL, APR_HOOK_MIDDLE);
++    //ap_hook_post_config(netware_post_config, NULL, NULL, 0);
++    //ap_hook_child_init(netware_child_init, NULL, NULL, APR_HOOK_MIDDLE);
++    //ap_hook_open_logs(netware_open_logs, NULL, aszSucc, APR_HOOK_REALLY_FIRST);
++    ap_hook_mpm(netware_run, NULL, NULL, APR_HOOK_MIDDLE);
++    ap_hook_mpm_query(netware_query, NULL, NULL, APR_HOOK_MIDDLE);
++    ap_hook_mpm_note_child_killed(netware_note_child_killed, NULL, NULL, APR_HOOK_MIDDLE);
++    ap_hook_mpm_get_name(netware_get_name, NULL, NULL, APR_HOOK_MIDDLE);
+ }
  
+ void netware_rewrite_args(process_rec *process)
+ {
+     char *def_server_root;
+     char optbuf[3];

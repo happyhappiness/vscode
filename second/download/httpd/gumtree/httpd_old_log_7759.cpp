@@ -1,0 +1,1 @@
+err("Cannot allocate memory for result statistics");

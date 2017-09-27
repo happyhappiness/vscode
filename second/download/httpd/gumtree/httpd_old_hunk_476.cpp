@@ -1,13 +1,18 @@
-     *
-     * Log into the ftp server, send the username & password, change to the
-     * correct directory...
+
+static int core_pre_connection(conn_rec *c, void *csd)
+{
+    core_net_rec *net = apr_palloc(c->pool, sizeof(*net));
+
+#ifdef AP_MPM_DISABLE_NAGLE_ACCEPTED_SOCK
+    /* BillS says perhaps this should be moved to the MPMs. Some OSes
+     * allow listening socket attributes to be inherited by the
+     * accept sockets which means this call only needs to be made
+     * once on the listener
      */
+    ap_sock_disable_nagle(csd);
+#endif
+    net->c = c;
+    net->in_ctx = NULL;
+    net->out_ctx = NULL;
+    net->client_socket = csd;
 
-    /* set up the connection filters */
-    ap_run_pre_connection(origin, sock);
-
-    /* possible results: */
-    /* 120 Service ready in nnn minutes. */
-    /* 220 Service ready for new user. */
-    /* 421 Service not available, closing control connection. */
-    rc = proxy_ftp_command(NULL, r, origin, bb, &ftpmessage);

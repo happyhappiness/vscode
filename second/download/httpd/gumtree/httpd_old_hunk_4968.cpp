@@ -1,13 +1,16 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
-
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r->server,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
-
-    return HTTP_MOVED_PERMANENTLY;
+                ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", "<a href=\"", anchor, "\">",
+                          ap_escape_html(scratch, t2),
+                          "</a>", pad_scratch + nwidth, NULL);
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "%Y-%m-%d %H:%M  ",
+                                 &ts);
+                    ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">",time_str, NULL);
+                }
+                else {
+                    ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">&nbsp;" : ">&nbsp;", NULL);

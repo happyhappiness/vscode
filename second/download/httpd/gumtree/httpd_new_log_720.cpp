@@ -1,1 +1,1 @@
-ap_rputs(":&nbsp;", r);
+ap_rputs("</dt>", r);

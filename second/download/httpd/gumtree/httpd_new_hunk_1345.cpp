@@ -1,15 +1,23 @@
-    {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "master_main: create child process failed. Exiting.");
-        shutdown_pending = 1;
-        goto die_now;
-    }
+                              "insecure SSL re-negotiation required, but "
+                              "a pipelined request is present; keepalive "
+                              "disabled");
+                r->connection->keepalive = AP_CONN_CLOSE;
+            }
 
-    child_created = 1;
+#if defined(SSL_get_secure_renegotiation_support)
+            reneg_support = SSL_get_secure_renegotiation_support(ssl) ?
+                            "client does" : "client does not";
+#else
+            reneg_support = "server does not";
+#endif
+            /* Perform a full renegotiation. */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: complete handshake "
+                          "protocol (%s support secure renegotiation)",
+                          reneg_support);
 
-    if (!strcasecmp(signal_arg, "runservice")) {
-        mpm_service_started();
-    }
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
 
-    /* Update the scoreboard. Note that there is only a single active
-     * child at once.
+            /* Toggle the renegotiation state to allow the new

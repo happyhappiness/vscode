@@ -1,1 +1,0 @@
-addReplyErrorFormat(c,"Unknown node %s", (char*)c->argv[2]->ptr);

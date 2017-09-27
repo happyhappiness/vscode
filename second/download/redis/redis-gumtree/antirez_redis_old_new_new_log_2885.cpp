@@ -1,1 +1,0 @@
-addReplyError(c,"SELECT is not allowed in cluster mode");

@@ -1,1 +1,3 @@
-ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);

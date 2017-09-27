@@ -1,82 +1,260 @@
+    rv = apr_brigade_vprintf(bb, NULL, NULL, fmt, args);
+    va_end(args);
 
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
-
-/*
- * Return true if the specified string refers to the parent directory (i.e.,
- * matches ".." or "../").  Hopefully this one call is significantly less
- * expensive than multiple strcmp() calls.
- */
-static ap_inline int is_parent(const char *name)
-{
-    /*
-     * Now, IFF the first two bytes are dots, and the third byte is either
-     * EOS (\0) or a slash followed by EOS, we have a match.
-     */
-    if (((name[0] == '.') && (name[1] == '.'))
-	&& ((name[2] == '\0')
-	    || ((name[2] == '/') && (name[3] == '\0')))) {
-        return 1;
-    }
-    return 0;
+    return rv;
 }
 
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
+static void add_settings(apr_bucket_brigade *bb, h2_session *s, int last) 
 {
-    ap_rvputs(r, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	      "<HTML>\n <HEAD>\n  <TITLE>Index of ", title,
-	      "</TITLE>\n </HEAD>\n <BODY>\n", NULL);
+    h2_mplx *m = s->mplx;
+    
+    bbout(bb, "  \"settings\": {\n");
+    bbout(bb, "    \"SETTINGS_MAX_CONCURRENT_STREAMS\": %d,\n", m->max_streams); 
+    bbout(bb, "    \"SETTINGS_MAX_FRAME_SIZE\": %d,\n", 16*1024); 
+    bbout(bb, "    \"SETTINGS_INITIAL_WINDOW_SIZE\": %d,\n",
+          h2_config_geti(s->config, H2_CONF_WIN_SIZE));
+    bbout(bb, "    \"SETTINGS_ENABLE_PUSH\": %d\n", h2_session_push_enabled(s)); 
+    bbout(bb, "  }%s\n", last? "" : ",");
 }
 
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
+static void add_peer_settings(apr_bucket_brigade *bb, h2_session *s, int last) 
 {
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to) {
-	to = "";
-    }
-    if (!path) {
-	path = "";
-    }
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to))) {
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    }
-    else if (to) {
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    }
-    else {
-	p->apply_to = NULL;
-    }
+    bbout(bb, "  \"peerSettings\": {\n");
+    bbout(bb, "    \"SETTINGS_MAX_CONCURRENT_STREAMS\": %d,\n", 
+        nghttp2_session_get_remote_settings(s->ngh2, NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS)); 
+    bbout(bb, "    \"SETTINGS_MAX_FRAME_SIZE\": %d,\n", 
+        nghttp2_session_get_remote_settings(s->ngh2, NGHTTP2_SETTINGS_MAX_FRAME_SIZE)); 
+    bbout(bb, "    \"SETTINGS_INITIAL_WINDOW_SIZE\": %d,\n", 
+        nghttp2_session_get_remote_settings(s->ngh2, NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE)); 
+    bbout(bb, "    \"SETTINGS_ENABLE_PUSH\": %d,\n", 
+        nghttp2_session_get_remote_settings(s->ngh2, NGHTTP2_SETTINGS_ENABLE_PUSH)); 
+    bbout(bb, "    \"SETTINGS_HEADER_TABLE_SIZE\": %d,\n", 
+        nghttp2_session_get_remote_settings(s->ngh2, NGHTTP2_SETTINGS_HEADER_TABLE_SIZE)); 
+    bbout(bb, "    \"SETTINGS_MAX_HEADER_LIST_SIZE\": %d\n", 
+        nghttp2_session_get_remote_settings(s->ngh2, NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE)); 
+    bbout(bb, "  }%s\n", last? "" : ",");
 }
 
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH) {
-        if (!strcmp(to, "**DIRECTORY**")) {
-	    to = "^^DIRECTORY^^";
-	}
-    }
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
-    }
+typedef struct {
+    apr_bucket_brigade *bb;
+    h2_session *s;
+    int idx;
+} stream_ctx_t;
 
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to,
-	      cmd->path, alt);
-    return NULL;
+static int add_stream(h2_stream *stream, void *ctx)
+{
+    stream_ctx_t *x = ctx;
+    int32_t flowIn, flowOut;
+    
+    flowIn = nghttp2_session_get_stream_effective_local_window_size(x->s->ngh2, stream->id); 
+    flowOut = nghttp2_session_get_stream_remote_window_size(x->s->ngh2, stream->id);
+    bbout(x->bb, "%s\n    \"%d\": {\n", (x->idx? "," : ""), stream->id);
+    bbout(x->bb, "    \"state\": \"%s\",\n", h2_stream_state_str(stream));
+    bbout(x->bb, "    \"created\": %f,\n", ((double)stream->created)/APR_USEC_PER_SEC);
+    bbout(x->bb, "    \"flowIn\": %d,\n", flowIn);
+    bbout(x->bb, "    \"flowOut\": %d,\n", flowOut);
+    bbout(x->bb, "    \"dataIn\": %"APR_UINT64_T_FMT",\n", stream->in_data_octets);  
+    bbout(x->bb, "    \"dataOut\": %"APR_UINT64_T_FMT"\n", stream->out_data_octets);  
+    bbout(x->bb, "    }");
+    
+    ++x->idx;
+    return 1;
+} 
+
+static void add_streams(apr_bucket_brigade *bb, h2_session *s, int last) 
+{
+    stream_ctx_t x;
+    
+    x.bb = bb;
+    x.s = s;
+    x.idx = 0;
+    bbout(bb, "  \"streams\": {");
+    h2_mplx_stream_do(s->mplx, add_stream, &x);
+    bbout(bb, "\n  }%s\n", last? "" : ",");
 }
 
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
+static void add_push(apr_bucket_brigade *bb, h2_session *s, 
+                     h2_stream *stream, int last) 
 {
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+    h2_push_diary *diary;
+    apr_status_t status;
+    
+    bbout(bb, "    \"push\": {\n");
+    diary = s->push_diary;
+    if (diary) {
+        const char *data;
+        const char *base64_digest;
+        apr_size_t len;
+        
+        status = h2_push_diary_digest_get(diary, bb->p, 256, 
+                                          stream->request->authority, 
+                                          &data, &len);
+        if (status == APR_SUCCESS) {
+            base64_digest = h2_util_base64url_encode(data, len, bb->p);
+            bbout(bb, "      \"cacheDigest\": \"%s\",\n", base64_digest);
+        }
+    }
+    bbout(bb, "      \"promises\": %d,\n", s->pushes_promised);
+    bbout(bb, "      \"submits\": %d,\n", s->pushes_submitted);
+    bbout(bb, "      \"resets\": %d\n", s->pushes_reset);
+    bbout(bb, "    }%s\n", last? "" : ",");
+}
+
+static void add_in(apr_bucket_brigade *bb, h2_session *s, int last) 
+{
+    bbout(bb, "    \"in\": {\n");
+    bbout(bb, "      \"requests\": %d,\n", s->remote.emitted_count);
+    bbout(bb, "      \"resets\": %d, \n", s->streams_reset);
+    bbout(bb, "      \"frames\": %ld,\n", (long)s->frames_received);
+    bbout(bb, "      \"octets\": %"APR_UINT64_T_FMT"\n", s->io.bytes_read);
+    bbout(bb, "    }%s\n", last? "" : ",");
+}
+
+static void add_out(apr_bucket_brigade *bb, h2_session *s, int last) 
+{
+    bbout(bb, "    \"out\": {\n");
+    bbout(bb, "      \"responses\": %d,\n", s->responses_submitted);
+    bbout(bb, "      \"frames\": %ld,\n", (long)s->frames_sent);
+    bbout(bb, "      \"octets\": %"APR_UINT64_T_FMT"\n", s->io.bytes_written);
+    bbout(bb, "    }%s\n", last? "" : ",");
+}
+
+static void add_stats(apr_bucket_brigade *bb, h2_session *s, 
+                     h2_stream *stream, int last) 
+{
+    bbout(bb, "  \"stats\": {\n");
+    add_in(bb, s, 0);
+    add_out(bb, s, 0);
+    add_push(bb, s, stream, 1);
+    bbout(bb, "  }%s\n", last? "" : ",");
+}
+
+static apr_status_t h2_status_insert(h2_task *task, apr_bucket *b)
+{
+    h2_mplx *m = task->mplx;
+    h2_stream *stream = h2_mplx_stream_get(m, task->stream_id);
+    h2_session *s;
+    conn_rec *c;
+    
+    apr_bucket_brigade *bb;
+    apr_bucket *e;
+    int32_t connFlowIn, connFlowOut;
+    
+    if (!stream) {
+        /* stream already done */
+        return APR_SUCCESS;
+    }
+    s = stream->session;
+    c = s->c;
+    
+    bb = apr_brigade_create(stream->pool, c->bucket_alloc);
+    
+    connFlowIn = nghttp2_session_get_effective_local_window_size(s->ngh2); 
+    connFlowOut = nghttp2_session_get_remote_window_size(s->ngh2);
+     
+    bbout(bb, "{\n");
+    bbout(bb, "  \"version\": \"draft-01\",\n");
+    add_settings(bb, s, 0);
+    add_peer_settings(bb, s, 0);
+    bbout(bb, "  \"connFlowIn\": %d,\n", connFlowIn);
+    bbout(bb, "  \"connFlowOut\": %d,\n", connFlowOut);
+    bbout(bb, "  \"sentGoAway\": %d,\n", s->local.shutdown);
+
+    add_streams(bb, s, 0);
+    
+    add_stats(bb, s, stream, 1);
+    bbout(bb, "}\n");
+    
+    while ((e = APR_BRIGADE_FIRST(bb)) != APR_BRIGADE_SENTINEL(bb)) {
+        APR_BUCKET_REMOVE(e);
+        APR_BUCKET_INSERT_AFTER(b, e);
+        b = e;
+    }
+    apr_brigade_destroy(bb);
+    
+    return APR_SUCCESS;
+}
+
+static apr_status_t status_event(void *ctx, h2_bucket_event event, 
+                                 apr_bucket *b)
+{
+    h2_task *task = ctx;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, task->c->master, 
+                  "status_event(%s): %d", task->id, event);
+    switch (event) {
+        case H2_BUCKET_EV_BEFORE_MASTER_SEND:
+            h2_status_insert(task, b);
+            break;
+        default:
+            break;
+    }
+    return APR_SUCCESS;
+}
+
+int h2_filter_h2_status_handler(request_rec *r)
+{
+    h2_ctx *ctx = h2_ctx_rget(r);
+    conn_rec *c = r->connection;
+    h2_task *task;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    apr_status_t status;
+    
+    if (strcmp(r->handler, "http2-status")) {
+        return DECLINED;
+    }
+    if (r->method_number != M_GET && r->method_number != M_POST) {
+        return DECLINED;
+    }
+
+    task = ctx? h2_ctx_get_task(ctx) : NULL;
+    if (task) {
+
+        if ((status = ap_discard_request_body(r)) != OK) {
+            return status;
+        }
+        
+        /* We need to handle the actual output on the main thread, as
+         * we need to access h2_session information. */
+        r->status = 200;
+        r->clength = -1;
+        r->chunked = 1;
+        apr_table_unset(r->headers_out, "Content-Length");
+        ap_set_content_type(r, "application/json");
+        apr_table_setn(r->notes, H2_FILTER_DEBUG_NOTE, "on");
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = h2_bucket_observer_create(c->bucket_alloc, status_event, task);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "status_handler(%s): checking for incoming trailers", 
+                      task->id);
+        if (r->trailers_in && !apr_is_empty_table(r->trailers_in)) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "status_handler(%s): seeing incoming trailers", 
+                          task->id);
+            apr_table_setn(r->trailers_out, "h2-trailers-in", 
+                           apr_itoa(r->pool, 1));
+        }
+        
+        status = ap_pass_brigade(r->output_filters, bb);
+        if (status == APR_SUCCESS
+            || r->status != HTTP_OK
+            || c->aborted) {
+            return OK;
+        }
+        else {
+            /* no way to know what type of error occurred */
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, status, r,
+                          "status_handler(%s): ap_pass_brigade failed", 
+                          task->id);
+            return AP_FILTER_ERROR;
+        }
+    }
+    return DECLINED;
+}
+

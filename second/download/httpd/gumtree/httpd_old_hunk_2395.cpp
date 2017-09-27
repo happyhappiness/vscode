@@ -1,22 +1,21 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    /* try to allocate a new entry */
+
+    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+    if (!entry) {
+        long num_removed = gc();
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Digest: gc'd %ld client entries. Total new clients: "
+                     "%ld; Total removed clients: %ld; Total renewed clients: "
+                     "%ld", num_removed,
+                     client_list->num_created - client_list->num_renewed,
+                     client_list->num_removed, client_list->num_renewed);
+        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+        if (!entry) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "unable to allocate new auth_digest client");
+            apr_global_mutex_unlock(client_lock);
+            return NULL;       /* give up */
+        }
+    }
+

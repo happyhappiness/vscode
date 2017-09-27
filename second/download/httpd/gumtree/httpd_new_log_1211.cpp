@@ -1,1 +1,2 @@
-printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+fprintf(stderr, "ab: Could not open POST data file (%s): %s\n", pfile,
+                apr_strerror(rv, errmsg, sizeof errmsg));

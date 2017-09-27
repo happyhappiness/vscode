@@ -1,13 +1,13 @@
-    if (!method_restricted)
-	return OK;
+            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;
+            cid->completion_arg = (void *) data_type;
+            return 1;
+        }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "ISAPI: ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    case HSE_REQ_TRANSMIT_FILE:
+    {

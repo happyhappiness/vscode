@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+    if (finfo.filetype != APR_REG &&
+#if defined(WIN32) || defined(OS2) || defined(NETWARE)
+        strcasecmp(apr_filepath_name_get(name), "nul") != 0) {
+#else
+        strcmp(name, "/dev/null") != 0) {
+#endif /* WIN32 || OS2 */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(00554)
+                     "Access to file %s denied by server: not a regular file",
+                     name);
+        apr_file_close(file);
+        return APR_EBADF;
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,

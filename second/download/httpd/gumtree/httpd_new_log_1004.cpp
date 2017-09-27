@@ -1,1 +1,1 @@
-printf("Server MPM:     %s\n", ap_show_mpm());
+printf(" -D DYNAMIC_MODULE_LIMIT=%ld\n",(long)DYNAMIC_MODULE_LIMIT);

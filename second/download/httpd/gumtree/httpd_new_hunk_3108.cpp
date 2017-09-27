@@ -1,18 +1,21 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
+    for (i = 0; i < slot->desc.num; i++, inuse++) {
+        if (!*inuse) {
+            break;
+        }
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
+    if (i >= slot->desc.num) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02293)
+                     "slotmem(%s) grab failed. Num %u/num_free %u",
+                     slot->name, slotmem_num_slots(slot),
+                     slotmem_num_free_slots(slot));
+        return APR_EINVAL;
     }
+    *inuse = 1;
+    *id = i;
+    (*slot->num_free)--;
+    return APR_SUCCESS;
+}
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+static apr_status_t slotmem_release(ap_slotmem_instance_t *slot,
+                                    unsigned int id)
+{

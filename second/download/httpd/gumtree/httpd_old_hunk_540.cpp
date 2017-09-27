@@ -1,20 +1,35 @@
- * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
- *                         ap_finalize_sub_req_protocol on Win32 and NetWare
- * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
- *                         calling ap_setup_prelinked_modules
- * 20020903.10 (2.0.55-dev) add ap_log_cerror()
- * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
- */
+    return OK;
+}
 
-#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
+                 apr_pool_t *ptemp, server_rec *s_main)
+{
+    apr_status_t rc = APR_SUCCESS;
+    server_rec *virt, *q;
+    int replace_stderr;
+    apr_file_t *errfile = NULL;
 
-#ifndef MODULE_MAGIC_NUMBER_MAJOR
-#define MODULE_MAGIC_NUMBER_MAJOR 20020903
-#endif
-#define MODULE_MAGIC_NUMBER_MINOR 11                    /* 0...n */
+    apr_pool_cleanup_register(p, NULL, clear_handle_list,
+                              apr_pool_cleanup_null);
+    if (open_error_log(s_main, p) != OK) {
+        return DONE;
+    }
 
-/**
- * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
- * specified value.
- * <pre>
- * Useful for testing for features.
+    replace_stderr = 1;
+    if (s_main->error_log) {
+        /* replace stderr with this new log */
+        apr_file_flush(s_main->error_log);
+        if ((rc = apr_file_open_stderr(&errfile, p)) == APR_SUCCESS) {
+            rc = apr_file_dup2(errfile, s_main->error_log, p);
+        }
+        if (rc != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
+                         "unable to replace stderr with error_log");
+        }
+        else {
+            replace_stderr = 0;
+        }
+    }
+    /* note that stderr may still need to be replaced with something
+     * because it points to the old error log, or back to the tty
+     * of the submitter.

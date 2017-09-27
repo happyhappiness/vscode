@@ -1,28 +1,15 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
+     */
+    auth_line = apr_pstrcat(r->pool, "Basic ",
+                            ap_pbase64encode(r->pool,
+                                             apr_pstrcat(r->pool, clientdn,
+                                                         ":password", NULL)),
+                            NULL);
+    apr_table_set(r->headers_in, "Authorization", auth_line);
 
-    sub_garbage_coll(r, files, cachedir, "/");
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                  "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                  auth_line);
 
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
+    return DECLINED;
+}
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {

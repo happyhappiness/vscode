@@ -1,36 +1,39 @@
-#endif
+             */
+            rv = HTTP_SERVICE_UNAVAILABLE;
+        } else {
+            rv = HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    else if (client_failed) {
+        int level = (r->connection->aborted) ? APLOG_DEBUG : APLOG_ERR;
+        ap_log_rerror(APLOG_MARK, level, status, r, APLOGNO(02822)
+                      "dialog with client %pI failed",
+                      r->connection->client_addr);
+        if (rv == OK) {
+            rv = HTTP_BAD_REQUEST;
+        }
+    }
 
-    ap_soft_timeout("send body", r);
+    /*
+     * Ensure that we sent an EOS bucket thru the filter chain, if we already
+     * have sent some data. Maybe ap_proxy_backend_broke was called and added
+     * one to the brigade already (no longer making it empty). So we should
+     * not do this in this case.
+     */
+    if (data_sent && !r->eos_sent && !r->connection->aborted
+            && APR_BRIGADE_EMPTY(output_brigade)) {
+        e = apr_bucket_eos_create(r->connection->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+    }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+    /* If we have added something to the brigade above, send it */
+    if (!APR_BRIGADE_EMPTY(output_brigade)
+        && ap_pass_brigade(r->output_filters, output_brigade) != APR_SUCCESS) {
+        rv = AP_FILTER_ERROR;
+    }
 
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    apr_brigade_destroy(output_brigade);
+
+    if (apr_table_get(r->subprocess_env, "proxy-nokeepalive")) {
+        conn->close = 1;
+    }

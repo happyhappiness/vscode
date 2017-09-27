@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
-
-static int asis_handler(request_rec *r)
+static int lua_auth_checker_harness_last(request_rec *r)
 {
-    FILE *f;
-    char *location;
+    return lua_request_rec_hook_harness(r, "auth_checker", AP_LUA_HOOK_LAST);
+}
+static void lua_insert_filter_harness(request_rec *r)
+{
+    /* ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "LuaHookInsertFilter not yet implemented"); */
+}
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+static int lua_log_transaction_harness(request_rec *r)
+{
+    return lua_request_rec_hook_harness(r, "log_transaction", APR_HOOK_FIRST);
+}

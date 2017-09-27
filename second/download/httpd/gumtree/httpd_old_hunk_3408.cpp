@@ -1,14 +1,23 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+     */
+    apr_procattr_create(&attr, ptemp);
+    apr_procattr_cmdtype_set(attr, APR_PROGRAM);
+    apr_procattr_detach_set(attr, 1);
+    if (((rv = apr_filepath_get(&cwd, 0, ptemp)) != APR_SUCCESS)
+           || ((rv = apr_procattr_dir_set(attr, cwd)) != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to get the current path");
+    }
+
+    if (!args) {
+        /* Build the args array, only once since it won't change
+         * for the lifetime of this parent process.
+         */
+        if ((rv = ap_os_proc_filepath(&cmd, ptemp))
+                != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, ERROR_BAD_PATHNAME, ap_server_conf,
+                         "Parent: Failed to get full path of %s",
+                         ap_server_conf->process->argv[0]);
+            apr_pool_destroy(ptemp);
+            return -1;
+        }
+

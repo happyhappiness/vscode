@@ -1,16 +1,12 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "can't open translation %s->%s",
+                          dc->charset_default, dc->charset_source);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    return DECLINED;
+}
+
+static int configured_in_list(request_rec *r, const char *filter_name,

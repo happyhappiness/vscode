@@ -1,0 +1,1 @@
+fprintf(stderr, "Invalid -n argument\n");

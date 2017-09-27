@@ -1,16 +1,19 @@
-#define APLOG_MARK	__FILE__,__LINE__
+"<tr><th>SS</th><td>Seconds since beginning of most recent request</td></tr>\n \
+<tr><th>Req</th><td>Milliseconds required to process most recent request</td></tr>\n \
+<tr><th>Conn</th><td>Kilobytes transferred this connection</td></tr>\n \
+<tr><th>Child</th><td>Megabytes transferred this child</td></tr>\n \
+<tr><th>Slot</th><td>Total megabytes transferred this slot</td></tr>\n \
+</table>\n", r);
+            ap_rputs("<hr />\n<table>\n\
+<tr><th>Vhost</th><th>Seconds since last used</th></tr>\n", r);
+            for (i = 0; i < arr->nelts; i++) {
+                ap_rprintf(r, "<tr><td><pre>%s</pre></td><td><pre>%27s</pre></td></tr>\n",
+                           elts[i].key, elts[i].val);
+            }
+            ap_rputs("</table>\n", r);
+        }
+    } /* if (ap_extended_status && !short_report) */
+    else {
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
-
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800
+        if (!short_report) {
+            ap_rputs("<hr />To obtain a full report with current status "

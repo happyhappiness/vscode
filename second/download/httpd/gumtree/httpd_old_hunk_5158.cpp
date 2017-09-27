@@ -1,13 +1,29 @@
-				     domain, NULL);
-    nuri = ap_unparse_uri_components(r->pool,
-				  &r->parsed_uri,
-				  UNP_REVEALPASSWORD);
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
+        }
+    }
 
-    ap_table_set(r->headers_out, "Location", nuri);
-    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r->server,
-		"Domain missing: %s sent to %s%s%s", r->uri,
-		ap_unparse_uri_components(r->pool, &r->parsed_uri,
-		      UNP_OMITUSERINFO),
-		ref ? " from " : "", ref ? ref : "");
+    if (balancer->failontimeout
+        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->s->name, worker->s->name);
+        worker->s->status |= PROXY_WORKER_IN_ERROR;
+        worker->s->error_time = apr_time_now();
 
-    return HTTP_MOVED_PERMANENTLY;
+    }
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {

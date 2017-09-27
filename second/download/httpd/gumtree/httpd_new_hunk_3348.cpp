@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    /* Set up an OS/2 queue for passing connections & termination requests
+     * to worker threads
+     */
+    rc = DosCreateQueue(&workq, QUE_FIFO, apr_psprintf(pchild, "/queues/httpd/work.%d", my_pid));
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00193)
+                     "unable to create work queue, exiting");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+    /* Create initial pool of worker threads */
+    for (c = 0; c < ap_min_spare_threads; c++) {

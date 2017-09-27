@@ -1,27 +1,25 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+            b = apr_bucket_transient_create(shi->pszHeader + ate,
+                                            shi->cchHeader - ate,
+                                            c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,

@@ -1,13 +1,12 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
+            /* Per MSDN, cancel the inherited association of this socket
+             * to the WSAEventSelect API, and restore the state corresponding
+             * to apr_os_sock_make's default assumptions (really, a flaw within
+             * os_sock_make and os_sock_put that it does not query).
+             */
+            WSAEventSelect(context->accept_socket, 0, 0);
+            err_count = 0;
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+            context->sa_server_len = sizeof(context->buff) / 2;
+            if (getsockname(context->accept_socket, context->sa_server,
+                            &context->sa_server_len) == SOCKET_ERROR) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, APLOGNO(00346)

@@ -1,19 +1,13 @@
-        ap_fixup_virtual_hosts(pconf, server_conf);
-        ap_fini_vhost_config(pconf, server_conf);
-        apr_hook_sort_all();
-        apr_pool_clear(plog);
-        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Unable to open logs\n");
-            destroy_and_exit_process(process, 1);
-        }
+                ret = apr_poll(pollset, num_listensocks, &n, -1);
+                if (ret != APR_SUCCESS) {
+                    if (APR_STATUS_IS_EINTR(ret)) {
+                        continue;
+                    }
 
-        if (ap_run_post_config(pconf, plog, ptemp, server_conf) != OK) {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                         0, NULL, "Configuration Failed\n");
-            destroy_and_exit_process(process, 1);
-        }
-
-        apr_pool_destroy(ptemp);
-        apr_pool_lock(pconf, 1);
+                    /* apr_poll() will only return errors in catastrophic
+                     * circumstances. Let's try exiting gracefully, for now. */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
+                                 ap_server_conf, "apr_poll: (listen)");
+                    signal_threads(ST_GRACEFUL);
+                }
 

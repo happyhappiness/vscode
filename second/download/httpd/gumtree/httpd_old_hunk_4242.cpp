@@ -1,28 +1,12 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
+                                       apr_size_t *readlen);
 
-    sub_garbage_coll(r, files, cachedir, "/");
+static int is_accepting_streams(h2_session *session); 
+static void dispatch_event(h2_session *session, h2_session_event_t ev, 
+                             int err, const char *msg);
 
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
+typedef struct stream_sel_ctx {
+    h2_session *session;
+    h2_stream *candidate;
+} stream_sel_ctx;
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+static int find_cleanup_stream(void *udata, void *sdata)

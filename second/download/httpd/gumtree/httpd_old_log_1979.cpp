@@ -1,3 +1,4 @@
-printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
-       "<td colspan=2 %s>%ld bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalbread);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                          "proxy: error processing body.%s",
+                                          r->connection->aborted ?
+                                          " Client aborted connection." : "");

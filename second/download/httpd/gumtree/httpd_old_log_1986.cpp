@@ -1,5 +1,3 @@
-printf("<tr %s><th %s>Total:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot, tdstring, total / requests, tdstring, maxtot);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                            "proxy: BALANCER: Found value %s for "
+                            "stickysession %s", *route, balancer->sticky);

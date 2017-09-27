@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "inside shmcb_retrieve_session");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: header only");

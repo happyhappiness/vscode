@@ -1,1 +1,1 @@
-ap_rputs("<hr />\n", r);
+ap_rputs("<tr>", r);

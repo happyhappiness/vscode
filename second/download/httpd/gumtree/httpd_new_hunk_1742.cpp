@@ -1,28 +1,26 @@
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
+
+    /* Check that all client certs have got certificates and private
+     * keys. */
+    for (n = 0; n < ncerts; n++) {
+        X509_INFO *inf = sk_X509_INFO_value(sk, n);
+
+        if (!inf->x509 || !inf->x_pkey) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die();
+            return;
+        }
     }
 
-    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
-    if (((rv = apr_file_open_stdout(&child_out, p))
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
-    }
-    if (((rv = apr_file_open_stderr(&child_err, p))
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stderr");
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
+}
 
-    /* Create the child_ready_event */
-    waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!waitlist[waitlist_ready]) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Could not create ready event for child process");
-        apr_pool_destroy (ptemp);
+static void ssl_init_proxy_ctx(server_rec *s,
+                               apr_pool_t *p,
+                               apr_pool_t *ptemp,
+                               SSLSrvConfigRec *sc)

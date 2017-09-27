@@ -1,21 +1,13 @@
-        ap_method_registry_init(p);
-    }
+        apr_finfo_t direntry;
+        apr_int32_t finfo_flags = APR_FINFO_TYPE|APR_FINFO_NAME;
+        apr_status_t rv;
 
-    if (methname == NULL) {
-        return M_INVALID;
-    }
-    
-    /* Check if the method was previously registered.  If it was
-     * return the associated method number.
-     */
-    methnum = (int *)apr_hash_get(methods_registry, methname,
-                                  APR_HASH_KEY_STRING);
-    if (methnum != NULL)
-        return *methnum;
-        
-    if (cur_method_number > METHOD_NUMBER_LAST) {
-        /* The method registry  has run out of dynamically
-         * assignable method numbers. Log this and return M_INVALID.
-         */
-        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p,
-                      "Maximum new request methods %d reached while "
+        if ((rv = apr_dir_open(&dir, ca_path, ptemp)) != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                    "Failed to open SSLCACertificatePath `%s'",
+                    ca_path);
+            ssl_die();
+        }
+
+        while ((apr_dir_read(&direntry, finfo_flags, dir)) == APR_SUCCESS) {
+            const char *file;

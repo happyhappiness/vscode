@@ -1,1 +1,0 @@
-fprintf(stderr,"       ./redis-server -v or --version\n");

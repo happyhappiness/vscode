@@ -1,22 +1,13 @@
-	}
-    }
-    if (!found) {
-	printf("Adding user %s\n", user);
-	add_password(user, tfp);
-    }
-/*
-* make a copy from the tmp file to the actual file
-*/  
-        rewind(f);
-        rewind(tfp);
-        while ( fgets(command,MAX_STRING_LEN,tfp) != NULL)
-        {
-                fputs(command,f);
-        } 
-
-    fclose(f);
-    fclose(tfp);
-    unlink(tn);
-    exit(0);
-}
-++ apache_1.3.1/src/support/logresolve.c	1998-07-13 19:32:58.000000000 +0800
+                    ap_rprintf(r,
+                               "          <httpd:keepalive>%s</httpd:keepalive>\n",
+                               (worker->s->keepalive ? "On" : "Off"));
+                }
+                /* Begin proxy_worker_stat */
+                ap_rputs("          <httpd:status>", r);
+                ap_rputs(ap_proxy_parse_wstatus(r->pool, worker), r);
+                ap_rputs("</httpd:status>\n", r);
+                if ((worker->s->error_time > 0) && apr_rfc822_date(date, worker->s->error_time) == APR_SUCCESS) {
+                    ap_rvputs(r, "          <httpd:error_time>", date,
+                              "</httpd:error_time>\n", NULL);
+                }
+                ap_rprintf(r,

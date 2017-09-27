@@ -1,1 +1,0 @@
-luaL_argerror(L, 1, msg);

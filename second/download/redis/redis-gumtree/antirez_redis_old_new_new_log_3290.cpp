@@ -1,1 +1,0 @@
-tval += time(NULL);

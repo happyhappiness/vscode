@@ -1,26 +1,39 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+        apr_file_printf(fp, "%s &ready=%u&busy=%u&lastseen=%u&port=%u\n",
+                        s->ip, s->ready, s->busy, (unsigned int) seen, s->port);
+    }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    rv = apr_file_flush(fp);
+    if (rv) {
+      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to flush file: %s", path);
+      return rv;
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
+    rv = apr_file_close(fp);
+    if (rv) {
+      ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to close file: %s", path);
+      return rv;
+    }
+  
+    rv = apr_file_perms_set(path,
+                            APR_FPROT_UREAD | APR_FPROT_GREAD |
+                            APR_FPROT_WREAD);
+    if (rv && rv != APR_INCOMPLETE) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to set file permssions on %s",
+                     path);
+        return rv;
+    }
 
-	    /* Nuke trailing whitespace */
+    rv = apr_file_rename(path, ctx->storage_path, pool);
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to move file: %s -> %s", path,
+                     ctx->storage_path);
+        return rv;
+    }
 
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    return APR_SUCCESS;
+}

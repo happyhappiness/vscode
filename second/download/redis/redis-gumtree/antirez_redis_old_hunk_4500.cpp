@@ -1,9 +1,0 @@
-        server.lastsave,
-        server.stat_numconnections,
-        server.stat_numcommands,
-        uptime,
-        uptime/(3600*24)
-    );
-    addReplySds(c,sdscatprintf(sdsempty(),"$%d\r\n",sdslen(info)));
-    addReplySds(c,info);
-    addReply(c,shared.crlf);

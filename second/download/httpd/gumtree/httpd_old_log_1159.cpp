@@ -1,1 +1,1 @@
-printf("    %s{", OP_names[code[3]]);
+printf("    [^\\x%02x]{", c);

@@ -1,1 +1,1 @@
-printf("    [");
+(*code == OP_CRMINRANGE;

@@ -1,13 +1,17 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
+        }
+        msg = ap_expr_str_exec(r, entry->msg_expr, &err);
+        if (err)
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00641)
+                          "Can't evaluate message expression: %s", err);
+        if (APLOGrdebug(r))
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%s (%s hook, %s:%d)",
+                           msg, hookname, entry->msg_expr->filename,
+                           entry->msg_expr->line_number);
+        else
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%s", msg);
     }
+}
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+static int log_debug_log_transaction(request_rec *r)
+{
+    do_debug_log(r, hooks[0]);

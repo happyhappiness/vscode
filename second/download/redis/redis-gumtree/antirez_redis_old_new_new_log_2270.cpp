@@ -1,1 +1,0 @@
-fprintf(stderr,"I/O Error reading RDB payload from socket\n");

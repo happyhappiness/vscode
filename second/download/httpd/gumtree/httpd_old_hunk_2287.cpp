@@ -1,26 +1,15 @@
+    char *user = r->user;
+    const char *t, *w;
+    apr_table_t *grpstatus = NULL;
+    apr_status_t status;
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+    if (!user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
     }
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    /* If there is no group file - then we are not
+     * configured. So decline.
+     */
+    if (!(conf->groupfile)) {

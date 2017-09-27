@@ -1,21 +1,20 @@
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.12 $> apache-2.0");
+	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+	printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");
+	printf("\n");
+    }
+    else {
+	printf("<p>\n");
+	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
+	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+	printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
+	printf("</p>\n<p>\n");
+    }
+}
 
-        result = apr_global_mutex_create(&st->util_ldap_cache_lock, st->lock_file, APR_LOCK_DEFAULT, st->pool);
-        if (result != APR_SUCCESS) {
-            return result;
-        }
-
-#ifdef UTIL_LDAP_SET_MUTEX_PERMS
-        result = unixd_set_global_mutex_perms(st->util_ldap_cache_lock);
-        if (result != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, result, s, 
-                         "LDAP cache: failed to set mutex permissions");
-            return result;
-        }
-#endif
-
-        /* merge config in all vhost */
-        s_vhost = s->next;
-        while (s_vhost) {
-            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-
-#if APR_HAS_SHARED_MEMORY
+/* display usage information */
+static void usage(const char *progname)

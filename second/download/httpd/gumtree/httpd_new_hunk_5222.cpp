@@ -1,13 +1,20 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-        ap_die(BAD_REQUEST, r);
-        return;
+        retained = ap_retained_data_create(userdata_key, sizeof(*retained));
+        retained->max_daemons_limit = -1;
+        retained->idle_spawn_rate = 1;
     }
+    ++retained->module_loads;
+    if (retained->module_loads == 2) {
+        /* test for correct operation of fdqueue */
+        static apr_uint32_t foo1, foo2;
 
-    /* Ignore embedded %2F's in path for proxy requests */
+        apr_atomic_set32(&foo1, 100);
+        foo2 = apr_atomic_add32(&foo1, -10);
+        if (foo2 != 100 || foo1 != 90) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected - add32 of negative number");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        rv = apr_pollset_create(&event_pollset, 1, plog,
+                                APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)

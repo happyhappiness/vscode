@@ -1,46 +1,18 @@
-                /* Probably a mod_disk_cache cache area has been (re)mounted
-                 * read-only, or that there is a permissions problem.
-                 */
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: attempt to remove url from cache unsuccessful.");
-            }
+                                                       &authn_file_module);
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    apr_status_t status;
+    char *file_password = NULL;
 
-        }
-
-        /* let someone else attempt to cache */
-        ap_cache_remove_lock(conf, r, cache->handle ?
-                (char *)cache->handle->cache_obj->key : NULL, NULL);
-
-        return ap_pass_brigade(f->next, bb);
+    if (!conf->pwfile) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "AuthUserFile not specified in the configuration");
+        return AUTH_GENERAL_ERROR;
     }
 
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: store_headers failed");
+    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
 
-        ap_remove_output_filter(f);
-        ap_cache_remove_lock(conf, r, cache->handle ?
-                (char *)cache->handle->cache_obj->key : NULL, NULL);
-        return ap_pass_brigade(f->next, in);
-    }
-
-    rv = cache->provider->store_body(cache->handle, r, in);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: store_body failed");
-        ap_remove_output_filter(f);
-        ap_cache_remove_lock(conf, r, cache->handle ?
-                (char *)cache->handle->cache_obj->key : NULL, NULL);
-        return ap_pass_brigade(f->next, in);
-    }
-
-    /* proactively remove the lock as soon as we see the eos bucket */
-    ap_cache_remove_lock(conf, r, cache->handle ?
-            (char *)cache->handle->cache_obj->key : NULL, in);
-
-    return ap_pass_brigade(f->next, in);
-}
-
-/*
- * CACHE_REMOVE_URL filter
- * ---------------
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);
+        return AUTH_GENERAL_ERROR;

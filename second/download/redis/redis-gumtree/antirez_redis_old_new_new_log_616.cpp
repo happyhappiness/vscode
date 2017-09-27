@@ -1,1 +1,0 @@
-addReplyError(c,"SCRIPT DEBUG must be called outside a pipeline");

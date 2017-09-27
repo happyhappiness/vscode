@@ -1,22 +1,13 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s client stopped connection before %s completed",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s timed out for %s",
-			timeout_name ? timeout_name : "request",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-	}
+    if (conflict) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: Name-based SSL virtual hosts require "
+                     "an OpenSSL version with support for TLS extensions "
+                     "(RFC 6066 - Server Name Indication / SNI), "
+                     "but the currently used library version (%s) is "
+                     "lacking this feature", SSLeay_version(SSLEAY_VERSION));
     }
+#endif
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+    return APR_SUCCESS;
+}
+

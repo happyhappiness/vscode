@@ -1,13 +1,47 @@
-         rv = apr_file_open(&fd, fname, xfer_flags, xfer_perms, p);
-         if (rv != APR_SUCCESS) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                             "could not open transfer log file %s.", fname);
-             return NULL;
-         }
--        apr_file_inherit_set(fd);
-         return fd;
-     }
- }
- static void *ap_buffered_log_writer_init(apr_pool_t *p, server_rec *s, 
-                                         const char* name)
- {
+             b = apr_bucket_pool_create(buf, 8, r->pool, f->c->bucket_alloc);
+             APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+             ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                           "Zlib: Compressed %ld to %ld : URL %s",
+                           ctx->stream.total_in, ctx->stream.total_out, r->uri);
+ 
+-            if (c->noteName) {
+-                if (ctx->stream.total_in > 0) {
+-                    int total;
++            /* leave notes for logging */
++            if (c->note_input_name) {
++                apr_table_setn(r->notes, c->note_input_name,
++                               (ctx->stream.total_in > 0)
++                                ? apr_off_t_toa(r->pool,
++                                                ctx->stream.total_in)
++                                : "-");
++            }
+ 
+-                    total = ctx->stream.total_out * 100 / ctx->stream.total_in;
++            if (c->note_output_name) {
++                apr_table_setn(r->notes, c->note_output_name,
++                               (ctx->stream.total_in > 0)
++                                ? apr_off_t_toa(r->pool,
++                                                ctx->stream.total_out)
++                                : "-");
++            }
+ 
+-                    apr_table_setn(r->notes, c->noteName,
+-                                   apr_itoa(r->pool, total));
+-                }
+-                else {
+-                    apr_table_setn(r->notes, c->noteName, "-");
+-                }
++            if (c->note_ratio_name) {
++                apr_table_setn(r->notes, c->note_ratio_name,
++                               (ctx->stream.total_in > 0)
++                                ? apr_itoa(r->pool,
++                                           (int)(ctx->stream.total_out
++                                                 * 100
++                                                 / ctx->stream.total_in))
++                                : "-");
+             }
+ 
+             deflateEnd(&ctx->stream);
+ 
+             /* Remove EOS from the old list, and insert into the new. */
+             APR_BUCKET_REMOVE(e);

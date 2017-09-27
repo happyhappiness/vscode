@@ -1,22 +1,20 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
     }
-    ap_unblock_alarms();
-}
+    else {
+        user = "anonymous";
+        password = "apache-proxy@";
+    }
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+       "proxy: FTP: connecting %s to %s:%d", url, connectname, connectport);
+
+    if (worker->is_address_reusable) {
+        if (!worker->cp->addr) {
+            if ((err = PROXY_THREAD_LOCK(worker)) != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
+                             "proxy: FTP: lock");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        connect_addr = worker->cp->addr;
+        address_pool = worker->cp->pool;
+    }

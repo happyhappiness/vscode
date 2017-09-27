@@ -1,36 +1,39 @@
-#endif
+     * data. The sockets have been set to listening in the parent process.
+     *
+     * *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00403)
+                     "Child: Waiting for data for listening socket %pI",
+                     lr->bind_addr);
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO),
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00404)
+                         "Child: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);
+        }
 
-    ap_soft_timeout("send body", r);
+        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,
+                        &WSAProtocolInfo, 0, 0);
+        if (nsd == INVALID_SOCKET) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf, APLOGNO(00405)
+                         "Child: WSASocket failed to open the inherited socket");
+            exit(APEXIT_CHILDINIT);
+        }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+        if (!SetHandleInformation((HANDLE)nsd, HANDLE_FLAG_INHERIT, 0)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf, APLOGNO(00406)
+                         "Child: SetHandleInformation failed");
+        }
+        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
+    }
 
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00407)
+                 "Child: retrieved %d listeners from parent", lcnt);
+}
+
+
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
+{

@@ -1,13 +1,16 @@
-    rr->content_type = CGI_MAGIC_TYPE;
-
-    /* Run it. */
-
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
     }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00300)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00301)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }

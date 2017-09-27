@@ -1,12 +1,12 @@
-                }
-            }
+            return LDAP_NO_SUCH_ATTRIBUTE;
         }
-        else if (strcmp(w, "ldap-group") == 0) {
-            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
-            int i;
+    }
+    return result;
+}
 
-            if (sec->group_attrib_is_dn) {
-                if (req->dn == NULL || strlen(req->dn) == 0) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
-                                  "user's DN has not been defined; failing authorisation",
+static int uldap_cache_checkuserid(request_rec *r, util_ldap_connection_t *ldc,
+                                   const char *url, const char *basedn,
+                                   int scope, char **attrs, const char *filter,
+                                   const char *bindpw, const char **binddn,
+                                   const char ***retvals)
+{

@@ -1,14 +1,13 @@
-                        continue;
-                    }
-                    else if (rv == APR_EOF) {
-                        break;
-                    }
-                    else if (rv != APR_SUCCESS) {
-                        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                                      "proxy: error reading response");
-                        break;
-                    }
-                    /* next time try a non-blocking read */
-                    mode = APR_NONBLOCK_READ;
+            else /* if (ssl_err == SSL_ERROR_SSL) */ {
+                /*
+                 * Log SSL errors and any unexpected conditions.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
 
-                    apr_brigade_length(bb, 0, &readbytes);
+            }
+            if (inctx->rc == APR_SUCCESS) {
+                inctx->rc = APR_EGENERAL;
+            }
+            break;

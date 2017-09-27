@@ -1,25 +1,25 @@
-                     "sigaction(SIGHUP)");
-    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+	getword(x, l, ':');
+	if (strcmp(user, w) || strcmp(realm, x)) {
+	    putline(tfp, line);
+	    continue;
+	}
+	else {
+	    printf("Changing password for user %s in realm %s\n", user, realm);
+	    add_password(user, realm, tfp);
+	    found = 1;
+	}
+    }
+    if (!found) {
+	printf("Adding user %s in realm %s\n", user, realm);
+	add_password(user, realm, tfp);
+    }
+    apr_file_close(f);
+#if defined(OS2) || defined(WIN32)
+    sprintf(command, "copy \"%s\" \"%s\"", tn, argv[1]);
 #else
-    if (!one_process) {
-        apr_signal(SIGSEGV, sig_coredump);
-#ifdef SIGBUS
-        apr_signal(SIGBUS, sig_coredump);
-#endif /* SIGBUS */
-#ifdef SIGABORT
-        apr_signal(SIGABORT, sig_coredump);
-#endif /* SIGABORT */
-#ifdef SIGABRT
-        apr_signal(SIGABRT, sig_coredump);
-#endif /* SIGABRT */
-#ifdef SIGILL
-        apr_signal(SIGILL, sig_coredump);
-#endif /* SIGILL */
-#ifdef SIGXCPU
-        apr_signal(SIGXCPU, SIG_DFL);
-#endif /* SIGXCPU */
-#ifdef SIGXFSZ
-        apr_signal(SIGXFSZ, SIG_DFL);
-#endif /* SIGXFSZ */
+    sprintf(command, "cp %s %s", tn, argv[1]);
+#endif
+    system(command);
+    apr_file_close(tfp);
+    return 0;
+}

@@ -1,18 +1,14 @@
-	exit(0);
+    rv = apr_socket_close(csd);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00468) "error closing socket");
+        AP_DEBUG_ASSERT(0);
     }
-    else if (argc != 3)
-	usage();
+    ap_push_pool(worker_queue_info, cs->p);
+    if (dying)
+        ap_queue_interrupt_one(worker_queue);
+    return 0;
+}
 
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w+"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
-
-    if (!(f = fopen(argv[1], "r+"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+/*
+ * This runs before any non-MPM cleanup code on the connection;
+ * if the connection is currently suspended as far as modules

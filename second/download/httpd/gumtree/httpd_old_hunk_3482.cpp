@@ -1,20 +1,19 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
-    }
+                if (fold_len >= (apr_size_t)(r->server->limit_req_fieldsize)) {
+                    r->status = HTTP_BAD_REQUEST;
+                    /* report what we have accumulated so far before the
+                     * overflow (last_field) as the field with the problem
+                     */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Size of a request header field "
+                                               "after folding "
+                                               "exceeds server limit.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool, last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+                if (fold_len > alloc_len) {
+                    char *fold_buf;
+                    alloc_len += alloc_len;

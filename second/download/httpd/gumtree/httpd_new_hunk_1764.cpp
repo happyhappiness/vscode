@@ -1,14 +1,13 @@
-            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
-            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
-            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
-            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n</form>\n", NULL);
-            ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
-                      balancer_nonce, "\">\n", NULL);
-            ap_rputs("<hr />\n", r);
-        }
-        ap_rputs(ap_psignature("",r), r);
-        ap_rputs("</body></html>\n", r);
-    }
-    return OK;
+            !modssl_set_cipher_list(ssl, dc->szCipherSuite ?
+                                         dc->szCipherSuite :
+                                         sc->server->auth.cipher_suite)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unable to reconfigure (per-directory) "
+                          "permitted SSL ciphers");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
+
+            if (cipher_list_old) {
+                sk_SSL_CIPHER_free(cipher_list_old);
+            }
+
+            return HTTP_FORBIDDEN;

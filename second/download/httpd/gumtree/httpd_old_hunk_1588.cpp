@@ -1,13 +1,16 @@
-                         r->status);
-        }
-        /* Moved the fixups of Date headers and those affected by
-         * ProxyPassReverse/etc from here to ap_proxy_read_headers
-         */
+             */
+            rv = apr_file_write_full(tempsock, data, len, NULL);
 
-        if ((r->status == 401) && (conf->error_override != 0)) {
-            const char *buf;
-            const char *wa = "WWW-Authenticate";
-            if ((buf = apr_table_get(r->headers_out, wa))) {
-                apr_table_set(r->err_headers_out, wa, buf);
-            } else {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, 
+                              "Error writing request body to script %s", 
+                              r->filename);
+
+            }
+        }
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
+

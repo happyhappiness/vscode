@@ -1,14 +1,13 @@
-            output_results();
-        }
+    for (i = 0; apr_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i) {
+        continue;
+    }
 
-        /* Timeout of 30 seconds. */
-        timeout.tv_sec = 30;
-        timeout.tv_usec = 0;
-        n = ap_select(FD_SETSIZE, &sel_read, &sel_write, &sel_except, &timeout);
-        if (!n) {
-            printf("\nServer timed out\n\n");
-            exit(1);
-        }
-        if (n < 1)
-            err("select");
-++ apache_1.3.1/src/support/htdigest.c	1998-07-13 19:32:58.000000000 +0800
+#if 0
+    if (addr[i] == ':') {
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(03234)
+                     "@@@@ handle optional port in proxy_is_domainname()");
+    /* @@@@ handle optional port */
+    }
+#endif
+
+    if (addr[i] != '\0') {

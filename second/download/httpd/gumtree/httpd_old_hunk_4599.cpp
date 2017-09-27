@@ -1,40 +1,18 @@
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_REQUEST_TIME_OUT;  /* Until we get a request */
-    r->the_request     = NULL;
-
-    /* Get the request... */
-
-#ifdef CHARSET_EBCDIC
-    ap_bsetflag(r->connection->client, B_ASCII2EBCDIC|B_EBCDIC2ASCII, 1);
-#endif /* CHARSET_EBCDIC */
-    ap_keepalive_timeout("read request line", r);
-    if (!read_request_line(r)) {
-        ap_kill_timeout(r);
-	if (r->status != HTTP_REQUEST_TIME_OUT) {
-	    /* we must have had an error.*/
-	    ap_log_transaction(r);
-	}
-        return NULL;
-    }
-    if (!r->assbackwards) {
-        ap_hard_timeout("read request headers", r);
-        get_mime_headers(r);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {/* we must have had an error.*/
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		         "request failed for %s: error reading the headers",
-		         ap_get_remote_host(r->connection, r->per_dir_config, 
-					    REMOTE_NAME));
-	    ap_log_transaction(r);
-	    return NULL;
-	}
-
-    }
-    ap_kill_timeout(r);
-
-    r->status = HTTP_OK;                         /* Until further notice. */
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read
-     */
+        apr_sha1_final(digest, &sha1);
+        encoded_len = apr_base64_encode_len(APR_SHA1_DIGESTSIZE);
+        if (encoded_len) {
+            encoded = apr_palloc(r->pool, encoded_len);
+            encoded_len = apr_base64_encode(encoded, (char*) digest, APR_SHA1_DIGESTSIZE);
+            r->status = 101;
+            apr_table_set(r->headers_out, "Upgrade", "websocket");
+            apr_table_set(r->headers_out, "Connection", "Upgrade");
+            apr_table_set(r->headers_out, "Sec-WebSocket-Accept", encoded);
+            
+            /* Trick httpd into NOT using the chunked filter, IMPORTANT!!!111*/
+            apr_table_set(r->headers_out, "Transfer-Encoding", "chunked");
+            
+            r->clength = 0;
+            r->bytes_sent = 0;
+            r->read_chunked = 0;
+            ap_rflush(r);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03012) 

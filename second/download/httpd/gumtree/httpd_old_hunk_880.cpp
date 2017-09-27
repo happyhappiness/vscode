@@ -1,103 +1,92 @@
-                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k install|config|uninstall] [-n service_name]",
-                 pad);
-#endif
-#ifdef AP_MPM_WANT_SIGNAL_SERVER
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-k start|restart|graceful|stop]",
-                 pad);
-#endif
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "Options:");
+            closesocket(qhead->accept_socket);
+            qhead = qhead->next;
+        }
+        apr_thread_mutex_unlock(qlock);
+    }
 
-#ifdef SHARED_CORE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory      : specify an alternate location for "
-                 "shared object files");
-#endif
+    /* Give busy threads a chance to service their connections,
+     * (no more than the global server timeout period which 
+     * we track in msec remaining).
+     */
+    watch_thread = 0;
+    time_remains = (int)(ap_server_conf->timeout / APR_TIME_C(1000));
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -D name           : define a name for use in "
-                 "<IfDefine name> directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -d directory      : specify an alternate initial "
-                 "ServerRoot");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -f file           : specify an alternate ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -C \"directive\"    : process directive before reading "
-                 "config files");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -c \"directive\"    : process directive after reading "
-                 "config files");
+    while (threads_created)
+    {
+        int nFailsafe = MAXIMUM_WAIT_OBJECTS;
+        DWORD dwRet;
 
-#ifdef NETWARE
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set screen name");
-#endif
-#ifdef WIN32
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set service name and use its "
-                 "ServerConfigFile");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k start          : tell Apache to start");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k restart        : tell running Apache to do a graceful "
-                 "restart");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k stop|shutdown  : tell running Apache to shutdown");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k install        : install an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k config         : change startup Options of an Apache "
-                 "service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k uninstall      : uninstall an Apache service");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -w                : hold open the console window on error");
-#endif
+        /* Every time we roll over to wait on the first group
+         * of MAXIMUM_WAIT_OBJECTS threads, take a breather,
+         * and infrequently update the error log.
+         */
+        if (watch_thread >= threads_created) {
+            if ((time_remains -= 100) < 0)
+                break;
 
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -e level          : show startup errors of level "
-                 "(see LogLevel)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -E file           : log startup errors to file");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -v                : show version number");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -V                : show compile settings");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -h                : list available command line options "
-                 "(this page)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -l                : list compiled in modules");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -L                : list available configuration "
-                 "directives");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t -D DUMP_VHOSTS : show parsed settings (currently only "
-                 "vhost settings)");
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");   
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+            /* Every 30 seconds give an update */
+            if ((time_remains % 30000) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);
+            }
+            /* We'll poll from the top, 10 times per second */
+            Sleep(100);
+            watch_thread = 0;
+        }
 
-    destroy_and_exit_process(process, 1);
-}
+        /* Fairness, on each iteration we will pick up with the thread
+         * after the one we just removed, even if it's a single thread.
+         * We don't block here.
+         */
+        dwRet = WaitForMultipleObjects(min(threads_created - watch_thread,
+                                           MAXIMUM_WAIT_OBJECTS),
+                                       child_handles + watch_thread, 0, 0);
 
-int main(int argc, const char * const argv[])
-{
-    char c;
-    int configtestonly = 0;
-    const char *confname = SERVER_CONFIG_FILE;
-    const char *def_server_root = HTTPD_ROOT;
-    const char *temp_error_log = NULL;
-    process_rec *process;
-    server_rec *server_conf;
-    apr_pool_t *pglobal;
-    apr_pool_t *pconf;
-    apr_pool_t *plog; /* Pool of log streams, reset _after_ each read of conf */
-    apr_pool_t *ptemp; /* Pool for temporary config stuff, reset often */
+        if (dwRet == WAIT_FAILED) {
+            break;
+        }
+        if (dwRet == WAIT_TIMEOUT) {
+            /* none ready */
+            watch_thread += MAXIMUM_WAIT_OBJECTS;
+            continue;
+        }
+        else if (dwRet >= WAIT_ABANDONED_0) {
+            /* We just got the ownership of the object, which
+             * should happen at most MAXIMUM_WAIT_OBJECTS times.
+             * It does NOT mean that the object is signaled.
+             */
+            if ((nFailsafe--) < 1)
+                break;
+        }
+        else {
+            watch_thread += (dwRet - WAIT_OBJECT_0);
+            if (watch_thread >= threads_created)
+                break;
+            cleanup_thread(child_handles, &threads_created, watch_thread);
+        }
+    }
+
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                     "Child %d: Terminating %d threads that failed to exit.", 
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);        
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    apr_thread_mutex_destroy(child_lock);
+

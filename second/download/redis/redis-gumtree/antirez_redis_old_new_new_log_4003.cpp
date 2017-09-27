@@ -1,1 +1,0 @@
-intlen = ll2string(buf+1,sizeof(buf)-1,(long long)len);

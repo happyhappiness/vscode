@@ -1,13 +1,12 @@
-                    "winnt_accept: getsockname error on listening socket, is IPv6 available?");
-        return 1;
-   }
-#endif
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
-    while (!shutdown_in_progress) {
-        if (!context) {
-            context = mpm_get_completion_context();
-            if (!context) {
-                /* Temporary resource constraint? */
-                Sleep(0);
+        if (ap_process_config_tree(server_conf, ap_conftree, process->pconf,
+                                   ptemp) != OK) {
+            destroy_and_exit_process(process, 1);
+        }
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        apr_pool_clear(plog);
+        if (ap_run_open_logs(pconf, plog, ptemp, server_conf) != OK) {
+            ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Unable to open logs");
+            destroy_and_exit_process(process, 1);
+        }

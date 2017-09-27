@@ -1,1 +1,0 @@
-printf("First char = \\x%02x%s\n", ch, caseless);

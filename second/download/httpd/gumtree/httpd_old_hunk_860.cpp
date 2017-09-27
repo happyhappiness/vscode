@@ -1,30 +1,23 @@
-        }
+
+    /* Initialize cross-process accept lock */
+    ap_lock_fname = apr_psprintf(_pconf, "%s.%" APR_PID_T_FMT,
+                                 ap_server_root_relative(_pconf, ap_lock_fname),
+                                 ap_my_pid);
+
+    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
+                               ap_accept_lock_mech, _pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        mpm_state = AP_MPMQ_STOPPING;
+        return 1;
     }
 
-    return NULL;
-}
-
-static const char *set_override(cmd_parms *cmd, void *d_, const char *l)
-{
-    core_dir_config *d = d_;
-    char *w;
-
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    d->override = OR_NONE;
-    while (l[0]) {
-        w = ap_getword_conf(cmd->pool, &l);
-        if (!strcasecmp(w, "Limit")) {
-            d->override |= OR_LIMIT;
-        }
-        else if (!strcasecmp(w, "Options")) {
-            d->override |= OR_OPTIONS;
-        }
-        else if (!strcasecmp(w, "FileInfo")) {
-            d->override |= OR_FILEINFO;
-        }
-        else if (!strcasecmp(w, "AuthConfig")) {
-            d->override |= OR_AUTHCFG;
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
+        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+#else
+    if (ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+#endif
+        rv = unixd_set_proc_mutex_perms(accept_mutex);
+        if (rv != APR_SUCCESS) {

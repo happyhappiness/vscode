@@ -1,1 +1,0 @@
-printf("Also check http://www.memtest86.com/ and http://pyropus.ca/software/memtester/");

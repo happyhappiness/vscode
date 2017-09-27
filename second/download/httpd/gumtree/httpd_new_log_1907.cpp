@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No AuthDBDUserRealmQuery has been specified");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
+                                  (ctx->remaining < 0) ? "(overflow)" : "");

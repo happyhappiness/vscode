@@ -1,167 +1,155 @@
-	else {
-	    cur = atol(str);
-	}
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-		     "Invalid parameters for %s", cmd->cmd->name);
-	return;
-    }
-    
-    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2))) {
-	max = atol(str);
+        APR_BRIGADE_INSERT_TAIL(bb, bucket);
     }
 
-    /* if we aren't running as root, cannot increase max */
-    if (geteuid()) {
-	limit->rlim_cur = cur;
-	if (max) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-			 "Must be uid 0 to raise maximum %s", cmd->cmd->name);
-	}
-    }
-    else {
-        if (cur) {
-	    limit->rlim_cur = cur;
-	}
-        if (max) {
-	    limit->rlim_max = max;
-	}
-    }
+    return APR_SUCCESS;
 }
-#endif
 
-#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
-static const char *no_set_limit(cmd_parms *cmd, core_dir_config *conf,
-				char *arg, char *arg2)
+
+/* ssl_io_filter_output() produces one SSL/TLS message per bucket
+ * passed down the output filter stack.  This results in a high
+ * overhead (network packets) for any output comprising many small
+ * buckets.  SSI page applied through the HTTP chunk filter, for
+ * example, may produce many brigades containing small buckets -
+ * [chunk-size CRLF] [chunk-data] [CRLF].
+ *
+ * The coalescing filter merges many small buckets into larger buckets
+ * where possible, allowing the SSL I/O output filter to handle them
+ * more efficiently. */
+
+#define COALESCE_BYTES (2048)
+
+struct coalesce_ctx {
+    char buffer[COALESCE_BYTES];
+    apr_size_t bytes; /* number of bytes of buffer used. */
+};
+
+static apr_status_t ssl_io_filter_coalesce(ap_filter_t *f,
+                                           apr_bucket_brigade *bb)
 {
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-		"%s not supported on this platform", cmd->cmd->name);
-    return NULL;
-}
-#endif
+    apr_bucket *e, *last = NULL;
+    apr_size_t bytes = 0;
+    struct coalesce_ctx *ctx = f->ctx;
+    unsigned count = 0;
 
-#ifdef RLIMIT_CPU
-static const char *set_limit_cpu(cmd_parms *cmd, core_dir_config *conf, 
-				 char *arg, char *arg2)
+    /* The brigade consists of zero-or-more small data buckets which
+     * can be coalesced (the prefix), followed by the remainder of the
+     * brigade.
+     *
+     * Find the last bucket - if any - of that prefix.  count gives
+     * the number of buckets in the prefix.  The "prefix" must contain
+     * only data buckets with known length, and must be of a total
+     * size which fits into the buffer.
+     *
+     * N.B.: The process here could be repeated throughout the brigade
+     * (coalesce any run of consecutive data buckets) but this would
+     * add significant complexity, particularly to memory
+     * management. */
+    for (e = APR_BRIGADE_FIRST(bb);
+         e != APR_BRIGADE_SENTINEL(bb)
+             && !APR_BUCKET_IS_METADATA(e)
+             && e->length != (apr_size_t)-1
+             && e->length < COALESCE_BYTES
+             && (bytes + e->length) < COALESCE_BYTES
+             && (ctx == NULL
+                 || bytes + ctx->bytes + e->length < COALESCE_BYTES);
+         e = APR_BUCKET_NEXT(e)) {
+        last = e;
+        if (e->length) count++; /* don't count zero-length buckets */
+        bytes += e->length;
+    }
+
+    /* Coalesce the prefix, if:
+     * a) more than one bucket is found to coalesce, or
+     * b) the brigade contains only a single data bucket, or
+     * c)
+     */
+    if (bytes > 0
+        && (count > 1
+            || (count == 1 && APR_BUCKET_NEXT(last) == APR_BRIGADE_SENTINEL(bb)))) {
+        /* If coalescing some bytes, ensure a context has been
+         * created. */
+        if (!ctx) {
+            f->ctx = ctx = apr_palloc(f->c->pool, sizeof *ctx);
+            ctx->bytes = 0;
+        }
+
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                      "coalesce: have %" APR_SIZE_T_FMT " bytes, "
+                      "adding %" APR_SIZE_T_FMT " more", ctx->bytes, bytes);
+
+        /* Iterate through the prefix segment.  For non-fatal errors
+         * in this loop it is safe to break out and fall back to the
+         * normal path of sending the buffer + remaining buckets in
+         * brigade.  */
+        e = APR_BRIGADE_FIRST(bb);
+        while (e != last) {
+            apr_size_t len;
+            const char *data;
+            apr_bucket *next;
+
+            if (APR_BUCKET_IS_METADATA(e)
+                || e->length == (apr_size_t)-1) {
+                ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(02012)
+                              "unexpected bucket type during coalesce");
+                break; /* non-fatal error; break out */
+            }
+
+            if (e->length) {
+                apr_status_t rv;
+
+                /* A blocking read should be fine here for a
+                 * known-length data bucket, rather than the usual
+                 * non-block/flush/block.  */
+                rv = apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+                if (rv) {
+                    ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c, APLOGNO(02013)
+                                  "coalesce failed to read from data bucket");
+                    return AP_FILTER_ERROR;
+                }
+
+                /* Be paranoid. */
+                if (len > sizeof ctx->buffer
+                    || (len + ctx->bytes > sizeof ctx->buffer)) {
+                    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(02014)
+                                  "unexpected coalesced bucket data length");
+                    break; /* non-fatal error; break out */
+                }
+
+                memcpy(ctx->buffer + ctx->bytes, data, len);
+                ctx->bytes += len;
+            }
+
+            next = APR_BUCKET_NEXT(e);
+            apr_bucket_delete(e);
+            e = next;
+        }
+    }
+
+    if (APR_BRIGADE_EMPTY(bb)) {
+        /* If the brigade is now empty, our work here is done. */
+        return APR_SUCCESS;
+    }
+
+    /* If anything remains in the brigade, it must now be passed down
+     * the filter stack, first prepending anything that has been
+     * coalesced. */
+    if (ctx && ctx->bytes) {
+        apr_bucket *e;
+
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                      "coalesce: passing on %" APR_SIZE_T_FMT " bytes", ctx->bytes);
+
+        e = apr_bucket_transient_create(ctx->buffer, ctx->bytes, bb->bucket_alloc);
+        APR_BRIGADE_INSERT_HEAD(bb, e);
+        ctx->bytes = 0; /* buffer now emptied. */
+    }
+
+    return ap_pass_brigade(f->next, bb);
+}
+
+static apr_status_t ssl_io_filter_output(ap_filter_t *f,
+                                         apr_bucket_brigade *bb)
 {
-    set_rlimit(cmd, &conf->limit_cpu, arg, arg2, RLIMIT_CPU);
-    return NULL;
-}
-#endif
-
-#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
-static const char *set_limit_mem(cmd_parms *cmd, core_dir_config *conf, 
-				 char *arg, char * arg2)
-{
-#if defined(RLIMIT_AS)
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2 ,RLIMIT_AS);
-#elif defined(RLIMIT_DATA)
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_DATA);
-#elif defined(RLIMIT_VMEM)
-    set_rlimit(cmd, &conf->limit_mem, arg, arg2, RLIMIT_VMEM);
-#endif
-    return NULL;
-}
-#endif
-
-#ifdef RLIMIT_NPROC
-static const char *set_limit_nproc(cmd_parms *cmd, core_dir_config *conf,  
-				   char *arg, char * arg2)
-{
-    set_rlimit(cmd, &conf->limit_nproc, arg, arg2, RLIMIT_NPROC);
-    return NULL;
-}
-#endif
-
-static const char *set_bind_address(cmd_parms *cmd, void *dummy, char *arg) 
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    ap_bind_address.s_addr = ap_get_virthost_addr(arg, NULL);
-    return NULL;
-}
-
-static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
-{
-    listen_rec *new;
-    char *ports;
-    unsigned short port;
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    ports = strchr(ips, ':');
-    if (ports != NULL) {
-	if (ports == ips) {
-	    return "Missing IP address";
-	}
-	else if (ports[1] == '\0') {
-	    return "Address must end in :<port-number>";
-	}
-	*(ports++) = '\0';
-    }
-    else {
-	ports = ips;
-    }
-
-    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
-    new->local_addr.sin_family = AF_INET;
-    if (ports == ips) { /* no address */
-	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    }
-    else {
-	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
-    }
-    port = atoi(ports);
-    if (!port) {
-	return "Port must be numeric";
-    }
-    new->local_addr.sin_port = htons(port);
-    new->fd = -1;
-    new->used = 0;
-    new->next = ap_listeners;
-    ap_listeners = new;
-    return NULL;
-}
-
-static const char *set_listenbacklog(cmd_parms *cmd, void *dummy, char *arg) 
-{
-    int b;
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    b = atoi(arg);
-    if (b < 1) {
-        return "ListenBacklog must be > 0";
-    }
-    ap_listenbacklog = b;
-    return NULL;
-}
-
-static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
-{
-    struct stat finfo;
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-
-    arg = ap_server_root_relative(cmd->pool, arg);
-    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
-	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
-			  " does not exist or is not a directory", NULL);
-    }
-    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
-    return NULL;
-}
-
-static const char *include_config (cmd_parms *cmd, void *dummy, char *name)
+    apr_status_t status = APR_SUCCESS;
+    ssl_filter_ctx_t *filter_ctx = f->ctx;
+    bio_filter_in_ctx_t *inctx;

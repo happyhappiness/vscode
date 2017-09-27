@@ -1,1 +1,0 @@
-mem += zmalloc_size(server.repl_backlog);

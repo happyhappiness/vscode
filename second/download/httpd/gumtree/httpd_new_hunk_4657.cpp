@@ -1,26 +1,13 @@
-		    }   
-		}
-	    }
-	    break;
-	}
+    apr_status_t rv;
+    int i;
 
-	/*
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	/* blast trailing whitespace */
-	dst = &src[strlen(src)];
-	while (--dst >= src && ap_isspace(*dst))
-	    *dst = '\0';
-        /* Zap leading whitespace by shifting */
-        if (src != buf)
-	    for (dst = buf; (*dst++ = *src++) != '\0'; )
-	        ;
+    pconf = p;
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
-    } else {
+    /* the reverse of pre_config, we want this only the first time around */
+    if (retained->mpm->module_loads == 1) {
+        startup = 1;
+        level_flags |= APLOG_STARTUP;
+    }
+
+    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT | level_flags, 0,

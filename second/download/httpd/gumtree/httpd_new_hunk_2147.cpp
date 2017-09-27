@@ -1,18 +1,13 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
-
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+    if (DECLINED == access_status) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                    "proxy: No protocol handler was valid for the URL %s. "
+                    "If you are using a DSO version of mod_proxy, make sure "
+                    "the proxy submodules are included in the configuration "
+                    "using LoadModule.", r->uri);
+        access_status = HTTP_INTERNAL_SERVER_ERROR;
+        goto cleanup;
+    }
+cleanup:
+    if (balancer) {
+        int post_status = proxy_run_post_request(worker, balancer, r, conf);
+        if (post_status == DECLINED) {

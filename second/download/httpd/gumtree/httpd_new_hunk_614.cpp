@@ -1,15 +1,35 @@
-                /* if this is the last brigade, cleanup the
-                 * backend connection first to prevent the
-                 * backend server from hanging around waiting
-                 * for a slow client to eat these bytes
-                 */
-                ap_flush_conn(data);
-                if (data_sock) {
-                    apr_socket_close(data_sock);
-                }
-                data_sock = NULL;
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: FTP: data connection closed");
-                /* signal that we must leave */
-                finish = TRUE;
-            }
+    /* Seems IIS does not enforce the requirement for \r\n termination
+     * on HSE_REQ_SEND_RESPONSE_HEADER, but we won't panic...
+     * ap_scan_script_header_err_strs handles this aspect for us.
+     *
+     * Parse them out, or die trying
+     */
+    if (stat) {
+        cid->r->status = ap_scan_script_header_err_strs(cid->r, NULL,
+                                        &termch, &termarg, stat, head, NULL);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else {
+        cid->r->status = ap_scan_script_header_err_strs(cid->r, NULL,
+                                        &termch, &termarg, head, NULL);
+        if (cid->ecb->dwHttpStatusCode && cid->r->status == HTTP_OK
+                && cid->ecb->dwHttpStatusCode != HTTP_OK) {
+            /* We tried every way to Sunday to get the status...
+             * so now we fall back on dwHttpStatusCode if it appears
+             * ap_scan_script_header fell back on the default code.
+             * Any other results set dwHttpStatusCode to the decoded
+             * status value.
+             */
+            cid->r->status = cid->ecb->dwHttpStatusCode;
+            cid->r->status_line = ap_get_status_line(cid->r->status);
+        }
+        else {
+            cid->ecb->dwHttpStatusCode = cid->r->status;
+        }
+    }
+    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
+        return -1;
+    }
+
+    /* If only Status was passed, we consumed nothing
+     */

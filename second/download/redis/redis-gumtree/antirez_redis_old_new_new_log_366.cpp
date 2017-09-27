@@ -1,1 +1,0 @@
-printf("READING KEY: %s\n", (char*)rdbstate.key->ptr);

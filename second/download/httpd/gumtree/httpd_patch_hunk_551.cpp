@@ -1,24 +1,14 @@
+         return DECLINED;
  
-     case HSE_REQ_ABORTIVE_CLOSE:
-         if (cid->dconf.log_unsupported)
-             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
-                           " is not supported: %s", r->filename);
--        SetLastError(ERROR_INVALID_PARAMETER);
-+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-         return 0;
+     r->allowed |= (AP_METHOD_BIT << M_GET);
+     if (r->method_number != M_GET)
+ 	return DECLINED;
  
-     case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
-         if (cid->dconf.log_unsupported)
-             ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction "
-                           "HSE_REQ_GET_CERT_INFO_EX "
-                           "is not supported: %s", r->filename);        
--        SetLastError(ERROR_INVALID_PARAMETER);
-+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-         return 0;
+-    ap_set_content_type(r, "text/html");
++    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
  
-     case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
-     {
-         HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
- 
+     ap_rputs(DOCTYPE_HTML_3_2
+ 	     "<html><head><title>Server Information</title></head>\n", r);
+     ap_rputs("<body><h1 align=\"center\">Apache Server Information</h1>\n", r);
+     if (!r->args || strcasecmp(r->args, "list")) {
+         if (!r->args) {

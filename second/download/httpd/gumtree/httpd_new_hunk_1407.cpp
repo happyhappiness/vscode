@@ -1,25 +1,20 @@
-                 */
-                thisinfo.filetype = APR_NOFILE;
-                break;
-            }
-            else if (APR_STATUS_IS_EACCES(rv)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "access to %s denied (filesystem path '%s') "
-                              "because search permissions are missing on a "
-                              "component of the path", r->uri, r->filename);
-                return r->status = HTTP_FORBIDDEN;
-            }
-            else if ((rv != APR_SUCCESS && rv != APR_INCOMPLETE)
-                     || !(thisinfo.valid & APR_FINFO_TYPE)) {
-                /* If we hit ENOTDIR, we must have over-optimized, deny
-                 * rather than assume not found.
-                 */
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "access to %s failed (filesystem path '%s')", 
-                              r->uri, r->filename);
-                return r->status = HTTP_FORBIDDEN;
-            }
 
-            /* Fix up the path now if we have a name, and they don't agree
-             */
-            if ((thisinfo.valid & APR_FINFO_NAME)
+        zRC = Z_OK;
+
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+
+                if (!check_ratio(r, ctx, dc)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+                            "Inflated content ratio is larger than the "
+                            "configured limit %i by %i time(s)",
+                            dc->ratio_limit, dc->ratio_burst);
+                    return APR_EINVAL;
+                }
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                           NULL, f->c->bucket_alloc);

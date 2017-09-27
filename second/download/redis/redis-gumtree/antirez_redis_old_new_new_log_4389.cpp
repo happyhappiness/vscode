@@ -1,1 +1,0 @@
-redisLog(REDIS_DEBUG, "Reading from client: %s",strerror(errno));

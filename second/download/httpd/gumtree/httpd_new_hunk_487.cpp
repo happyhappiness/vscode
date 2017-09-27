@@ -1,25 +1,21 @@
+ * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
+ *                         ap_finalize_sub_req_protocol on Win32 and NetWare
+ * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+ *                         calling ap_setup_prelinked_modules
+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+ * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
+ */
 
-	/* every zero-byte counts as 8 zero-bits */
-	bits = 8 * quads;
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
-	if (bits != 32)		/* no warning for fully qualified IP address */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
-		 inet_ntoa(This->addr), bits);
-    }
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 12                    /* 0...n */
 
-    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
-
-    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	    "Warning: NetMask and IP-Addr disagree in %s/%ld",
-		inet_ntoa(This->addr), bits);
-	This->addr.s_addr &= This->mask.s_addr;
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-	    "         Set to %s/%ld",
-		inet_ntoa(This->addr), bits);
-    }
-
-    if (*addr == '\0') {
-	This->matcher = proxy_match_ipaddr;
-	return 1;
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

@@ -1,20 +1,36 @@
-#endif
+     * data. The sockets have been set to listening in the parent process.
+     *
+     * *** We now do this was back in winnt_rewrite_args
+     * pipe = GetStdHandle(STD_INPUT_HANDLE);
+     */
+    for (lr = ap_listeners; lr; lr = lr->next, ++lcnt) {
+        if (!ReadFile(pipe, &WSAProtocolInfo, sizeof(WSAPROTOCOL_INFO),
+                      &BytesRead, (LPOVERLAPPED) NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");
+            exit(APEXIT_CHILDINIT);
+        }
 
-    ap_soft_timeout("send body", r);
+        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,
+                        &WSAProtocolInfo, 0, 0);
+        if (nsd == INVALID_SOCKET) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Child %d: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+        if (!SetHandleInformation((HANDLE)nsd, HANDLE_FLAG_INHERIT, 0)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                         "set_listeners_noninheritable: SetHandleInformation failed.");
+        }
+        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
+    }
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+}
+
+
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
+{

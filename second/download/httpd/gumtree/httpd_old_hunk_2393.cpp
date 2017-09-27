@@ -1,13 +1,14 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+    shmem_size  = size;
+    num_buckets = (size - sizeof(*client_list)) /
+                  (sizeof(client_entry*) + HASH_DEPTH * sizeof(client_entry));
+    if (num_buckets == 0) {
+        num_buckets = 1;
     }
-    else {
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "Digest: Set shmem-size: %" APR_SIZE_T_FMT ", num-buckets: %ld", 
+                 shmem_size, num_buckets);
+
+    return NULL;
+}
+
+static const command_rec digest_cmds[] =

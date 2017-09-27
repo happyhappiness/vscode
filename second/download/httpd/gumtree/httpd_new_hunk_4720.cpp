@@ -1,31 +1,18 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01655)
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+        return AUTH_GENERAL_ERROR;
     }
-#elif defined(MAP_TMPFILE)
-    {
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-	int fd = mkstemp(mfile);
-	if (fd == -1) {
-	    perror("open");
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (m == (caddr_t) - 1) {
-	    perror("mmap");
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	close(fd);
-	unlink(mfile);
+    if ((ret = apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res,
+                                statement, 0, user, NULL) != 0)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01656)
+                      "Query execution error looking up '%s' "
+                      "in database [%s]",
+                      user, apr_dbd_error(dbd->driver, dbd->handle, ret));
+        return AUTH_GENERAL_ERROR;
     }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {

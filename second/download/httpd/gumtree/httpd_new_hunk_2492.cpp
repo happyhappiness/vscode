@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
+            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;
+            cid->completion_arg = (void *) data_type;
+            return 1;
+        }
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "ServerSupportFunction HSE_REQ_IO_COMPLETION "
+                      "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    case HSE_REQ_TRANSMIT_FILE:
+    {

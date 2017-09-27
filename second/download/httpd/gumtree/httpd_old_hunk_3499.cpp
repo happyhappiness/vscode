@@ -1,28 +1,26 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
+     * modules to proceed, we will permit the not-a-path filename to pass the
+     * following two tests.  This behavior may be revoked in future versions
+     * of Apache.  We still must catch it later if it's heading for the core
+     * handler.  Leave INFO notes here for module debugging.
+     */
+    if (r->filename == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "Module bug?  Request filename is missing for URI %s",
+                      r->uri);
+       return OK;
     }
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+    /* Canonicalize the file path without resolving filename case or aliases
+     * so we can begin by checking the cache for a recent directory walk.
+     * This call will ensure we have an absolute path in the same pass.
+     */
+    if ((rv = apr_filepath_merge(&entry_dir, NULL, r->filename,
+                                 APR_FILEPATH_NOTRELATIVE, r->pool))
+                  != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "Module bug?  Request filename path %s is invalid or "
+                      "or not absolute for uri %s",
+                      r->filename, r->uri);
+        return OK;
+    }
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {

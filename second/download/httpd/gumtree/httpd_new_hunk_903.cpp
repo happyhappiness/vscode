@@ -1,21 +1,44 @@
-    if (err != NULL) {
-        return err;
+        ap_regkey_close(key);
+    }
+    if (rv != APR_SUCCESS) {
+        if (rv == ERROR_FILE_NOT_FOUND) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
+                         "No ConfigArgs registered for %s, perhaps "
+                         "this service is not installed?",
+                         mpm_service_name);
+            return APR_SUCCESS;
+        }
+        else
+            return (rv);
     }
 
-    ap_threads_min_free = atoi(arg);
-    if (ap_threads_min_free <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: detected MinSpareServers set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "Please read the documentation.");
-       ap_threads_min_free = 1;
+    if (!svc_args || svc_args->nelts == 0) {
+        return (APR_SUCCESS);
     }
 
-    return NULL;
+    /* Now we have the mpm_service_name arg, and the mpm_runservice_nt()
+     * call appended the arguments passed by StartService(), so it's
+     * time to _prepend_ the default arguments for the server from
+     * the service's default arguments (all others override them)...
+     */
+    args->nalloc = args->nelts + svc_args->nelts;
+    cmb_data = malloc(args->nalloc * sizeof(const char *));
+
+    /* First three args (argv[0], -f, path) remain first */
+    memcpy(cmb_data, args->elts, args->elt_size * fixed_args);
+
+    /* Service args follow from service registry array */
+    memcpy(cmb_data + fixed_args, svc_args->elts,
+           svc_args->elt_size * svc_args->nelts);
+
+    /* Remaining new args follow  */
+    memcpy(cmb_data + fixed_args + svc_args->nelts,
+           (const char **)args->elts + fixed_args,
+           args->elt_size * (args->nelts - fixed_args));
+
+    args->elts = (char *)cmb_data;
+    args->nelts = args->nalloc;
+
+    return APR_SUCCESS;
 }
 
-static const char *set_max_free_threads(cmd_parms *cmd, void *dummy, const char *arg)
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

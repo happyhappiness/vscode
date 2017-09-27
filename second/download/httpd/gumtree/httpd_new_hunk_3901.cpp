@@ -1,93 +1,85 @@
-        int iEnvBlockLen;
+                          APLOGNO(02932) "nghttp2_session_upgrade: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        /* Now we need to auto-open stream 1 for the request we got. */
+        stream = h2_session_open_stream(session, 1);
+        if (!stream) {
+            status = APR_EGENERAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02933) "open stream 1: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
+        
+        status = h2_stream_set_request(stream, session->r);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = stream_schedule(session, stream, 1);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+    }
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
-
-	interpreter[0] = 0;
-	pid = -1;
-
-	exename = strrchr(r->filename, '/');
-	if (!exename) {
-	    exename = strrchr(r->filename, '\\');
-	}
-	if (!exename) {
-	    exename = r->filename;
-	}
-	else {
-	    exename++;
-	}
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT")
-		|| !strcasecmp(dot, ".CMD")
-		|| !strcasecmp(dot, ".EXE")
-		||  !strcasecmp(dot, ".COM")) {
-		is_exe = 1;
-	    }
-	}
-
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r')
-			|| (interpreter[i] == '\n')) {
-			break;
-		    }
-		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-	    }
-	    else {
-	        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-                    is_binary = 1;
-		}
-	    }
-	}
-        /* Bail out if we haven't figured out what kind of
-         * file this is by now..
+    slen = 0;
+    settings[slen].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
+    settings[slen].value = (uint32_t)session->max_stream_count;
+    ++slen;
+    win_size = h2_config_geti(session->config, H2_CONF_WIN_SIZE);
+    if (win_size != H2_INITIAL_WINDOW_SIZE) {
+        settings[slen].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
+        settings[slen].value = win_size;
+        ++slen;
+    }
+    
+    *rv = nghttp2_submit_settings(session->ngh2, NGHTTP2_FLAG_NONE,
+                                  settings, slen);
+    if (*rv != 0) {
+        status = APR_EGENERAL;
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02935) "nghttp2_submit_settings: %s", 
+                      nghttp2_strerror(*rv));
+    }
+    else {
+        /* use maximum possible value for connection window size. We are only
+         * interested in per stream flow control. which have the initial window
+         * size configured above.
+         * Therefore, for our use, the connection window can only get in the
+         * way. Example: if we allow 100 streams with a 32KB window each, we
+         * buffer up to 3.2 MB of data. Unless we do separate connection window
+         * interim updates, any smaller connection window will lead to blocking
+         * in DATA flow.
          */
-        if (!is_exe && !is_script && !is_binary) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		"%s is not executable; ensure interpreted scripts have "
-		"\"#!\" first line", 
-		r->filename);
-            return (pid);
-	}
+        *rv = nghttp2_submit_window_update(session->ngh2, NGHTTP2_FLAG_NONE,
+                                           0, NGHTTP2_MAX_WINDOW_SIZE - win_size);
+        if (*rv != 0) {
+            status = APR_EGENERAL;
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
+                          nghttp2_strerror(*rv));        
+        }
+    }
+    return status;
+}
 
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
+typedef struct {
+    h2_session *session;
+    int resume_count;
+} resume_ctx;
 
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
+static int resume_on_data(void *ctx, h2_stream *stream) {
+    resume_ctx *rctx = (resume_ctx*)ctx;
+    h2_session *session = rctx->session;
+    AP_DEBUG_ASSERT(session);
+    AP_DEBUG_ASSERT(stream);
+    
+    if (h2_stream_is_suspended(stream)) {
+        if (h2_mplx_out_has_data_for(stream->session->mplx, stream->id)) {
+            int rv;
+            h2_stream_set_suspended(stream, 0);
+            ++rctx->resume_count;
+            
+            rv = nghttp2_session_resume_data(session->ngh2, stream->id);
+            ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?

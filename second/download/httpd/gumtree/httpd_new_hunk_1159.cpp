@@ -1,13 +1,21 @@
-    apr_file_t *out = NULL;
+    piped_log *pl = data;
 
-    if (!ap_exists_config_define("DUMP_MODULES")) {
-        return;
+    apr_file_close(ap_piped_log_write_fd(pl));
+    return APR_SUCCESS;
+}
+
+AP_DECLARE(piped_log *) ap_open_piped_log_ex(apr_pool_t *p,
+                                             const char *program,
+                                             apr_cmdtype_e cmdtype)
+{
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
+
+    rc = log_child(p, program, &dummy, cmdtype, 0);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
     }
 
-    apr_file_open_stdout(&out, p);
-
-    apr_file_printf(out, "Loaded Modules:\n");
-
-    sconf = (so_server_conf *)ap_get_module_config(s->module_config,
-                                                   &so_module);
-    for (i = 0; ; i++) {

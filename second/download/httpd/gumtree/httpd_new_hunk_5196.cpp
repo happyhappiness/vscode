@@ -1,22 +1,13 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) stopped connection before %s completed",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) %s timed out",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
-	}
-    }
+                                           mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01895)
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            return ssl_die(s);
+        }
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+        if (mctx->pks && (mctx->pks->ca_name_file || mctx->pks->ca_name_path)) {
+            ca_list = ssl_init_FindCAList(s, ptemp,
+                                          mctx->pks->ca_name_file,
+                                          mctx->pks->ca_name_path);

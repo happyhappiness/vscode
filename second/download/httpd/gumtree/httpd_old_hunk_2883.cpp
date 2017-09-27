@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
-
-static int asis_handler(request_rec *r)
+static apr_status_t ap_headers_output_filter(ap_filter_t *f,
+                                             apr_bucket_brigade *in)
 {
-    FILE *f;
-    char *location;
+    headers_conf *dirconf = ap_get_module_config(f->r->per_dir_config,
+                                                 &headers_module);
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "headers: ap_headers_output_filter()");
+
+    /* do the fixup */
+    do_headers_fixup(f->r, f->r->err_headers_out, dirconf->fixup_err, 0);
+    do_headers_fixup(f->r, f->r->headers_out, dirconf->fixup_out, 0);
+

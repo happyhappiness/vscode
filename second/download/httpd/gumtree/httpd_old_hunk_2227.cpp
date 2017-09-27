@@ -1,20 +1,14 @@
-#endif
+#ifdef NOT_ASCII
+        apr_size_t inbytes_left = space, outbytes_left = space;
 
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+        status = apr_xlate_conv_buffer(from_ascii, buffer, &inbytes_left,
+                           c->cbuff + c->cbx, &outbytes_left);
+        if (status || inbytes_left || outbytes_left) {
+            fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
+                status, inbytes_left, outbytes_left);
+            exit(1);
+        }
+#else
+        memcpy(c->cbuff + c->cbx, buffer, space);
+#endif              /* NOT_ASCII */
+        c->cbx += tocopy;

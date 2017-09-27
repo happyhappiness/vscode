@@ -1,13 +1,20 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+                conn->close++;
+                apr_brigade_destroy(input_brigade);
+                ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                             "proxy: send failed to %pI (%s)",
+                             conn->worker->cp->addr,
+                             conn->worker->hostname);
+                /*
+                 * It is fatal when we failed to send a (part) of the request
+                 * body.
+                 */
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            conn->worker->s->transferred += bufsiz;
+            send_body = 1;
+        }
+    }
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    /* read the response */
+    conn->data = NULL;
+    status = ajp_read_header(conn->sock, r, maxsize,

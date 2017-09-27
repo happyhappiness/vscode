@@ -1,1 +1,0 @@
-printf("Adding user %s in realm %s\n", user, realm);

@@ -1,1 +1,0 @@
-sprintf(body, "Skipped %d bytes (resuming at 0x%08x)", bytes, offset);

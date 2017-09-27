@@ -1,13 +1,15 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use the ServerName directive to set it manually.\n");
-	exit(1);
+        return !OK;
     }
 
-    return server_hostname;
-}
-
+    if (one_process) {
+        num_buckets = 1;
+    }
+    else if (retained->mpm->was_graceful) {
+        /* Preserve the number of buckets on graceful restarts. */
+        num_buckets = retained->mpm->num_buckets;
+    }
+    if ((rv = ap_duplicate_listeners(pconf, ap_server_conf,
+                                     &listen_buckets, &num_buckets))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
+                     (startup ? NULL : s),
+                     "could not duplicate listeners");

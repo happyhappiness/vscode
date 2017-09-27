@@ -1,27 +1,16 @@
-    char realm[MAX_STRING_LEN];
-    char line[MAX_STRING_LEN];
-    char l[MAX_STRING_LEN];
-    char w[MAX_STRING_LEN];
-    char x[MAX_STRING_LEN];
-    int found;
-
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(terminate);
-    apr_pool_create(&cntxt, NULL);
-    apr_file_open_stderr(&errfile, cntxt);
-
-#if APR_CHARSET_EBCDIC
-    rv = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (rv) {
-        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
-                apr_strerror(rv, line, sizeof(line)), rv);
-        exit(1);
-    }
+            apr_md5_encode((const char *)htdbm->userpass, (const char *)salt,
+                            cpw, sizeof(cpw));
+        break;
+        case ALG_PLAIN:
+            /* XXX this len limitation is not in sync with any HTTPd len. */
+            apr_cpystrn(cpw,htdbm->userpass,sizeof(cpw));
+#if APR_HAVE_CRYPT_H
+            fprintf(stderr, "Warning: Plain text passwords aren't supported by the "
+                    "server on this platform!\n");
 #endif
-
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-        if (strcmp(argv[1], "-c"))
-            usage();
-        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
-                           APR_OS_DEFAULT, cntxt);
+        break;
+#if APR_HAVE_CRYPT_H
+        case ALG_CRYPT:
+            (void) srand((int) time((time_t *) NULL));
+            to64(&salt[0], rand(), 8);
+            salt[8] = '\0';

@@ -1,19 +1,43 @@
-    /* register the core's insert_filter hook and register core-provided
-     * filters
-     */
-    ap_hook_insert_filter(core_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
+    }
 
-    ap_core_input_filter_handle =
-        ap_register_input_filter("CORE_IN", ap_core_input_filter,
-                                 NULL, AP_FTYPE_NETWORK);
-    ap_content_length_filter_handle =
-        ap_register_output_filter("CONTENT_LENGTH", ap_content_length_filter,
-                                  NULL, AP_FTYPE_PROTOCOL);
-    ap_core_output_filter_handle =
-        ap_register_output_filter("CORE", ap_core_output_filter,
-                                  NULL, AP_FTYPE_NETWORK);
-    ap_subreq_core_filter_handle =
-        ap_register_output_filter("SUBREQ_CORE", ap_sub_req_output_filter,
-                                  NULL, AP_FTYPE_CONTENT_SET);
-    ap_old_write_func =
-        ap_register_output_filter("OLD_WRITE", ap_old_write_filter,
+    ap_daemons_max_free = atoi(arg);
+    return NULL;
+}
+
+static const char *set_max_clients (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_daemons_limit = atoi(arg);
+    if (ap_daemons_limit > server_limit) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: MaxClients of %d exceeds ServerLimit value "
+                    "of %d servers,", ap_daemons_limit, server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering MaxClients to %d.  To increase, please "
+                    "see the ServerLimit", server_limit);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " directive.");
+       ap_daemons_limit = server_limit;
+    }
+    else if (ap_daemons_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require MaxClients > 0, setting to 1");
+	ap_daemons_limit = 1;
+    }
+    return NULL;
+}
+
+static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    int tmp_server_limit;
+
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    tmp_server_limit = atoi(arg);

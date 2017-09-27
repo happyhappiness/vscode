@@ -1,1 +1,0 @@
-snprintf(dbname,sizeof(dbname),"db.%zd",mh->db[j].dbid);

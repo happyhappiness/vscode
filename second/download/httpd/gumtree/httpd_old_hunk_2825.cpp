@@ -1,24 +1,12 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+        else {
+            if (apr_table_get(r->subprocess_env, &envar[1]) != NULL) {
+                return DECLINED;
+            }
+        }
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
+    format = cls->format ? cls->format : default_format;
 
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+    strs = apr_palloc(r->pool, sizeof(char *) * (format->nelts));
+    strl = apr_palloc(r->pool, sizeof(int) * (format->nelts));
+    items = (log_format_item *) format->elts;

@@ -1,14 +1,13 @@
-        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-						  &ldap_module);
-
-    st->cache_bytes = atol(bytes);
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                      "[%d] ldap cache: Setting shared memory cache size to %d bytes.", 
-                      getpid(), st->cache_bytes);
-
-    return NULL;
-}
-
-static const char *util_ldap_set_cache_file(cmd_parms *cmd, void *dummy, const char *file)
 {
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    ap_sb_handle_t *sbh;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %d starting.", my_pid, thread_num);
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
+
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
+

@@ -1,13 +1,13 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
 
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
-        }
 
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01076)
+                  "url: %s proxyname: %s proxyport: %d",
+                  url, proxyname, proxyport);
+
+    if (strncasecmp(url, "fcgi:", 5) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01077) "declining URL %s", url);
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01078) "serving URL %s", url);
+

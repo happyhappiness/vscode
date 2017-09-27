@@ -1,13 +1,13 @@
-            APR_BRIGADE_CHECK_CONSISTENCY(bb);
-            APR_BRIGADE_CHECK_CONSISTENCY(ctx->bb);
-        }
+     */
+    if (mctx->pks->certs[SSL_AIDX_RSA] ||
+        mctx->pks->certs[SSL_AIDX_DSA])
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die();
     }
-    else {
-        /* Split a line into the passed-in brigade. */
-        rv = apr_brigade_split_line(bb, ctx->bb, block, bytes);
+}
 
-        if (rv) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
-                          "could not split line from buffered SSL brigade");
-            ap_remove_input_filter(f);
-            return rv;
+#ifndef OPENSSL_NO_TLSEXT
+static void ssl_init_ctx_tls_extensions(server_rec *s,

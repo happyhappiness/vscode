@@ -1,16 +1,32 @@
+                /* The network has been shut down, no need to continue. Die gracefully */
+                ++daemon_should_exit;
+            }
+#endif
+            if (errno != EINTR) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, errno,
+                             (server_rec *)data, APLOGNO(01247)
+                             "Error accepting on cgid socket");
+            }
+            continue;
+        }
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+        r = apr_pcalloc(ptrans, sizeof(request_rec));
+        procnew = apr_pcalloc(ptrans, sizeof(*procnew));
+        r->pool = ptrans;
+        stat = get_req(sd2, r, &argv0, &env, &cgid_req);
+        if (stat != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, stat,
+                         main_server, APLOGNO(01248)
+                         "Error reading request on cgid socket");
+            close(sd2);
+            continue;
+        }
+
+        if (cgid_req.ppid != parent_pid) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, main_server, APLOGNO(01249)
+                         "CGI request received from wrong server instance; "
+                         "see ScriptSock directive");
+            close(sd2);
+            continue;
+        }
+

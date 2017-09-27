@@ -1,24 +1,28 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+ * Support for the Basic authentication protocol, and a bit for Digest.
+ */
+AP_DECLARE(void) ap_note_auth_failure(request_rec *r)
 {
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
+    const char *type = ap_auth_type(r);
+    if (type) {
+        ap_run_note_auth_failure(r, type);
     }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, "need AuthType to note auth failure: %s", r->uri);
     }
+}
 
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
+AP_DECLARE(void) ap_note_basic_auth_failure(request_rec *r)
+{
+    ap_note_auth_failure(r);
+}
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+AP_DECLARE(void) ap_note_digest_auth_failure(request_rec *r)
+{
+    ap_note_auth_failure(r);
+}
+
+AP_DECLARE(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+{
+    const char *auth_line = apr_table_get(r->headers_in,
+                                          (PROXYREQ_PROXY == r->proxyreq)

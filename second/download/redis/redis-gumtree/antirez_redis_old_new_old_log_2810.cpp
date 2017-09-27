@@ -1,1 +1,0 @@
-snprintf(authcmd, 1024, "AUTH %s\r\n", server.masterauth);

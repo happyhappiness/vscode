@@ -1,13 +1,12 @@
-            /* listener not dead yet */
-            apr_sleep(apr_time_make(0, 500000));
-            wakeup_listener();
-            ++iter;
-        }
-        if (iter >= 10) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "the listener thread didn't exit");
-        }
-        else {
-            rv = apr_thread_join(&thread_rv, listener);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                 "  -C \"directive\"    : process directive before reading "
+                 "config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"    : process directive after reading "
+                 "config files");
+
+#ifdef WIN32
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set service name and use its "
+                 "ServerConfigFile");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k start          : tell Apache to start");

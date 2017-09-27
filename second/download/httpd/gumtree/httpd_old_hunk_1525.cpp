@@ -1,13 +1,19 @@
-         * We can omit the check for SSL_PROTOCOL_SSLV2 as there is
-         * no way for OpenSSL to screw up things in this case (it's
-         * impossible to include extensions in a pure SSLv2 ClientHello,
-         * protocol-wise).
-         */
-        if (hostname_note &&
-            sc->proxy->protocol != SSL_PROTOCOL_SSLV3 &&
-            apr_ipsubnet_create(&ip, hostname_note, NULL,
-                                c->pool) != APR_SUCCESS) {
-            if (SSL_set_tlsext_host_name(filter_ctx->pssl, hostname_note)) {
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                              "SNI extension for SSL Proxy request set to '%s'",
-                              hostname_note);
+                    }
+
+                    if (lastmod) {
+                        apr_table_set(r->headers_in, "If-Modified-Since",
+                                      lastmod);
+                    }
+                    /*
+                     * Do not do Range requests with our own conditionals: If
+                     * we get 304 the Range does not matter and otherwise the
+                     * entity changed and we want to have the complete entity
+                     */
+                    apr_table_unset(r->headers_in, "Range");
+                }
+                return DECLINED;
+            }
+
+            /* Okay, this response looks okay.  Merge in our stuff and go. */
+            ap_cache_accept_headers(h, r, 0);
+

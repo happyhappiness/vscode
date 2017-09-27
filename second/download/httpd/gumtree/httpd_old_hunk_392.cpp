@@ -1,13 +1,27 @@
-         * use by any of the children.
+    return strcmp(f1->fname,f2->fname);
+}
+
+static void process_resource_config_nofnmatch(server_rec *s, const char *fname,
+                                              ap_directive_t **conftree,
+                                              apr_pool_t *p,
+                                              apr_pool_t *ptemp)
+{
+    cmd_parms parms;
+    ap_configfile_t *cfp;
+    const char *errmsg;
+
+    if (ap_is_rdirectory(p, fname)) {
+        apr_dir_t *dirp;
+        apr_finfo_t dirent;
+        int current;
+        apr_array_header_t *candidates = NULL;
+        fnames *fnew;
+        apr_status_t rv;
+        char errmsg[120], *path = apr_pstrdup(p, fname);
+
+        /*
+         * first course of business is to grok all the directory
+         * entries here and store 'em away. Recall we need full pathnames
+         * for this.
          */
-        ++ap_my_generation;
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
-
-    	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-		    "Graceful restart requested, doing restart");
-
-        /* Wait for all of the threads to terminate before initiating the restart */
-        while (worker_thread_count > 0) {
-            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
-                    worker_thread_count);
-            apr_thread_yield();
+        rv = apr_dir_open(&dirp, path, p);

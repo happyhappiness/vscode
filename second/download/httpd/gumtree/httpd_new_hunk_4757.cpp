@@ -1,18 +1,21 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend = NULL;
+    const char *scheme = "AJP";
+    int retry;
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
+    apr_pool_t *p = r->pool;
+    apr_uri_t *uri;
 
-	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
-	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
-	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
+    if (strncasecmp(url, "ajp:", 4) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00894) "declining URL %s", url);
+        return DECLINED;
+    }
 
-	pid = (*func) (data, &info);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    uri = apr_palloc(p, sizeof(*uri));
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00895) "serving URL %s", url);
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
-++ apache_1.3.2/src/main/buff.c	1998-09-05 00:47:46.000000000 +0800
+    /* create space for state information */
+    status = ap_proxy_acquire_connection(scheme, &backend, worker,
+                                         r->server);
+    if (status != OK) {

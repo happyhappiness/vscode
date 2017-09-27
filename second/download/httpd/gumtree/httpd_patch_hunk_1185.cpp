@@ -1,15 +1,21 @@
-     apr_pool_create(&ctx->pool, r->pool);
-     ctx->bb = apr_brigade_create(ctx->pool, c->bucket_alloc);
+         printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
+            "<td colspan=2 %s>%d</td></tr>\n",
+            trstring, tdstring, tdstring, doneka);
+     printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+        "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+        trstring, tdstring, tdstring, totalread);
+-    if (posting > 0)
++    if (posting == 1)
+         printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
+            "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+            trstring, tdstring, tdstring, totalposted);
++    if (posting == 2)
++        printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
++           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
++           trstring, tdstring, tdstring, totalposted);
+     printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+        "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+        trstring, tdstring, tdstring, totalbread);
  
-     /* ... and a temporary brigade. */
-     tempb = apr_brigade_create(r->pool, c->bucket_alloc);
- 
--    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer");
-+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "filling buffer, max size "
-+                  "%" APR_SIZE_T_FMT " bytes", maxlen);
- 
-     do {
-         apr_status_t rv;
-         apr_bucket *e, *next;
- 
-         /* The request body is read from the protocol-level input
+     /* avoid divide by zero */
+     if (timetaken) {

@@ -1,16 +1,25 @@
+    if (status) {
+        /* Some parsers are stupid and return an error on blank documents. */
+        if (!total_read) {
+            *pdoc = NULL;
+            return OK;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00540)
+                      "XML parser error (at end). status=%d", status);
+        return HTTP_BAD_REQUEST;
+    }
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+#if APR_CHARSET_EBCDIC
+    apr_xml_parser_convert_doc(r->pool, *pdoc, ap_hdrs_from_ascii);
+#endif
+    return OK;
+
+  parser_error:
+    (void) apr_xml_parser_geterror(parser, errbuf, sizeof(errbuf));
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00541)
+                  "XML Parser Error: %s", errbuf);
+
+    /* FALLTHRU */
+
+  read_error:
+    /* make sure the parser is terminated */

@@ -1,0 +1,1 @@
+ap_remove_output_filter(cache->remove_url_filter);

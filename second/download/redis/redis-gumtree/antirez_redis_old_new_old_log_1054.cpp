@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Calling fsync() on the AOF file.");

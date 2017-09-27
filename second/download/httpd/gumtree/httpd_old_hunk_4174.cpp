@@ -1,14 +1,16 @@
-#include "http_main.h"
-#include "http_request.h"
+    }
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
-
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+    if (server_limit > MAX_SERVER_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d servers, decreasing to %d.",
+                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00176)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);
+        }

@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+    BOOL rv = TRUE;
+    const char *ocspuri;
+    apr_uri_t uri;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    *prsp = NULL;
+    /* Build up OCSP query from server certificate info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "stapling_renew_response: querying responder");
+
+    req = OCSP_REQUEST_new();
+    if (!req)
+        goto err;
+    id = OCSP_CERTID_dup(cinf->cid);

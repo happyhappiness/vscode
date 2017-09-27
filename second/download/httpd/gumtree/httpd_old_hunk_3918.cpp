@@ -1,13 +1,37 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+                }
+            }
+            
+            if (!task) {
+                /* Need to wait for either a new mplx to arrive.
+                 */
+                if (workers->worker_count > workers->min_size) {
+                    apr_time_t now = apr_time_now();
+                    if (now >= (start_wait + max_wait)) {
+                        /* waited long enough without getting a task. */
+                        status = APR_TIMEUP;
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                                     "h2_worker(%d): waiting signal, "
+                                     "worker_count=%d", worker->id, 
+                                     (int)workers->worker_count);
+                        status = apr_thread_cond_timedwait(workers->mplx_added,
+                                                           workers->lock, max_wait);
+                    }
+                    
+                    if (status == APR_TIMEUP) {
+                        /* waited long enough */
+                        if (workers->worker_count > workers->min_size) {
+                            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, 
+                                         workers->s,
+                                         "h2_workers: aborting idle worker");
+                            h2_worker_abort(worker);
+                            break;
+                        }
+                    }
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                                 "h2_worker(%d): waiting signal (eternal), "
+                                 "worker_count=%d", worker->id, 
+                                 (int)workers->worker_count);

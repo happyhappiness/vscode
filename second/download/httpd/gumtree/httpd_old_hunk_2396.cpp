@@ -1,12 +1,13 @@
-#if TESTING
-		fprintf(stderr, "Would remove directory %s\n", newcachedir);
-#else
-		rmdir(newcachedir);
-#endif
-		--nfiles;
-	    }
-	    continue;
-	}
-#endif
+    client_list->table[bucket] = entry;
+    client_list->num_created++;
+    client_list->num_entries++;
 
-	i = read(fd, line, 26);
+    apr_global_mutex_unlock(client_lock);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "allocated new client %lu", key);
+
+    return entry;
+}
+
+

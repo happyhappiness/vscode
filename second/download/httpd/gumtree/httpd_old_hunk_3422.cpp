@@ -1,25 +1,43 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
     }
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
-    }
-#endif
+    if ((parent_pid != my_pid) || one_process)
+    {
+        /* The child process or in one_process (debug) mode
+         */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is running", my_pid);
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+        child_main(pconf);
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is exiting", my_pid);
+        return DONE;
+    }
+    else
+    {
+        /* A real-honest to goodness parent */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     "%s configured -- resuming normal operations",
+                     ap_get_server_description());
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     "Server built: %s", ap_get_server_built());
+        ap_log_command_line(plog, s);
+
+        restart = master_main(ap_server_conf, shutdown_event, restart_event);
+
+        if (!restart)
+        {
+            /* Shutting down. Clean up... */
+            const char *pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+
+            if (pidfile != NULL && unlink(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%ld)",
+                             pidfile, GetCurrentProcessId());
+            }
+            apr_proc_mutex_destroy(start_mutex);
+
+            CloseHandle(restart_event);
+            CloseHandle(shutdown_event);
+
+            return DONE;

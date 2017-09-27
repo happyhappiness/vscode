@@ -1,0 +1,1 @@
+ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, 0, s, "slotmem_create for status failed");

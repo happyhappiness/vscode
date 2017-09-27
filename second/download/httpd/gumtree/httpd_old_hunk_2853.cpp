@@ -1,14 +1,24 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = apr_tolower(*cp);
+    }
+
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Syntax error in type map, no ':' in %s for header %s",
+                      r->filename, header);
+        return NULL;
+    }
+
+    do {
+        ++cp;
+    } while (*cp && apr_isspace(*cp));
+
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Syntax error in type map --- no header body: %s for %s",
+                      r->filename, header);
+        return NULL;
+    }
+
+    return cp;

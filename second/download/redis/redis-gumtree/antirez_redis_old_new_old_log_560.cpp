@@ -1,1 +1,0 @@
-serverLogRaw(LL_WARNING, clients);

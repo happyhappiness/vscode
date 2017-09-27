@@ -1,13 +1,31 @@
-        if (score_idx) {
-            ap_update_child_status_from_indexes(0, *score_idx,
-                                                SERVER_DEAD, NULL);
+                            output_failed = 1;
+                        }
+                        data_sent = 1;
+                        apr_brigade_cleanup(output_brigade);
+                    }
+                }
+                else {
+                    backend_failed = 1;
+                }
+                break;
+            case CMD_AJP13_END_RESPONSE:
+                status = ajp_parse_reuse(r, conn->data, &conn_reuse);
+                if (status != APR_SUCCESS) {
+                    backend_failed = 1;
+                }
+                e = apr_bucket_eos_create(r->connection->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                if (ap_pass_brigade(r->output_filters,
+                                    output_brigade) != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "proxy: error processing end");
+                    output_failed = 1;
+                }
+                /* XXX: what about flush here? See mod_jk */
+                data_sent = 1;
+                request_ended = 1;
+                break;
+            default:
+                backend_failed = 1;
+                break;
         }
-    }
-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %d: All worker threads have exited.", my_pid);
-
-    CloseHandle(allowed_globals.jobsemaphore);
-    apr_thread_mutex_destroy(allowed_globals.jobmutex);
-    apr_thread_mutex_destroy(child_lock);
-
-    if (use_acceptex) {

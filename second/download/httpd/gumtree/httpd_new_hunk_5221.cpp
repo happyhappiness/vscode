@@ -1,13 +1,16 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, status, NULL, APLOGNO(00103)
+                     "piped_log_spawn: unable to setup child process '%s'",
+                     pl->program);
     }
+    else {
+        char **args;
 
+        apr_tokenize_to_argv(pl->program, &args, pl->p);
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, args[0], (const char * const *) args,
+                                 NULL, procattr, pl->p);
+
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            /* procnew->in was dup2'd from pl->write_fd;
+             * since the original fd is still valid, close the copy to

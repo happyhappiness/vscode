@@ -1,19 +1,13 @@
-	version_locked++;
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02547)
+                         "SSL_CONF_CTX_finish() failed");
+            SSL_CONF_CTX_free(cctx);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            return ssl_die(s);
     }
-}
+    SSL_CONF_CTX_free(cctx);
+#endif
 
-static APACHE_TLS int volatile exit_after_unblock = 0;
-
-/* a clean exit from a child with proper cleanup */
-static void __attribute__((noreturn)) clean_child_exit(int code)
-{
-    if (pchild) {
-	ap_child_exit_modules(pchild, server_conf);
-	ap_destroy_pool(pchild);
-    }
-    exit(code);
-}
-
-#if defined(USE_FCNTL_SERIALIZED_ACCEPT) || defined(USE_FLOCK_SERIALIZED_ACCEPT)
-static void expand_lock_fname(pool *p)
-{
+    if (SSL_CTX_check_private_key(sc->server->ssl_ctx) != 1) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02572)
+                     "Failed to configure at least one certificate and key "
+                     "for %s", sc->vhost_id);

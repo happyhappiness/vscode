@@ -1,22 +1,30 @@
-        || (BytesRead != sizeof(hScore))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
-    }
-    *scoreboard_shm = NULL;
-    if ((rv = apr_os_shm_put(scoreboard_shm, &hScore, s->process->pool))
-            != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+ * This permits the MPM to skip the poll when there is only one listening
+ * socket, because it provides a alternate way to unblock an accept() when
+ * the pod is used.
+ */
+static apr_status_t dummy_connection(ap_pod_t *pod)
+{
+    char *srequest;
+    apr_status_t rv;
+    apr_socket_t *sock;
+    apr_pool_t *p;
+    apr_size_t len;
+
+    /* create a temporary pool for the socket.  pconf stays around too long */
+    rv = apr_pool_create(&p, pod->p);
+    if (rv != APR_SUCCESS) {
+        return rv;
     }
 
-    rv = ap_reopen_scoreboard(s->process->pool, scoreboard_shm, 1);
-    if (rv || !(sb_shared = apr_shm_baseaddr_get(*scoreboard_shm))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
-        exit(APEXIT_CHILDINIT);
+    rv = apr_socket_create(&sock, ap_listeners->bind_addr->family,
+                           SOCK_STREAM, 0, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "get socket to connect to listener");
+        apr_pool_destroy(p);
+        return rv;
     }
-    /* We must 'initialize' the scoreboard to relink all the
-     * process-local pointer arrays into the shared memory block.
-     */
+
+    /* on some platforms (e.g., FreeBSD), the kernel won't accept many
+     * queued connections before it starts blocking local connects...
+     * we need to keep from blocking too long and instead return an error,

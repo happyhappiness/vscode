@@ -1,82 +1,41 @@
+    apr_dbd_row_t *row = NULL;
 
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
-
-/*
- * Return true if the specified string refers to the parent directory (i.e.,
- * matches ".." or "../").  Hopefully this one call is significantly less
- * expensive than multiple strcmp() calls.
- */
-static ap_inline int is_parent(const char *name)
-{
-    /*
-     * Now, IFF the first two bytes are dots, and the third byte is either
-     * EOS (\0) or a slash followed by EOS, we have a match.
-     */
-    if (((name[0] == '.') && (name[1] == '.'))
-	&& ((name[2] == '\0')
-	    || ((name[2] == '/') && (name[3] == '\0')))) {
-        return 1;
+    authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                &authn_dbd_module);
+    ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
+    if (dbd == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01658)
+                      "Failed to acquire database connection to look up "
+                      "user '%s:%s'", user, realm);
+        return AUTH_GENERAL_ERROR;
     }
-    return 0;
-}
-
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs(r, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	      "<HTML>\n <HEAD>\n  <TITLE>Index of ", title,
-	      "</TITLE>\n </HEAD>\n <BODY>\n", NULL);
-}
-
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to) {
-	to = "";
+    if (conf->realm == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01659)
+                      "No AuthDBDUserRealmQuery has been specified");
+        return AUTH_GENERAL_ERROR;
     }
-    if (!path) {
-	path = "";
+    statement = apr_hash_get(dbd->prepared, conf->realm, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01660)
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserRealmQuery with the key '%s'", conf->realm);
+        return AUTH_GENERAL_ERROR;
     }
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to))) {
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, realm, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01661)
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);
+        return AUTH_GENERAL_ERROR;
     }
-    else if (to) {
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    }
-    else {
-	p->apply_to = NULL;
-    }
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH) {
-        if (!strcmp(to, "**DIRECTORY**")) {
-	    to = "^^DIRECTORY^^";
-	}
-    }
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
-    }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to,
-	      cmd->path, alt);
-    return NULL;
-}
-
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
-{
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01662)
+                          "Error retrieving results while looking up '%s:%s' "
+                          "in database", user, realm);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_hash == NULL) {
+#if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)

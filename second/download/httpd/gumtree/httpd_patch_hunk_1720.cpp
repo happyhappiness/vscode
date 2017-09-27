@@ -1,26 +1,14 @@
-     }
-     return HTTP_INTERNAL_SERVER_ERROR;
- }
+                             APR_SO_KEEPALIVE, 1)) != APR_SUCCESS) {
+                 ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                              "apr_socket_opt_set(SO_KEEPALIVE): Failed to set"
+                              " Keepalive");
+             }
+         }
+-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
++        ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
+                      "proxy: %s: fam %d socket created to connect to %s",
+                      proxy_function, backend_addr->family, worker->hostname);
  
- static void menu_header(request_rec *r, char *menu)
- {
--    ap_set_content_type(r, "text/html");
-+    ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+         /* make the connection out of the socket */
+         rv = apr_socket_connect(newsock, backend_addr);
  
--    ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", r->uri,
--           "</title>\n</head><body>\n", NULL);
-+    ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
-+              ap_escape_html(r->pool, r->uri),
-+              "</title>\n</head><body>\n", NULL);
- 
-     if (!strcasecmp(menu, "formatted")) {
--        ap_rvputs(r, "<h1>Menu for ", r->uri, "</h1>\n<hr />\n\n", NULL);
-+        ap_rvputs(r, "<h1>Menu for ", 
-+                  ap_escape_html(r->pool, r->uri),
-+                  "</h1>\n<hr />\n\n", NULL);
-     }
- 
-     return;
- }
- 
- static void menu_blank(request_rec *r, char *menu)

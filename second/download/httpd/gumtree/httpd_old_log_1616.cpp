@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Custom error page caused AP_FILTER_ERROR");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit RSA private key", bits);

@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "Unescaped URL path matched ProxyPass; ignoring unsafe nocanon");
+ap_rvputs(r, "   <tr class=\"", ( x & 0x1) ? "odd" : "even", "\">", NULL);

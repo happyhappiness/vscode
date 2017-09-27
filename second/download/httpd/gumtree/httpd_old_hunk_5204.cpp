@@ -1,15 +1,34 @@
-	     * Kill child processes, tell them to call child_exit, etc...
-	     */
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-	    }
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-			"httpd: caught SIGTERM, shutting down");
+        if (!inf->x509 || !inf->x_pkey || !inf->x_pkey->dec_pkey ||
+            inf->enc_data) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s, APLOGNO(02252)
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die(s);
+            return;
+        }
+        
+        if (X509_check_private_key(inf->x509, inf->x_pkey->dec_pkey) != 1) {
+            ssl_log_xerror(SSLLOG_MARK, APLOG_STARTUP, 0, ptemp, s, inf->x509,
+                           APLOGNO(02326) "proxy client certificate and "
+                           "private key do not match");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+            ssl_die(s);
+            return;
+        }
+    }
 
-	    clean_parent_exit(0);
-	}
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02207)
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
 
-	/* we've been told to restart */
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);
+
+    if (!pkp->ca_cert_file || !store) {
+        return;
+    }
+
+    /* If SSLProxyMachineCertificateChainFile is configured, load all
+     * the CA certs and have OpenSSL attempt to construct a full chain
+     * from each configured end-entity cert up to a root.  This will
+     * allow selection of the correct cert given a list of root CA

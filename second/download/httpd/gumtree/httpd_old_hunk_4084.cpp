@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
-    }
+                    plen = ap_ntoh64(&payload_long);
+                }
+                else {
+                    return 0;
+                }
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                    "Websocket: Reading %" APR_SIZE_T_FMT " (%s) bytes, masking is %s. %s", 
+                    plen,
+                    (payload >= 126) ? "extra payload" : "no extra payload", 
+                    mask ? "on" : "off", 
+                    fin ? "This is a final frame" : "more to follow");
+            if (mask) {

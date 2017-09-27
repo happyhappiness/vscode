@@ -1,17 +1,13 @@
-         /* This assumes that the tempfile is on the same file system
-          * as the cache_root. If not, then we need a file copy/move
-          * rather than a rename.
-          */
-         rv = apr_file_rename(dobj->tempfile, dobj->datafile, r->pool);
-         if (rv != APR_SUCCESS) {
--            /* XXX log */
-+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-+                         "disk_cache: rename tempfile to datafile failed:"
-+                         " %s -> %s", dobj->tempfile, dobj->datafile);
-+            apr_file_remove(dobj->tempfile, r->pool);
          }
- 
-         dobj->tfd = NULL;
-     }
- 
-     return APR_SUCCESS;
+         if (len <= 0) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                           "proxy: error reading status line from remote "
+                           "server %s:%d", backend->hostname, backend->port);
+             if (APR_STATUS_IS_TIMEUP(rc)) {
+-                apr_table_set(r->notes, "proxy_timedout", "1");
+                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                               "proxy: read timeout");
+             }
+             /*
+              * If we are a reverse proxy request shutdown the connection
+              * WITHOUT ANY response to trigger a retry by the client

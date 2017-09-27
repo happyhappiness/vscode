@@ -1,13 +1,32 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+ *  Initialization of Servers
+ */
+                             /* ``Recursive, adj.;
+                                  see Recursive.''
+                                        -- Unknown   */
+#include "ssl_private.h"
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+/*  _________________________________________________________________
+**
+**  Module Initialization
+**  _________________________________________________________________
+*/
+
+
+static void ssl_add_version_components(apr_pool_t *p,
+                                       server_rec *s)
+{
+    char *modver = ssl_var_lookup(p, s, NULL, NULL, "SSL_VERSION_INTERFACE");
+    char *libver = ssl_var_lookup(p, s, NULL, NULL, "SSL_VERSION_LIBRARY");
+    char *incver = ssl_var_lookup(p, s, NULL, NULL, 
+                                  "SSL_VERSION_LIBRARY_INTERFACE");
+
+    ap_add_version_component(p, modver);
+    ap_add_version_component(p, libver);
+
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "%s compiled against Server: %s, Library: %s",
+                 modver, AP_SERVER_BASEVERSION, incver);
+}
+
+
+/*

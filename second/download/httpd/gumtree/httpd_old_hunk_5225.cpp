@@ -1,13 +1,12 @@
-	perror("Unable to gethostname");
-	exit(1);
-    }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-	exit(1);
-    }
-
-    return server_hostname;
+        s, apr_strerror(rv, buf, sizeof buf), rv);
+    if (done)
+        printf("Total of %d requests completed\n" , done);
+    exit(rv);
 }
 
+static void set_polled_events(struct connection *c, apr_int16_t new_reqevents)
+{
+    apr_status_t rv;
+
+    if (c->pollfd.reqevents != new_reqevents) {
+        if (c->pollfd.reqevents != 0) {

@@ -1,3 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: failed to initialise prepared SQL statements: %s",
-                      (errmsg ? errmsg : "[???]"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                              "Response header '%s' value of '%s' contains "
+                              "invalid characters, aborting request",
+                              name, pos);

@@ -1,10 +1,20 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    /* Create a temporary pool to constrain memory use */
+    apr_pool_create(&vpool, conn->pool);
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    ok = apr_uri_parse(vpool, ocspuri, &uri);
+    if (ok != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);
+        rv = FALSE;
+        goto done;
+    }
+    else if (strcmp(uri.scheme, "http")) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01940)
+                     "stapling_renew_response: Unsupported uri %s", ocspuri);
+        rv = FALSE;
+        goto done;
+    }
+
+    if (!uri.port) {

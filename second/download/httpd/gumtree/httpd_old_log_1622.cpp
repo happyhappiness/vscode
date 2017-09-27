@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                  "proxy: ap_get_scoreboard_lb(%d) failed in child %" APR_PID_T_FMT " for worker %s",
-                  worker->id, getpid(), worker->name);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary DH parameters (512/1024 bits)");

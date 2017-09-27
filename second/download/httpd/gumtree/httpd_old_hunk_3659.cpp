@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+         * socket to a worker
+         */
+        apr_bucket_alloc_destroy(cs->bucket_alloc);
+        apr_socket_close(cs->pfd.desc.s);
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                     ap_server_conf, APLOGNO(00471) "push2worker: ap_queue_push failed");
+        apr_pool_clear(cs->p);
+        ap_push_pool(worker_queue_info, cs->p);
     }
-    else {
+
+    return rc;
+}
+

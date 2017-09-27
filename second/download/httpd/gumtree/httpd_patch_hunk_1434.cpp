@@ -1,22 +1,14 @@
-     apr_table_entry_t *end_elt;
-     apr_uint32_t checksum;
-     int hash;
  
- #if APR_POOL_DEBUG
-     {
--	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
-+	apr_pool_t *pool;
-+	pool = apr_pool_find(key);
-+	if ((pool != key) && (!apr_pool_is_ancestor(pool, t->a.pool))) {
- 	    fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");
- 	    abort();
- 	}
--	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
-+	pool = apr_pool_find(val);
-+	if ((pool != val) && (!apr_pool_is_ancestor(pool, t->a.pool))) {
- 	    fprintf(stderr, "apr_table_mergen: val not in ancestor pool of t\n");
- 	    abort();
- 	}
+         status = ap_get_brigade(r->input_filters, input_brigade,
+                                 AP_MODE_READBYTES, APR_BLOCK_READ,
+                                 HUGE_STRING_LEN);
+ 
+         if (status != APR_SUCCESS) {
+-            return HTTP_BAD_REQUEST;
++            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
+         }
      }
- #endif
  
+     if (bytes_streamed != cl_val) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                      "proxy: client %s given Content-Length did not match"

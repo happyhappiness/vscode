@@ -1,31 +1,12 @@
-        case AP_MPMQ_MAX_REQUESTS_DAEMON:
-            *result = ap_max_requests_per_child;
-            return APR_SUCCESS;
-        case AP_MPMQ_MAX_DAEMONS:
-            *result = ap_daemons_limit;
-            return APR_SUCCESS;
-        case AP_MPMQ_MPM_STATE:
-            *result = mpm_state;
-            return APR_SUCCESS;
-    }
-    return APR_ENOTIMPL;
-}
+    int is_idle = 0;
 
-/* a clean exit from a child with proper cleanup */ 
-static void clean_child_exit(int code) __attribute__ ((noreturn));
-static void clean_child_exit(int code)
-{
-    mpm_state = AP_MPMQ_STOPPING;
-    if (pchild) {
-        apr_pool_destroy(pchild);
-    }
-    ap_mpm_pod_close(pod);
-    exit(code);
-}
+    free(ti);
 
-static void just_die(int sig)
-{
-    clean_child_exit(0);
-}
+    ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
 
-/*****************************************************************
+    while (!workers_may_exit) {
+        if (!is_idle) {
+            rv = ap_queue_info_set_idle(worker_queue_info, last_ptrans);
+            last_ptrans = NULL;
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,

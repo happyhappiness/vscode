@@ -1,25 +1,23 @@
-	return ap_proxyerror(r, err);	/* give up */
+    return (root ? root->value : 0);
+}
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+/* same as above, but use common ap_expr syntax / API */
+static int parse_ap_expr(include_ctx_t *ctx, const char *expr, int *was_error)
+{
+    ap_expr_info_t *expr_info = apr_pcalloc(ctx->pool, sizeof (*expr_info));
+    const char *err;
+    int ret;
+    backref_t *re = ctx->intern->re;
+    ap_expr_eval_ctx_t *eval_ctx = ctx->intern->expr_eval_ctx;
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+    expr_info->filename = ctx->r->filename;
+    expr_info->line_number = 0;
+    expr_info->module_index = APLOG_MODULE_INDEX;
+    expr_info->flags = AP_EXPR_FLAG_RESTRICTED;
+    err = ap_expr_parse(ctx->r->pool, ctx->r->pool, expr_info, expr,
+                        include_expr_lookup);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01337)
+                      "Could not parse expr \"%s\" in %s: %s", expr,
+                      ctx->r->filename, err);
+        *was_error = 1;

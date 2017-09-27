@@ -1,14 +1,13 @@
-    SSLConnRec *sslconn = myConnConfig(f->c);
-    apr_bucket *bucket;
+                             "shmcb_remove_session_id, internal error");
+                goto end;
+            }
+            session_id_length = SSL_SESSION_get_session_id_length(pSession);
+            session_id = SSL_SESSION_get_session_id(pSession);
 
-    switch (status) {
-      case HTTP_BAD_REQUEST:
-            /* log the situation */
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                         f->c->base_server,
-                         "SSL handshake failed: HTTP spoken on HTTPS port; "
-                         "trying to send HTML error page");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, f->c->base_server);
-
-            sslconn->non_ssl_request = 1;
-            ssl_io_filter_disable(sslconn, f);
+            if ((session_id_length == idlen) 
+                 && (memcmp(id, session_id, idlen) == 0)) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                            "a match!");
+                /* Scrub out this session "quietly" */
+                idx->removed = (unsigned char) 1;
+                SSL_SESSION_free(pSession);

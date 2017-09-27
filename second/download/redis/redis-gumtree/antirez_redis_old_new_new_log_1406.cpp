@@ -1,1 +1,0 @@
-luaL_argerror(L, 0, "MessagePack pack needs input.");

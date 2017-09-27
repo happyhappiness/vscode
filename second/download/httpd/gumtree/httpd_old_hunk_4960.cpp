@@ -1,13 +1,13 @@
-	perror("Unable to gethostname");
-	exit(1);
+        rv = file_cache_el_final(conf, &dobj->hdrs, r);
     }
-    str[MAXHOSTNAMELEN] = '\0';
-    if ((!(p = gethostbyname(str))) || (!(server_hostname = find_fqdn(a, p)))) {
-	fprintf(stderr, "httpd: cannot determine local host name.\n");
-	fprintf(stderr, "Use ServerName to set it manually.\n");
-	exit(1);
+    if (APR_SUCCESS == rv) {
+        rv = file_cache_el_final(conf, &dobj->vary, r);
+    }
+    if (APR_SUCCESS == rv) {
+        rv = file_cache_el_final(conf, &dobj->data, r);
     }
 
-    return server_hostname;
-}
-
+    /* remove the cached items completely on any failure */
+    if (APR_SUCCESS != rv) {
+        remove_url(h, r);
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00736)

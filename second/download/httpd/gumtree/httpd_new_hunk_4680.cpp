@@ -1,13 +1,12 @@
-#define STANDALONE_MAIN standalone_main
+/*****************************************************************
+ * Connection structures and accounting...
+ */
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+static int child_fatal;
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
+/*****************************************************************
+ * Here follows a long bunch of generic server bookkeeping stuff...
+ */
 
-    ap_standalone = 1;
-
-    is_graceful = 0;
+/*****************************************************************
+ * Child process main loop.

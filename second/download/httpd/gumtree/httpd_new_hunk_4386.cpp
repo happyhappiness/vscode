@@ -1,10 +1,27 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+                          "h2_proxy_session(%s): unknown event %d", 
+                          session->id, ev);
+            break;
+    }
+}
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+static int send_loop(h2_proxy_session *session)
+{
+    while (nghttp2_session_want_write(session->ngh2)) {
+        int rv = nghttp2_session_send(session->ngh2);
+        if (rv < 0 && nghttp2_is_fatal(rv)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                          "h2_proxy_session(%s): write, rv=%d", session->id, rv);
+            dispatch_event(session, H2_PROXYS_EV_CONN_ERROR, rv, NULL);
+            break;
+        }
+        return 1;
+    }
+    return 0;
+}
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+apr_status_t h2_proxy_session_process(h2_proxy_session *session)
+{
+    apr_status_t status;
+    int have_written = 0, have_read = 0;
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 

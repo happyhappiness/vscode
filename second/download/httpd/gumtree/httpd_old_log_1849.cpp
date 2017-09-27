@@ -1,1 +1,3 @@
-ap_rvputs(r, "<h1>Menu for ", r->uri, "</h1>\n<hr />\n\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "inflate: bad flags %02x",
+                                  ctx->zlib_flags);

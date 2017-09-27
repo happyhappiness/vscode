@@ -1,21 +1,19 @@
-        break;
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-        case ALG_CRYPT:
-            (void) srand((int) time((time_t *) NULL));
-            to64(&salt[0], rand(), 8);
-            salt[8] = '\0';
-            cbuf = crypt(htdbm->userpass, salt);
-            if (cbuf == NULL) {
-                char errbuf[128];
-                
-                fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
-                exit(ERR_PWMISMATCH);
-            }
-            apr_cpystrn(cpw, cbuf, sizeof(cpw) - 1);
-            fprintf(stderr, "CRYPT is now deprecated, use MD5 instead!\n");
-#endif
-        default:
-        break;
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
+        }
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) { 
+            /* APLOG_ERR because the core output filter message is at error,
+             * but doesn't know it's passing CGI output 
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "Failed to flush CGI output to client");
+        }
     }
-    htdbm->userpass = apr_pstrdup(htdbm->pool, cpw);
+
+    if (nph) {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we

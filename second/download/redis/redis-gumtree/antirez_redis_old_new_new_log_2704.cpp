@@ -1,1 +1,0 @@
-(rdbSaveObjectType(&payload,o);

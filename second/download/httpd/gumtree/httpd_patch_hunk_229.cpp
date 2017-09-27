@@ -1,13 +1,19 @@
- #endif
-             ".\n");
-     apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");
-     apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
-     apr_file_printf(errfile, " -b  Use the password from the command line "
-             "rather than prompting for it.\n");
-+    apr_file_printf(errfile, " -D  Delete the specified user.\n");
-     apr_file_printf(errfile,
-             "On Windows, NetWare and TPF systems the '-m' flag is used by "
-             "default.\n");
-     apr_file_printf(errfile,
-             "On all other systems, the '-p' flag will probably not work.\n");
-     exit(ERR_SYNTAX);
+ 
+     /* do syntatic check.
+      * We break the URL into host, port, path, search
+      */
+     port = def_port;
+     err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+-    if (err)
++    if (err) {
++        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
++                      "error parsing URL %s: %s",
++                      url, err);
+         return HTTP_BAD_REQUEST;
++    }
+ 
+     /* now parse path/search args, according to rfc1738 */
+     /* N.B. if this isn't a true proxy request, then the URL _path_
+      * has already been decoded.  True proxy requests have r->uri
+      * == r->unparsed_uri, and no others have that property.
+      */

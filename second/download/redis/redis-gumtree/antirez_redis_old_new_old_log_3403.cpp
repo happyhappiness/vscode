@@ -1,1 +1,0 @@
-printf("\\x%02x",(unsigned char)*s);

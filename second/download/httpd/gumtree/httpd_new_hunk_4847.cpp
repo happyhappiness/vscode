@@ -1,24 +1,40 @@
-        else {
-            /*
-             * Dumb user has given us a bad url to redirect to --- fake up
-             * dying with a recursive server error...
-             */
-            recursive_error = SERVER_ERROR;
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Invalid error redirection directive: %s",
-                        custom_response);
-        }
-    }
-    ap_send_error_response(r, recursive_error);
+
+    return s;
 }
 
-static void decl_die(int status, char *phase, request_rec *r)
+static int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
 {
-    if (status == DECLINED) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_CRIT, r,
-                    "configuration error:  couldn't %s: %s", phase, r->uri);
-        ap_die(SERVER_ERROR, r);
+    int rcode;
+    struct tlsclientopts sWS2Opts;
+    struct nwtlsopts sNWTLSOpts;
+    struct sslserveropts opts;
+    unsigned long ulFlags;
+    SOCKET sock;
+    unicode_t keyFileName[60];
+
+    apr_os_sock_get(&sock, csd);
+
+    /* zero out buffers */
+    memset((char *)&sWS2Opts, 0, sizeof(struct tlsclientopts));
+    memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
+
+    /* turn on ssl for the socket */
+    ulFlags = (numcerts ? SO_TLS_ENABLE : SO_TLS_ENABLE | SO_TLS_BLIND_ACCEPT);
+    rcode = WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+    if (SOCKET_ERROR == rcode) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
+                     "Error: %d with WSAIoctl(flag SO_TLS_ENABLE)",
+                     WSAGetLastError());
+        return rcode;
     }
-    else
-        ap_die(status, r);
-}
+
+    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
+    WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+             NULL, 0, NULL, NULL, NULL);
+
+    /* setup the socket for SSL */
+    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+    sWS2Opts.options = &sNWTLSOpts;
+

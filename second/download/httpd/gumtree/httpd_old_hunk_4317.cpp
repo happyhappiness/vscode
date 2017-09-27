@@ -1,20 +1,28 @@
-#endif
-
-    ap_soft_timeout("send body", r);
-
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
-
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+            }
+            else if (verbosity >= 3) {
+                printf("LOG: Response code = %s\n", respcode);
+            }
+            c->gotheader = 1;
+            *s = 0;     /* terminate at end of header */
+            if (keepalive &&
+            (strstr(c->cbuff, "Keep-Alive")
+             || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+                char *cl;
+                cl = strstr(c->cbuff, "Content-Length:");
+                /* handle NCSA, which sends Content-length: */
+                if (!cl)
+                    cl = strstr(c->cbuff, "Content-length:");
+                if (cl) {
+                    c->keepalive = 1;
+                    /* response to HEAD doesn't have entity body */
+                    c->length = method != HEAD ? atoi(cl + 16) : 0;
+                }
+                /* The response may not have a Content-Length header */
+                if (!cl) {
+                    c->keepalive = 1;
+                    c->length = 0;
+                }
+            }
+            c->bread += c->cbx - (s + l - c->cbuff) + r - tocopy;
+            totalbread += c->bread;
+        }

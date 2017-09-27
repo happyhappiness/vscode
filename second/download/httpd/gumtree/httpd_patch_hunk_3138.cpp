@@ -1,0 +1,16 @@
+                               apr_pool_t *ptemp,
+                               SSLSrvConfigRec *sc)
+ {
+     /* Initialize the server if SSL is enabled or optional.
+      */
+     if ((sc->enabled == SSL_ENABLED_TRUE) || (sc->enabled == SSL_ENABLED_OPTIONAL)) {
+-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+-                     "Configuring server for SSL protocol");
++        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01914)
++                     "Configuring server %s for SSL protocol", sc->vhost_id);
+         ssl_init_server_ctx(s, p, ptemp, sc);
+     }
+ 
+     if (sc->proxy_enabled) {
+         ssl_init_proxy_ctx(s, p, ptemp, sc);
+     }

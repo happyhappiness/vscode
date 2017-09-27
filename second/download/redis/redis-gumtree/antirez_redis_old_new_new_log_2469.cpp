@@ -1,1 +1,0 @@
-snprintf(config.prompt+len,sizeof(config.prompt)-len,"> ");

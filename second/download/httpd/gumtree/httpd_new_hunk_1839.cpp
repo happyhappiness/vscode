@@ -1,133 +1,38 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-static const char end_ifdefine_section[] = "</IfDefine>";
-
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
-					      unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
-                         ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <VirtualHost> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Limit> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
-	&& cmd->path != NULL) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Directory/Location/Files> "
-			  "section", NULL);
-    }
-    
-    if (((forbidden & NOT_IN_DIRECTORY)
-	 && (cmd->end_token == end_directory_section
-	     || cmd->end_token == end_directorymatch_section)) 
-	|| ((forbidden & NOT_IN_LOCATION)
-	    && (cmd->end_token == end_location_section
-		|| cmd->end_token == end_locationmatch_section)) 
-	|| ((forbidden & NOT_IN_FILES)
-	    && (cmd->end_token == end_files_section
-		|| cmd->end_token == end_filesmatch_section))) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <", cmd->end_token+2,
-			  " section", NULL);
-    }
-
-    return NULL;
-}
-
-static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
-
-static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory(arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
-		    arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
-    }
-    
-    conf->ap_document_root = arg;
-    return NULL;
-}
-
-static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
-				      char *line)
-{
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
+     * we can have cleanups occur when the child exits.
      */
-  
-    w = ap_getword_conf_nc(cmd->pool, &line);
-    error_number = atoi(w);
+    apr_allocator_create(&allocator);
+    apr_allocator_max_free_set(allocator, ap_max_mem_free);
+    apr_pool_create_ex(&pchild, pconf, NULL, allocator);
+    apr_allocator_owner_set(allocator, pchild);
+    apr_pool_tag(pchild, "pchild");
 
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+#if APR_HAS_THREADS
+    osthd = apr_os_thread_current();
+    apr_os_thread_put(&thd, &osthd, pchild);
+#endif
+    
+    apr_pool_create(&ptrans, pchild);
+    apr_pool_tag(ptrans, "transaction");
 
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
-        index_number = idx500;
+    /* needs to be done before we switch UIDs so we have permissions */
+    ap_reopen_scoreboard(pchild, NULL, 0);
+    lockfile = apr_proc_mutex_lockfile(accept_mutex);
+    status = apr_proc_mutex_child_init(&accept_mutex,
+                                       lockfile,
+                                       pchild);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                     "Couldn't initialize cross-process lock in child "
+                     "(%s) (%s)",
+                     lockfile ? lockfile : "none",
+                     apr_proc_mutex_name(accept_mutex));
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
-			  w, NULL);
+
+    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-                
-    /* Store it... */
 
-    if (conf->response_code_strings == NULL) {
-	conf->response_code_strings =
-	    ap_pcalloc(cmd->pool,
-		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
+    ap_run_child_init(pchild, ap_server_conf);
 
-    return NULL;
-}
-
-/* access.conf commands...
- *
+    ap_create_sb_handle(&sbh, pchild, my_child_num, 0);

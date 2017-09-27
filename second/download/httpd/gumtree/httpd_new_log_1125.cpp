@@ -1,1 +1,1 @@
-fprintf(f, " /* ");
+fprintf(f, "\n  ");

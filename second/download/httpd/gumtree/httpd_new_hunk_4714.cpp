@@ -1,14 +1,12 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
-    }
-    else {
-	mm = (caddr_t)-1;
-    }
-++ apache_1.3.2/src/main/http_log.c	1998-09-22 01:29:45.000000000 +0800
+                    r->status = HTTP_BAD_REQUEST;
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03451)
+                                  "Request header field value presented"
+                                  " bad whitespace");
+                    return;
+                }
+            }
+            else /* Using strict RFC7230 parsing */
+            {
+                /* Ensure valid token chars before ':' per RFC 7230 3.2.4 */
+                value = (char *)ap_scan_http_token(last_field);
+                if ((value == last_field) || *value != ':') {

@@ -1,14 +1,13 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
-
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
-
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+            if (!strcasecmp(tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+            /* test lenp, because it gives another case we can handle */
+            else if (!lenp) {
+                /* Something that isn't in HTTP, unless some future
+                 * edition defines new transfer ecodings, is unsupported.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01585)
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
+            }
+            else {

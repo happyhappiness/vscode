@@ -1,16 +1,22 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
+    /* In case anyone needs to know, this is a fake request that is really a
+     * response.
+     */
+    backend->r->proxyreq = PROXYREQ_RESPONSE;
+    apr_table_setn(r->notes, "proxy-source-port", apr_psprintf(r->pool, "%hu",
+                   origin->local_addr->port));
+    tmp_bb = apr_brigade_create(p, c->bucket_alloc);
+    do {
+        apr_status_t rc;
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
+        apr_brigade_cleanup(bb);
 
-    /* perform sub-request for the file name without the suffix */
+        rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), backend->r, 0, &len);
+        if (len == 0) {
+            /* handle one potential stray CRLF */
+            rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), backend->r, 0, &len);
+        }
+        if (len <= 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r, APLOGNO(01102)
+                          "error reading status line from remote "
+                          "server %s:%d", backend->hostname, backend->port);
+            if (APR_STATUS_IS_TIMEUP(rc)) {

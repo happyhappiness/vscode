@@ -1,16 +1,29 @@
-         */
-        err = apr_sockaddr_info_get(&(worker->cp->addr),
-                                    conn->hostname, APR_UNSPEC,
-                                    conn->port, 0,
-                                    worker->cp->pool);
-        conn->addr = worker->cp->addr;
-        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-                         "proxy: unlock");
-        }
-    }
-    else
-        conn->addr = worker->cp->addr;
+#endif
 
-    if (err != APR_SUCCESS) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+#ifdef NEED_HASHBANG_EMUL
+    ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
+#endif
+
+#ifdef SUEXEC_BIN
+    ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);
+#endif
+
+
+#ifdef AP_TYPES_CONFIG_FILE

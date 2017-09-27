@@ -1,38 +1,19 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-			ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0)),
-			     "\">", NULL);
-	}
+            ctx = f->ctx = apr_pcalloc(f->r->pool, sizeof(charset_filter_ctx_t));
+            ctx->dc = dc;
+            ctx->noop = 1;
+        }
+    }
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs(anchor, r);
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-		       ap_escape_html(scratch, ar[x]->icon ?
-				   ar[x]->icon : d->default_icon),
-		       "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-		       "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf
-			(
-			    r,
-			    " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			    d->icon_height,
-			    d->icon_width
-			);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs("</A>", r);
+    if (dc->debug >= DBGLVL_GORY) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
+                     "xlate_in_filter() - "
+                     "charset_source: %s charset_default: %s",
+                     dc && dc->charset_source ? dc->charset_source : "(none)",
+                     dc && dc->charset_default ? dc->charset_default : "(none)");
+    }
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+    if (!ctx->ran) {  /* filter never ran before */
+        chk_filter_chain(f);
+        ctx->ran = 1;
+        if (!ctx->noop && !ctx->is_sb
+            && apr_table_get(f->r->headers_in, "Content-Length")) {

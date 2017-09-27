@@ -1,13 +1,37 @@
-        exit(0);
+                }
+                else if (h1 && h2 && !strcmp(h1, h2)) {
+                    /* both headers exist and are equal - do nothing */
+                }
+                else {
+                    /* headers do not match, so Vary failed */
+                    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
+                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");
+                    apr_table_clear(r->headers_out);
+                    r->status_line = NULL;
+                    cache->handle = NULL;
+                    return DECLINED;
+                }
+            }
+            cache->provider = list->provider;
+            cache->provider_name = list->provider_name;
+            return OK;
+        }
+        case DECLINED: {
+            /* try again with next cache type */
+            list = list->next;
+            continue;
+        }
+        default: {
+            /* oo-er! an error */
+            cache->handle = NULL;
+            return rv;
+        }
+        }
     }
-    apr_file_printf(errfile, "password for user %s\n", user);
+    cache->handle = NULL;
+    return DECLINED;
+}
 
-    /* The temporary file has all the data, just copy it to the new location.
-     */
-    if (apr_file_copy(tn, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
-        APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], pwfilename);
-        exit(ERR_FILEPERM);
-    }
-    apr_file_close(ftemp);
+apr_status_t cache_generate_key_default( request_rec *r, apr_pool_t*p, char**key ) 
+{
+    if (r->hostname) {

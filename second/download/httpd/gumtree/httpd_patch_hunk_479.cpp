@@ -1,21 +1,13 @@
- 
-         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                      "proxy: connection complete to %pI (%s)",
-                      p_conn->addr, p_conn->name);
- 
-         /* set up the connection filters */
--        ap_run_pre_connection(*origin, p_conn->sock);
-+        rc = ap_run_pre_connection(*origin, p_conn->sock);
-+        if (rc != OK && rc != DONE) {
-+            (*origin)->aborted = 1;
-+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                         "proxy: HTTP: pre_connection setup failed (%d)",
-+                         rc);
-+            return rc;
-+        }
+         ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+         char buf[120];
+         /* Something bad happened, give up and go away. */
+         ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                      "piped_log_spawn: unable to setup child process '%s': %s",
+                      pl->program, apr_strerror(status, buf, sizeof(buf)));
+-        rc = -1;
      }
-     return OK;
- }
+     else {
+         char **args;
+         const char *pname;
  
- static
- apr_status_t ap_proxy_http_request(apr_pool_t *p, request_rec *r,
+         apr_tokenize_to_argv(pl->program, &args, pl->p);

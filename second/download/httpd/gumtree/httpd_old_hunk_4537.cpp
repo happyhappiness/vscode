@@ -1,13 +1,17 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
-
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
-    }
+        newngn->no_live = 1;
+        APR_RING_INIT(&newngn->entries, h2_ngn_entry, link);
+        
+        status = einit(newngn, newngn->id, newngn->type, newngn->pool,
+                       shed->req_buffer_size, r,
+                       &newngn->out_consumed, &newngn->out_consumed_ctx);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c, APLOGNO(03395)
+                      "h2_ngn_shed(%ld): create engine %s (%s)", 
+                      shed->c->id, newngn->id, newngn->type);
+        if (status == APR_SUCCESS) {
+            ap_assert(task->engine == NULL);
+            newngn->task = task;
+            task->engine = newngn;
+            task->assigned = newngn;
+            apr_hash_set(shed->ngns, newngn->type, APR_HASH_KEY_STRING, newngn);
+        }
+        return status;

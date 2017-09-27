@@ -1,9 +1,14 @@
-/* Automatically generated file - do not edit */
-
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at

@@ -1,82 +1,60 @@
-    }
-    else {
-        if (type == REMOTE_HOST || type == REMOTE_DOUBLE_REV) {
-            return NULL;
+	 */
+
+	/* Lock around "accept", if necessary */
+	SAFE_ACCEPT(accept_mutex_on());
+
+        if (num_listensocks == 1) {
+            offset = 0;
         }
         else {
-            if (str_is_ip) { /* if caller wants to know */
-                *str_is_ip = 1;
-            }
+            /* multiple listening sockets - need to poll */
+	    for (;;) {
+                apr_status_t ret;
+                apr_int32_t n;
 
-            return conn->remote_ip;
-        }
-    }
-}
+                ret = apr_poll(pollset, num_listensocks, &n, -1);
+                if (ret != APR_SUCCESS) {
+                    if (APR_STATUS_IS_EINTR(ret)) {
+                        continue;
+                    }
+    	            /* Single Unix documents select as returning errnos
+    	             * EBADF, EINTR, and EINVAL... and in none of those
+    	             * cases does it make sense to continue.  In fact
+    	             * on Linux 2.0.x we seem to end up with EFAULT
+    	             * occasionally, and we'd loop forever due to it.
+    	             */
+    	            ap_log_error(APLOG_MARK, APLOG_ERR, ret, ap_server_conf,
+                             "apr_poll: (listen)");
+    	            clean_child_exit(1);
+                }
+                /* find a listener */
+                curr_pollfd = last_pollfd;
+                do {
+                    curr_pollfd++;
+                    if (curr_pollfd >= num_listensocks) {
+                        curr_pollfd = 0;
+                    }
+                    /* XXX: Should we check for POLLERR? */
+                    if (pollset[curr_pollfd].rtnevents & APR_POLLIN) {
+                        last_pollfd = curr_pollfd;
+                        offset = curr_pollfd;
+                        goto got_fd;
+                    }
+                } while (curr_pollfd != last_pollfd);
 
-AP_DECLARE(const char *) ap_get_remote_logname(request_rec *r)
-{
-    core_dir_config *dir_conf;
-
-    if (r->connection->remote_logname != NULL) {
-        return r->connection->remote_logname;
-    }
-
-    /* If we haven't checked the identity, and we want to */
-    dir_conf = (core_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                       &core_module);
-
-    if (dir_conf->do_rfc1413 & 1) {
-        return ap_rfc1413(r->connection, r->server);
-    }
-    else {
-        return NULL;
-    }
-}
-
-/* There are two options regarding what the "name" of a server is.  The
- * "canonical" name as defined by ServerName and Port, or the "client's
- * name" as supplied by a possible Host: header or full URI.  We never
- * trust the port passed in the client's headers, we always use the
- * port of the actual socket.
- *
- * The DNS option to UseCanonicalName causes this routine to do a
- * reverse lookup on the local IP address of the connection and use
- * that for the ServerName. This makes its value more reliable while
- * at the same time allowing Demon's magic virtual hosting to work.
- * The assumption is that DNS lookups are sufficiently quick...
- * -- fanf 1998-10-03
- */
-AP_DECLARE(const char *) ap_get_server_name(request_rec *r)
-{
-    conn_rec *conn = r->connection;
-    core_dir_config *d;
-
-    d = (core_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                &core_module);
-
-    if (d->use_canonical_name == USE_CANONICAL_NAME_OFF) {
-        return r->hostname ? r->hostname : r->server->server_hostname;
-    }
-
-    if (d->use_canonical_name == USE_CANONICAL_NAME_DNS) {
-        if (conn->local_host == NULL) {
-            if (apr_getnameinfo(&conn->local_host,
-                                conn->local_addr, 0) != APR_SUCCESS)
-                conn->local_host = apr_pstrdup(conn->pool,
-                                               r->server->server_hostname);
-            else {
-                ap_str_tolower(conn->local_host);
+                continue;
             }
         }
+    got_fd:
+	/* if we accept() something we don't want to die, so we have to
+	 * defer the exit
+	 */
+        status = listensocks[offset].accept_func(&csd, 
+                                                 &listensocks[offset], ptrans);
+        SAFE_ACCEPT(accept_mutex_off());	/* unlock after "accept" */
 
-        return conn->local_host;
-    }
-
-    /* default */
-    return r->server->server_hostname;
-}
-
-/*
- * Get the current server name from the request for the purposes
- * of using in a URL.  If the server name is an IPv6 literal
- * address, it will be returned in URL format (e.g., "[fe80::1]").
+        if (status == APR_EGENERAL) {
+            /* resource shortage or should-not-occur occured */
+            clean_child_exit(1);
+        }
+        else if (status != APR_SUCCESS) {

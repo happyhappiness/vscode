@@ -1,25 +1,13 @@
-                                      apr_pool_t *ptrans)
-{
-    apr_socket_t *csd;
-    apr_status_t status;
-    int sockdes;
+            /* Check the listen queue on all sockets for requests */
+            memcpy(&main_fds, &listenfds, sizeof(fd_set));
+            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
 
-    status = apr_socket_accept(&csd, lr->sd, ptrans);
-    if (status == APR_SUCCESS) {
-        *accepted = csd;
-        apr_os_sock_get(&sockdes, csd);
-        if (sockdes >= FD_SETSIZE) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                         "new file descriptor %d is too large; you probably need "
-                         "to rebuild Apache with a larger FD_SETSIZE "
-                         "(currently %d)",
-                         sockdes, FD_SETSIZE);
-            apr_socket_close(csd);
-            return APR_EINTR;
-        }
-        return status;
-    }
+            if (srv <= 0) {
+                if (srv < 0) {
+                    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                        "select() failed on listen socket");
+                    apr_thread_yield();
+                }
+                continue;
+            }
 
-    if (APR_STATUS_IS_EINTR(status)) {
-        return status;
-    }

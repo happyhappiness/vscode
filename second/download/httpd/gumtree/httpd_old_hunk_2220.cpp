@@ -1,17 +1,21 @@
+        return -1;
+    if ((a->waittime) > (b->waittime))
+        return 1;
+    return 0;
+}
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+static void output_results(void)
+{
+    apr_interval_time_t timetakenusec;
+    float timetaken;
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
+    endtime = apr_time_now();
+    timetakenusec = endtime - start;
+    timetaken = ((float)apr_time_sec(timetakenusec)) +
+        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    printf("\n\n");
+    printf("Server Software:        %s\n", servername);
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %hu\n", port);
+#ifdef USE_SSL

@@ -1,25 +1,24 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
-    }
-    return;
-}
+        /* uncomment this to see how the tree a built:
+         *
+         * DEBUG_DUMP_TREE(ctx, root);
+         */
+        CREATE_NODE(ctx, new);
 
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
+        was_unmatched = get_ptoken(ctx->dpool, &parse, &new->token);
+        if (!parse) {
+            break;
+        }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+        DEBUG_DUMP_UNMATCHED(ctx, was_unmatched);
+        DEBUG_DUMP_TOKEN(ctx, &new->token);
 
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
+        if (!current) {
+            switch (new->token.type) {
+            case TOKEN_STRING:
+            case TOKEN_NOT:
+            case TOKEN_LBRACE:
+                root = current = new;
+                continue;
 
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,

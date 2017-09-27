@@ -1,15 +1,24 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+}
 
-        r->read_chunked = 1;
+static int make_child(server_rec * s, int slot)
+{
+    int pid;
+
+    if (slot + 1 > max_daemons_limit) {
+        max_daemons_limit = slot + 1;
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    if (one_process) {
+        set_signals();
+        ap_scoreboard_image->parent[slot].pid = getpid();
+        child_main(slot);
+    }
+
+    if ((pid = fork()) == -1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s,
+                     "fork: Unable to fork new process");
+
+        /* fork didn't succeed.  There's no need to touch the scoreboard;
+         * if we were trying to replace a failed child process, then
+         * server_main_loop() marked its workers SERVER_DEAD, and if
+         * we were trying to replace a child process that exited normally,

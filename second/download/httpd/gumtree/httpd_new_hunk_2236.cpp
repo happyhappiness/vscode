@@ -1,93 +1,36 @@
-        int iEnvBlockLen;
+    while (--n >= 0) {
+        *s++ = itoa64[v&0x3f];
+        v >>= 6;
+    }
+}
 
-	memset(&si, 0, sizeof(si));
-	memset(&pi, 0, sizeof(pi));
+static void generate_salt(char *s, size_t size)
+{
+    static unsigned char tbl[] = 
+        "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    size_t i;
+    for (i = 0; i < size; ++i) {
+        int idx = (int) (64.0 * rand() / (RAND_MAX + 1.0));
+        s[i] = tbl[idx];
+    }
+}
 
-	interpreter[0] = 0;
-	pid = -1;
+static apr_status_t seed_rand(void)
+{
+    int seed = 0;
+    apr_status_t rv;
+    rv = apr_generate_random_bytes((unsigned char*) &seed, sizeof(seed));
+    if (rv) {
+        apr_file_printf(errfile, "Unable to generate random bytes: %pm" NL, &rv);
+        return rv;
+    }
+    srand(seed);
+    return rv;
+}
 
-	exename = strrchr(r->filename, '/');
-	if (!exename) {
-	    exename = strrchr(r->filename, '\\');
-	}
-	if (!exename) {
-	    exename = r->filename;
-	}
-	else {
-	    exename++;
-	}
-	dot = strrchr(exename, '.');
-	if (dot) {
-	    if (!strcasecmp(dot, ".BAT")
-		|| !strcasecmp(dot, ".CMD")
-		|| !strcasecmp(dot, ".EXE")
-		||  !strcasecmp(dot, ".COM")) {
-		is_exe = 1;
-	    }
-	}
+static void putline(apr_file_t *f, const char *l)
+{
+    apr_file_puts(l, f);
+}
 
-	if (!is_exe) {
-	    program = fopen(r->filename, "rb");
-	    if (!program) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fopen(%s) failed", r->filename);
-		return (pid);
-	    }
-	    sz = fread(interpreter, 1, sizeof(interpreter) - 1, program);
-	    if (sz < 0) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "fread of %s failed", r->filename);
-		fclose(program);
-		return (pid);
-	    }
-	    interpreter[sz] = 0;
-	    fclose(program);
-	    if (!strncmp(interpreter, "#!", 2)) {
-		is_script = 1;
-		for (i = 2; i < sizeof(interpreter); i++) {
-		    if ((interpreter[i] == '\r')
-			|| (interpreter[i] == '\n')) {
-			break;
-		    }
-		}
-		interpreter[i] = 0;
-		for (i = 2; interpreter[i] == ' '; ++i)
-		    ;
-		memmove(interpreter+2,interpreter+i,strlen(interpreter+i)+1);
-	    }
-	    else {
-	        /* Check to see if it's a executable */
-                IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)interpreter;
-                if (hdr->e_magic == IMAGE_DOS_SIGNATURE && hdr->e_cblp < 512) {
-                    is_binary = 1;
-		}
-	    }
-	}
-        /* Bail out if we haven't figured out what kind of
-         * file this is by now..
-         */
-        if (!is_exe && !is_script && !is_binary) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		"%s is not executable; ensure interpreted scripts have "
-		"\"#!\" first line", 
-		r->filename);
-            return (pid);
-	}
-
-	/*
-	 * Make child process use hPipeOutputWrite as standard out,
-	 * and make sure it does not show on screen.
-	 */
-	si.cb = sizeof(si);
-	si.dwFlags     = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-	si.wShowWindow = SW_HIDE;
-	si.hStdInput   = pinfo->hPipeInputRead;
-	si.hStdOutput  = pinfo->hPipeOutputWrite;
-	si.hStdError   = pinfo->hPipeErrorWrite;
-
-	if ((!r->args) || (!r->args[0]) || strchr(r->args, '=')) { 
-	    if (is_exe || is_binary) {
-	        /*
-	         * When the CGI is a straight binary executable, 
-		 * we can run it as is
-	         */
+/*

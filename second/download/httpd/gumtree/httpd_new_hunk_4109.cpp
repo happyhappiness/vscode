@@ -1,16 +1,20 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
-
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!ap_isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && ap_isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
-
-    /* perform sub-request for the file name without the suffix */
+                pollevent = cur->rtnevents;
+                if (pollevent & (APR_POLLIN | APR_POLLHUP)) {
+#ifdef DEBUGGING
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01027)
+                                  "client was readable");
+#endif
+                    done |= ap_proxy_transfer_between_connections(r, c,
+                                                                  backconn,
+                                                                  bb_front,
+                                                                  bb_back,
+                                                                  "client",
+                                                                  NULL,
+                                                                  CONN_BLKSZ, 1)
+                                                                 != APR_SUCCESS;
+                }
+                else if (pollevent & APR_POLLERR) {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02827)
+                                  "err on client");
+                    c->aborted = 1;
+                    done = 1;

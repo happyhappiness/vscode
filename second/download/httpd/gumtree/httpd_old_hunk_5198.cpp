@@ -1,13 +1,18 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01897)
+                         "Init: Oops, you want to request client "
+                         "authentication, but no CAs are known for "
+                         "verification!?  [Hint: SSLCACertificate*]");
+        }
     }
-#elif defined(__EMX__)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+}
+
+static void ssl_init_ctx_cipher_suite(server_rec *s,
+                                      apr_pool_t *p,
+                                      apr_pool_t *ptemp,
+                                      modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = mctx->ssl_ctx;
+    const char *suite;
+
+    /*
+     *  Configure SSL Cipher Suite. Always disable NULL and export ciphers,

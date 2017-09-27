@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_HAS_SENDFILE\n", r);
+ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);

@@ -1,33 +1,19 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s in database", user);
+        return AUTH_GENERAL_ERROR;
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
+    if (conf->user == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserPWQuery has been specified.");
+        return AUTH_GENERAL_ERROR;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserPWQuery, key '%s'.", conf->user);
+        return AUTH_GENERAL_ERROR;
     }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Error looking up %s in database", user);

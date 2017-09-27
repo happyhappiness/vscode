@@ -1,22 +1,21 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
+                  "mod_dumpio: %s [%s-%s] %" APR_OFF_T_FMT " readbytes",
+                  f->frec->name,
+                  whichmode(mode),
+                  ((block) == APR_BLOCK_READ) ? "blocking" : "nonblocking",
+                  readbytes) ;
+
+    ret = ap_get_brigade(f->next, bb, mode, block, readbytes);
+
+    if (ret == APR_SUCCESS) {
+        for (b = APR_BRIGADE_FIRST(bb); b != APR_BRIGADE_SENTINEL(bb); b = APR_BUCKET_NEXT(b)) {
+          dumpit(f, b, ptr);
+        }
+    } else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
+                      "mod_dumpio: %s - %d", f->frec->name, ret) ;
+        return ret;
     }
-#endif
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
-
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+    return APR_SUCCESS ;

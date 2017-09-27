@@ -1,13 +1,27 @@
-    if (!method_restricted)
-	return OK;
+             * rather than attempting to temporarily rehook it to the terminal,
+             * we print the prompt to stdout before EVP_read_pw_string turns
+             * off tty echo
+             */
+            apr_file_open_stdout(&writetty, p);
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                         "Init: Requesting pass phrase via builtin terminal "
+                         "dialog");
+#endif
+        }
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+        /*
+         * The first time display a header to inform the user about what
+         * program he actually speaks to, which module is responsible for
+         * this terminal dialog and why to the hell he has to enter
+         * something...
+         */
+        if (*pnPassPhraseDialog == 1) {
+            apr_file_printf(writetty, "%s mod_ssl/%s (Pass Phrase Dialog)\n",
+                            AP_SERVER_BASEVERSION, MOD_SSL_VERSION);
+            apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
+            apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
+        }
+        if (*pbPassPhraseDialogOnce) {
+            *pbPassPhraseDialogOnce = FALSE;
+            apr_file_printf(writetty, "\n");

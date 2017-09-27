@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Lua script killed by user with SCRIPT KILL.");

@@ -1,31 +1,40 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+    const char *t;
+    char *w;
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
-    ap_rputs("</BODY></HTML>\n", r);
 
-    ap_kill_timeout(r);
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: no sec->host - weird...?", getpid());
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_authnz_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }

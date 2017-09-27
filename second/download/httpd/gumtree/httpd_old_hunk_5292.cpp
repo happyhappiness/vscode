@@ -1,12 +1,27 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+ * Canonicalize scgi-like URLs.
+ */
+static int scgi_canon(request_rec *r, char *url)
+{
+    char *host, sport[sizeof(":65535")];
+    const char *err, *path;
+    apr_port_t port = SCGI_DEFAULT_PORT;
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    if (strncasecmp(url, SCHEME "://", sizeof(SCHEME) + 2)) {
+        return DECLINED;
+    }
+    url += sizeof(SCHEME); /* Keep slashes */
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00857)
+                      "error parsing URL %s: %s", url, err);
+        return HTTP_BAD_REQUEST;
+    }
+
+    apr_snprintf(sport, sizeof(sport), ":%u", port);
+
+    if (ap_strchr(host, ':')) { /* if literal IPv6 address */
+        host = apr_pstrcat(r->pool, "[", host, "]", NULL);
+    }
+
+    path = ap_proxy_canonenc(r->pool, url, strlen(url), enc_path, 0,

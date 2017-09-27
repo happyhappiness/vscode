@@ -1,13 +1,13 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02910)
+                              "parsing Upgrade header: %s", err);
+                return DECLINED;
             }
-            else {
-                ap_rputs("(none)", r);
+            
+            if (offers && offers->nelts > 0) {
+                const char *protocol = ap_select_protocol(c, r, NULL, offers);
+                if (protocol && strcmp(protocol, ap_get_protocol(c))) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02909)
+                                  "Upgrade selects '%s'", protocol);
+                    /* Let the client know what we are upgrading to. */
+                    apr_table_clear(r->headers_out);
+                    apr_table_setn(r->headers_out, "Upgrade", protocol);

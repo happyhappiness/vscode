@@ -1,14 +1,13 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+static int proxy_connect_canon(request_rec *r, char *url)
+{
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    if (r->method_number != M_CONNECT) {
+    return DECLINED;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "canonicalising URL %s", url);
+
+    return OK;
+}
+
+/* read available data (in blocks of CONN_BLKSZ) from c_i and copy to c_o */
+static int proxy_connect_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,

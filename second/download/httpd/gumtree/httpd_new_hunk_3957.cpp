@@ -1,31 +1,25 @@
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+        /* don't write empty buckets to the cache */
+        if (!length) {
+            continue;
         }
-    }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
+        sobj->body_length += length;
+        if (sobj->body_length >= sobj->buffer_len - sobj->body_offset) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02378)
+                    "URL %s failed the buffer size check "
+                    "(%" APR_OFF_T_FMT ">=%" APR_SIZE_T_FMT ")",
+                    h->cache_obj->key, sobj->body_length,
+                    sobj->buffer_len - sobj->body_offset);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return APR_EGENERAL;
+        }
+        memcpy(sobj->buffer + sobj->body_offset + sobj->body_length - length,
+               str, length);
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+        /* have we reached the limit of how much we're prepared to write in one
+         * go? If so, leave, we'll get called again. This prevents us from trying
+         * to swallow too much data at once, or taking so long to write the data
+         * the client times out.
+         */

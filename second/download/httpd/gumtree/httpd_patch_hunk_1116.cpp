@@ -1,17 +1,25 @@
- static const char *util_ldap_set_opcache_ttl(cmd_parms *cmd, void *dummy,
-                                              const char *ttl)
- {
-     util_ldap_state_t *st =
-         (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
-                                                   &ldap_module);
-+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-+
-+    if (err != NULL) {
-+        return err;
-+    }
- 
-     st->compare_cache_ttl = atol(ttl) * 1000000;
- 
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                  "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache TTL to %ld microseconds.",
-                  getpid(), st->compare_cache_ttl);
+              * behaviour here might break something.
+              *
+              * So let's make it configurable.
+              */
+             const char *policy = apr_table_get(r->subprocess_env,
+                                                "proxy-interim-response");
+-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
++            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: HTTP: received interim %d response",
+                          r->status);
+             if (!policy || !strcasecmp(policy, "RFC")) {
+                 ap_send_interim_response(r, 1);
+             }
+             /* FIXME: refine this to be able to specify per-response-status
+              * policies and maybe also add option to bail out with 502
+              */
+             else if (strcasecmp(policy, "Suppress")) {
+-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
++                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "undefined proxy interim response policy");
+             }
+         }
+         /* Moved the fixups of Date headers and those affected by
+          * ProxyPassReverse/etc from here to ap_proxy_read_headers
+          */

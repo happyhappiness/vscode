@@ -1,21 +1,20 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
+    case PARSE_ARG_POSTNAME:
+        intern->current_arg->name = apr_pstrmemdup(ctx->dpool,
+                                                 intern->current_arg->name,
+                                                 intern->current_arg->name_len);
+        if (!intern->current_arg->name_len) {
+            intern->error = 1;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01370) "missing "
+                          "argument name for value to tag %s in %s",
+                          apr_pstrmemdup(ctx->r->pool, intern->directive,
+                                         intern->directive_len),
+                                         ctx->r->filename);
+        }
+        else {
+            ap_str_tolower(intern->current_arg->name);
+        }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+        intern->state = PARSE_ARG_EQ;
+        /* continue with next state immediately */
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    case PARSE_ARG_EQ:

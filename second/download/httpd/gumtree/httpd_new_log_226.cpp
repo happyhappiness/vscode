@@ -1,1 +1,1 @@
-dav_send_one_response(first, bb, r->output_filters, subpool);
+ap_rputs(" /", r);

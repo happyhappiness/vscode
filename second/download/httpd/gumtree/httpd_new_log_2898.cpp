@@ -1,0 +1,1 @@
+printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);

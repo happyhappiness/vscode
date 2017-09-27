@@ -1,50 +1,37 @@
-#ifdef NEED_HASHBANG_EMUL
-    printf(" -D NEED_HASHBANG_EMUL\n");
-#endif
-#ifdef SHARED_CORE
-    printf(" -D SHARED_CORE\n");
-#endif
+    apr_bucket_alloc_t *bucket_alloc = c->bucket_alloc;
+    apr_bucket_brigade *header_brigade;
+    apr_bucket_brigade *input_brigade;
+    apr_bucket_brigade *temp_brigade;
+    apr_bucket *e;
+    char *buf;
+    apr_status_t status;
+    enum rb_methods {RB_INIT, RB_STREAM_CL, RB_STREAM_CHUNKED, RB_SPOOL_CL};
+    enum rb_methods rb_method = RB_INIT;
+    char *old_cl_val = NULL;
+    char *old_te_val = NULL;
+    apr_off_t bytes_read = 0;
+    apr_off_t bytes;
+    int force10, rv;
+    conn_rec *origin = p_conn->connection;
 
-/* This list displays the compiled-in default paths: */
-#ifdef HTTPD_ROOT
-    printf(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n");
-#endif
-#ifdef SUEXEC_BIN
-    printf(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n");
-#endif
-#ifdef SHARED_CORE_DIR
-    printf(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n");
-#endif
-#ifdef DEFAULT_PIDLOG
-    printf(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n");
-#endif
-#ifdef DEFAULT_SCOREBOARD
-    printf(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n");
-#endif
-#ifdef DEFAULT_LOCKFILE
-    printf(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n");
-#endif
-#ifdef DEFAULT_XFERLOG
-    printf(" -D DEFAULT_XFERLOG=\"" DEFAULT_XFERLOG "\"\n");
-#endif
-#ifdef DEFAULT_ERRORLOG
-    printf(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n");
-#endif
-#ifdef TYPES_CONFIG_FILE
-    printf(" -D TYPES_CONFIG_FILE=\"" TYPES_CONFIG_FILE "\"\n");
-#endif
-#ifdef SERVER_CONFIG_FILE
-    printf(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n");
-#endif
-#ifdef ACCESS_CONFIG_FILE
-    printf(" -D ACCESS_CONFIG_FILE=\"" ACCESS_CONFIG_FILE "\"\n");
-#endif
-#ifdef RESOURCE_CONFIG_FILE
-    printf(" -D RESOURCE_CONFIG_FILE=\"" RESOURCE_CONFIG_FILE "\"\n");
-#endif
-}
+    if (apr_table_get(r->subprocess_env, "force-proxy-request-1.0")) {
+        if (r->expecting_100) {
+            return HTTP_EXPECTATION_FAILED;
+        }
+        force10 = 1;
+    } else {
+        force10 = 0;
+    }
 
+    header_brigade = apr_brigade_create(p, origin->bucket_alloc);
+    rv = ap_proxy_create_hdrbrgd(p, header_brigade, r, p_conn,
+                                 worker, conf, uri, url, server_portstr,
+                                 &old_cl_val, &old_te_val);
+    if (rv != OK) {
+        return rv;
+    }
 
-/* Some init code that's common between win32 and unix... well actually
- * some of it is #ifdef'd but was duplicated before anyhow.  This stuff
- * is still a mess.
+    /* We have headers, let's figure out our request body... */
+    input_brigade = apr_brigade_create(p, bucket_alloc);
+
+    /* sub-requests never use keepalives, and mustn't pass request bodies.

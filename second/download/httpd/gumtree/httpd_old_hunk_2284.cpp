@@ -1,9 +1,30 @@
-/* Automatically generated file - do not edit */
+                                              const char *require_args)
+{
+    authz_dbd_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                              &authz_dbd_module);
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    return (authz_dbd_login(r, cfg, "login") == OK ? AUTHZ_GRANTED : AUTHZ_DENIED);
+}
+
+static authz_status dbdlogout_check_authorization(request_rec *r,
+                                              const char *require_args)
+{
+    authz_dbd_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                              &authz_dbd_module);
+
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
+
+    return (authz_dbd_login(r, cfg, "logout") == OK ? AUTHZ_GRANTED : AUTHZ_DENIED);
+}
+
+static const authz_provider authz_dbdgroup_provider =

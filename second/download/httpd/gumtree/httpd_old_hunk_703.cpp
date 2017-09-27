@@ -1,13 +1,14 @@
-    apr_file_printf(f, "%%error\n%s\n", error);
+    const char *fname = ap_server_root_relative(p, conf->magicfile);
 
-    apr_file_close(f);
-    return ret;
-}
+    if (!fname) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+		     MODNAME ": Invalid magic file path %s", conf->magicfile);
+	return -1;
+    }        
+    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED, 
+                                APR_OS_DEFAULT, p) != APR_SUCCESS)) {
+	ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+		     MODNAME ": can't read magic file %s", fname);
+	return -1;
+    }
 
-/* Soak up stderr from a script and redirect it to the error log. 
- */
-static apr_status_t log_script_err(request_rec *r, apr_file_t *script_err)
-{
-    char argsbuffer[HUGE_STRING_LEN];
-    char *newline;
-    apr_status_t rv;

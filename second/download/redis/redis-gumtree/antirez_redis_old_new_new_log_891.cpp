@@ -1,1 +1,0 @@
-serverLog(LL_VERBOSE, "Client closed connection");

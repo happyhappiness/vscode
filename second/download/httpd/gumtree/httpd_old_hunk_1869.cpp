@@ -1,22 +1,15 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
     }
-    ap_unblock_alarms();
-}
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    child_created = 1;
+
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
+
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.

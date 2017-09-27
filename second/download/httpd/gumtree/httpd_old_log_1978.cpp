@@ -1,3 +1,3 @@
-printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
-           "<td colspan=2 %s>%ld</td></tr>\n",
-           trstring, tdstring, tdstring, totalposted);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                     "ap_proxy_ajp_request: origin server "
+                                     "sent 401 without WWW-Authenticate header");

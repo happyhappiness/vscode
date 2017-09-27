@@ -1,0 +1,1 @@
+fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");

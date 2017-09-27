@@ -1,24 +1,23 @@
-            b = apr_bucket_pool_create(buf, 8, r->pool, f->c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Compressed %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+		      "[%d] auth_ldap authenticate: "
+		      "ap_get_basic_auth_pw() returns %d", getpid(), result);
+        util_ldap_connection_close(ldc);
+        return result;
+    }
 
-            if (c->noteName) {
-                if (ctx->stream.total_in > 0) {
-                    int total;
+    /* build the username filter */
+    mod_auth_ldap_build_filter(filtbuf, r, sec);
 
-                    total = ctx->stream.total_out * 100 / ctx->stream.total_in;
+    /* do the user search */
+    result = util_ldap_cache_checkuserid(r, ldc, sec->url, sec->basedn, sec->scope,
+                                         sec->attributes, filtbuf, sent_pw, &dn, &vals);
+    util_ldap_connection_close(ldc);
 
-                    apr_table_setn(r->notes, c->noteName,
-                                   apr_itoa(r->pool, total));
-                }
-                else {
-                    apr_table_setn(r->notes, c->noteName, "-");
-                }
-            }
+    /* sanity check - if server is down, retry it up to 5 times */
+    if (result == LDAP_SERVER_DOWN) {
+        util_ldap_connection_destroy(ldc);
+        if (failures++ <= 5) {
+            goto start_over;
+        }
+    }
 
-            deflateEnd(&ctx->stream);
-
-            /* Remove EOS from the old list, and insert into the new. */
-            APR_BUCKET_REMOVE(e);
+    /* handle bind failure */

@@ -1,1 +1,0 @@
-fprintf(stderr,"Wrong number of arguments for '%s'\n",rc->name);

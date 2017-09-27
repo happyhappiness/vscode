@@ -1,13 +1,44 @@
-    /* Sendfile not supported by this OS */
-    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                 "mod_file_cache: unable to cache file: %s. Sendfile is not supported on this OS", filename);
-#endif
-    return NULL;
+     * the headers out (including the Allow header)
+     */
+
+    return OK;
 }
-static const char *cachefilemmap(cmd_parms *cmd, void *dummy, const char *filename)
+
+AP_DECLARE(void) ap_set_content_type(request_rec *r, const char *ct)
 {
-#if APR_HAS_MMAP
-    cache_the_file(cmd, filename, 1);
-#else
-    /* MMAP not supported by this OS */
-    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+    if (!ct) {
+        r->content_type = NULL;
+    }
+    else if (!r->content_type || strcmp(r->content_type, ct)) {
+        r->content_type = ct;
+
+        /* Insert filters requested by the AddOutputFiltersByType
+         * configuration directive. Content-type filters must be
+         * inserted after the content handlers have run because
+         * only then, do we reliably know the content-type.
+         */
+        ap_add_output_filters_by_type(r);
+    }
+}
+
+static const char *add_optional_notes(request_rec *r,
+                                      const char *prefix,
+                                      const char *key,
+                                      const char *suffix)
+{
+    const char *notes, *result;
+
+    if ((notes = apr_table_get(r->notes, key)) == NULL) {
+        result = apr_pstrcat(r->pool, prefix, suffix, NULL);
+    }
+    else {
+        result = apr_pstrcat(r->pool, prefix, notes, suffix, NULL);
+    }
+
+    return result;
+}
+
+/* construct and return the default error message for a given
+ * HTTP defined error code
+ */
+static const char *get_canned_error_string(int status,

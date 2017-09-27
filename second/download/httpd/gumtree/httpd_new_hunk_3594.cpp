@@ -1,13 +1,13 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+                                      const apr_array_header_t * array)
+{
+    char **tab = (char **) array->elts;
+    int i;
+    for (i = 0; i < array->nelts; i++) {
+        if (empty_string_p(tab[i])) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02798)
+                         "%s: empty argument #%d", where, i + 1);
+        }
+    }
+}
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+/******************************************************** SUBSTITUTION UTILS */

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
+apr_file_printf(errfile, "%s: password too long (> %d)" NL,
+                argv[0], MAX_STRING_LEN);

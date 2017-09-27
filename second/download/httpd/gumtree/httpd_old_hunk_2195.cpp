@@ -1,13 +1,26 @@
-    rr->content_type = CGI_MAGIC_TYPE;
+    apr_table_add(t, key, value + offset);
+}
 
-    /* Run it. */
+PROXY_DECLARE(const char *) ap_proxy_location_reverse_map(request_rec *r,
+                              proxy_dir_conf *conf, const char *url)
+{
+    struct proxy_alias *ent;
+    int i, l1, l2;
+    char *u;
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
+    /*
+     * XXX FIXME: Make sure this handled the ambiguous case of the :<PORT>
+     * after the hostname
+     */
+
+    l1 = strlen(url);
+    ent = (struct proxy_alias *)conf->raliases->elts;
+    for (i = 0; i < conf->raliases->nelts; i++) {
+        l2 = strlen(ent[i].real);
+        if (l1 >= l2 && strncasecmp(ent[i].real, url, l2) == 0) {
+            u = apr_pstrcat(r->pool, ent[i].fake, &url[l2], NULL);
+            return ap_construct_url(r->pool, u, r);
+        }
     }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+    return url;

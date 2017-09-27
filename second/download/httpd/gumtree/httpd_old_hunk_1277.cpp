@@ -1,11 +1,13 @@
-     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
-     * resource in the cache under a key where it is never found by the quick
-     * handler during following requests.
-     */
-    cache->key = apr_pstrdup(r->pool, *key);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                 "cache: Key for entity %s?%s is %s", r->parsed_uri.path,
-                 r->parsed_uri.query, *key);
+    ht = apr_hash_make(pchild);
 
-    return APR_SUCCESS;
-}
+    /* Initialize the child_events */
+    max_requests_per_child_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!max_requests_per_child_event) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %d: Failed to create a max_requests event.", my_pid);
+        exit(APEXIT_CHILDINIT);
+    }
+    child_events[0] = exit_event;
+    child_events[1] = max_requests_per_child_event;
+
+    allowed_globals.jobsemaphore = CreateSemaphore(NULL, 0, 1000000, NULL);

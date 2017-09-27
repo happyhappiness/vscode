@@ -1,16 +1,13 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+AP_DECLARE(void) ap_log_assert(const char *szExp, const char *szFile,
+                               int nLine)
+{
+    char time_str[APR_CTIME_LEN];
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    apr_ctime(time_str, apr_time_now());
+    ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(00102)
+                 "[%s] file %s, line %d, assertion \"%s\" failed",
+                 time_str, szFile, nLine, szExp);
+#if defined(WIN32)
+    DebugBreak();
+#else
+    /* unix assert does an abort leading to a core dump */

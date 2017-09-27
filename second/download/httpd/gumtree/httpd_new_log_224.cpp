@@ -1,1 +1,1 @@
-dav_begin_multistatus(bb, r, status, namespaces);
+ap_rputs(" /", r);

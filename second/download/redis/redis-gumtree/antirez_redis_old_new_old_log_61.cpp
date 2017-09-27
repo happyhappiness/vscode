@@ -1,1 +1,0 @@
-printf("%llu total nodes\n", (unsigned long long)t->numnodes);

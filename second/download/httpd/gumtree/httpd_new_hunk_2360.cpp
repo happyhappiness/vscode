@@ -1,14 +1,72 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+    }
+    else {
+        switch (ap_satisfies(r)) {
+        case SATISFY_ALL:
+        case SATISFY_NOSPEC:
+            if ((access_status = ap_run_access_checker(r)) != OK) {
+                return decl_die(access_status,
+                                "check access (with Satisfy All)", r);
+            }
+
+            access_status = ap_run_access_checker_ex(r);
+            if (access_status == OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                              "request authorized without authentication by "
+                              "access_checker_ex hook: %s", r->uri);
+            }
+            else if (access_status != DECLINED) {
+                return decl_die(access_status, "check access", r);
+            }
+            else {
+                if ((access_status = ap_run_check_user_id(r)) != OK) {
+                    return decl_die(access_status, "check user", r);
+                }
+                if (r->user == NULL) {
+                    /* don't let buggy authn module crash us in authz */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Buggy authn provider failed to set user for %s",
+                                  r->uri);
+                    access_status = HTTP_INTERNAL_SERVER_ERROR;
+                    return decl_die(access_status, "check user", r);
+                }
+                if ((access_status = ap_run_auth_checker(r)) != OK) {
+                    return decl_die(access_status, "check authorization", r);
+                }
+            }
+            break;
+        case SATISFY_ANY:
+            if ((access_status = ap_run_access_checker(r)) == OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                              "request authorized without authentication by "
+                              "access_checker hook and 'Satisfy any': %s",
+                              r->uri);
+                break;
+            }
+
+            access_status = ap_run_access_checker_ex(r);
+            if (access_status == OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                              "request authorized without authentication by "
+                              "access_checker_ex hook: %s", r->uri);
+            }
+            else if (access_status != DECLINED) {
+                return decl_die(access_status, "check access", r);
+            }
+            else {
+                if ((access_status = ap_run_check_user_id(r)) != OK) {
+                    return decl_die(access_status, "check user", r);
+                }
+                if (r->user == NULL) {
+                    /* don't let buggy authn module crash us in authz */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Buggy authn provider failed to set user for %s",
+                                  r->uri);
+                    access_status = HTTP_INTERNAL_SERVER_ERROR;
+                    return decl_die(access_status, "check user", r);
+                }
+                if ((access_status = ap_run_auth_checker(r)) != OK) {
+                    return decl_die(access_status, "check authorization", r);
+                }
+            }
+            break;
+        }

@@ -1,52 +1,63 @@
-    i = ap_proxy_cache_update(c, resp_hdrs, !backasswards, nocache);
-    if (i != DECLINED) {
-	ap_bclose(f);
-	return i;
-    }
+            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
+            continue;
+        }
 
-    cache = c->fp;
+        /* read */
+        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
 
-    ap_hard_timeout("proxy receive", r);
+        /* first bucket contains zlib header */
+        if (!ctx->inflate_init) {
+            ctx->inflate_init = 1;
+            if (len < 10) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01403)
+                              "Insufficient data for inflate");
+                return APR_EGENERAL;
+            }
+            else  {
+                zlib_method = data[2];
+                zlib_flags = data[3];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01404)
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
+                }
+                if (data[0] != deflate_magic[0] ||
+                    data[1] != deflate_magic[1] ||
+                    (zlib_flags & RESERVED) != 0) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01405)
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
+                }
+                data += 10 ;
+                len -= 10 ;
+           }
+           if (zlib_flags & EXTRA_FIELD) {
+               unsigned int bytes = (unsigned int)(data[0]);
+               bytes += ((unsigned int)(data[1])) << 8;
+               bytes += 2;
+               if (len < bytes) {
+                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01406)
+                                 "inflate: extra field too big (not "
+                                 "supported)");
+                   return APR_EGENERAL;
+               }
+               data += bytes;
+               len -= bytes;
+           }
+           if (zlib_flags & ORIG_NAME) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & COMMENT) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & HEAD_CRC) {
+                len -= 2;
+                data += 2;
+           }
+        }
 
-/* write status line */
-    if (!r->assbackwards)
-	ap_rvputs(r, "HTTP/1.0 ", r->status_line, CRLF, NULL);
-    if (cache != NULL)
-	if (ap_bvputs(cache, "HTTP/1.0 ", r->status_line, CRLF, NULL) == -1)
-	    cache = ap_proxy_cache_error(c);
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
 
-/* send headers */
-    for (i = 0; i < resp_hdrs->nelts; i++) {
-	if (hdr[i].field == NULL || hdr[i].value == NULL ||
-	    hdr[i].value[0] == '\0')
-	    continue;
-	if (!r->assbackwards) {
-	    ap_rvputs(r, hdr[i].field, ": ", hdr[i].value, CRLF, NULL);
-	    ap_table_set(r->headers_out, hdr[i].field, hdr[i].value);
-	}
-	if (cache != NULL)
-	    if (ap_bvputs(cache, hdr[i].field, ": ", hdr[i].value, CRLF,
-		       NULL) == -1)
-		cache = ap_proxy_cache_error(c);
-    }
-
-    if (!r->assbackwards)
-	ap_rputs(CRLF, r);
-    if (cache != NULL)
-	if (ap_bputs(CRLF, cache) == -1)
-	    cache = ap_proxy_cache_error(c);
-
-    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-    r->sent_bodyct = 1;
-/* Is it an HTTP/0.9 respose? If so, send the extra data */
-    if (backasswards) {
-	ap_bwrite(r->connection->client, buffer, len);
-	if (cache != NULL)
-	    if (ap_bwrite(f, buffer, len) != len)
-		cache = ap_proxy_cache_error(c);
-    }
-    ap_kill_timeout(r);
-
-#ifdef CHARSET_EBCDIC
-    /* What we read/write after the header should not be modified
-     * (i.e., the cache copy is ASCII, not EBCDIC, even for text/html)

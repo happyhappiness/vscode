@@ -1,0 +1,1 @@
+ap_rputs("No cache status data available\n", r);

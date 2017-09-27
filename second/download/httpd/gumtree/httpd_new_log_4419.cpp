@@ -1,0 +1,1 @@
+ap_rputs("<form method='POST' enctype='application/x-www-form-urlencoded' action='", r);

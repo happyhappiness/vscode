@@ -1,14 +1,12 @@
-
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+            return 1;
+        }
     }
-    cache = c->fp;
+    return 0;
+}
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+
+/**
+ * Get the next task for the given worker. Will block until a task arrives
+ * or the max_wait timer expires and more than min workers exist.
+ * The previous h2_mplx instance might be passed in and will be served
+ * with preference, since we can ask it for the next task without aquiring

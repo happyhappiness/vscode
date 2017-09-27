@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                     "cgi: apr_pollset_add(); check system or user limits");

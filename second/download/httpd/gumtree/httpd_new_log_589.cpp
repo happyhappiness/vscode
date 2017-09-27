@@ -1,3 +1,4 @@
-ap_rvputs(r, "<h1>Menu for ", 
-                  ap_escape_html(r->pool, r->uri),
-                  "</h1>\n<hr />\n\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "copy_brigade_range() failed [%" APR_OFF_T_FMT
+                          "-%" APR_OFF_T_FMT ",%" APR_OFF_T_FMT "]",
+                          range_start, range_end, clength);

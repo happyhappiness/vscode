@@ -1,12 +1,22 @@
-    }
+                    if (inctx->block == APR_NONBLOCK_READ) {
+                        break;
+                    }
+                    continue;  /* Blocking and nothing yet?  Try again. */
+                }
+                else {
+                    ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                                  "SSL input filter read failed.");
+                }
+            }
+            else /* if (ssl_err == SSL_ERROR_SSL) */ {
+                /*
+                 * Log SSL errors and any unexpected conditions.
+                 */
+                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);
+                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
 
-    /* it wasn't found in the hash */
-    return NULL;
-}
-
-/* The index is found by its offset from the x00 code of each level.
- * Although this is fast, it will need to be replaced if some nutcase
- * decides to define a high-numbered code before the lower numbers.
- * If that sad event occurs, replace the code below with a linear search
- * from status_lines[shortcut[i]] to status_lines[shortcut[i+1]-1];
- */
+            }
+            if (inctx->rc == APR_SUCCESS) {
+                inctx->rc = APR_EGENERAL;
+            }

@@ -1,12 +1,12 @@
-        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
-                     "%s: Unable to start the service manager.",
-                     service_name);
-        exit(APEXIT_INIT);
-    }
-
-    ap_listen_pre_config();
-    ap_threads_per_child = DEFAULT_THREADS_PER_CHILD;
-    ap_pid_fname = DEFAULT_PIDLOG;
-    ap_max_requests_per_child = DEFAULT_MAX_REQUESTS_PER_CHILD;
-#ifdef AP_MPM_WANT_SET_MAX_MEM_FREE
-	ap_max_mem_free = APR_ALLOCATOR_MAX_FREE_UNLIMITED;
+    /* 
+     * Create the pool of worker threads
+     */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: Starting %d worker threads.", my_pid, ap_threads_per_child);
+    child_handles = (HANDLE) apr_pcalloc(pchild, ap_threads_per_child * sizeof(int));
+    while (1) {
+        for (i = 0; i < ap_threads_per_child; i++) {
+            int *score_idx;
+            int status = ap_scoreboard_image->servers[0][i].status;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;

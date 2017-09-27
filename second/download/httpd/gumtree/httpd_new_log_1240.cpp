@@ -1,3 +1,1 @@
-apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default." NL);
+apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d" NL, rv);

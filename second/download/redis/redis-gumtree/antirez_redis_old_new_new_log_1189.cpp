@@ -1,1 +1,0 @@
-stats = sdscatprintf(stats,"[Expires HT]\n");

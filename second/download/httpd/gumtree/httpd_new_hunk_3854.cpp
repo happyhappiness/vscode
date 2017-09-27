@@ -1,14 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00455)
+                     "%s configured -- resuming normal operations",
+                     ap_get_server_description());
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00456)
+                     "Server built: %s", ap_get_server_built());
+        ap_log_command_line(plog, s);
+        ap_log_mpm_common(s);
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+        restart = master_main(ap_server_conf, shutdown_event, restart_event);
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+        if (!restart)
+        {
+            /* Shutting down. Clean up... */

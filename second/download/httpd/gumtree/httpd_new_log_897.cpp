@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "could not send interim 101 Upgrade response");
+ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);

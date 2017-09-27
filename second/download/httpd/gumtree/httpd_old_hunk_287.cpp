@@ -1,13 +1,12 @@
-                if (expr == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "missing expr in elif statement: %s", 
-                                  r->filename);
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
-                                        *inserted_head);
-                    return (1);
-                }
-                expr_ret = parse_expr(r, ctx, expr, &was_error, 
-                                      &was_unmatched, debug_buf);
-                if (was_error) {
-                    CREATE_ERROR_BUCKET(ctx, tmp_buck, head_ptr, 
-                                        *inserted_head);
+
+    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname, 
+                               ap_accept_lock_mech, _pconf);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                     "Couldn't create accept lock");
+        return 1;
+    }
+
+#if APR_USE_SYSVSEM_SERIALIZE
+    if (ap_accept_lock_mech == APR_LOCK_DEFAULT || 
+        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {

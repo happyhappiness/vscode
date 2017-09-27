@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: Include directory '%s' not found",
-                        ap_server_argv0, path);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                           "proxy: origin server sent 401 without w-a header");

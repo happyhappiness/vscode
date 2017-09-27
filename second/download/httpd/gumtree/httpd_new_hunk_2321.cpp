@@ -1,13 +1,14 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+        return err;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    st->compare_cache_ttl = atol(ttl) * 1000000;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap cache: Setting operation cache TTL to %ld microseconds.",
+                 st->compare_cache_ttl);
+
+    return NULL;
+}
+
+static const char *util_ldap_set_opcache_entries(cmd_parms *cmd, void *dummy,
+                                                 const char *size)

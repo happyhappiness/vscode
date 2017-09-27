@@ -1,13 +1,13 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+    decoded = apr_palloc(r->pool, apr_base64_decode_len(in));
+    decodedlen = apr_base64_decode(decoded, in);
+    decoded[decodedlen] = '\0';
+
+    /* sanity check - decoded too short? */
+    if (decodedlen < (AP_SIPHASH_DSIZE + sizeof(apr_uuid_t))) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO()
+                "too short to decrypt, aborting");
+        return APR_ECRYPT;
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+
+    res = crypt_init(r, f, &cipher, dconf);
+    if (res != APR_SUCCESS) {

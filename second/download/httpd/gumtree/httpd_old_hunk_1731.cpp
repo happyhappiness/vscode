@@ -1,12 +1,13 @@
-    /* Try to find existing worker */
-    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
-    if (!worker) {
-        const char *err;
-        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+      || mctx->pks->certs[SSL_AIDX_ECC]
+#endif
+        )
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die();
     }
-    PROXY_COPY_CONF_PARAMS(worker, conf);
+}
 
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++) {
+#ifndef OPENSSL_NO_TLSEXT
+static void ssl_init_ctx_tls_extensions(server_rec *s,

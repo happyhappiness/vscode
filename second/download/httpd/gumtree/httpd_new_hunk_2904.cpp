@@ -1,24 +1,13 @@
+    register int val;
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+    while ((c = *s++) != '\0') {
+        if (apr_isspace(c))
+            break;
+        if (p >= pmax) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv, APLOGNO(01526)
+                        MODNAME ": string too long: %s", origs);
+            break;
+        }
+        if (c == '\\') {
+            switch (c = *s++) {
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
-    }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

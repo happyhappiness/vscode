@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(),"%d\r\n",sdslen(argv[j]->ptr));

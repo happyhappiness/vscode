@@ -1,1 +1,0 @@
-snprintf(config.prompt,sizeof(config.prompt),"redis:%d> ",config.dbnum);

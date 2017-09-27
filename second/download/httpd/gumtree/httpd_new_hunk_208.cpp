@@ -1,18 +1,13 @@
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "cannot redirect '%s' to '%s'; "
-                              "target is not a valid absoluteURI or abs_path",
-                              r->uri, ret);
-            }
-            else {
-                /* append requested query only, if the config didn't
-                 * supply its own.
-                 */
-                if (r->args && !ap_strchr(ret, '?')) {
-                    ret = apr_pstrcat(r->pool, ret, "?", r->args, NULL);
-                }
-                apr_table_setn(r->headers_out, "Location", ret);
-            }
-        }
-        return status;
+     * Rather than fall out to autoindex or some other mapper, this
+     * request must die.
+     */
+    if (anymatch && !neg->avail_vars->nelts) {
+	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+		      "Negotiation: discovered file(s) matching request: %s"
+                      " (None could be negotiated).",
+                      r->filename);
+        return HTTP_NOT_FOUND;
     }
+
+    set_vlist_validator(r, r);
 

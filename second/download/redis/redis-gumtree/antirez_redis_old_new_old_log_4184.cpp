@@ -1,1 +1,0 @@
-printf("New total length is: %u\n", oldlen+reqlen);

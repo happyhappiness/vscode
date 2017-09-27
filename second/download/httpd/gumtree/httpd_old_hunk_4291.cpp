@@ -1,14 +1,12 @@
-            output_results();
+                break;
+            }
         }
+    }
 
-        /* Timeout of 30 seconds. */
-        timeout.tv_sec = 30;
-        timeout.tv_usec = 0;
-        n = select(256, &sel_read, &sel_write, &sel_except, &timeout);
-        if (!n) {
-            printf("\nServer timed out\n\n");
-            exit(1);
-        }
-        if (n < 1)
-            err("select");
--- apache_1.3.0/src/support/htdigest.c	1998-04-22 04:14:05.000000000 +0800
+    if (balancer->failontimeout
+        && (apr_table_get(r->notes, "proxy_timedout")) != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failontimeout' parameter being set",
+                       balancer->s->name, ap_proxy_worker_name(r->pool, worker));
+        worker->s->status |= PROXY_WORKER_IN_ERROR;

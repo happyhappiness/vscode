@@ -1,18 +1,13 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+         * exponential mode */
+        hold_off_on_exponential_spawning = 10;
     }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                 "%s configured -- resuming normal operations",
+                 ap_get_server_version());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                 "Server built: %s", ap_get_server_built());
+
+    restart_pending = shutdown_pending = 0;
+    mpm_state = AP_MPMQ_RUNNING;
+

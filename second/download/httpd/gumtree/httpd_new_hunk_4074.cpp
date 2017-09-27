@@ -1,25 +1,38 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+    h2_worker *w = h2_worker_create(workers->next_worker_id++,
+                                    workers->pool, workers->thread_attr,
+                                    get_mplx_next, worker_done, workers);
+    if (!w) {
+        return APR_ENOMEM;
     }
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+    ++workers->worker_count;
+    H2_WORKER_LIST_INSERT_TAIL(&workers->workers, w);
+    return APR_SUCCESS;
+}
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
+static apr_status_t h2_workers_start(h2_workers *workers)
+{
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                      "h2_workers: starting");
+
+        while (workers->worker_count < workers->min_workers
+               && status == APR_SUCCESS) {
+            status = add_worker(workers);
+        }
+        apr_thread_mutex_unlock(workers->lock);
     }
-#endif
+    return status;
+}
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+h2_workers *h2_workers_create(server_rec *s, apr_pool_t *server_pool,
+                              int min_workers, int max_workers,
+                              apr_size_t max_tx_handles)
+{
+    apr_status_t status;
+    h2_workers *workers;
+    apr_pool_t *pool;
+
+    AP_DEBUG_ASSERT(s);

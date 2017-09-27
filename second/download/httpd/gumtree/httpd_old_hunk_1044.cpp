@@ -1,12 +1,13 @@
-  case 'h': filenames = FALSE; break;
-  case 'i': options |= PCRE_CASELESS; break;
-  case 'l': filenames_only = TRUE;
-  case 'n': number = TRUE; break;
-  case 'r': recurse = TRUE; break;
-  case 's': silent = TRUE; break;
-  case 'v': invert = TRUE; break;
-  case 'x': whole_lines = TRUE; options |= PCRE_ANCHORED; break;
+        return rv;
+    }
 
-  case 'V':
-  fprintf(stderr, "pcregrep version %s using ", VERSION);
-  fprintf(stderr, "PCRE version %s\n", pcre_version());
+    /* TerminateExtension() is an optional interface */
+    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
+                     "TerminateExtension");
+    SetLastError(0);
+
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s",

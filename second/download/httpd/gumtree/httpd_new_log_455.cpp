@@ -1,7 +1,2 @@
-ap_rputs("<p>\n"
-                             "<table border='0'>\n"
-                             "<tr bgcolor='#000000'>\n"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Require DN</b></font></td>"
-                             "<td><font size='-1' face='Arial,Helvetica' color='#ffffff'><b>Actual DN</b></font></td>"
-                             "</tr>\n", r
-                            );
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
+                         "proxy: previous connection is closed, creating a new connection.");

@@ -1,27 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+            cgi_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
+                       SSI_EXPAND_LEAVE_NAME);
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+            rv = include_cmd(ctx, f, bb, parsed_string);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01229) "execution failure "
+                              "for parameter \"%s\" to tag exec in file %s",
+                              tag, r->filename);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
+        }

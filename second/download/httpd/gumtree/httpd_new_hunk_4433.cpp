@@ -1,13 +1,24 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+    /* When the connection processing actually starts, we might 
+     * take over, if the connection is for a task.
+     */
+    ap_hook_process_connection(h2_task_process_conn, 
+                               NULL, NULL, APR_HOOK_FIRST);
 
-    reqhdrs_arr = ap_table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    ap_register_input_filter("H2_SLAVE_IN", h2_filter_slave_in,
+                             NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
+                              NULL, AP_FTYPE_NETWORK);
+    ap_register_output_filter("H2_PARSE_H1", h2_filter_parse_h1,
+                              NULL, AP_FTYPE_NETWORK);
+
+    ap_register_input_filter("H2_REQUEST", h2_filter_request_in,
+                             NULL, AP_FTYPE_PROTOCOL);
+    ap_register_output_filter("H2_RESPONSE", h2_filter_headers_out,
+                              NULL, AP_FTYPE_PROTOCOL);
+    ap_register_output_filter("H2_TRAILERS_OUT", h2_filter_trailers_out,
+                              NULL, AP_FTYPE_PROTOCOL);
+}
+
+/* post config init */
+apr_status_t h2_task_init(apr_pool_t *pool, server_rec *s)
+{

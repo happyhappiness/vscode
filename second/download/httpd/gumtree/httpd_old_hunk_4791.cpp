@@ -1,16 +1,18 @@
-                --cp;
-        }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
-#endif
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                            "access to %s failed for %s", r->uri,
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-                                            REMOTE_NOLOOKUP));
-            return HTTP_FORBIDDEN;
-        }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+           && ap_strcmp_match(error, ssl_log_annotate[i].cpPattern) != 0)
+        i++;
+
+    return ssl_log_annotate[i].cpAnnotation;
+}
+
+void ssl_die(void)
+{
+    /*
+     * This is used for fatal errors and here
+     * it is common module practice to really
+     * exit from the complete program.
+     */
+    exit(1);
+}
+
+/*
+ * Prints the SSL library error information.

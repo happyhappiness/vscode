@@ -1,12 +1,12 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+    if (!ap_is_HTTP_INFO(r->status)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Status is %d - not sending interim response", r->status);
+        return;
+    }
+
+    /* if we send an interim response, we're no longer in a state of
+     * expecting one.  Also, this could feasibly be in a subrequest,
+     * so we need to propagate the fact that we responded.
+     */
+    for (rr = r; rr != NULL; rr = rr->main) {

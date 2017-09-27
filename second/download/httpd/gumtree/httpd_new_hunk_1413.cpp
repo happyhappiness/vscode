@@ -1,14 +1,23 @@
+            apr_brigade_cleanup(bb);
 
-    if (!short_report) {
-        ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head>\n<title>Apache Status</title>\n</head><body>\n",
-                 r);
-        ap_rputs("<h1>Apache Server Status for ", r);
-        ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
-                  "</h1>\n\n", NULL);
-        ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "\n</dt></dl><hr /><dl>\n", NULL);
-        ap_rvputs(r, "<dt>Current Time: ",
-                  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                return bail_out_on_error(ctx, f, http_error);
+            }
+
+            if (!ctx->remaining) {
+                return read_chunked_trailers(ctx, f, b,
+                        conf->merge_trailers == AP_MERGE_TRAILERS_ENABLE);
+            }
+        }
+    }
+    else {
+        bb = ctx->bb;
+    }

@@ -1,13 +1,16 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
-    }
-
-/* firstly, try a proxy, unless a NoProxy directive is active */
+            /*
+             * The blank before the storm.. er, before the next field.
+             */
+            ap_rputs(" ", r);
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[32];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, sizeof(time_str),
+                                "%Y-%m-%d %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="1975-04-07 01:23  " (see 4 lines above) */
+                    ap_rputs("                   ", r);

@@ -1,42 +1,22 @@
-                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                           "       deviation apart. These results are NOT reliable.\n"); \
-                else if (d > sd ) \
-                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                           "        These results are probably not that reliable.\n"); \
-            }
-        SANE("the initial connection time", meancon, mediancon, sdcon);
-        SANE("the processing time", meand, mediand, sdd);
-        SANE("the waiting time", meanwait, medianwait, sdwait);
-        SANE("the total time", meantot, mediantot, sdtot);
-	}
-	else {
-	    printf("              min   avg   max\n");
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
-	    printf("Connect:    " CONF_FMT_STRING, 
-                mincon, meancon, maxcon);
-	    printf("Processing: " CONF_FMT_STRING, 
-                mintot - mincon, meantot - meancon,  maxtot - maxcon);
-	    printf("Total:      " CONF_FMT_STRING, 
-                mintot, meantot, maxtot);
-#undef CONF_FMT_STRING
-	}
 
+    case HSE_REQ_ABORTIVE_CLOSE:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
+                          " is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-	/* Sorted on total connect times */
-	if (percentile && (requests > 1)) {
-	    printf("\nPercentage of the requests served within a certain time (ms)\n");
-	    for (i = 0; i < sizeof(percs) / sizeof(int); i++)
-		if (percs[i] <= 0)
-		    printf(" 0%%  <0> (never)\n");
-                else if (percs[i] >= 100)
-		    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           stats[requests - 1].time);
-                else
-		    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i], 
-                           stats[(int) (requests * percs[i] / 100)].time);
-	}
-	if (csvperc) {
-	    FILE *out = fopen(csvperc, "w");
-	    int i;
-	    if (!out) {
-		perror("Cannot open CSV output file");
+    case HSE_REQ_GET_CERT_INFO_EX:  /* Added in ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
+
+    case HSE_REQ_SEND_RESPONSE_HEADER_EX:  /* Added in ISAPI 4.0 */
+    {
+        HSE_SEND_HEADER_EX_INFO *shi = (HSE_SEND_HEADER_EX_INFO*)buf_data;
+

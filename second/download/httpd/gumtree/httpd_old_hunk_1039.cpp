@@ -1,35 +1,22 @@
-#include <stdio.h>
-#include <string.h>
-#include <pcre.h>
+    }
+    if (!found && !(mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, record);
+    }
+    else if (!found && (mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "User %s not found\n", user);
+        exit(0);
+    }
+    apr_file_printf(errfile, "password for user %s\n", user);
 
-/* Compile thuswise:
-  gcc -Wall pcredemo.c -I/opt/local/include -L/opt/local/lib \
-    -R/opt/local/lib -lpcre
-*/
-
-#define OVECCOUNT 30    /* should be a multiple of 3 */
-
-int main(int argc, char **argv)
-{
-pcre *re;
-const char *error;
-int erroffset;
-int ovector[OVECCOUNT];
-int rc, i;
-
-if (argc != 3)
-  {
-  printf("Two arguments required: a regex and a subject string\n");
-  return 1;
-  }
-
-/* Compile the regular expression in the first argument */
-
-re = pcre_compile(
-  argv[1],              /* the pattern */
-  0,                    /* default options */
-  &error,               /* for error message */
-  &erroffset,           /* for error offset */
-  NULL);                /* use default character tables */
-
-/* Compilation failed: print the error message and exit */
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n", 
+                        argv[0], pwfilename);
+        exit(ERR_FILEPERM);
+    }
+    apr_file_close(ftemp);
+    return 0;
+}

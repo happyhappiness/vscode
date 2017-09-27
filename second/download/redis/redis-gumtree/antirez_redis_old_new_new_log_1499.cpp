@@ -1,1 +1,0 @@
-sprintf(s,"%lluB",n);

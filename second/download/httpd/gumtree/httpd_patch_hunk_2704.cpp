@@ -1,0 +1,15 @@
+     int i;
+ 
+     if (ctx->argc) {
+         ap_log_rerror(APLOG_MARK,
+                       (ctx->flags & SSI_FLAG_PRINTING)
+                           ? APLOG_ERR : APLOG_WARNING,
+-                      0, r, "printenv directive does not take tags in %s",
++                      0, r,
++                      APLOGNO(01367) "printenv directive does not take tags in %s",
+                       r->filename);
+     }
+ 
+     if (!(ctx->flags & SSI_FLAG_PRINTING)) {
+         return APR_SUCCESS;
+     }

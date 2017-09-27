@@ -1,12 +1,13 @@
-    disk_cache_object_t *dobj;
-
-    if (conf->cache_root == NULL) {
-        return DECLINED;
     }
 
-    /* Allocate and initialize cache_object_t and disk_cache_object_t */
-    h->cache_obj = obj = apr_pcalloc(r->pool, sizeof(*obj));
-    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
-
-    obj->key = apr_pstrdup(r->pool, key);
-
+    /*
+     *  Check for problematic re-initializations
+     */
+    if (mctx->pks->certs[SSL_AIDX_RSA] ||
+        mctx->pks->certs[SSL_AIDX_DSA])
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die();
+    }

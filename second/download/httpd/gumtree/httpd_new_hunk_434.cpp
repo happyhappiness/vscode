@@ -1,33 +1,25 @@
-    util_ald_free(cache, node->username);
-    util_ald_free(cache, node->dn);
-    util_ald_free(cache, node->bindpw);
-    util_ald_free(cache, node);
-}
 
-void util_ldap_search_node_display(request_rec *r, util_ald_cache_t *cache, void *n)
-{
-    util_search_node_t *node = (util_search_node_t *)n;
-    char date_str[APR_CTIME_LEN+1];
-    char *buf;
+	/* every zero-byte counts as 8 zero-bits */
+	bits = 8 * quads;
 
-    apr_ctime(date_str, node->lastbind);
+	if (bits != 32)		/* no warning for fully qualified IP address */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	      "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
+		 inet_ntoa(This->addr), bits);
+    }
 
-    buf = apr_psprintf(r->pool, 
-             "<tr valign='top'>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<td nowrap>%s</td>"
-             "<tr>",
-         node->username,
-         node->dn,
-         date_str);
+    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
 
-    ap_rputs(buf, r);
-}
+    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "Warning: NetMask and IP-Addr disagree in %s/%ld",
+		inet_ntoa(This->addr), bits);
+	This->addr.s_addr &= This->mask.s_addr;
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "         Set to %s/%ld",
+		inet_ntoa(This->addr), bits);
+    }
 
-/* ------------------------------------------------------------------ */
-
-unsigned long util_ldap_compare_node_hash(void *n)
-{
-    util_compare_node_t *node = (util_compare_node_t *)n;
-    return util_ald_hash_string(3, node->dn, node->attrib, node->value);
+    if (*addr == '\0') {
+	This->matcher = proxy_match_ipaddr;
+	return 1;

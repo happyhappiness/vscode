@@ -1,25 +1,17 @@
-              */
-             ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                           "SSL client authentication failed, "
-                           "accepting certificate based on "
-                           "\"SSLVerifyClient optional_no_ca\" "
-                           "configuration");
--            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
-+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
-         }
-         else {
-             const char *error = sslconn->verify_error ?
-                 sslconn->verify_error :
-                 X509_verify_cert_error_string(verify_result);
+     printf("Write errors:           %d\n", epipe);
+     if (err_response)
+         printf("Non-2xx responses:      %d\n", err_response);
+     if (keepalive)
+         printf("Keep-Alive requests:    %d\n", doneka);
+     printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
+-    if (posting > 0)
++    if (posting == 1)
+         printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);
++    if (posting == 2)
++        printf("Total PUT:              %" APR_INT64_T_FMT "\n", totalposted);
+     printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
  
-             ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                          "SSL client authentication failed: %s",
-                          error ? error : "unknown");
--            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
-+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
- 
-             return ssl_filter_io_shutdown(filter_ctx, c, 1);
-         }
-     }
- 
-     /*
+     /* avoid divide by zero */
+     if (timetaken && done) {
+         printf("Requests per second:    %.2f [#/sec] (mean)\n",
+                (double) done / timetaken);

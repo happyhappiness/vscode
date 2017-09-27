@@ -1,1 +1,0 @@
-snprintf(seq,32,"\x1b[%dD",cols-start);

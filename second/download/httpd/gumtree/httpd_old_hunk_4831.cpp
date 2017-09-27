@@ -1,15 +1,20 @@
-	     * Kill child processes, tell them to call child_exit, etc...
-	     */
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-	    }
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-			"httpd: caught SIGTERM, shutting down");
+/* ------------------------------------------------------- */
 
-	    clean_parent_exit(0);
-	}
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1178079 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
+    }
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1178079 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
+    }
+}
 
-	/* we've been told to restart */
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);

@@ -1,15 +1,12 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_CONCAT(bb, ctx->bb);
+                break;
+            }
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+            /* read */
+            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
+            /* pass through zlib inflate. */
+            ctx->stream.next_in = (unsigned char *)data;
+            ctx->stream.avail_in = len;

@@ -1,1 +1,1 @@
-apr_err("apr_connect()", rv);
+printf("Can\'t alloc postfile buffer\n");

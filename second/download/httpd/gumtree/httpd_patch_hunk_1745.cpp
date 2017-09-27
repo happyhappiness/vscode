@@ -1,14 +1,14 @@
-      * segment. */
-     apr_shm_remove(fname, pool); /* ignore errors */
- 
-     rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, fname, pool);
-     if (rv != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
--                     "unable to create scoreboard \"%s\" "
-+                     "unable to create or access scoreboard \"%s\" "
-                      "(name-based shared memory failure)", fname);
-         return rv;
+         else /* if (ssl_err == SSL_ERROR_SSL) */ {
+             /*
+              * Log SSL errors
+              */
+             ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
+                           "SSL library error %d writing data", ssl_err);
+-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, mySrvFromConn(c));
++            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, mySrvFromConn(c));
+         }
+         if (outctx->rc == APR_SUCCESS) {
+             outctx->rc = APR_EGENERAL;
+         }
      }
- #endif /* APR_HAS_SHARED_MEMORY */
-     return APR_SUCCESS;
- }
+     else if ((apr_size_t)res != len) {

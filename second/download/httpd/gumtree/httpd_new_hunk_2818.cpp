@@ -1,13 +1,44 @@
+    util_ldap_state_t *st_vhost;
 
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(s->module_config,
+                                                 &ldap_module);
+
+    apr_ldap_err_t *result_err = NULL;
+    int rc;
+
+    /* util_ldap_post_config() will be called twice. Don't bother
+     * going through all of the initialization on the first call
+     * because it will just be thrown away.*/
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
+
+#if APR_HAS_SHARED_MEMORY
+        /*
+         * If we are using shared memory caching and the cache file already
+         * exists then delete it.  Otherwise we are going to run into problems
+         * creating the shared memory.
+         */
+        if (st->cache_file && st->cache_bytes > 0) {
+            char *lck_file = apr_pstrcat(ptemp, st->cache_file, ".lck",
+                                         NULL);
+            apr_file_remove(lck_file, ptemp);
         }
-        if (!strcmp(tag, "var")) {
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
+#endif
+        return OK;
+    }
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+#if APR_HAS_SHARED_MEMORY
+    /*
+     * initializing cache if we don't already have a shm address
+     */
+    if (!st->cache_shm) {
+#endif
+        result = util_ldap_cache_init(p, st);
+        if (result != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, result, s, APLOGNO(01315)
+                         "LDAP cache: could not create shared memory segment");
+            return DONE;
+        }
+
+        result = ap_global_mutex_create(&st->util_ldap_cache_lock, NULL,
+                                        ldap_cache_mutex_type, NULL, s, p, 0);

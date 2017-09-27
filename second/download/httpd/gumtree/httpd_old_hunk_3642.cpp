@@ -1,22 +1,26 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                             proxy_function,
+                             worker->s->hostname);
+                break;
+            }
+            conn->connection = NULL;
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+            sa.sun_family = AF_UNIX;
+            apr_cpystrn(sa.sun_path, conn->uds_path, sizeof(sa.sun_path));
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+            rv = socket_connect_un(newsock, &sa);
+            if (rv != APR_SUCCESS) {
+                apr_socket_close(newsock);
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(02454)
+                             "%s: attempt to connect to Unix domain socket "
+                             "%s (%s) failed",
+                             proxy_function,
+                             conn->uds_path,
+                             worker->s->hostname);
+                break;
+            }
+        }
+        else
+#endif
+        {
+            if ((rv = apr_socket_create(&newsock, backend_addr->family,
+                                        SOCK_STREAM, APR_PROTO_TCP,

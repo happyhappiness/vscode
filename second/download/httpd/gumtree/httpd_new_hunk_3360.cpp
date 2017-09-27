@@ -1,19 +1,23 @@
-    if (!method_restricted)
-	return OK;
+            display_settings();
+        apr_thread_yield();
+        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+    }
+    mpm_state = AP_MPMQ_STOPPING;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    ap_run_child_status(ap_server_conf,
+                        ap_scoreboard_image->parent[0].pid,
+                        ap_my_generation,
+                        0,
+                        MPM_CHILD_EXITED);
 
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+    /* Shutdown the listen sockets so that we don't get stuck in a blocking call.
+    shutdown_listeners();*/
 
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00226)
+            "caught SIGTERM, shutting down");
+
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();

@@ -1,13 +1,14 @@
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
+                 "Child %d: All worker threads have exited.", my_pid);
 
-            total_read += len;
-            if (limit_xml_body && total_read > limit_xml_body) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "XML request body is larger than the configured "
-                              "limit of %lu", (unsigned long)limit_xml_body);
-                result = HTTP_REQUEST_ENTITY_TOO_LARGE;
-                goto read_error;
-            }
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    apr_thread_mutex_destroy(child_lock);
 
-            status = apr_xml_parser_feed(parser, data, len);
-            if (status) {
-                goto parser_error;
+    if (use_acceptex) {
+        apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);

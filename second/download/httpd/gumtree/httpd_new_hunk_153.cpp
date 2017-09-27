@@ -1,13 +1,12 @@
-                    if (d->icon_height) {
-                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                    }
-                    ap_rputs(" />", r);
-                }
-                else {
-                    ap_rputs("&nbsp;", r);
-                }
-                if (autoindex_opts & ICONS_ARE_LINKS) {
-                    ap_rputs("</a></td>", r);
-                }
-                else {
-                    ap_rputs("</td>", r);
+    /*
+     * Which cache module (if any) should handle this request?
+     */
+    if (!(types = ap_cache_get_cachetype(r, conf, path))) {
+        return DECLINED;
+    }
+
+    urllen = strlen(url);
+    if (urllen > MAX_URL_LENGTH) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: URL exceeds length threshold: %s", url);
+        return DECLINED;

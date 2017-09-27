@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: wildcard patterns not allowed in Include "
-                    "%s\n", ap_server_argv0, fname);
+ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
+                             "SSL filter error shutting down I/O");

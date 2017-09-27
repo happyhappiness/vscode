@@ -1,13 +1,12 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
-        }
-        if (!strcmp(tag, "var")) {
-            char *val = ap_table_get(r->subprocess_env, tag_val);
-
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);
+    
+    if (access_status != HTTP_OK
+        || (access_status = ap_run_post_read_request(r))) {
+        /* Request check post hooks failed. An example of this would be a
+         * request for a vhost where h2 is disabled --> 421.
+         */
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        r = NULL;
+        goto traceout;
+    }

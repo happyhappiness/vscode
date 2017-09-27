@@ -1,13 +1,33 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
+
+    /* Check that all client certs have got certificates and private
+     * keys. */
+    for (n = 0; n < ncerts; n++) {
+        X509_INFO *inf = sk_X509_INFO_value(sk, n);
+
+        if (!inf->x509 || !inf->x_pkey) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s, APLOGNO(02252)
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die(s);
+            return;
+        }
     }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02207)
+                 "loaded %d client certs for SSL proxy",
+                 ncerts);
+    pkp->certs = sk;
+
+
+    if (!pkp->ca_cert_file || !store) {
+        return;
+    }
+
+    /* Load all of the CA certs and construct a chain */
+    pkp->ca_certs = (STACK_OF(X509) **) apr_pcalloc(p, ncerts * sizeof(sk));
+    sctx = X509_STORE_CTX_new();
+
+    if (!sctx) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02208)
+                     "SSL proxy client cert initialization failed");

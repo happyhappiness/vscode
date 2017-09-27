@@ -1,47 +1,36 @@
+        /* Return a once-only connection */
+        rv = dbd_construct(&rec, svr, s->process->pool);
+        return (rv == APR_SUCCESS) ? arec : NULL;
+    }
 
-static void read_connection(struct connection * c)
-{
-    apr_size_t r;
-    apr_status_t status;
-    char *part;
-    char respcode[4];		/* 3 digits and null */
-
-    r = sizeof(buffer);
-#ifdef USE_SSL
-    if (ssl == 1)
-    {
-        status = SSL_read (c->ssl, buffer, r);
-        if (status <= 0) {
-            good++; c->read = 0;
-            if (status < 0) printf("SSL read failed - closing connection\n");
-            close_connection(c);
-            return;
+    if (!svr->dbpool) {
+        if (dbd_setup(s->process->pool, s) != APR_SUCCESS) {
+            return NULL;
         }
-    r = status;
     }
-    else {
-#endif
-    status = apr_recv(c->aprsock, buffer, &r);
-    if (APR_STATUS_IS_EAGAIN(status))
-	return;
-    else if (r == 0 && APR_STATUS_IS_EOF(status)) {
-	good++;
-	close_connection(c);
-	return;
+    if (apr_reslist_acquire(svr->dbpool, &rec) != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                      "Failed to acquire DBD connection from pool!");
+        return NULL;
     }
-    /* catch legitimate fatal apr_recv errors */
-    else if (status != APR_SUCCESS) {
-        err_except++; /* XXX: is this the right error counter? */
-        /* XXX: Should errors here be fatal, or should we allow a
-         * certain number of them before completely failing? -aaron */
-        apr_err("apr_recv", status);
+    rv = apr_dbd_check_conn(arec->driver, pool, arec->handle);
+    if ((rv != APR_SUCCESS) && (rv != APR_ENOTIMPL)) {
+        errmsg = apr_dbd_error(arec->driver, arec->handle, rv);
+        if (!errmsg) {
+            errmsg = "(unknown)";
+        }
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );
+        apr_reslist_invalidate(svr->dbpool, rec);
+        return NULL;
     }
-#ifdef USE_SSL
-    }
-#endif
+    return arec;
+}
+#else
+AP_DECLARE(ap_dbd_t*) ap_dbd_open(apr_pool_t *pool, server_rec *s)
+{
+    apr_status_t rv = APR_SUCCESS;
+    const char *errmsg;
+    void *rec = NULL;
+    svr_cfg *svr = ap_get_module_config(s->module_config, &dbd_module);
 
-    totalread += r;
-    if (c->read == 0) {
-	c->beginread = apr_time_now();
-    }
-    c->read += r;

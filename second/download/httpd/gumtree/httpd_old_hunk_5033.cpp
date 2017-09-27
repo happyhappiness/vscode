@@ -1,14 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			     "proxy: error creating cache directory %s",
-			     c->filename);
-	    *p = '/';
-	    ++p;
-	}
-#if defined(__EMX__) || defined(WIN32)
-	/* Under OS/2 use rename. */
-	if (rename(c->tempfile, c->filename) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			 "proxy: error renaming cache file %s to %s",
-			 c->tempfile, c->filename);
     }
--- apache_1.3.1/src/modules/proxy/proxy_connect.c	1998-06-08 22:23:50.000000000 +0800
+
+    apr_file_open_stderr(&errfile, pool);
+    rv = apr_getopt_init(&opt, pool, argc, argv);
+
+    if (rv != APR_SUCCESS) {
+        apr_file_printf(errfile, "Error: apr_getopt_init failed."NL NL);
+        return 1;
+    }
+
+    if (argc <= 1) {
+        usage();
+        return 1;

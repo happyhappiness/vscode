@@ -1,28 +1,17 @@
-                          dc->charset_default ? dc->charset_default : "unspecified");
+                    /* make sure we always clean up after ourselves */
+                    apr_brigade_cleanup(bb);
+                    apr_brigade_cleanup(pass_bb);
+
+                } while (!finish);
+            }
+            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                         "proxy: end body send");
         }
-        return DECLINED;
-    }
+        else if (!interim_response) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                         "proxy: header only");
 
-    /* catch proxy requests */
-    if (r->proxyreq) {
-        return DECLINED;
-    }
-
-    /* mod_rewrite indicators */
-    if (r->filename
-        && (!strncmp(r->filename, "redirect:", 9)
-            || !strncmp(r->filename, "gone:", 5)
-            || !strncmp(r->filename, "passthrough:", 12)
-            || !strncmp(r->filename, "forbidden:", 10))) {
-        return DECLINED;
-    }
-
-    /* no translation when server and network charsets are set to the same value */
-    if (!strcasecmp(dc->charset_source, dc->charset_default)) {
-        return DECLINED;
-    }
-
-    /* Get storage for the request data and the output filter context.
-     * We rarely need the input filter context, so allocate that separately.
-     */
-    reqinfo = (charset_req_t *)apr_pcalloc(r->pool,
+            /* Pass EOS bucket down the filter chain. */
+            e = apr_bucket_eos_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            if (ap_pass_brigade(r->output_filters, bb) != APR_SUCCESS

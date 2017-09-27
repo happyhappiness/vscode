@@ -1,22 +1,15 @@
-    const char *const *env;
-    request_rec *r = parm->r;
-    apr_pool_t *child_context = cntxt;
-    apr_procattr_t *procattr;
-    apr_proc_t *procnew;
-
-    /* XXX missing 1.3 logic:
-     *
-     * what happens when !compr[parm->method].silent?
-     * Should we create the err pipe, read it, and copy to the log?
+     * working.  (IMHO what they really fix is a bug in the users of the code
+     * - failing to program correctly for shadow passwords).  We need,
+     * therefore, to provide a password. This password can be matched by
+     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
+     * This is just the crypted variant of the word "password" ;-)
      */
+    auth_line = apr_pstrcat(r->pool, "Basic ",
+                            ap_pbase64encode(r->pool,
+                                             apr_pstrcat(r->pool, clientdn,
+                                                         ":password", NULL)),
+                            NULL);
+    apr_table_set(r->headers_in, "Authorization", auth_line);
 
-    env = (const char *const *)ap_create_environment(child_context, r->subprocess_env);
-
-    if ((apr_procattr_create(&procattr, child_context) != APR_SUCCESS) ||
-        (apr_procattr_io_set(procattr, APR_FULL_BLOCK,
-                           APR_FULL_BLOCK, APR_NO_PIPE)   != APR_SUCCESS) ||
-        (apr_procattr_dir_set(procattr, r->filename)        != APR_SUCCESS) ||
-        (apr_procattr_cmdtype_set(procattr, APR_PROGRAM)    != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
-               "couldn't setup child process: %s", r->filename);
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",

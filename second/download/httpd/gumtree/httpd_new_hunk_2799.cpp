@@ -1,13 +1,19 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+        }
+        LDAP_CACHE_UNLOCK();
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
+    if (!tmp_local_sgl && !sgl_cached_empty) {
+        /* No Cached SGL, retrieve from LDAP */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01289)
+                      "no cached SGL for %s, retrieving from LDAP", dn);
+        tmp_local_sgl = uldap_get_subgroups(r, ldc, url, dn, subgroupAttrs,
+                                            subgroupclasses);
+        if (!tmp_local_sgl) {
+            /* No SGL aailable via LDAP either */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01290) "no subgroups for %s",
+                          dn);
+        }
 
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+      if (curl && curl->compare_cache) {
+        /*
+         * Find the generic group cache entry and add the sgl we just retrieved.

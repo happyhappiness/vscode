@@ -1,14 +1,19 @@
-    ap_hard_timeout("send directory", r);
+            char buf[4096];
+            const char *ip;
+            apr_size_t bsize = sizeof(buf);
+            apr_brigade_cleanup(tmpbb);
+            if (APR_BRIGADE_EMPTY(bb)) {
+                break;
+            } 
+            rv = apr_brigade_split_line(tmpbb, bb,
+                                        APR_BLOCK_READ, sizeof(buf));
+       
+            if (rv) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                             "Heartmonitor: Unable to read from file: %s", ctx->storage_path);
+                return rv;
+            }
 
-    /* Spew HTML preamble */
-
-    title_endp = title_name + strlen(title_name) - 1;
-
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+            apr_brigade_flatten(tmpbb, buf, &bsize);
+            if (bsize == 0) {
+                break;

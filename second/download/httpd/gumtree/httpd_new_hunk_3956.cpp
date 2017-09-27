@@ -1,14 +1,14 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+    /* Create a temporary pool for the buffer, and destroy it if something
+     * goes wrong so we don't have large buffers of unused memory hanging
+     * about for the lifetime of the response.
+     */
+    apr_pool_create(&sobj->pool, r->pool);
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    sobj->buffer = apr_palloc(sobj->pool, dconf->max);
+    sobj->buffer_len = dconf->max;
+
+    /* attempt to retrieve the cached entry */
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_lock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02350)

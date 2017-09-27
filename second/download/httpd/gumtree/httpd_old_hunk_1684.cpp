@@ -1,13 +1,13 @@
-    {
-	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
-	    fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
-	    fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");
-	    abort();
-	}
     }
-#endif
 
-    hash = TABLE_HASH(key);
+    /* Use old naming */
+    origin = backend->connection;
+    sock = backend->sock;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: control connection complete");
+
+
+    /*
+     * III: Send Control Request -------------------------
+     *

@@ -1,1 +1,0 @@
-printf("Delete with start index out of range:\n");

@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "%s: unable to update file %s\n", 
-                        argv[0], argv[1]);
+ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);

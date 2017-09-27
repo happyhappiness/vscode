@@ -1,13 +1,12 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "Error looking up %s in database", user);
+            return AUTH_GENERAL_ERROR;
+        }
+        if (dbd_hash == NULL) {
+            dbd_hash = apr_dbd_get_entry(dbd->driver, row, 0);
+        }
+        /* we can't break out here or row won't get cleaned up */
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
-
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    if (!dbd_hash) {
+        return AUTH_USER_NOT_FOUND;

@@ -1,15 +1,14 @@
-     else {
-         proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
-         if (!worker) {
-             const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
-             if (err)
-                 return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
-+        } else {
-+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-+                         "worker %s already used by another worker", worker->name);
-         }
-         PROXY_COPY_CONF_PARAMS(worker, conf);
+                                   modssl_ctx_t *mctx)
+ {
+     /*
+      * check for important parameters and the
+      * possibility that the user forgot to set them.
+      */
+-    if (!mctx->pks->cert_files[0]) {
++    if (!mctx->pks->cert_files[0] && !mctx->pkcs7) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                 "No SSL Certificate set [hint: SSLCertificateFile]");
+         ssl_die();
+     }
  
-         for (i = 0; i < arr->nelts; i++) {
-             const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                                elts[i].val);
+     /*

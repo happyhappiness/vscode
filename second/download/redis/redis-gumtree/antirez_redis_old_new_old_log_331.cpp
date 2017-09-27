@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset[1], "Error reading database number");

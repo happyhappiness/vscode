@@ -1,1 +1,0 @@
-addReplyBulkLen(c,ele);

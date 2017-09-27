@@ -1,4 +1,4 @@
-printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (double) totalposted / timetaken);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");

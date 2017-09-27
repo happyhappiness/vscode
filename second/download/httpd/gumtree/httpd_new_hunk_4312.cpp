@@ -1,31 +1,14 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS -D DUMP_RUN_CFG");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_MODULES : show all loaded modules ");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_INCLUDES: show all included configuration files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t                 : run syntax check for config files");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -T                 : start without DocumentRoot(s) check");
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -X                 : debug mode (only one worker, do not detach)");
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();

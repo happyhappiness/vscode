@@ -1,1 +1,0 @@
-printf("%-8s",buf);

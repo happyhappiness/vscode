@@ -1,13 +1,13 @@
+    /* Log the errors */
+    /* ### should have a directive to log the first or all */
+    for (errscan = err; errscan != NULL; errscan = errscan->prev) {
+        if (errscan->desc == NULL)
+            continue;
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+        /* Intentional no APLOGNO */
+        ap_log_rerror(APLOG_MARK, level, errscan->aprerr, r, "%s  [%d, #%d]",
+                      errscan->desc, errscan->status, errscan->error_id);
+    }
+}
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+/*

@@ -1,13 +1,13 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = garbage_now;	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+    apr_status_t rv;
+    char char_of_death = graceful ? GRACEFUL_CHAR : RESTART_CHAR;
+    apr_size_t one = 1;
+
+    rv = apr_file_write(pod->pod_out, &char_of_death, &one);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(00522)
+                     "write pipe_of_death");
     }
-    else {
+    return rv;
+}
+
+AP_DECLARE(apr_status_t) ap_event_pod_signal(ap_event_pod_t * pod, int graceful)

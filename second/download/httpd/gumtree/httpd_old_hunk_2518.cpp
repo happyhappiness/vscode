@@ -1,14 +1,49 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+     *   add cache_save filter
+     * If cached file (OK)
+     *   clear filter stack
+     *   add cache_out filter
+     *   return OK
+     */
+    rv = cache_select(r);
+    if (rv != OK) {
+        if (rv == DECLINED) {
+            if (!lookup) {
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+                /* try to obtain a cache lock at this point. if we succeed,
+                 * we are the first to try and cache this url. if we fail,
+                 * it means someone else is already trying to cache this
+                 * url, and we should just let the request through to the
+                 * backend without any attempt to cache. this stops
+                 * duplicated simultaneous attempts to cache an entity.
+                 */
+                rv = ap_cache_try_lock(conf, r, NULL);
+                if (APR_SUCCESS == rv) {
+
+                    /*
+                     * Add cache_save filter to cache this request. Choose
+                     * the correct filter by checking if we are a subrequest
+                     * or not.
+                     */
+                    if (r->main) {
+                        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server,
+                                "Adding CACHE_SAVE_SUBREQ filter for %s",
+                                r->uri);
+                        ap_add_output_filter_handle(cache_save_subreq_filter_handle,
+                                NULL, r, r->connection);
+                    }
+                    else {
+                        ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server, "Adding CACHE_SAVE filter for %s",
+                                r->uri);
+                        ap_add_output_filter_handle(cache_save_filter_handle,
+                                NULL, r, r->connection);
+                    }
+
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                            "Adding CACHE_REMOVE_URL filter for %s",
+                            r->uri);
+
+                    /* Add cache_remove_url filter to this request to remove a
+                     * stale cache entry if needed. Also put the current cache
+                     * request rec in the filter context, as the request that

@@ -1,16 +1,13 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01708)
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
+    }
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    /*
+     * If there are no elements in the group attribute array, the default should be

@@ -1,146 +1,215 @@
-	else {
-	    cur = atol(str);
-	}
+    *urlp = url;
+    *hostp = addr;
+
+    return NULL;
+}
+
+/*
+ * If the date is a valid RFC 850 date or asctime() date, then it
+ * is converted to the RFC 1123 format.
+ */
+PROXY_DECLARE(const char *)
+     ap_proxy_date_canon(apr_pool_t *p, const char *date)
+{
+    apr_status_t rv;
+    char* ndate;
+
+    apr_time_t time = apr_date_parse_http(date);
+    if (!time) {
+        return date;
+    }
+
+    ndate = apr_palloc(p, APR_RFC822_DATE_LEN);
+    rv = apr_rfc822_date(ndate, time);
+    if (rv != APR_SUCCESS) {
+        return date;
+    }
+
+    return ndate;
+}
+
+PROXY_DECLARE(request_rec *)ap_proxy_make_fake_req(conn_rec *c, request_rec *r)
+{
+    request_rec *rp = apr_pcalloc(r->pool, sizeof(*r));
+
+    rp->pool            = r->pool;
+    rp->status          = HTTP_OK;
+
+    rp->headers_in      = apr_table_make(r->pool, 50);
+    rp->subprocess_env  = apr_table_make(r->pool, 50);
+    rp->headers_out     = apr_table_make(r->pool, 12);
+    rp->err_headers_out = apr_table_make(r->pool, 5);
+    rp->notes           = apr_table_make(r->pool, 5);
+
+    rp->server = r->server;
+    rp->proxyreq = r->proxyreq;
+    rp->request_time = r->request_time;
+    rp->connection      = c;
+    rp->output_filters  = c->output_filters;
+    rp->input_filters   = c->input_filters;
+    rp->proto_output_filters  = c->output_filters;
+    rp->proto_input_filters   = c->input_filters;
+
+    rp->request_config  = ap_create_request_config(r->pool);
+    proxy_run_create_req(r, rp);
+
+    return rp;
+}
+
+
+/*
+ * list is a comma-separated list of case-insensitive tokens, with
+ * optional whitespace around the tokens.
+ * The return returns 1 if the token val is found in the list, or 0
+ * otherwise.
+ */
+PROXY_DECLARE(int) ap_proxy_liststr(const char *list, const char *val)
+{
+    int len, i;
+    const char *p;
+
+    len = strlen(val);
+
+    while (list != NULL) {
+        p = ap_strchr_c(list, ',');
+        if (p != NULL) {
+            i = p - list;
+            do {
+                p++;
+            } while (apr_isspace(*p));
+        }
+        else {
+            i = strlen(list);
+        }
+
+        while (i > 0 && apr_isspace(list[i - 1])) {
+            i--;
+        }
+        if (i == len && strncasecmp(list, val, len) == 0) {
+            return 1;
+        }
+        list = p;
+    }
+    return 0;
+}
+
+/*
+ * list is a comma-separated list of case-insensitive tokens, with
+ * optional whitespace around the tokens.
+ * if val appears on the list of tokens, it is removed from the list,
+ * and the new list is returned.
+ */
+PROXY_DECLARE(char *)ap_proxy_removestr(apr_pool_t *pool, const char *list, const char *val)
+{
+    int len, i;
+    const char *p;
+    char *new = NULL;
+
+    len = strlen(val);
+
+    while (list != NULL) {
+        p = ap_strchr_c(list, ',');
+        if (p != NULL) {
+            i = p - list;
+            do {
+                p++;
+            } while (apr_isspace(*p));
+        }
+        else {
+            i = strlen(list);
+        }
+
+        while (i > 0 && apr_isspace(list[i - 1])) {
+            i--;
+        }
+        if (i == len && strncasecmp(list, val, len) == 0) {
+            /* do nothing */
+        }
+        else {
+            if (new) {
+                new = apr_pstrcat(pool, new, ",", apr_pstrndup(pool, list, i), NULL);
+            }
+            else {
+                new = apr_pstrndup(pool, list, i);
+            }
+        }
+        list = p;
+    }
+    return new;
+}
+
+/*
+ * Converts 8 hex digits to a time integer
+ */
+PROXY_DECLARE(int) ap_proxy_hex2sec(const char *x)
+{
+    int i, ch;
+    unsigned int j;
+
+    for (i = 0, j = 0; i < 8; i++) {
+        ch = x[i];
+        j <<= 4;
+        if (apr_isdigit(ch)) {
+            j |= ch - '0';
+        }
+        else if (apr_isupper(ch)) {
+            j |= ch - ('A' - 10);
+        }
+        else {
+            j |= ch - ('a' - 10);
+        }
+    }
+    if (j == 0xffffffff) {
+        return -1;      /* so that it works with 8-byte ints */
     }
     else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-		    "Invalid parameters for %s", cmd->cmd->name);
-	return;
-    }
-    
-    if (arg2 && (str = ap_getword_conf(cmd->pool, &arg2)))
-	max = atol(str);
-
-    /* if we aren't running as root, cannot increase max */
-    if (geteuid()) {
-	limit->rlim_cur = cur;
-	if (max)
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-			"Must be uid 0 to raise maximum %s", cmd->cmd->name);
-    }
-    else {
-	if (cur)
-	    limit->rlim_cur = cur;
-	if (max)
-	    limit->rlim_max = max;
+        return j;
     }
 }
-#endif
 
-#if !defined (RLIMIT_CPU) || !(defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)) || !defined (RLIMIT_NPROC)
-static const char *no_set_limit (cmd_parms *cmd, core_dir_config *conf,
-				 char *arg, char *arg2)
+/*
+ * Converts a time integer to 8 hex digits
+ */
+PROXY_DECLARE(void) ap_proxy_sec2hex(int t, char *y)
 {
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, cmd->server,
-		"%s not supported on this platform", cmd->cmd->name);
-    return NULL;
-}
-#endif
+    int i, ch;
+    unsigned int j = t;
 
-#ifdef RLIMIT_CPU
-static const char *set_limit_cpu (cmd_parms *cmd, core_dir_config *conf, 
-	                          char *arg, char *arg2)
-{
-    set_rlimit(cmd,&conf->limit_cpu,arg,arg2,RLIMIT_CPU);
-    return NULL;
-}
-#endif
-
-#if defined (RLIMIT_DATA) || defined (RLIMIT_VMEM) || defined(RLIMIT_AS)
-static const char *set_limit_mem (cmd_parms *cmd, core_dir_config *conf, 
-	                          char *arg, char * arg2)
-{
-#if defined(RLIMIT_AS)
-    set_rlimit(cmd,&conf->limit_mem,arg,arg2,RLIMIT_AS);
-#elif defined(RLIMIT_DATA)
-    set_rlimit(cmd,&conf->limit_mem,arg,arg2,RLIMIT_DATA);
-#elif defined(RLIMIT_VMEM)
-    set_rlimit(cmd,&conf->limit_mem,arg,arg2,RLIMIT_VMEM);
-#endif
-    return NULL;
-}
-#endif
-
-#ifdef RLIMIT_NPROC
-static const char *set_limit_nproc (cmd_parms *cmd, core_dir_config *conf,  
-	                            char *arg, char * arg2)
-{
-    set_rlimit(cmd,&conf->limit_nproc,arg,arg2,RLIMIT_NPROC);
-    return NULL;
-}
-#endif
-
-static const char *set_bind_address (cmd_parms *cmd, void *dummy, char *arg) 
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) return err;
-
-    ap_bind_address.s_addr = ap_get_virthost_addr (arg, NULL);
-    return NULL;
-}
-
-static const char *set_listener(cmd_parms *cmd, void *dummy, char *ips)
-{
-    listen_rec *new;
-    char *ports;
-    unsigned short port;
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) return err;
-
-    ports=strchr(ips, ':');
-    if (ports != NULL)
-    {
-	if (ports == ips) return "Missing IP address";
-	else if (ports[1] == '\0')
-	    return "Address must end in :<port-number>";
-	*(ports++) = '\0';
-    } else
-	ports = ips;
-
-    new=ap_pcalloc(cmd->pool, sizeof(listen_rec));
-    new->local_addr.sin_family = AF_INET;
-    if (ports == ips) /* no address */
-	new->local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    else
-	new->local_addr.sin_addr.s_addr = ap_get_virthost_addr(ips, NULL);
-    port=atoi(ports);
-    if(!port)
-	return "Port must be numeric";
-    new->local_addr.sin_port = htons(port);
-    new->fd = -1;
-    new->used = 0;
-    new->next = ap_listeners;
-    ap_listeners = new;
-    return NULL;
-}
-
-static const char *set_listenbacklog (cmd_parms *cmd, void *dummy, char *arg) 
-{
-    int b;
-
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) return err;
-
-    b = atoi (arg);
-    if (b < 1) return "ListenBacklog must be > 0";
-    ap_listenbacklog = b;
-    return NULL;
-}
-
-static const char *set_coredumpdir (cmd_parms *cmd, void *dummy, char *arg) 
-{
-    struct stat finfo;
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) return err;
-
-    arg = ap_server_root_relative(cmd->pool, arg);
-    if ((stat(arg, &finfo) == -1) || !S_ISDIR(finfo.st_mode)) {
-	return ap_pstrcat(cmd->pool, "CoreDumpDirectory ", arg, 
-	    " does not exist or is not a directory", NULL);
+    for (i = 7; i >= 0; i--) {
+        ch = j & 0xF;
+        j >>= 4;
+        if (ch >= 10) {
+            y[i] = ch + ('A' - 10);
+        }
+        else {
+            y[i] = ch + '0';
+        }
     }
-    ap_cpystrn(ap_coredump_dir, arg, sizeof(ap_coredump_dir));
-    return NULL;
+    y[8] = '\0';
 }
 
-static const char *include_config (cmd_parms *cmd, void *dummy, char *name)
+PROXY_DECLARE(int) ap_proxyerror(request_rec *r, int statuscode, const char *message)
+{
+    apr_table_setn(r->notes, "error-notes",
+    apr_pstrcat(r->pool,
+        "The proxy server could not handle the request "
+        "<em><a href=\"", ap_escape_html(r->pool, r->uri),
+        "\">", ap_escape_html(r->pool, r->method),
+        "&nbsp;",
+        ap_escape_html(r->pool, r->uri), "</a></em>.<p>\n"
+        "Reason: <strong>",
+        ap_escape_html(r->pool, message),
+        "</strong></p>", NULL));
+
+    /* Allow "error-notes" string to be printed by ap_send_error_response() */
+    apr_table_setn(r->notes, "verbose-error-to", apr_pstrdup(r->pool, "*"));
+
+    r->status_line = apr_psprintf(r->pool, "%3.3u Proxy Error", statuscode);
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+             "proxy: %s returned by %s", message, r->uri);
+    return statuscode;
+}
+
+static const char *
+     proxy_get_host_of_request(request_rec *r)
+{

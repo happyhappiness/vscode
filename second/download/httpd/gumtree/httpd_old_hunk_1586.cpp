@@ -1,33 +1,40 @@
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-             "proxy: CONNECT: sending the CONNECT request to the remote proxy");
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-                  "CONNECT %s HTTP/1.0" CRLF, r->uri);
-        apr_socket_send(sock, buffer, &nbytes);
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-                  "Proxy-agent: %s" CRLF CRLF, ap_get_server_version());
-        apr_socket_send(sock, buffer, &nbytes);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-             "proxy: CONNECT: Returning 200 OK Status");
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-                  "HTTP/1.0 200 Connection Established" CRLF);
-        ap_xlate_proto_to_ascii(buffer, nbytes);
-        apr_socket_send(client_socket, buffer, &nbytes);
-        nbytes = apr_snprintf(buffer, sizeof(buffer),
-                  "Proxy-agent: %s" CRLF CRLF, ap_get_server_version());
-        ap_xlate_proto_to_ascii(buffer, nbytes);
-        apr_socket_send(client_socket, buffer, &nbytes);
-#if 0
-        /* This is safer code, but it doesn't work yet.  I'm leaving it
-         * here so that I can fix it later.
-         */
-        r->status = HTTP_OK;
-        r->header_only = 1;
-        apr_table_set(r->headers_out, "Proxy-agent: %s", ap_get_server_version());
-        ap_rflush(r);
-#endif
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-         "proxy: CONNECT: setting up poll()");
+    apr_file_close(f);
+    return ret;
+}
+
+static apr_status_t close_unix_socket(void *thefd)
+{
+    int fd = (int)((long)thefd);
+
+    return close(fd);
+}
+
+static int connect_to_daemon(int *sdptr, request_rec *r,
+                             cgid_server_conf *conf)
+{
+    struct sockaddr_un unix_addr;
+    int sd;
+    int connect_tries;
+    apr_interval_time_t sliding_timer;
+
+    memset(&unix_addr, 0, sizeof(unix_addr));
+    unix_addr.sun_family = AF_UNIX;
+    apr_cpystrn(unix_addr.sun_path, sockname, sizeof unix_addr.sun_path);
+
+    connect_tries = 0;
+    sliding_timer = 100000; /* 100 milliseconds */
+    while (1) {
+        ++connect_tries;
+        if ((sd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+            return log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   "unable to create socket to cgi daemon");
+        }
+        if (connect(sd, (struct sockaddr *)&unix_addr, sizeof(unix_addr)) < 0) {
+            if (errno == ECONNREFUSED && connect_tries < DEFAULT_CONNECT_ATTEMPTS) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, errno, r,
+                              "connect #%d to cgi daemon failed, sleeping before retry",
+                              connect_tries);
+                close(sd);
+                apr_sleep(sliding_timer);

@@ -1,14 +1,13 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
-    }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
-    }
-}
+                                              const char *mode)
+{
+    util_ldap_state_t *st =
+    (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                              &ldap_module);
 
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01307)
+                      "LDAP: SSL trusted mode - %s",
+                       mode);
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+    if (0 == strcasecmp("NONE", mode)) {
+        st->secure = APR_LDAP_NONE;
+    }

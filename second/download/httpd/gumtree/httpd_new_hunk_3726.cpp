@@ -1,13 +1,33 @@
+                backend_failed = 1;
+                break;
+        }
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+        /*
+         * If connection has been aborted by client: Stop working.
+         * Pretend we are done (data_sent) to avoid further processing.
+         */
+        if (r->connection->aborted) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02821)
+                          "client connection aborted");
+            /* no response yet (or ever), set status for access log */
+            if (!headers_sent) {
+                r->status = HTTP_BAD_REQUEST;
+            }
+            client_failed = 1;
+            /* return DONE */
+            data_sent = 1;
+            break;
+        }
 
-    ap_hard_timeout("send headers", r);
+        /*
+         * We either have finished successfully or we failed.
+         * So bail out
+         */
+        if ((result == CMD_AJP13_END_RESPONSE)
+                || backend_failed || client_failed)
+            break;
 
-    ap_basic_http_header(r);
+        /* read the response */
+        status = ajp_read_header(conn->sock, r, maxsize,
+                                 (ajp_msg_t **)&(conn->data));
+        if (status != APR_SUCCESS) {

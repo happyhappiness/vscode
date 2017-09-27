@@ -1,1 +1,0 @@
-addReplyError(c, "DEBUG FLUSHCACHE called with diskstore off.");

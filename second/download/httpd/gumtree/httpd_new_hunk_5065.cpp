@@ -1,26 +1,31 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+    return NULL;
+}
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+
+static const char *util_ldap_set_chase_referrals(cmd_parms *cmd,
+                                                 void *config,
+                                                 const char *arg)
+{
+    util_ldap_config_t *dc =  config;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01311)
+                      "LDAP: Setting referral chasing %s", arg);
+
+    if (0 == strcasecmp(arg, "on")) {
+        dc->ChaseReferrals = AP_LDAP_CHASEREFERRALS_ON;
+    }
+    else if (0 == strcasecmp(arg, "off")) {
+        dc->ChaseReferrals = AP_LDAP_CHASEREFERRALS_OFF;
+    }
+    else if (0 == strcasecmp(arg, "default")) {
+        dc->ChaseReferrals = AP_LDAP_CHASEREFERRALS_SDKDEFAULT;
+    }
+    else {
+        return "LDAPReferrals must be 'on', 'off', or 'default'";
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    return(NULL);
+}
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+static const char *util_ldap_set_debug_level(cmd_parms *cmd,
+                                             void *config,

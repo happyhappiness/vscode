@@ -1,15 +1,17 @@
-		fprintf(stderr, "Completed %ld requests\n", done);
-		fflush(stderr);
-	    }
-	    c->done = apr_time_now();
-	    s.read = c->read;
-	    s.starttime = c->start;
-            s.ctime = ap_max(0, (c->connect - c->start) / 1000);
-            s.waittime = ap_max(0, (c->beginread - c->endwrite) / 1000);
-            s.time = ap_max(0, (c->done - c->start) / 1000);
-	    stats[done++] = s;
-	}
-	c->keepalive = 0;
-	c->length = 0;
-	c->gotheader = 0;
-	c->cbx = 0;
+static const char *util_ldap_set_cache_bytes(cmd_parms *cmd, void *dummy,
+                                             const char *bytes)
+{
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                                  &ldap_module);
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+
+    if (err != NULL) {
+        return err;
+    }
+
+    st->cache_bytes = atol(bytes);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting shared memory "
+                 " cache size to %" APR_SIZE_T_FMT " bytes.",

@@ -1,2 +1,1 @@
-printf("error reading postfile: %s\n",
-	       apr_strerror(rv, errmsg, sizeof errmsg));
+apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password\n");

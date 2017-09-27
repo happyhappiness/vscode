@@ -1,13 +1,48 @@
-    apr_status_t rv;
+#ifndef NO_USE_SIGACTION
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-    pconf = p;
-    ap_server_conf = s;
+    sa.sa_handler = sig_term;
+    if (sigaction(SIGTERM, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGTERM)");
+#ifdef SIGINT
+    if (sigaction(SIGINT, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGINT)");
+#endif
+#ifdef SIGXCPU
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXCPU, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGXCPU)");
+#endif
+#ifdef SIGXFSZ
+    sa.sa_handler = SIG_DFL;
+    if (sigaction(SIGXFSZ, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGXFSZ)");
+#endif
+#ifdef SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGPIPE)");
+#endif
 
-    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0, 
-                     NULL, "no listening sockets available, shutting down");
-	return DONE;
-    }
-
-    if ((rv = ap_mpm_pod_open(pconf, &pod))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,
+    /* we want to ignore HUPs and AP_SIG_GRACEFUL while we're busy 
+     * processing one */
+    sigaddset(&sa.sa_mask, SIGHUP);
+    sigaddset(&sa.sa_mask, AP_SIG_GRACEFUL);
+    sa.sa_handler = restart;
+    if (sigaction(SIGHUP, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(SIGHUP)");
+    if (sigaction(AP_SIG_GRACEFUL, &sa, NULL) < 0)
+        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+#else
+    if (!one_process) {
+#ifdef SIGXCPU
+        apr_signal(SIGXCPU, SIG_DFL);
+#endif /* SIGXCPU */

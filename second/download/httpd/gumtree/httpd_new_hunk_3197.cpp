@@ -1,13 +1,13 @@
-
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+                        apr_sleep((nPassPhraseRetry-BUILTIN_DIALOG_BACKOFF)
+                                    * 5 * APR_USEC_PER_SEC);
+                    continue;
+                }
+#ifdef WIN32
+                if (sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02245)
+                                 "Init: SSLPassPhraseDialog builtin is not "
+                                 "supported on Win32 (key file "
+                                 "%s)", szPath);
+                    ssl_die();
+                }
+#endif /* WIN32 */

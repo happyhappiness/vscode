@@ -1,15 +1,15 @@
-             /* Treat as stale, causing revalidation */
-             return 0;
-         }
- 
-         ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                      "Incoming request is asking for a uncached version of "
--                     "%s, but we know better and are ignoring it",
-+                     "%s, but we have been configured to ignore it and "
-+                     "serve a cached response anyway",
-                      r->unparsed_uri);
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                "ajp_parse_headers: ajp_msg_get_byte failed");
+         return rc;
      }
+     if (result != CMD_AJP13_SEND_HEADERS) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+-               "ajp_parse_headers: wrong type %02x expecting 0x04", result);
++               "ajp_parse_headers: wrong type 0x%02x expecting 0x%02x",
++               result, CMD_AJP13_SEND_HEADERS);
+         return AJP_EBAD_HEADER;
+     }
+     return ajp_unmarshal_response(msg, r, conf);
+ }
  
-     /* These come from the cached entity. */
-     cc_cresp = apr_table_get(h->resp_hdrs, "Cache-Control");
-     expstr = apr_table_get(h->resp_hdrs, "Expires");
+ /* parse the body and return data address and length */

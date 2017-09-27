@@ -1,19 +1,25 @@
-            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
+         */
+        rv = cache->provider->store_body(cache->handle, r, in);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                         "cache: Cache provider's store_body failed!");
+            ap_remove_output_filter(f);
 
-            return HTTP_FORBIDDEN;
+            /* give someone else the chance to cache the file */
+            ap_cache_remove_lock(conf, r, cache->handle ?
+                    (char *)cache->handle->cache_obj->key : NULL, NULL);
+        }
+        else {
+
+        	/* proactively remove the lock as soon as we see the eos bucket */
+            ap_cache_remove_lock(conf, r, cache->handle ?
+                    (char *)cache->handle->cache_obj->key : NULL, in);
+
         }
 
-        if (ok != 1) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Access to %s denied for %s "
-                          "(requirement expression not fulfilled)",
-                          r->filename, r->connection->remote_ip);
+        return ap_pass_brigade(f->next, in);
+    }
 
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Failed expression: %s", req->cpExpr);
-
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled "
-                          "(see SSL logfile for more details)");
+    /*
+     * Setup Data in Cache
+     * -------------------

@@ -1,1 +1,1 @@
-fprintf(stderr, "Stack size increased to %d\n", ssl_expr_yystacksize);
+fprintf (stderr, "state stack now");

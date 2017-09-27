@@ -1,50 +1,40 @@
-     * this on Win32, though, since we haven't fork()'d.
-     */
-    r->server->error_log = stderr;
-#endif
+            case APR_SUCCESS:                            /* all fine, just... */
+            case APR_EOF:                         /* client closed its end... */
+            case APR_TIMEUP:                          /* got bored waiting... */
+                rv = 0;                            /* ...gracefully shut down */
+                break;
+            case APR_EBADF:        /* connection unusable, terminate silently */
+            case APR_ECONNABORTED:
+                rv = NGHTTP2_ERR_EOF;
+                break;
+            default:
+                break;
+        }
+    }
+    return h2_session_abort_int(session, rv);
+}
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL)
-	if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set CPU usage limit");
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL)
-	if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit: failed to set process limit");
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_AS): failed to set memory usage limit");
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_DATA): failed to set memory usage limit");
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL)
-	if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			"setrlimit(RLIMIT_VMEM): failed to set memory usage limit");
-#endif
+apr_status_t h2_session_start(h2_session *session, int *rv)
+{
+    apr_status_t status = APR_SUCCESS;
+    h2_config *config;
+    nghttp2_settings_entry settings[3];
+    
+    AP_DEBUG_ASSERT(session);
+    /* Start the conversation by submitting our SETTINGS frame */
+    *rv = 0;
+    config = h2_config_get(session->c);
+    if (session->r) {
+        const char *s, *cs;
+        apr_size_t dlen; 
+        h2_stream * stream;
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope this is large enough for the interpreter path */
-	FILE *program;
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+        /* better for vhost matching */
+        config = h2_config_rget(session->r);
+        
+        /* 'h2c' mode: we should have a 'HTTP2-Settings' header with
+         * base64 encoded client settings. */
+        s = apr_table_get(session->r->headers_in, "HTTP2-Settings");
+        if (!s) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, session->r,
+                          APLOGNO(02931) 

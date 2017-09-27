@@ -1,17 +1,12 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
-        }
+
+static const char *add_env_module_vars_set(cmd_parms *cmd, void *sconf_,
+                                           const char *name, const char *value)
+{
+    env_dir_config_rec *sconf = sconf_;
+
+    /* name is mandatory, value is optional.  no value means
+     * set the variable to an empty string
+     */
+    apr_table_setn(sconf->vars, name, value ? value : "");
+
+    return NULL;

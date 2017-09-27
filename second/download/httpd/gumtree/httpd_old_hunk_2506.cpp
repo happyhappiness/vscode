@@ -1,16 +1,15 @@
+                    interpreter = "";
+                }
+            }
+        }
+    }
+    if (!interpreter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" first line", *cmd);
+        return APR_EBADF;
+    }
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                       args)->elts);
+    *cmd = (*argv)[0];

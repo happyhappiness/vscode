@@ -1,1 +1,0 @@
-serverLogRaw(level,msg);

@@ -1,17 +1,12 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
-        }
+    }
+    apr_pool_userdata_set(object, raw_key, NULL, r->server->process->pool);
+    apr_thread_mutex_unlock(lua_ivm_mutex);
+    return 0;
+}
+
+#define APLUA_REQ_TRACE(lev) static int req_trace##lev(lua_State *L)  \
+{                                                               \
+    return req_log_at(L, APLOG_TRACE##lev);                     \
+}
+
+APLUA_REQ_TRACE(1)

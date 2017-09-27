@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "password too long");
+apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);

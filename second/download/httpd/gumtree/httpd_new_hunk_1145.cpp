@@ -1,27 +1,45 @@
-    char server_portstr[32];
-    char *scheme;
-    const char *proxy_function;
-    const char *u;
-    proxy_conn_rec *backend = NULL;
-    int is_ssl = 0;
-    conn_rec *c = r->connection;
-    /*
-     * Use a shorter-lived pool to reduce memory usage
-     * and avoid a memory leak
-     */
-    apr_pool_t *p = r->pool;
-    apr_uri_t *uri = apr_palloc(p, sizeof(*uri));
+            }
+        }
+        else {
+            request_rec *id = r->main ? r->main : r;
 
-    /* find the scheme */
-    u = strchr(url, ':');
-    if (u == NULL || u[1] != '/' || u[2] != '/' || u[3] == '\0')
-       return DECLINED;
-    if ((u - url) > 14)
-        return HTTP_BAD_REQUEST;
-    scheme = apr_pstrndup(p, url, u - url);
-    /* scheme is lowercase */
-    ap_str_tolower(scheme);
-    /* is it for us? */
-    if (strcmp(scheme, "https") == 0) {
-        if (!ap_proxy_ssl_enable(NULL)) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+            /* do a full renegotiation */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: "
+                          "complete handshake protocol");
+
+            SSL_set_session_id_context(ssl,
+                                       (unsigned char *)&id,
+                                       sizeof(id));
+
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation request failed");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Awaiting re-negotiation handshake");
+
+            /* XXX: Should replace SSL_set_state with SSL_renegotiate(ssl);
+             * However, this causes failures in perl-framework currently,
+             * perhaps pre-test if we have already negotiated?
+             */
+            SSL_set_state(ssl, SSL_ST_ACCEPT);
+            SSL_do_handshake(ssl);
+
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation handshake failed: "
+                              "Not accepted by client!?");
+
+                r->connection->aborted = 1;
+                return HTTP_FORBIDDEN;
+            }
+        }
+

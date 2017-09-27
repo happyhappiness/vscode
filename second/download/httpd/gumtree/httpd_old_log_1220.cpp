@@ -1,1 +1,1 @@
-printf("Can\'t alloc postfile buffer\n");
+apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");

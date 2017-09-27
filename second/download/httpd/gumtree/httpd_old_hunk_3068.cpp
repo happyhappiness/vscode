@@ -1,9 +1,15 @@
-/* Automatically generated file - do not edit */
+            err = 0;
+            location = apr_table_get(r->headers_out, conf->sendfile);
+        }
+        if (location) {
+            scgi_request_config *req_conf = apr_palloc(r->pool,
+                                                       sizeof(*req_conf));
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "proxy: " PROXY_FUNCTION ": Found %s: %s - "
+                          "preparing subrequest.",
+                          conf->sendfile, location);
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+            if (err) {
+                apr_table_unset(r->err_headers_out, conf->sendfile);
+            }
+            else {

@@ -1,1 +1,1 @@
-fprintf(stderr, "    -h              Display usage information (this message)\n");
+apr_file_printf(errfile, "Usage:\n");

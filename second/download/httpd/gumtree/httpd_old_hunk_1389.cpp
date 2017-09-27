@@ -1,30 +1,13 @@
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "RewriteOptions: MaxRedirects option has been "
-                         "removed in favor of the global "
-                         "LimitInternalRecursion directive and will be "
-                         "ignored.");
+            return HTTP_BAD_REQUEST;
         }
-        else {
-            return apr_pstrcat(cmd->pool, "RewriteOptions: unknown option '",
-                               w, "'", NULL);
+        rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+        if (rv != APR_SUCCESS || scope_id) {
+            return HTTP_BAD_REQUEST;
+        }
+        if (strcmp(host, servername)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "Hostname %s provided via SNI and hostname %s provided"
+                        " via HTTP are different", servername, host);
+            return HTTP_BAD_REQUEST;
         }
     }
-
-    /* put it into the appropriate config */
-    if (cmd->path == NULL) { /* is server command */
-        rewrite_server_conf *conf =
-            ap_get_module_config(cmd->server->module_config,
-                                 &rewrite_module);
-
-        conf->options |= options;
-    }
-    else {                  /* is per-directory command */
-        rewrite_perdir_conf *conf = in_dconf;
-
-        conf->options |= options;
-    }
-
-    return NULL;
-}
-
-#ifndef REWRITELOG_DISABLED

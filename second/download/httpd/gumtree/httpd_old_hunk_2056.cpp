@@ -1,26 +1,12 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+            return HTTP_BAD_REQUEST;
+        else
+            return HTTP_SERVICE_UNAVAILABLE;
     }
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    /* allocate an AJP message to store the data of the buckets */
+    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
+    if (status != APR_SUCCESS) {
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: ajp_alloc_data_msg failed");

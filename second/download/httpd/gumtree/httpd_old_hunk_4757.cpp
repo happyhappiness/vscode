@@ -1,14 +1,35 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+    conn_rec *origin = NULL;
+    proxy_conn_rec *backend = NULL;
+    const char *scheme = "AJP";
+    int retry;
+    proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                 &proxy_module);
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    /*
+     * Note: Memory pool allocation.
+     * A downstream keepalive connection is always connected to the existence
+     * (or not) of an upstream keepalive connection. If this is not done then
+     * load balancing against multiple backend servers breaks (one backend
+     * server ends up taking 100% of the load), and the risk is run of
+     * downstream keepalive connections being kept open unnecessarily. This
+     * keeps webservers busy and ties up resources.
+     *
+     * As a result, we allocate all sockets out of the upstream connection
+     * pool, and when we want to reuse a socket, we check first whether the
+     * connection ID of the current upstream connection is the same as that
+     * of the connection when the socket was opened.
+     */
+    apr_pool_t *p = r->connection->pool;
+    apr_uri_t *uri = apr_palloc(r->connection->pool, sizeof(*uri));
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+
+    if (strncasecmp(url, "ajp:", 4) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00894) "declining URL %s", url);
+        return DECLINED;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00895) "serving URL %s", url);
+
+    /* create space for state information */
+    status = ap_proxy_acquire_connection(scheme, &backend, worker,
+                                         r->server);
+    if (status != OK) {

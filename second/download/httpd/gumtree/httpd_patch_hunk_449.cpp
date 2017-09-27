@@ -1,15 +1,15 @@
-         break;
-     }
+ #endif
+     
+     apr_signal(SIGINT, (void (*)(int)) interrupted);
+     if (argc == 5) {
+         if (strcmp(argv[1], "-c"))
+             usage();
+-        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE, -1, cntxt);
++        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
++                           APR_OS_DEFAULT, cntxt);
+         if (rv != APR_SUCCESS) {
+             char errmsg[120];
  
-     /* Kill remaining threads off the hard way */
-     if (threads_created) {
-         ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
--                     "Child %d: Terminating %d threads that failed to exit.", my_pid);
-+                     "Child %d: Terminating %d threads that failed to exit.", 
-+                     my_pid, threads_created);
-     }
-     for (i = 0; i < threads_created; i++) {
-         int *score_idx;
-         TerminateThread(child_handles[i], 1);
-         CloseHandle(child_handles[i]);
-         /* Reset the scoreboard entry for the thread we just whacked */
+             apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
+                     argv[2],
+                     apr_strerror(rv, errmsg, sizeof errmsg));

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                         c->base_server,
-                         "SSL client authentication failed: %s",
-                         error ? error : "unknown");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "could not split line from buffered SSL brigade");

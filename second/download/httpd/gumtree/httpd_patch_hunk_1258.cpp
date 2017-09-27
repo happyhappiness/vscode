@@ -1,22 +1,46 @@
-          e = APR_BUCKET_NEXT(e))
-     {
-         const char *s;
-         apr_size_t len;
+     /* setup the socket for SSL */
+     memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+     memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+     sWS2Opts.options = &sNWTLSOpts;
  
-         if (APR_BUCKET_IS_EOS(e)) {
-+            const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
-+            if (cl_header) {
-+                apr_int64_t cl = apr_atoi64(cl_header);
-+                if ((errno == 0) && (obj->count != cl)) {
-+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                                 "mem_cache: URL %s didn't receive complete response, not caching",
-+                                 h->cache_obj->key);
-+                    return APR_EGENERAL;
-+                }
-+            }
-             if (mobj->m_len > obj->count) {
-                 /* Caching a streamed response. Reallocate a buffer of the
-                  * correct size and copy the streamed response into that
-                  * buffer */
-                 mobj->m = realloc(mobj->m, obj->count);
-                 if (!mobj->m) {
+     if (numcerts) {
+-        sNWTLSOpts.walletProvider = WAL_PROV_DER;   //the wallet provider defined in wdefs.h
+-        sNWTLSOpts.TrustedRootList = certarray;     //array of certs in UNICODE format
+-        sNWTLSOpts.numElementsInTRList = numcerts;  //number of certs in TRList
++        sNWTLSOpts.walletProvider = WAL_PROV_DER;   /* the wallet provider defined in wdefs.h */
++        sNWTLSOpts.TrustedRootList = certarray;     /* array of certs in UNICODE format       */
++        sNWTLSOpts.numElementsInTRList = numcerts;  /* number of certs in TRList              */
+     }
+     else {
+         /* setup the socket for SSL */
+         unicpy(keyFileName, L"SSL CertificateIP");
+-        sWS2Opts.wallet = keyFileName;    /* no client certificate */
++        sWS2Opts.wallet = keyFileName;              /* no client certificate */
+         sWS2Opts.walletlen = unilen(keyFileName);
+ 
+-        sNWTLSOpts.walletProvider = WAL_PROV_KMO;  //the wallet provider defined in wdefs.h
++        sNWTLSOpts.walletProvider = WAL_PROV_KMO;   /* the wallet provider defined in wdefs.h */
+     }
+ 
+     /* make the IOCTL call */
+     rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+                      sizeof(struct tlsclientopts), NULL, 0, NULL,
+                      NULL, NULL);
+ 
+-    /* make sure that it was successfull */
++    /* make sure that it was successful */
+         if(SOCKET_ERROR == rcode ){
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                      "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+         }
+         return rcode;
+ }
+ 
+-int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
++static int SSLize_Socket(SOCKET socketHnd, char *key, request_rec *r)
+ {
+     int rcode;
+     struct tlsserveropts sWS2Opts;
+     struct nwtlsopts    sNWTLSOpts;
+     unicode_t SASKey[512];
+     unsigned long ulFlag;

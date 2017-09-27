@@ -1,1 +1,0 @@
-serverLog(REDIS_DEBUG, "[PSYNC] Reply total length: %lld", len);

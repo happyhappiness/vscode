@@ -1,1 +1,1 @@
-ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
+ap_rputs("\n  </tt>\n</dt>\n", r);

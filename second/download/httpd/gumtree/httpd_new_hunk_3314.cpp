@@ -1,101 +1,128 @@
- * and OPTIONS at this point... anyone who wants to write a generic
- * handler for PUT or POST is free to do so, but it seems unwise to provide
- * any defaults yet... So, for now, we assume that this will always be
- * the last handler called and return 405 or 501.
+        if (ep->when > te->when) {
+            inserted = 1;
+            APR_RING_INSERT_BEFORE(ep, te, link);
+            break;
+        }
+    }
+
+    if (!inserted) {
+        APR_RING_INSERT_TAIL(&timer_ring, te, timer_event_t, link);
+    }
+
+    apr_thread_mutex_unlock(g_timer_ring_mtx);
+
+    return APR_SUCCESS;
+}
+
+/*
+ * Close socket and clean up if remote closed its end while we were in
+ * lingering close.
+ * Only to be called in the listener thread;
+ * Pre-condition: cs is in one of the linger queues and in the pollset
  */
-
-static int default_handler(request_rec *r)
+static void process_lingering_close(event_conn_state_t *cs, const apr_pollfd_t *pfd)
 {
-    core_dir_config *d =
-      (core_dir_config *)ap_get_module_config(r->per_dir_config, &core_module);
-    int rangestatus, errstatus;
-    FILE *f;
-#ifdef USE_MMAP_FILES
-    caddr_t mm;
-#endif
+    apr_socket_t *csd = ap_get_conn_socket(cs->c);
+    char dummybuf[2048];
+    apr_size_t nbytes;
+    apr_status_t rv;
+    struct timeout_queue *q;
+    q = (cs->pub.state == CONN_STATE_LINGER_SHORT) ?  &short_linger_q : &linger_q;
 
-    /* This handler has no use for a request body (yet), but we still
-     * need to read and discard it if the client sent one.
-     */
-    if ((errstatus = ap_discard_request_body(r)) != OK) {
-        return errstatus;
-    }
+    /* socket is already in non-blocking state */
+    do {
+        nbytes = sizeof(dummybuf);
+        rv = apr_socket_recv(csd, dummybuf, &nbytes);
+    } while (rv == APR_SUCCESS);
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-    if (r->method_number == M_INVALID) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
+    if (!APR_STATUS_IS_EOF(rv)) {
+        return;
     }
 
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-                    "File does not exist: %s", 
-		     r->path_info 
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-		         : r->filename);
-	return NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(__EMX__) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
+    apr_thread_mutex_lock(timeout_mutex);
+    rv = apr_pollset_remove(event_pollset, pfd);
+    AP_DEBUG_ASSERT(rv == APR_SUCCESS);
 
-    if (f == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
-    ap_set_etag(r);
-    ap_table_setn(r->headers_out, "Accept-Ranges", "bytes");
-    if (((errstatus = ap_meets_conditions(r)) != OK)
-	|| (errstatus = ap_set_content_length(r, r->finfo.st_size))) {
-        return errstatus;
-    }
+    rv = apr_socket_close(csd);
+    AP_DEBUG_ASSERT(rv == APR_SUCCESS);
 
-#ifdef USE_MMAP_FILES
-    ap_block_alarms();
-    if ((r->finfo.st_size >= MMAP_THRESHOLD)
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+    TO_QUEUE_REMOVE(*q, cs);
+    apr_thread_mutex_unlock(timeout_mutex);
+    TO_QUEUE_ELEM_INIT(cs);
+
+    apr_pool_clear(cs->p);
+    ap_push_pool(worker_queue_info, cs->p);
+}
+
+/* call 'func' for all elements of 'q' with timeout less than 'timeout_time'.
+ * Pre-condition: timeout_mutex must already be locked
+ * Post-condition: timeout_mutex will be locked again
+ */
+static void process_timeout_queue(struct timeout_queue *q,
+                                  apr_time_t timeout_time,
+                                  int (*func)(event_conn_state_t *))
+{
+    int count = 0;
+    event_conn_state_t *first, *cs, *last;
+    apr_status_t rv;
+    if (!q->count) {
+        return;
     }
-    else {
-	mm = (caddr_t)-1;
+    AP_DEBUG_ASSERT(!APR_RING_EMPTY(&q->head, event_conn_state_t, timeout_list));
+
+    cs = first = APR_RING_FIRST(&q->head);
+    while (cs != APR_RING_SENTINEL(&q->head, event_conn_state_t, timeout_list)
+           && cs->expiration_time < timeout_time) {
+        last = cs;
+        rv = apr_pollset_remove(event_pollset, &cs->pfd);
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_NOTFOUND(rv)) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, cs->c, APLOGNO(00473)
+                          "apr_pollset_remove failed");
+        }
+        cs = APR_RING_NEXT(cs, timeout_list);
+        count++;
     }
+    if (!count)
+        return;
 
-    if (mm == (caddr_t)-1) {
-	ap_unblock_alarms();
-#endif
+    APR_RING_UNSPLICE(first, last, timeout_list);
+    AP_DEBUG_ASSERT(q->count >= count);
+    q->count -= count;
+    apr_thread_mutex_unlock(timeout_mutex);
+    while (count) {
+        cs = APR_RING_NEXT(first, timeout_list);
+        TO_QUEUE_ELEM_INIT(first);
+        func(first);
+        first = cs;
+        count--;
+    }
+    apr_thread_mutex_lock(timeout_mutex);
+}
 
-	if (d->content_md5 & 1) {
-	    ap_table_setn(r->headers_out, "Content-MD5",
-			  ap_md5digest(r->pool, f));
-	}
+static void * APR_THREAD_FUNC listener_thread(apr_thread_t * thd, void *dummy)
+{
+    timer_event_t *ep;
+    timer_event_t *te;
+    apr_status_t rc;
+    proc_info *ti = dummy;
+    int process_slot = ti->pid;
+    apr_pool_t *tpool = apr_thread_pool_get(thd);
+    void *csd = NULL;
+    apr_pool_t *ptrans;         /* Pool for per-transaction stuff */
+    ap_listen_rec *lr;
+    int have_idle_worker = 0;
+    event_conn_state_t *cs;
+    const apr_pollfd_t *out_pfd;
+    apr_int32_t num = 0;
+    apr_interval_time_t timeout_interval;
+    apr_time_t timeout_time = 0, now, last_log;
+    listener_poll_type *pt;
+    int closed = 0, listeners_disabled = 0;
 
-	rangestatus = ap_set_byterange(r);
-#ifdef CHARSET_EBCDIC
-	/* To make serving of "raw ASCII text" files easy (they serve faster 
-	 * since they don't have to be converted from EBCDIC), a new
+    last_log = apr_time_now();
+    free(ti);
+
+    /* the following times out events that are really close in the future
+     *   to prevent extra poll calls
+     *
+     * current value is .1 second

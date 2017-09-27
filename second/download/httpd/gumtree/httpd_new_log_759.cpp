@@ -1,1 +1,1 @@
-ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
+ap_rputs("<h2><a name=\"startup_hooks\">Startup Hooks</a></h2>\n<dl>", r);

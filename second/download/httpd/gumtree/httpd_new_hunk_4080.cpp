@@ -1,13 +1,12 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+{
+    logio_dirconf_t *conf = ap_get_module_config(r->per_dir_config,
+                                                 &logio_module);
+    if (conf->track_ttfb) { 
+        ap_add_output_filter(logio_ttfb_filter_name, NULL, r, r->connection);
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+}
+
+static const char *logio_track_ttfb(cmd_parms *cmd, void *in_dir_config, int arg)
+{
+    logio_dirconf_t *dir_config = in_dir_config;
+    dir_config->track_ttfb = arg;

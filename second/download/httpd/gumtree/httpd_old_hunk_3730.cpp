@@ -1,14 +1,13 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01143)
+                      "Running scheme %s handler (attempt %d)",
+                      scheme, attempts);
+        AP_PROXY_RUN(r, worker, conf, url, attempts);
+        access_status = proxy_run_scheme_handler(r, worker, conf,
+                                                 url, NULL, 0);
+        if (access_status == OK)
+            break;
+        else if (access_status == HTTP_INTERNAL_SERVER_ERROR) {
+            /* Unrecoverable server error.
+             * We can not failover to another worker.
+             * Mark the worker as unusable if member of load balancer
+             */

@@ -1,75 +1,130 @@
-         return APR_SUCCESS;
-     }
-     return get_remaining_chunk_line(ctx, b, linelimit);
+ 
+     } while (again);
+ 
+     return APR_SUCCESS;
  }
  
- 
-+static apr_status_t read_chunked_trailers(http_ctx_t *ctx, ap_filter_t *f,
-+                                          apr_bucket_brigade *b, int merge)
++struct check_header_ctx {
++    request_rec *r;
++    int strict;
++};
++
++/* check a single header, to be used with apr_table_do() */
++static int check_header(struct check_header_ctx *ctx,
++                        const char *name, const char **val)
 +{
-+    int rv;
-+    apr_bucket *e;
-+    request_rec *r = f->r;
-+    apr_table_t *saved_headers_in = r->headers_in;
-+    int saved_status = r->status;
++    const char *pos, *end;
++    char *dst = NULL;
 +
-+    r->status = HTTP_OK;
-+    r->headers_in = r->trailers_in;
-+    apr_table_clear(r->headers_in);
-+    ctx->state = BODY_NONE;
-+    ap_get_mime_headers(r);
++    if (name[0] == '\0') {
++        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
++                      "Empty response header name, aborting request");
++        return 0;
++    }
 +
-+    if(r->status == HTTP_OK) {
-+        r->status = saved_status;
-+        e = apr_bucket_eos_create(f->c->bucket_alloc);
-+        APR_BRIGADE_INSERT_TAIL(b, e);
-+        ctx->eos_sent = 1;
-+        rv = APR_SUCCESS;
++    if (ctx->strict) { 
++        end = ap_scan_http_token(name);
 +    }
 +    else {
-+        const char *error_notes = apr_table_get(r->notes,
-+                                                "error-notes");
-+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-+                      "Error while reading HTTP trailer: %i%s%s",
-+                      r->status, error_notes ? ": " : "",
-+                      error_notes ? error_notes : "");
-+        rv = APR_EINVAL;
++        end = ap_scan_vchar_obstext(name);
++    }
++    if (*end) {
++        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
++                      "Response header name '%s' contains invalid "
++                      "characters, aborting request",
++                      name);
++        return 0;
 +    }
 +
-+    if(!merge) {
-+        r->headers_in = saved_headers_in;
++    for (pos = *val; *pos; pos = end) {
++        end = ap_scan_http_field_content(pos);
++        if (*end) {
++            if (end[0] != CR || end[1] != LF || (end[2] != ' ' &&
++                                                 end[2] != '\t')) {
++                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
++                              "Response header '%s' value of '%s' contains "
++                              "invalid characters, aborting request",
++                              name, pos);
++                return 0;
++            }
++            if (!dst) {
++                *val = dst = apr_palloc(ctx->r->pool, strlen(*val) + 1);
++            }
++        }
++        if (dst) {
++            memcpy(dst, pos, end - pos);
++            dst += end - pos;
++            if (*end) {
++                /* skip folding and replace with a single space */
++                end += 3 + strspn(end + 3, "\t ");
++                *dst++ = ' ';
++            }
++        }
 +    }
-+    else {
-+        r->headers_in = apr_table_overlay(r->pool, saved_headers_in,
-+                r->trailers_in);
++    if (dst) {
++        *dst = '\0';
 +    }
-+
-+    return rv;
++    return 1;
 +}
 +
- /* This is the HTTP_INPUT filter for HTTP requests and responses from
-  * proxied servers (mod_proxy).  It handles chunked and content-length
-  * bodies.  This can only be inserted/used after the headers
-  * are successfully parsed.
-  */
- apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
-                             ap_input_mode_t mode, apr_read_type_e block,
-                             apr_off_t readbytes)
- {
-+    core_server_config *conf;
-     apr_bucket *e;
-     http_ctx_t *ctx = f->ctx;
-     apr_status_t rv;
-     apr_off_t totalread;
-     int http_error = HTTP_REQUEST_ENTITY_TOO_LARGE;
-     apr_bucket_brigade *bb;
- 
-+    conf = (core_server_config *)
-+        ap_get_module_config(f->r->server->module_config, &core_module);
++static int check_headers_table(apr_table_t *t, struct check_header_ctx *ctx)
++{
++    const apr_array_header_t *headers = apr_table_elts(t);
++    apr_table_entry_t *header;
++    int i;
 +
-     /* just get out of the way of things we don't want. */
-     if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
-         return ap_get_brigade(f->next, b, mode, block, readbytes);
-     }
++    for (i = 0; i < headers->nelts; ++i) {
++        header = &((apr_table_entry_t *)headers->elts)[i];
++        if (!header->key) {
++            continue;
++        }
++        if (!check_header(ctx, header->key, (const char **)&header->val)) {
++            return 0;
++        }
++    }
++    return 1;
++}
++
++/**
++ * Check headers for HTTP conformance
++ * @return 1 if ok, 0 if bad
++ */
++static APR_INLINE int check_headers(request_rec *r)
++{
++    struct check_header_ctx ctx;
++    core_server_config *conf =
++        (core_server_config *)ap_get_module_config(r->server->module_config,
++                                                   &core_module);
++
++    ctx.r = r;
++    ctx.strict = (conf->http_conformance != AP_HTTP_CONFORMANCE_UNSAFE);
++    return check_headers_table(r->headers_out, &ctx) &&
++           check_headers_table(r->err_headers_out, &ctx);
++}
++
++static int check_headers_recursion(request_rec *r)
++{
++    void *check = NULL;
++    apr_pool_userdata_get(&check, "check_headers_recursion", r->pool);
++    if (check) {
++        return 1;
++    }
++    apr_pool_userdata_setn("true", "check_headers_recursion", NULL, r->pool);
++    return 0;
++}
++
+ typedef struct header_struct {
+     apr_pool_t *pool;
+     apr_bucket_brigade *bb;
+ } header_struct;
  
-     if (!ctx) {
+ /* Send a single HTTP header field to the client.  Note that this function
+- * is used in calls to table_do(), so their interfaces are co-dependent.
+- * In other words, don't change this one without checking table_do in alloc.c.
++ * is used in calls to apr_table_do(), so don't change its interface.
+  * It returns true unless there was a write error of some kind.
+  */
+ static int form_header_field(header_struct *h,
+                              const char *fieldname, const char *fieldval)
+ {
+ #if APR_CHARSET_EBCDIC

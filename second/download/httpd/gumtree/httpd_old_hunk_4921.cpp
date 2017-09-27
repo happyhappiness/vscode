@@ -1,13 +1,17 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
-    }
-#if !defined (BIG_SECURITY_HOLE) && !defined (__EMX__)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+         * we'll use - otherwise we assume 200 OK.
+         */
+        else if (!strcasecmp(w, "Status")) {
+            r->status = cgi_status = atoi(l);
+            if (!ap_is_HTTP_VALID_RESPONSE(cgi_status))
+                ap_log_rerror(SCRIPT_LOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                              "Invalid status line from script '%s': %s",
+                              apr_filepath_name_get(r->filename), l);
+            else
+                ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE1, 0, r,
+                              "Status line from script '%s': %s",
+                              apr_filepath_name_get(r->filename), l);
+            r->status_line = apr_pstrdup(r->pool, l);
+        }
+        else if (!strcasecmp(w, "Location")) {
+            apr_table_set(r->headers_out, w, l);
+        }

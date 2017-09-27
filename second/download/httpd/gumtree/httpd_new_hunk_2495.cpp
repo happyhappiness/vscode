@@ -1,38 +1,30 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-				ap_escape_html(scratch,
-					       ap_os_escape_path(scratch, t,
-								 0)),
-				"\">", NULL);
-	}
+        return (rv == APR_SUCCESS);
+    }
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs(anchor, r);
-	    }
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-			  ap_escape_html(scratch,
-					 ar[x]->icon ? ar[x]->icon
-					             : d->default_icon),
-			  "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-			  "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf(r, " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			       d->icon_height, d->icon_width);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS) {
-		ap_rputs("</A>", r);
-	    }
+    case HSE_REQ_REFRESH_ISAPI_ACL:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ServerSupportFunction "
+                          "HSE_REQ_REFRESH_ISAPI_ACL "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+    case HSE_REQ_IS_KEEP_CONN:
+        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
+        return 1;
+
+    case HSE_REQ_ASYNC_READ_CLIENT:
+    {
+        apr_uint32_t read = 0;
+        int res = 0;
+        if (!cid->dconf.fake_async) {
+            if (cid->dconf.log_unsupported)
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "asynchronous I/O not supported: %s",
+                            r->filename);
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
+        }
+
+        if (r->remaining < *buf_size) {

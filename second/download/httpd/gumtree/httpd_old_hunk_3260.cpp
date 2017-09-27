@@ -1,22 +1,23 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    curblocks -= fent->len >> 10;
-	    curbytes -= fent->len & 0x3FF;
-	    if (curbytes < 0) {
-		curbytes += 1024;
-		curblocks--;
-	    }
-	    if (curblocks < cachesize || curblocks + curbytes <= cachesize)
-		break;
-	}
-    }
-    ap_unblock_alarms();
-}
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
+static const char *set_override(cmd_parms *cmd, void *d_, const char *l)
 {
+    core_dir_config *d = d_;
+    char *w;
+    char *k, *v;
+
+    /* Throw a warning if we're in <Location> or <Files> */
+    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Useless use of AllowOverride in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);
+    }
+
+    d->override = OR_NONE;
+    while (l[0]) {
+        w = ap_getword_conf(cmd->pool, &l);
+
+        k = w;
+        v = strchr(k, '=');
+        if (v) {
+                *v++ = '\0';
+        }

@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"MASTER MODE enabled (user request)");

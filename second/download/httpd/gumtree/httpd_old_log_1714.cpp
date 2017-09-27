@@ -1,6 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
-        "mod_dumpio: %s [%s-%s] %" APR_OFF_T_FMT " readbytes",
-         f->frec->name,
-         whichmode(mode),
-         ((block) == APR_BLOCK_READ) ? "blocking" : "nonblocking",
-         readbytes);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require user: "
+                                  "authorisation failed [%s][%s]", getpid(),
+                                  ldc->reason, ldap_err2string(result));

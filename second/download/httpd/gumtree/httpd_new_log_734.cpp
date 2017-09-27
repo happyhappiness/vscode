@@ -1,1 +1,1 @@
-ap_rputs(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n", r);
+ap_rputs("enabled)\n", r);

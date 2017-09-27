@@ -1,34 +1,19 @@
-		    }   
-		}
-	    }
-	    break;
-	}
-
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (ap_isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!ap_isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (ap_isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && ap_isspace(*dst))
-	    *dst = '\0';
-
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+                 || (mySrvConfig(sslconn->server))->strict_sni_vhost_check
+                    == SSL_ENABLED_TRUE)
+                 && r->connection->vhost_lookup_data) {
+            /*
+             * We are using a name based configuration here, but no hostname was
+             * provided via SNI. Don't allow that if are requested to do strict
+             * checking. Check wether this strict checking was setup either in the
+             * server config we used for handshaking or in our current server.
+             * This should avoid insecure configuration by accident.
+             */
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02033)
+                         "No hostname was provided via SNI for a name based"
+                         " virtual host");
+            return HTTP_FORBIDDEN;
+        }
+    }
 #endif
-	return 0;
-    } else {
+    SSL_set_app_data2(ssl, r);
+

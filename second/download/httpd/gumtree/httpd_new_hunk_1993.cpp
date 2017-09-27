@@ -1,31 +1,14 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    runtime = find_session_route(*balancer, r, &route, url);
+    /* Lock the LoadBalancer
+     * XXX: perhaps we need the process lock here
+     */
+    if ((rv = PROXY_THREAD_LOCK(*balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "proxy: BALANCER: (%s). Lock failed for pre_request",
+                     (*balancer)->name);
+        return DECLINED;
     }
-
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    if (runtime) {
+        int i, total_factor = 0;
+        proxy_worker *workers;
+        /* We have a sticky load balancer

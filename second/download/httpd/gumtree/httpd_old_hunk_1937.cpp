@@ -1,28 +1,51 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
     }
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+    /* setup request */
+    if (posting <= 0) {
+        snprintf_res = apr_snprintf(request, sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "%s" "\r\n",
+            (posting == 0) ? "GET" : "HEAD",
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth, hdrs);
+    }
+    else {
+        snprintf_res = apr_snprintf(request,  sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "Content-length: %" APR_SIZE_T_FMT "\r\n"
+            "Content-type: %s\r\n"
+            "%s"
+            "\r\n",
+            (posting == 1) ? "POST" : "PUT",
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth,
+            postlen,
+            (content_type[0]) ? content_type : "text/plain", hdrs);
+    }
+    if (snprintf_res >= sizeof(_request)) {
+        err("Request too long\n");
+    }
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    if (verbosity >= 2)
+        printf("INFO: %s header == \n---\n%s\n---\n", 
+                (posting == 2) ? "PUT" : "POST", request);
+
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one contineous buffer
+     */
+    if (posting >= 1) {
+        char *buff = malloc(postlen + reqlen + 1);
+        if (!buff) {
+            fprintf(stderr, "error creating request buffer: out of memory\n");
+            return;
+        }
+        strcpy(buff, request);

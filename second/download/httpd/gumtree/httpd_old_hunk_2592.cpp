@@ -1,41 +1,45 @@
- * field is still a time_t stamp.  By doing that, it is possible for a site to
- * have a "flag second" in which they stop all of their old-format servers,
- * wait one entire second, and then start all of their new-servers.  This
- * procedure will ensure that the new space of identifiers is completely unique
- * from the old space.  (Since the first four unencoded bytes always differ.)
- */
-
-static unsigned global_in_addr;
-
-static APACHE_TLS unique_id_rec cur_unique_id;
-
-static void unique_id_global_init(server_rec *s, pool *p)
 {
-#ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 256
-#endif
-    char str[MAXHOSTNAMELEN + 1];
-    struct hostent *hent;
-#ifndef NO_GETTIMEOFDAY
-    struct timeval tv;
-#endif
+    apr_status_t rv;
+    const char *pk = "watchdog_init_module_tag";
+    apr_pool_t *pproc = s->process->pool;
+    const apr_array_header_t *wl;
 
-    /*
-     * First of all, verify some assumptions that have been made about the
-     * contents of unique_id_rec.  We do it this way because it isn't
-     * affected by trailing padding.
-     */
-    if (XtOffsetOf(unique_id_rec, counter) + sizeof(cur_unique_id.counter)
-        != 14) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, s,
-                    "mod_unique_id: sorry the size assumptions are wrong "
-                    "in mod_unique_id.c, please remove it from your server "
-                    "or fix the code!");
-        exit(1);
+    apr_pool_userdata_get((void *)&wd_server_conf, pk, pproc);
+    if (!wd_server_conf) {
+        if (!(wd_server_conf = apr_pcalloc(pproc, sizeof(wd_server_conf_t))))
+            return APR_ENOMEM;
+        apr_pool_create(&wd_server_conf->pool, pproc);
+        wd_server_conf->s = s;
+        apr_pool_userdata_set(wd_server_conf, pk, apr_pool_cleanup_null, pproc);
+        /* First time config phase -- skip. */
+        return OK;
     }
+#if defined(WIN32)
+    {
+        const char *ppid = getenv("AP_PARENT_PID");
+        if (ppid && *ppid) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                "[%" APR_PID_T_FMT " - %s] "
+                "child second stage post config hook",
+                getpid(), ppid);
+            return OK;
+        }
+    }
+#endif
+    wd_server_conf->s = s;
+    if ((wl = ap_list_provider_names(pconf, AP_WATCHODG_PGROUP,
+                                            AP_WATCHODG_PVERSION))) {
+        const ap_list_provider_names_t *wn;
+        int i;
 
-    /*
-     * Now get the global in_addr.  Note that it is not sufficient to use one
-     * of the addresses from the main_server, since those aren't as likely to
-     * be unique as the physical address of the machine
-     */
+        wn = (ap_list_provider_names_t *)wl->elts;
+        for (i = 0; i < wl->nelts; i++) {
+            ap_watchdog_t *w = ap_lookup_provider(AP_WATCHODG_PGROUP,
+                                                  wn[i].provider_name,
+                                                  AP_WATCHODG_PVERSION);
+            if (w) {
+                if (!w->active) {
+                    int status = ap_run_watchdog_need(s, w->name, 1,
+                                                      w->singleton);
+                    if (status == OK) {
+                        /* One of the modules returned OK to this watchog.

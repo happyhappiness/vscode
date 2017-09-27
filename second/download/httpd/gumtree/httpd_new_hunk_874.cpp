@@ -1,15 +1,38 @@
-         *
-         * XXX: Could just write first time through too, although
-         *      that may screw up scripts written to do something
-         *      based on the last modification time of the pid file.
-         */
-        ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, p,
-                      "pid file %s overwritten -- Unclean "
-                      "shutdown of previous Apache run?",
-                      fname);
-    }
 
-    if ((rv = apr_file_open(&pid_file, fname,
-                            APR_WRITE | APR_CREATE | APR_TRUNCATE,
-                            APR_UREAD | APR_UWRITE | APR_GREAD | APR_WREAD, p))
-        != APR_SUCCESS) {
+        switch (CompKey) {
+        case IOCP_CONNECTION_ACCEPTED:
+            context = CONTAINING_RECORD(pol, COMP_CONTEXT, Overlapped);
+            break;
+        case IOCP_SHUTDOWN:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        default:
+            apr_atomic_dec32(&g_blocked_threads);
+            return NULL;
+        }
+        break;
+    }
+    apr_atomic_dec32(&g_blocked_threads);
+
+    return context;
+}
+
+
+/*
+ * worker_main()
+ * Main entry point for the worker threads. Worker threads block in
+ * win*_get_connection() awaiting a connection to service.
+ */
+static unsigned int __stdcall worker_main(void *thread_num_val)
+{
+    static int requests_this_child = 0;
+    PCOMP_CONTEXT context = NULL;
+    int thread_num = (int)thread_num_val;
+    ap_sb_handle_t *sbh;
+
+    while (1) {
+        conn_rec *c;
+        apr_int32_t disconnected;
+
+        ap_update_child_status_from_indexes(0, thread_num, SERVER_READY, NULL);
+

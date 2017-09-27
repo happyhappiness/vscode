@@ -1,14 +1,15 @@
-         if (apr_fnmatch_test(path)) {
-             fprintf(stderr, "%s: wildcard patterns not allowed in Include "
-                     "%s\n", ap_server_argv0, fname);
-             exit(1);
          }
  
--        if (!ap_is_rdirectory(p, path)){ 
-+        if (!ap_is_directory(p, path)){ 
-             fprintf(stderr, "%s: Include directory '%s' not found",
-                     ap_server_argv0, path);
-             exit(1);
+         if (status == APEXIT_CHILDFATAL) {
+             ap_log_error(APLOG_MARK, APLOG_ALERT,
+                          0, ap_server_conf,
+                          "Child %" APR_PID_T_FMT
+-                         " returned a Fatal error..." APR_EOL_STR
+-                         "Apache is exiting!",
++                         " returned a Fatal error... Apache is exiting!",
+                          pid->pid);
+             return APEXIT_CHILDFATAL;
          }
  
-         if (!apr_fnmatch_test(pattern)) {
+         return 0;
+     }

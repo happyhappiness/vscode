@@ -1,26 +1,20 @@
-    apr_table_add(t, key, value + offset);
-}
 
-PROXY_DECLARE(const char *) ap_proxy_location_reverse_map(request_rec *r,
-                              proxy_dir_conf *conf, const char *url)
+int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey)
 {
-    struct proxy_alias *ent;
-    int i, l1, l2;
-    char *u;
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s = mySrvFromConn(c);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    X509_NAME *ca_name, *issuer, *ca_issuer;
+    X509_INFO *info;
+    X509 *ca_cert;
+    STACK_OF(X509_NAME) *ca_list;
+    STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
+    STACK_OF(X509) *ca_certs;
+    STACK_OF(X509) **ca_cert_chains;
+    int i, j, k;
 
-    /*
-     * XXX FIXME: Make sure this handled the ambiguous case of the :<PORT>
-     * after the hostname
-     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT "entered",
+                 sc->vhost_id);
 
-    l1 = strlen(url);
-    ent = (struct proxy_alias *)conf->raliases->elts;
-    for (i = 0; i < conf->raliases->nelts; i++) {
-        l2 = strlen(ent[i].real);
-        if (l1 >= l2 && strncasecmp(ent[i].real, url, l2) == 0) {
-            u = apr_pstrcat(r->pool, ent[i].fake, &url[l2], NULL);
-            return ap_construct_url(r->pool, u, r);
-        }
-    }
-
-    return url;
+    if (!certs || (sk_X509_INFO_num(certs) <= 0)) {

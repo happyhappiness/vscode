@@ -1,13 +1,32 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
+                        void *userp)
+{
+    h2_session *session = (h2_session *)userp;
+    h2_stream * stream;
+    apr_status_t status;
+    
+    (void)ngh2;
+    (void)flags;
+    if (!is_accepting_streams(session)) {
+        /* just ignore */
+        return 0;
     }
+    
+    stream = h2_session_get_stream(session, frame->hd.stream_id);
+    if (!stream) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02920) 
+                      "h2_session:  stream(%ld-%d): on_header for unknown stream",
+                      session->id, (int)frame->hd.stream_id);
+        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+    }
+    
+    status = h2_stream_add_header(stream, (const char *)name, namelen,
+                                  (const char *)value, valuelen);
+                                    
+    if (status != APR_SUCCESS) {
+        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+    }
+    return 0;
+}
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+/**

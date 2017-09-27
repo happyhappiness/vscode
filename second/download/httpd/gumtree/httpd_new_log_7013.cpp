@@ -1,0 +1,1 @@
+transit(session, trigger, H2_SESSION_ST_CLEANUP);

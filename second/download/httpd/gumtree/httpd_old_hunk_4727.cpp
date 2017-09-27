@@ -1,15 +1,14 @@
-	     * Kill child processes, tell them to call child_exit, etc...
-	     */
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-	    }
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-			"httpd: caught SIGTERM, shutting down");
-
-	    clean_parent_exit(0);
-	}
-
-	/* we've been told to restart */
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);
+                             APR_HASH_KEY_STRING);
+        if (query == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01646)
+                          "authz_dbd: no redirect query!");
+            /* OK, this is non-critical; we can just not-redirect */
+        }
+        else if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res,
+                                  query, 0, r->user, NULL) == 0) {
+            for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+                 rv != -1;
+                 rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+                if (rv != 0) {
+                    message = apr_dbd_error(dbd->driver, dbd->handle, rv);
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01647)

@@ -1,0 +1,1 @@
+ap_rputs("\"<b><code>G</code></b>\" Gracefully finishing,<br /> \n", r);

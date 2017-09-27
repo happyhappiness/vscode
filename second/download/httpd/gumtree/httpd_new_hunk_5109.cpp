@@ -1,16 +1,30 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+        return 1;
+   }
+#endif
 
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-	exit(1);
+    if (accf > 0) /* 'data' or 'connect' */
+    {
+        if (WSAIoctl(nlsd, SIO_GET_EXTENSION_FUNCTION_POINTER,
+                     &GuidAcceptEx, sizeof GuidAcceptEx, 
+                     &lpfnAcceptEx, sizeof lpfnAcceptEx, 
+                     &BytesRead, NULL, NULL) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(),
+                         ap_server_conf, APLOGNO(02322)
+                         "winnt_accept: failed to retrieve AcceptEx, try 'AcceptFilter none'");
+            return 1;
+        }
+        if (WSAIoctl(nlsd, SIO_GET_EXTENSION_FUNCTION_POINTER,
+                     &GuidGetAcceptExSockaddrs, sizeof GuidGetAcceptExSockaddrs,
+                     &lpfnGetAcceptExSockaddrs, sizeof lpfnGetAcceptExSockaddrs,
+                     &BytesRead, NULL, NULL) == SOCKET_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(),
+                         ap_server_conf, APLOGNO(02323)
+                         "winnt_accept: failed to retrieve GetAcceptExSockaddrs, try 'AcceptFilter none'");
+            return 1;
+        }
+        /* first, high priority event is an already accepted connection */
+        events[1] = exit_event;
+        events[2] = max_requests_per_child_event;
     }
-
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+    else /* accf == 0, 'none' */
+    {

@@ -1,16 +1,14 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
-
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+            ap_rputs("<table border=\"1\">\n", r);
+            ap_rprintf(r, "<tr><td>Child pid:</td><td>%d</td></tr>\n",
+                       (int) getpid());
+            ap_rprintf(r, "<tr><td>Counter:</td><td>%u</td></tr>\n",
+                       (unsigned int)base->counter);
+            ap_rputs("</table>\n", r);
+        }
+        else {
+            /*
+             * Send a page saying that we couldn't get the lock. Don't say
+             * what the counter is, because without the lock the value could
+             * race.
+             */
+            ap_rprintf(r, "<p>Child %d failed to acquire lock "

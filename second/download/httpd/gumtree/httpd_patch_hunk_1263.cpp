@@ -1,16 +1,18 @@
-                         if (bb_len != -1)
-                             conn->worker->s->read += bb_len;
-                     }
-                     if (ap_pass_brigade(r->output_filters,
-                                         output_brigade) != APR_SUCCESS) {
-                         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
--                                      "proxy: error processing body");
-+                                      "proxy: error processing body.%s",
-+                                      r->connection->aborted ?
-+                                      " Client aborted connection." : "");
-                         output_failed = 1;
-                     }
-                     data_sent = 1;
-                     apr_brigade_cleanup(output_brigade);
-                 }
-                 else {
+         }
+         rv = apr_bucket_read(e, &s, &len, eblock);
+         if (rv != APR_SUCCESS) {
+             return rv;
+         }
+         if (len) {
+-            /* Check for buffer overflow */
++            /* Check for buffer (max_streaming_buffer_size) overflow  */
+            if ((obj->count + len) > mobj->m_len) {
++               ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
++                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
++                            obj->key, mobj->m_len);
+                return APR_ENOMEM;
+            }
+            else {
+                memcpy(cur, s, len);
+                cur+=len;
+                obj->count+=len;

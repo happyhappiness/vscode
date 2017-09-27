@@ -1,46 +1,49 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
+    rft = apr_hash_get(dispatch, name, APR_HASH_KEY_STRING);
+    if (rft) {
+        switch (rft->type) {
+        case APL_REQ_FUNTYPE_TABLE:{
+                apr_table_t *rs;
+                req_field_apr_table_f func = rft->fun;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> apr table",
+                              name);
+                rs = (*func)(r);
+                ap_lua_push_apr_table(L, rs);          
+                return 1;
+            }
 
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
-    }
-
-/* set request */
-    len = decodeenc(path);
+        case APL_REQ_FUNTYPE_LUACFUN:{
+                lua_CFunction func = rft->fun;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> lua_CFunction",
+                              name);
+                lua_pushcfunction(L, func);
+                return 1;
+            }
+        case APL_REQ_FUNTYPE_STRING:{
+                req_field_string_f func = rft->fun;
+                char *rs;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> string", name);
+                rs = (*func) (r);
+                lua_pushstring(L, rs);
+                return 1;
+            }
+        case APL_REQ_FUNTYPE_INT:{
+                req_field_int_f func = rft->fun;
+                int rs;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> int", name);
+                rs = (*func) (r);
+                lua_pushnumber(L, rs);
+                return 1;
+            }
+        case APL_REQ_FUNTYPE_BOOLEAN:{
+                req_field_int_f func = rft->fun;
+                int rs;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> boolean", name);
+                rs = (*func) (r);
+                lua_pushboolean(L, rs);
+                return 1;

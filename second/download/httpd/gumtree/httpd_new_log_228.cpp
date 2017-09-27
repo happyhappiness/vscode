@@ -1,1 +1,1 @@
-ap_filter_flush(bb, r->output_filters);
+ap_rputs("<hr", r);

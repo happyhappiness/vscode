@@ -1,17 +1,13 @@
-	    int cond_status = OK;
+    STACK_OF(X509) *certs = NULL;
+    FILE *f;
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
+    f = fopen(pkcs7, "r");
+    if (!f) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02212) "Can't open %s", pkcs7);
+        ssl_die();
+    }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    p7 = PEM_read_PKCS7(f, NULL, NULL, NULL);
+    if (!p7) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02274)
+                     "Can't read PKCS7 object %s", pkcs7);

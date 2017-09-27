@@ -1,13 +1,15 @@
-    apr_status_t rv;
+            }
+        }
 
-    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+        do {
+            clen = sizeof(sa_client);
+            csd = accept(nsd, (struct sockaddr *) &sa_client, &clen);
+        } while (csd == INVALID_SOCKET && APR_STATUS_IS_EINTR(apr_get_netos_error()));
 
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
-    {
-        CHAR **start_argv;
-        SC_HANDLE   schService;
-        SC_HANDLE   schSCManager;
-
-        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
-                                     SC_MANAGER_CONNECT);
-        if (!schSCManager) {
+        if (csd == INVALID_SOCKET) {
+            if (APR_STATUS_IS_ECONNABORTED(apr_get_netos_error())) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(), ap_server_conf,
+                            "accept: (client socket)");
+            }
+        }
+        else {

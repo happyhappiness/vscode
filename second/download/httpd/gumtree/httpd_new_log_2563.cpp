@@ -1,0 +1,1 @@
+err("Cannot mix POST with other methods\n");

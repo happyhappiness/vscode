@@ -1,14 +1,23 @@
-     if (!fspec) {
-         ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
-                      "mod_file_cache: invalid file path "
-                      "%s, skipping", filename);
- 	return;
+         ap_method_registry_init(p);
      }
--    if ((rc = apr_stat(&tmp.finfo, fspec, APR_FINFO_MIN, 
-+    if ((rc = apr_stat(&tmp.finfo, fspec, APR_FINFO_MIN,
-                                  cmd->temp_pool)) != APR_SUCCESS) {
- 	ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
- 	    "mod_file_cache: unable to stat(%s), skipping", fspec);
- 	return;
+ 
+     if (methname == NULL) {
+         return M_INVALID;
      }
-     if (tmp.finfo.filetype != APR_REG) {
+-    
++
+     /* Check if the method was previously registered.  If it was
+      * return the associated method number.
+      */
+     methnum = (int *)apr_hash_get(methods_registry, methname,
+                                   APR_HASH_KEY_STRING);
+     if (methnum != NULL)
+         return *methnum;
+-        
++
+     if (cur_method_number > METHOD_NUMBER_LAST) {
+         /* The method registry  has run out of dynamically
+          * assignable method numbers. Log this and return M_INVALID.
+          */
+         ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p,
+                       "Maximum new request methods %d reached while "

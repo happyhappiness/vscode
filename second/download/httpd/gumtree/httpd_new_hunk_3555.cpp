@@ -1,28 +1,46 @@
-#ifdef SHARED_CORE
-    fprintf(stderr, "Usage: %s [-L directory] [-d directory] [-f file]\n", bin);
-#else
-    fprintf(stderr, "Usage: %s [-d directory] [-f file]\n", bin);
-#endif
-    fprintf(stderr, "       %s [-C \"directive\"] [-c \"directive\"]\n", pad);
-    fprintf(stderr, "       %s [-v] [-V] [-h] [-l] [-S] [-t]\n", pad);
-    fprintf(stderr, "Options:\n");
-#ifdef SHARED_CORE
-    fprintf(stderr, "  -L directory     : specify an alternate location for shared object files\n");
-#endif
-    fprintf(stderr, "  -D name          : define a name for use in <IfDefine name> directives\n");
-    fprintf(stderr, "  -d directory     : specify an alternate initial ServerRoot\n");
-    fprintf(stderr, "  -f file          : specify an alternate ServerConfigFile\n");
-    fprintf(stderr, "  -C \"directive\"   : process directive before reading config files\n");
-    fprintf(stderr, "  -c \"directive\"   : process directive after  reading config files\n");
-    fprintf(stderr, "  -v               : show version number\n");
-    fprintf(stderr, "  -V               : show compile settings\n");
-    fprintf(stderr, "  -h               : list available configuration directives\n");
-    fprintf(stderr, "  -l               : list compiled-in modules\n");
-    fprintf(stderr, "  -S               : show parsed settings (currently only vhost settings)\n");
-    fprintf(stderr, "  -t               : run syntax test for configuration files only\n");
-    exit(1);
+        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
+    }
+    else {
+        if (errfile) {
+            apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename,
+                            apr_strerror(status, errmsg, sizeof errmsg));
+        }
+        exit(1);
+    }
 }
 
-/*****************************************************************
- *
- * Timeout handling.  DISTINCTLY not thread-safe, but all this stuff
+/*
+ * main
+ */
+int main(int argc, const char * const argv[])
+{
+    apr_off_t max, inodes, round;
+    apr_time_t current, repeat, delay, previous;
+    apr_status_t status;
+    apr_pool_t *pool, *instance;
+    apr_getopt_t *o;
+    apr_finfo_t info;
+    apr_file_t *pidfile;
+    int retries, isdaemon, limit_found, inodes_found, intelligent, dowork;
+    char opt;
+    const char *arg;
+    char *proxypath, *path, *pidfilename;
+    char errmsg[1024];
+
+    interrupted = 0;
+    repeat = 0;
+    isdaemon = 0;
+    dryrun = 0;
+    limit_found = 0;
+    inodes_found = 0;
+    max = 0;
+    inodes = 0;
+    round = 0;
+    verbose = 0;
+    realclean = 0;
+    benice = 0;
+    deldirs = 0;
+    intelligent = 0;
+    previous = 0; /* avoid compiler warning */

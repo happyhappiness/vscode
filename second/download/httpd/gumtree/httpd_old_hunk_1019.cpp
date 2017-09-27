@@ -1,25 +1,17 @@
-         */
-        return APR_SUCCESS;
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+	fprintf(stderr, "%s: invalid URL\n", argv[0]);
+	usage(argv[0]);
     }
-    return rv;
-}
 
-APR_DECLARE_NONSTD(int) apr_file_printf(apr_file_t *fptr, 
-                                        const char *format, ...)
-{
-    apr_status_t cc;
-    va_list ap;
-    char *buf;
-    int len;
-
-    buf = malloc(HUGE_STRING_LEN);
-    if (buf == NULL) {
-        return 0;
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+       fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
     }
-    va_start(ap, format);
-    len = apr_vsnprintf(buf, HUGE_STRING_LEN, format, ap);
-    cc = apr_file_puts(buf, fptr);
-    va_end(ap);
-    free(buf);
-    return (cc == APR_SUCCESS) ? len : -1;
-}
+
+    if ((heartbeatres) && (requests > 150)) {
+	heartbeatres = requests / 10;	/* Print line every 10% of requests */
+	if (heartbeatres < 100)
+	    heartbeatres = 100;	/* but never more often than once every 100
+				 * connections. */
+    }

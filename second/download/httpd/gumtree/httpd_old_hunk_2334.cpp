@@ -1,13 +1,13 @@
+        if (APR_STATUS_IS_ENOENT(retcode)) {
+            return DECLINED;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "meta file permissions deny server access: %s", metafilename);
+        return HTTP_FORBIDDEN;
+    };
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    /* read the headers in */
+    rv = scan_meta_file(r, f);
+    apr_file_close(f);
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    return rv;

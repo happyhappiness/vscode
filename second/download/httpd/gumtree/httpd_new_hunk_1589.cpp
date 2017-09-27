@@ -1,13 +1,13 @@
-#if PROXY_HAS_SCOREBOARD
-    lb_score *score = NULL;
-#else
-    void *score = NULL;
-#endif
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
+        }
 
-    if (worker->s && PROXY_WORKER_IS_INITIALIZED(worker)) {
-        /* The worker share is already initialized */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-              "proxy: worker %s already initialized",
-              worker->name);
-        return;
+        ap_pass_brigade(r->output_filters, bb);
     }
+
+    if (nph) {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we

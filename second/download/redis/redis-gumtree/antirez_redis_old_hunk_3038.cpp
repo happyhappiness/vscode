@@ -1,3 +1,0 @@
-    }
-    evalGenericCommand(c,1);
-}

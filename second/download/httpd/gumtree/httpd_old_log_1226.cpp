@@ -1,1 +1,1 @@
-fprintf(stderr, cmnt + 1);
+apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext).\n");

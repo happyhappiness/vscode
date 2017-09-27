@@ -1,35 +1,30 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
+    request_rec *r = f->r;
+    cgid_server_conf *conf = ap_get_module_config(r->server->module_config,
+                                                  &cgid_module);
+    cgid_dirconf *dc = ap_get_module_config(r->per_dir_config, &cgid_module);
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+    struct cleanup_script_info *info;
+
+    add_ssi_vars(r);
+    env = ap_create_environment(r->pool, r->subprocess_env);
+
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
 
-    r->status = 200;
-    r->status_line = "200 OK";
+    send_req(sd, r, command, env, SSI_REQ);
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    info = apr_palloc(r->pool, sizeof(struct cleanup_script_info));
+    info->r = r;
+    info->conn_id = r->connection->id;
+    info->conf = conf;
+    /* for this type of request, the script is invoked through an
+     * intermediate shell process...  cleanup_script is only able
+     * to knock out the shell process, not the actual script
+     */
+    apr_pool_cleanup_register(r->pool, info,
+                              cleanup_script,
+                              apr_pool_cleanup_null);
+
+    /* We are putting the socket discriptor into an apr_file_t so that we can
+     * use a pipe bucket to send the data to the client.  APR will create

@@ -1,1 +1,0 @@
-printf("protocol error, got '%c' as reply type byte\n", type);

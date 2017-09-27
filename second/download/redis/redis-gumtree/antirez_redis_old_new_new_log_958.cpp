@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Unable to register writable event for slave bulk transfer: %s", strerror(errno));

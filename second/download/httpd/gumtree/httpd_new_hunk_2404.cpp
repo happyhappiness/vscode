@@ -1,46 +1,61 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+                    && d_uri.path[0] == '*' && d_uri.path[1] == '\0'))
+            /* check that query matches */
+            || (d_uri.query != r_uri.query
+                && (!d_uri.query || !r_uri.query
+                    || strcmp(d_uri.query, r_uri.query)))
+            ) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01786)
+                          "uri mismatch - <%s> does not match "
+                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
+            return HTTP_BAD_REQUEST;
+        }
     }
 
-/* set request */
-    len = decodeenc(path);
+    if (resp->opaque && resp->opaque_num == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01787)
+                      "received invalid opaque - got `%s'",
+                      resp->opaque);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (strcmp(resp->realm, conf->realm)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01788)
+                      "realm mismatch - got `%s' but expected `%s'",
+                      resp->realm, conf->realm);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (resp->algorithm != NULL
+        && strcasecmp(resp->algorithm, "MD5")
+        && strcasecmp(resp->algorithm, "MD5-sess")) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01789)
+                      "unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    return_code = get_hash(r, r->user, conf);
+
+    if (return_code == AUTH_USER_NOT_FOUND) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01790)
+                      "user `%s' in realm `%s' not found: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else if (return_code == AUTH_USER_FOUND) {
+        /* we have a password, so continue */
+    }
+    else if (return_code == AUTH_DENIED) {
+        /* authentication denied in the provider before attempting a match */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01791)
+                      "user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else {
+        /* AUTH_GENERAL_ERROR (or worse)

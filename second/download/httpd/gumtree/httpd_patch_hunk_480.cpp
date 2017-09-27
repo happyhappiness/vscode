@@ -1,47 +1,34 @@
+         procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+         status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                  NULL, procattr, pl->p);
+ 
+         if (status == APR_SUCCESS) {
+             pl->pid = procnew;
+-            ap_piped_log_write_fd(pl) = procnew->in;
++            /* procnew->in was dup2'd from ap_piped_log_write_fd(pl);
++             * since the original fd is still valid, close the copy to
++             * avoid a leak. */
++            apr_file_close(procnew->in);
++            procnew->in = NULL;
+             apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                           ap_piped_log_write_fd(pl), pl->p);
++            close_handle_in_child(pl->p, ap_piped_log_read_fd(pl));
+         }
+         else {
+             char buf[120];
+             /* Something bad happened, give up and go away. */
+             ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                          "unable to start piped log program '%s': %s",
+                          pl->program, apr_strerror(status, buf, sizeof(buf)));
+-            rc = -1;
+         }
      }
  
-     if (pkp->cert_path) {
-         SSL_X509_INFO_load_path(ptemp, sk, pkp->cert_path);
-     }
- 
--    if ((ncerts = sk_X509_INFO_num(sk)) > 0) {
--        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
--                     "loaded %d client certs for SSL proxy",
--                     ncerts);
--
--        pkp->certs = sk;
--    }
--    else {
-+    if ((ncerts = sk_X509_INFO_num(sk)) <= 0) {
-+        sk_X509_INFO_free(sk);
-         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                      "no client certs found for SSL proxy");
--        sk_X509_INFO_free(sk);
-+        return;
-+    }
-+
-+    /* Check that all client certs have got certificates and private
-+     * keys. */
-+    for (n = 0; n < ncerts; n++) {
-+        X509_INFO *inf = sk_X509_INFO_value(sk, n);
-+
-+        if (!inf->x509 || !inf->x_pkey) {
-+            sk_X509_INFO_free(sk);
-+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
-+                         "incomplete client cert configured for SSL proxy "
-+                         "(missing or encrypted private key?)");
-+            ssl_die();
-+            return;
-+        }
-     }
-+
-+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-+                 "loaded %d client certs for SSL proxy",
-+                 ncerts);
-+    pkp->certs = sk;
+-    return rc;
++    return status;
  }
  
- static void ssl_init_proxy_ctx(server_rec *s,
-                                apr_pool_t *p,
-                                apr_pool_t *ptemp,
-                                SSLSrvConfigRec *sc)
+ 
+ static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
+ {
+     piped_log *pl = data;

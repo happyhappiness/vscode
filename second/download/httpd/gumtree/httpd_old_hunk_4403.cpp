@@ -1,13 +1,18 @@
+    }
+    if (session->pool) {
+        apr_pool_destroy(session->pool);
+    }
+}
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+static apr_status_t h2_session_shutdown(h2_session *session, int error, 
+                                        const char *msg, int force_close)
+{
+    apr_status_t status = APR_SUCCESS;
+    
+    AP_DEBUG_ASSERT(session);
+    if (!msg && error) {
+        msg = nghttp2_strerror(error);
+    }
+    
+    if (error || force_close) {
+        /* not a graceful shutdown, we want to leave... 

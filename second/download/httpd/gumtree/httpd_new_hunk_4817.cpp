@@ -1,50 +1,40 @@
-        return errstatus;
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        else if (child_threads_active == threads_per_child) {
+            had_healthy_child = 1;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+    if (retained->sick_child_detected) {
+        if (had_healthy_child) {
+            /* Assume this is a transient error, even though it may not be.  Leave
+             * the server up in case it is able to serve some requests or the
+             * problem will be resolved.
+             */
+            retained->sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case, as no child ever fully initialized; give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(02324)
+                         "A resource shortage or other unrecoverable failure "
+                         "was encountered before any child process initialized "
+                         "successfully... httpd is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
 
-    if (r->method_number == M_INVALID) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	char *emsg;
-
-	emsg = "File does not exist: ";
-	if (r->path_info == NULL) {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, NULL);
-	}
-	else {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
-	ap_table_setn(r->notes, "error-notes", emsg);
-	return HTTP_NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(OS2) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
-
-    if (f == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+    retained->max_daemons_limit = last_non_dead + 1;

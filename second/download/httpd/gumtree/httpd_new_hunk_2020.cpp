@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+        ap_init_scoreboard(sb_mem);
     }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+
+    ap_scoreboard_image->global->restart_time = apr_time_now();
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+#ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "AcceptMutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),

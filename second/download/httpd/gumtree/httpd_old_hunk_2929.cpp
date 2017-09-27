@@ -1,15 +1,17 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+    apr_byte_t is_ssl;
+    char *remote_host;
+    const char *session_route, *envvar;
+    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
+    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
 
-        r->read_chunked = 1;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_marshal_into_msgb");
+
+    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_marshal_into_msgb - No such method %s",
+               r->method);
+        return AJP_EBAD_METHOD;
     }
-    else if (lenp) {
-        char *pos = lenp;
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);

@@ -1,13 +1,12 @@
-        ap_note_basic_auth_failure(r);
-        return HTTP_UNAUTHORIZED;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s partial content response not cached",
+                     key);
+        return DECLINED;
     }
 
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-        /* Client tried to authenticate using wrong auth scheme */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "client used wrong authentication scheme: %s", r->uri);
-        ap_note_basic_auth_failure(r);
-        return HTTP_UNAUTHORIZED;
-    }
+    /* Allocate and initialize cache_object_t and disk_cache_object_t */
+    h->cache_obj = obj = apr_pcalloc(r->pool, sizeof(*obj));
+    obj->vobj = dobj = apr_pcalloc(r->pool, sizeof(*dobj));
 
-    while (*auth_line == ' ' || *auth_line == '\t') {
+    obj->key = apr_pstrdup(r->pool, key);
+

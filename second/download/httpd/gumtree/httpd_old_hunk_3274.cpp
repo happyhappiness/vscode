@@ -1,13 +1,26 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+    access_compat_ap_satisfies = APR_RETRIEVE_OPTIONAL_FN(access_compat_ap_satisfies);
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    set_banner(pconf);
+    ap_setup_make_content_type(pconf);
+    ap_setup_auth_internal(ptemp);
+    if (!sys_privileges) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                     "Server MUST relinquish startup privileges before "
+                     "accepting connections.  Please ensure mod_unixd "
+                     "or other system security module is loaded.");
+        return !OK;
+    }
+    return OK;
+}
+
+static void core_insert_filter(request_rec *r)
+{
+    core_dir_config *conf = (core_dir_config *)
+                            ap_get_module_config(r->per_dir_config,
+                                                 &core_module);
+    const char *filter, *filters = conf->output_filters;
+
+    if (filters) {
+        while (*filters && (filter = ap_getword(r->pool, &filters, ';'))) {
+            ap_add_output_filter(filter, NULL, r, r->connection);
+        }

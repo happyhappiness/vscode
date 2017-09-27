@@ -1,98 +1,14 @@
- 	 */
- 
- 	/* Lock around "accept", if necessary */
- 	SAFE_ACCEPT(accept_mutex_on());
- 
-         if (num_listensocks == 1) {
--            offset = 0;
-+            /* There is only one listener record, so refer to that one. */
-+            lr = ap_listeners;
+             ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                          "Failed to open the WinNT service manager");
+             return (rv);
          }
-         else {
-             /* multiple listening sockets - need to poll */
- 	    for (;;) {
--                apr_status_t ret;
--                apr_int32_t n;
-+                apr_int32_t numdesc;
-+                const apr_pollfd_t *pdesc;
  
--                ret = apr_poll(pollset, num_listensocks, &n, -1);
--                if (ret != APR_SUCCESS) {
--                    if (APR_STATUS_IS_EINTR(ret)) {
-+                /* timeout == -1 == wait forever */
-+                status = apr_pollset_poll(pollset, -1, &numdesc, &pdesc);
-+                if (status != APR_SUCCESS) {
-+                    if (APR_STATUS_IS_EINTR(status)) {
-+                        if (one_process && shutdown_pending) {
-+                            return;
-+                        }
-                         continue;
-                     }
-     	            /* Single Unix documents select as returning errnos
-     	             * EBADF, EINTR, and EINVAL... and in none of those
-     	             * cases does it make sense to continue.  In fact
-     	             * on Linux 2.0.x we seem to end up with EFAULT
-     	             * occasionally, and we'd loop forever due to it.
-     	             */
--    	            ap_log_error(APLOG_MARK, APLOG_ERR, ret, ap_server_conf,
--                             "apr_poll: (listen)");
-+                    ap_log_error(APLOG_MARK, APLOG_ERR, status,
-+                                 ap_server_conf, "apr_pollset_poll: (listen)");
-     	            clean_child_exit(1);
-                 }
--                /* find a listener */
--                curr_pollfd = last_pollfd;
--                do {
--                    curr_pollfd++;
--                    if (curr_pollfd >= num_listensocks) {
--                        curr_pollfd = 0;
--                    }
--                    /* XXX: Should we check for POLLERR? */
--                    if (pollset[curr_pollfd].rtnevents & APR_POLLIN) {
--                        last_pollfd = curr_pollfd;
--                        offset = curr_pollfd;
--                        goto got_fd;
--                    }
--                } while (curr_pollfd != last_pollfd);
- 
--                continue;
-+                /* We can always use pdesc[0], but sockets at position N
-+                 * could end up completely starved of attention in a very
-+                 * busy server. Therefore, we round-robin across the
-+                 * returned set of descriptors. While it is possible that
-+                 * the returned set of descriptors might flip around and
-+                 * continue to starve some sockets, we happen to know the
-+                 * internal pollset implementation retains ordering
-+                 * stability of the sockets. Thus, the round-robin should
-+                 * ensure that a socket will eventually be serviced.
-+                 */
-+                if (last_poll_idx >= numdesc)
-+                    last_poll_idx = 0;
-+
-+                /* Grab a listener record from the client_data of the poll
-+                 * descriptor, and advance our saved index to round-robin
-+                 * the next fetch.
-+                 *
-+                 * ### hmm... this descriptor might have POLLERR rather
-+                 * ### than POLLIN
-+                 */
-+                lr = pdesc[last_poll_idx++].client_data;
-+                goto got_fd;
-             }
-         }
-     got_fd:
- 	/* if we accept() something we don't want to die, so we have to
- 	 * defer the exit
- 	 */
--        status = listensocks[offset].accept_func(&csd, 
--                                                 &listensocks[offset], ptrans);
--        SAFE_ACCEPT(accept_mutex_off());	/* unlock after "accept" */
-+        status = lr->accept_func(&csd, lr, ptrans);
-+
-+        SAFE_ACCEPT(accept_mutex_off());      /* unlock after "accept" */
- 
-         if (status == APR_EGENERAL) {
-             /* resource shortage or should-not-occur occured */
-             clean_child_exit(1);
-         }
-         else if (status != APR_SUCCESS) {
+         /* ###: utf-ize */
+-        schService = OpenService(schSCManager, mpm_service_name, 
++        schService = OpenService(schSCManager, mpm_service_name,
+                                  SERVICE_START | SERVICE_QUERY_STATUS);
+         if (!schService) {
+             rv = apr_get_os_error();
+             ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                          "%s: Failed to open the service.", mpm_display_name);
+             CloseServiceHandle(schSCManager);

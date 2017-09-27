@@ -1,12 +1,13 @@
-     * Seed the Pseudo Random Number Generator (PRNG)
-     * only need ptemp here; nothing inside allocated from the pool
-     * needs to live once we return from ssl_rand_seed().
-     */
-    ssl_rand_seed(base_server, ptemp, SSL_RSCTX_STARTUP, "Init: ");
+            }
+        }
+        apr_os_sock_put(&lr->sd, &nsd, s->process->pool);
+    }
 
-    /*
-     * read server private keys/public certs into memory.
-     * decrypting any encrypted keys via configured SSLPassPhraseDialogs
-     * anything that needs to live longer than ptemp needs to also survive
-     * restarts, in which case they'll live inside s->process->pool.
-     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+}
+
+
+static int send_listeners_to_child(apr_pool_t *p, DWORD dwProcessId,
+                                   apr_file_t *child_in)
+{

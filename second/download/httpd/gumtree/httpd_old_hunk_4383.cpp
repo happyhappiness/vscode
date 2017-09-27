@@ -1,14 +1,13 @@
-		exit(1);
-	    }
-	    i++;
-	    statfile = argv[i];
-	}
-	else {
-	    fprintf(stderr, "Usage: logresolve [-s statfile] [-c] < input > output");
-	    exit(0);
-	}
+        }
+        
+        status = ap_get_brigade(session->c->input_filters, session->input, 
+                                AP_MODE_READBYTES, 
+                                block? APR_BLOCK_READ : APR_NONBLOCK_READ, 
+                                64 * 1024);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                      "h2_proxy_session(%s): read from conn", session->id);
+        if (socket && save_timeout != -1) {
+            apr_socket_timeout_set(socket, save_timeout);
+        }
     }
-
-
-    for (i = 0; i < BUCKETS; i++)
--- apache_1.3.0/src/support/rotatelogs.c	1998-04-22 04:14:06.000000000 +0800
+    

@@ -1,69 +1,77 @@
-
-    /* Set up poll */
-    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {
-        num_listeners++;
-    }
-
-    apr_pollset_create(&pollset, num_listeners, pchild, 0);
-
-    for (lr = ap_listeners; lr != NULL; lr = lr->next) {
-        apr_pollfd_t pfd = { 0 };
-
-        pfd.desc_type = APR_POLL_SOCKET;
-        pfd.desc.s = lr->sd;
-        pfd.reqevents = APR_POLLIN;
-        pfd.client_data = lr;
-        apr_pollset_add(pollset, &pfd);
-    }
-
-    /* Main connection accept loop */
-    do {
-        apr_pool_t *pconn;
-        worker_args_t *worker_args;
-        int last_poll_idx = 0;
-
-        apr_pool_create(&pconn, pchild);
-        worker_args = apr_palloc(pconn, sizeof(worker_args_t));
-        worker_args->pconn = pconn;
-
-        if (num_listeners == 1) {
-            rv = apr_socket_accept(&worker_args->conn_sd, ap_listeners->sd, pconn);
-        } else {
-            const apr_pollfd_t *poll_results;
-            apr_int32_t num_poll_results;
-
-            rc = DosRequestMutexSem(ap_mpm_accept_mutex, SEM_INDEFINITE_WAIT);
-
-            if (shutdown_pending) {
-                DosReleaseMutexSem(ap_mpm_accept_mutex);
-                break;
-            }
-
-            rv = APR_FROM_OS_ERROR(rc);
-
-            if (rv == APR_SUCCESS) {
-                rv = apr_pollset_poll(pollset, -1, &num_poll_results, &poll_results);
-                DosReleaseMutexSem(ap_mpm_accept_mutex);
-            }
-
-            if (rv == APR_SUCCESS) {
-                if (last_poll_idx >= num_listeners) {
-                    last_poll_idx = 0;
-                }
-
-                lr = poll_results[last_poll_idx++].client_data;
-                rv = apr_socket_accept(&worker_args->conn_sd, lr->sd, pconn);
-                last_poll_idx++;
-            }
+        {
+            ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
+                 "No installed service named \"%s\".", service_name);
+            exit(APEXIT_INIT);
         }
+    }
+    if (strcasecmp(signal_arg, "install") && service_set && service_set != SERVICE_UNSET)
+    {
+        ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
+             "No installed service named \"%s\".", service_name);
+        exit(APEXIT_INIT);
+    }
 
+    /* Track the args actually entered by the user.
+     * These will be used for the -k install parameters, as well as
+     * for the -k start service override arguments.
+     */
+    inst_argv = (const char * const *)mpm_new_argv->elts
+        + mpm_new_argv->nelts - inst_argc;
+
+    /* Now, do service install or reconfigure then proceed to
+     * post_config to test the installed configuration.
+     */
+    if (!strcasecmp(signal_arg, "config")) { /* -k config */
+        /* Reconfigure the service */
+        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 1);
         if (rv != APR_SUCCESS) {
-            if (!APR_STATUS_IS_EINTR(rv)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                             "apr_socket_accept");
-                clean_child_exit(APEXIT_CHILDFATAL);
-            }
-        } else {
-            DosWriteQueue(workq, WORKTYPE_CONN, sizeof(worker_args_t), worker_args, 0);
-            requests_this_child++;
+            exit(rv);
         }
+
+        fprintf(stderr,"Testing httpd.conf....\n");
+        fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");
+    }
+    else if (!strcasecmp(signal_arg, "install")) { /* -k install */
+        /* Install the service */
+        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 0);
+        if (rv != APR_SUCCESS) {
+            exit(rv);
+        }
+
+        fprintf(stderr,"Testing httpd.conf....\n");
+        fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");
+    }
+
+    process->argc = mpm_new_argv->nelts;
+    process->argv = (const char * const *) mpm_new_argv->elts;
+}
+
+
+static int winnt_pre_config(apr_pool_t *pconf_, apr_pool_t *plog, apr_pool_t *ptemp)
+{
+    /* Handle the following SCM aspects in this phase:
+     *
+     *   -k runservice [WinNT errors logged from rewrite_args]
+     */
+
+    /* Initialize shared static objects.
+     * TODO: Put config related statics into an sconf structure.
+     */
+    pconf = pconf_;
+
+    if (ap_exists_config_define("ONE_PROCESS") ||
+        ap_exists_config_define("DEBUG"))
+        one_process = -1;
+
+    if (!strcasecmp(signal_arg, "runservice")
+            && (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL,
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
+
+    /* Win9x: disable AcceptEx */

@@ -1,1 +1,0 @@
-addReplyError(c,"invalid expire time in SETEX");

@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
+                               "attempt to include NPH CGI script");
+
+#if defined(OS2) || defined(WIN32)
+#error mod_cgid does not work on this platform.  If you teach it to, look
+#error at mod_cgi.c for required code in this path.
+#else
+    if (r->finfo.filetype == 0)
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
+                               "script not found or unable to stat");
 #endif
-		return 0;
+    if (r->finfo.filetype == APR_DIR)
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");

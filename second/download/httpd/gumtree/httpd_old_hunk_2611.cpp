@@ -1,18 +1,13 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+        return result;
+    }
+    /* note: doc == NULL if no request body */
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
+    if (doc && !dav_validate_root(doc, "propfind")) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The \"propfind\" element was not found.");
+        return HTTP_BAD_REQUEST;
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+    /* ### validate that only one of these three elements is present */
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

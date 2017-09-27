@@ -1,52 +1,41 @@
-    new->read_length     = r->read_length;     /* We can only read it once */
-    new->vlist_validator = r->vlist_validator;
+die_now:
+    if (shutdown_pending)
+    {
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    new->proto_output_filters  = r->proto_output_filters;
-    new->proto_input_filters   = r->proto_input_filters;
+        if (!child_created) {
+            return 0;  /* Tell the caller we do not want to restart */
+        }
 
-    new->input_filters   = new->proto_input_filters;
-
-    if (new->main) {
-        ap_filter_t *f, *nextf;
-
-        /* If this is a subrequest, the filter chain may contain a
-         * mixture of filters specific to the old request (r), and
-         * some inherited from r->main.  Here, inherit that filter
-         * chain, and remove all those which are specific to the old
-         * request; ensuring the subreq filter is left in place. */
-        new->output_filters = r->output_filters;
-
-        f = new->output_filters;
-        do {
-            nextf = f->next;
-
-            if (f->r == r && f->frec != ap_subreq_core_filter_handle) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "dropping filter '%s' in internal redirect from %s to %s",
-                              f->frec->name, r->unparsed_uri, new_uri);
-
-                /* To remove the filter, first set f->r to the *new*
-                 * request_rec, so that ->output_filters on 'new' is
-                 * changed (if necessary) when removing the filter. */
-                f->r = new;
-                ap_remove_output_filter(f);
+        /* This shutdown is only marginally graceful. We will give the
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
+         */
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
+        }
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %pp failed",
+                             event_handles[CHILD_HANDLE]);
+        }
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
             }
-
-            f = nextf;
-
-            /* Stop at the protocol filters.  If a protocol filter has
-             * been newly installed for this resource, better leave it
-             * in place, though it's probably a misconfiguration or
-             * filter bug to get into this state. */
-        } while (f && f != new->proto_output_filters);
-    }
-    else {
-        /* If this is not a subrequest, clear out all
-         * resource-specific filters. */
-        new->output_filters  = new->proto_output_filters;
-    }
-
-    update_r_in_filters(new->input_filters, r, new);
-    update_r_in_filters(new->output_filters, r, new);
-
-    apr_table_setn(new->subprocess_env, "REDIRECT_STATUS",
+            else {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+        }
+        CloseHandle(child_exit_event);

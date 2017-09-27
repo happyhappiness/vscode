@@ -1,17 +1,15 @@
+            apr_socket_close(sd);
+        }
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
+
+    if (sa == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
+                      "could not connect to %s '%s'",
+                      proxy_uri ? "proxy" : "OCSP responder",
+                      next_hop_uri->hostinfo);
+        return NULL;
     }
-#else
-    if (alarm_fn && x && fn != alarm_fn) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, NULL,
-	    "ap_set_callback_and_alarm: possible nested timer!");
-    }
-    alarm_fn = fn;
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+    /* send the request and get a response */
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01975)
+                 "sending request to OCSP responder");

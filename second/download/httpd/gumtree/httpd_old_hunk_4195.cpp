@@ -1,24 +1,13 @@
+        else {
+            prefs = conf->protocols;
+        }
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
-    }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+        /* Select the most preferred protocol */
+        if (APLOGcdebug(c)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
+                          "select protocol, proposals=%s preferences=%s configured=%s", 
+                          apr_array_pstrcat(pool, proposals, ','),
+                          apr_array_pstrcat(pool, prefs, ','),
+                          apr_array_pstrcat(pool, conf->protocols, ','));
+        }
+        for (i = 0; i < proposals->nelts; ++i) {

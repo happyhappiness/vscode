@@ -1,27 +1,13 @@
-/*  _________________________________________________________________
-**
-**  Module Initialization
-**  _________________________________________________________________
-*/
-
-
-static void ssl_add_version_components(apr_pool_t *p,
-                                       server_rec *s)
-{
-    char *modver = ssl_var_lookup(p, s, NULL, NULL, "SSL_VERSION_INTERFACE");
-    char *libver = ssl_var_lookup(p, s, NULL, NULL, "SSL_VERSION_LIBRARY");
-    char *incver = ssl_var_lookup(p, s, NULL, NULL, 
-                                  "SSL_VERSION_LIBRARY_INTERFACE");
-
-    ap_add_version_component(p, modver);
-    ap_add_version_component(p, libver);
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "%s compiled against Server: %s, Library: %s",
-                 modver, AP_SERVER_BASEVERSION, incver);
-}
-
-
-/*
- * Handle the Temporary RSA Keys and DH Params
- */
+    }
+    else {
+        ap_set_content_type(r, "text/html; charset=ISO-8859-1");
+        ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head><title>Balancer Manager</title></head>\n", r);
+        ap_rputs("<body><h1>Load Balancer Manager for ", r);
+        ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+        ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);
+        ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "\n</dt></dl>\n", NULL);
+        balancer = (proxy_balancer *)conf->balancers->elts;
+        for (i = 0; i < conf->balancers->nelts; i++) {

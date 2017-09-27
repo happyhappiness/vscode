@@ -1,17 +1,13 @@
+            {
+                void *junk;
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
-
-    cache = c->fp;
-
-    c->hdrs = resp_hdrs;
-
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+                junk = util_ald_cache_insert(curl->compare_cache,
+                                             &the_compare_node);
+                if (junk == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
+                                  "cache_compare: Cache insertion failure.");
+                }
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;

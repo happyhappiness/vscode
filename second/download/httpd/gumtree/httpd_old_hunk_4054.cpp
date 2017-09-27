@@ -1,20 +1,21 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
     }
+    return status;
+}
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+apr_table_t *h2_stream_get_trailers(h2_stream *stream)
+{
+    return stream->response? stream->response->trailers : NULL;
+}
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+const h2_priority *h2_stream_get_priority(h2_stream *stream)
+{
+    if (stream->initiated_on && stream->response) {
+        const char *ctype = apr_table_get(stream->response->headers, "content-type");
+        if (ctype) {
+            /* FIXME: Not good enough, config needs to come from request->server */
+            return h2_config_get_priority(stream->session->config, ctype);
+        }
+    }
+    return NULL;
+}
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",

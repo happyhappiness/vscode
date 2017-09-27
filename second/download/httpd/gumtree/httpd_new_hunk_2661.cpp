@@ -1,13 +1,25 @@
-}
+            const char *data;
+            apr_size_t len;
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+            /* If we actually see the EOS, that means we screwed up! */
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                inflateEnd(&ctx->stream);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01390)
+                              "Encountered EOS bucket in inflate filter (bug?)");
+                return APR_EGENERAL;
+            }
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_heap;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);
+                    return APR_EGENERAL;
+                }
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+

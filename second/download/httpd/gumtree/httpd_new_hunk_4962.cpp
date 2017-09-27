@@ -1,44 +1,25 @@
-	    int cond_status = OK;
+             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
+             bkt = APR_BUCKET_NEXT(bkt))
+        {
+            const char *data;
+            apr_size_t len;
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    ap_overlap_tables(r->err_headers_out, merge,
-		AP_OVERLAP_TABLES_MERGE);
-	    if (!ap_is_empty_table(cookie_table)) {
-		r->err_headers_out = ap_overlay_tables(r->pool,
-		    r->err_headers_out, cookie_table);
-	    }
-	    return cond_status;
-	}
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                if (!ctx->done) {
+                    inflateEnd(&ctx->stream);
+                    ap_log_rerror(
+                            APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481) "Encountered premature end-of-stream while inflating");
+                    return APR_EGENERAL;
+                }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+                /* Move everything to the returning brigade. */
+                APR_BUCKET_REMOVE(bkt);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
+                ap_remove_input_filter(f);
+                break;
+            }
 
-#ifdef CHARSET_EBCDIC
-	    /* Chances are that we received an ASCII header text instead of
-	     * the expected EBCDIC header lines. Try to auto-detect:
-	     */
-	if (!(l = strchr(w, ':'))) {
-	    int maybeASCII = 0, maybeEBCDIC = 0;
-	    char *cp;
-
-	    for (cp = w; *cp != '\0'; ++cp) {
-		if (isprint(*cp) && !isprint(os_toebcdic[*cp]))
-		    ++maybeEBCDIC;
-		if (!isprint(*cp) && isprint(os_toebcdic[*cp]))
-		    ++maybeASCII;
-		}
-	    if (maybeASCII > maybeEBCDIC) {
-		ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "CGI Interface Error: Script headers apparently ASCII: (CGI = %s)", r->filename);
-		ascii2ebcdic(w, w, cp - w);
-	    }
-	}
-#endif
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_heap;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {

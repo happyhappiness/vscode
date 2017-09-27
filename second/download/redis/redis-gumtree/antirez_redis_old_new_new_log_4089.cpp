@@ -1,1 +1,0 @@
-cmd = sdscatprintf(sdsempty(),"*%d\r\n",argc);

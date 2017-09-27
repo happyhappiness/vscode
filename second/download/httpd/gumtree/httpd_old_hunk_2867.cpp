@@ -1,25 +1,13 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
+                ret = apr_dbd_get_entry(db->driver, row, 0);
+            }
+        }
     }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
+    if (rv != -1) {
+        errmsg = apr_dbd_error(db->driver, db->handle, rv);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "rewritemap: error %s looking up %s", errmsg, key);
     }
-#endif
-
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+    switch (n) {
+    case 0:
+        return NULL;
+    case 1:

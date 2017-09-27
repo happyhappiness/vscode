@@ -1,1 +1,0 @@
-printf("Entering slave output mode...  (press Ctrl-C to quit)\n");

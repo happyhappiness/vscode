@@ -1,1 +1,0 @@
-len = snprintf(buf,sizeof(buf),"%s: ",prefix);

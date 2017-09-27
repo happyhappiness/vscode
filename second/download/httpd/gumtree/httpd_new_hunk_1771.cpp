@@ -1,13 +1,13 @@
-        if (status != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: prefetch request body failed to %pI (%s)"
-                         " from %s (%s)",
-                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
-                         c->remote_ip, c->remote_host ? c->remote_host: "");
-            return HTTP_BAD_REQUEST;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled");
+
+            /* remember forbidden access for strict require option */
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
+
+            return HTTP_FORBIDDEN;
         }
-
-        apr_brigade_length(temp_brigade, 1, &bytes);
-        bytes_read += bytes;
-
-        /*

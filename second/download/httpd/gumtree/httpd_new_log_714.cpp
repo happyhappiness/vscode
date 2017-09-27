@@ -1,2 +1,1 @@
-ap_rprintf(r, "<dd><tt><strong>In file: %s</strong></tt></dd>\n",
-                   thisfn);
+ap_rputs(" -D BUFFERED_LOGS\n", r);

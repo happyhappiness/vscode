@@ -1,13 +1,25 @@
-            if (!res) {
-                res = file_walk(rnew);
-            }
+    opts.certlen = strlen(key);
+    opts.sidtimeout = 0;
+    opts.sidentries = 0;
+    opts.siddir = NULL;
+
+    if (WSAIoctl(s, SO_SSL_SET_SERVER, (char *)&opts, sizeof(opts),
+        NULL, 0, NULL, NULL, NULL) != 0) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf, APLOGNO(02122)
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);
+        return -1;
+    }
+
+    if (mutual) {
+        optParam = 0x07;  /* SO_SSL_AUTH_CLIENT */
+
+        if(WSAIoctl(s, SO_SSL_SET_FLAGS, (char*)&optParam,
+            sizeof(optParam), NULL, 0, NULL, NULL, NULL)) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf, APLOGNO(02123)
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);
+            return -1;
         }
-        else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew->server,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+    }
+

@@ -1,22 +1,30 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
+
+    /*
+     * We need a pool to allocate our mutex.  Since we can't clear
+     * allocated memory from a pool, create a subpool that we can blow
+     * away in the destruction callback.
+     */
+    rv = apr_pool_create(&p, dynlockpool);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, dynlockpool,
+                      APLOGNO(02183) "Failed to create subpool for dynamic lock");
+        return NULL;
     }
-#endif
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+    ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE1, 0, p,
+                  "Creating dynamic lock");
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+    value = (struct CRYPTO_dynlock_value *)apr_palloc(p,
+                                                      sizeof(struct CRYPTO_dynlock_value));
+    if (!value) {
+        ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, 0, p,
+                      APLOGNO(02185) "Failed to allocate dynamic lock structure");
+        return NULL;
+    }
+
+    value->pool = p;
+    /* Keep our own copy of the place from which we were created,
+       using our own pool. */
+    value->file = apr_pstrdup(p, file);
+    value->line = line;
+    rv = apr_thread_mutex_create(&(value->mutex), APR_THREAD_MUTEX_DEFAULT,

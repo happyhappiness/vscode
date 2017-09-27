@@ -1,13 +1,19 @@
+    return (int)apr_time_sec(tNow) + utc_offset;
+}
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!ap_is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+/*
+ * Close a file and destroy the associated pool.
+ */
+static void close_logfile(rotate_config_t *config, struct logfile *logfile)
+{
+    if (config->verbose) {
+        fprintf(stderr, "Closing file %s\n", logfile->name);
+    }
+    apr_file_close(logfile->fd);
+    apr_pool_destroy(logfile->pool);
+}
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+/*
+ * Dump the configuration parsing result to STDERR.
+ */
+static void dumpConfig (rotate_config_t *config)

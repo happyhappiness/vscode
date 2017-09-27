@@ -1,14 +1,21 @@
-        return ap_pass_brigade(f->next, bb);
+    else
+    {
+       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+                         "LDAP: SSL support unavailable" );
     }
+    
+    return(OK);
+}
 
-    apr_table_unset(r->headers_out, "Upgrade");
+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
+{
+    apr_status_t sts;
+    util_ldap_state_t *st = ap_get_module_config(s->module_config, &ldap_module);
 
-    if (r) {
-        csd_data = (secsocket_data*)ap_get_module_config(r->connection->conn_config, &nwssl_module);
-        csd = csd_data->csd;
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Unable to get upgradeable socket handle");
-        return ap_pass_brigade(f->next, bb);
-    }
+    if (!st->util_ldap_cache_lock) return;
+
+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
+    if (sts != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
+                     "Failed to initialise global mutex %s in child process %"
+                     APR_PID_T_FMT

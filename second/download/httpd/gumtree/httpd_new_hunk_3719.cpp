@@ -1,16 +1,32 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
+        }
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
+        }
+        else if (LDAP_NO_SUCH_ATTRIBUTE == result) {
+            ldc->reason = "Comparison no such attribute (adding to cache)";
+        }
+        else {
+            ldc->reason = apr_psprintf(r->pool, 
+                                       "Comparison undefined: (%d): %s (adding to cache)", 
+                                        result, ldap_err2string(result));
+        }
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                  "ldap_compare_s(%pp, %s, %s, %s) = %s", 
+                  ldc->ldap, dn, attrib, value, ldap_err2string(result));
+    return result;
+}
+
+
+static util_compare_subgroup_t* uldap_get_subgroups(request_rec *r,
+                                                    util_ldap_connection_t *ldc,

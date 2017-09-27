@@ -1,0 +1,1 @@
+ap_rvputs(r, "<input type=hidden name='b' id='b' ", NULL);

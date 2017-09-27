@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
-                     "unable to replace stderr with error log file");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                    "disk_cache: could not create temp file %s",
+                    dobj->tempfile);

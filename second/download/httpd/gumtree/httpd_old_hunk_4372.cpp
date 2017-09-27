@@ -1,25 +1,42 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
-    }
-    return;
-}
+    int id;
+    apr_pool_t *pool;
+    h2_proxy_session *session;
 
-static void rewritelock_open(server_rec *s, pool *p)
+    const char *url;
+    request_rec *r;
+    h2_request *req;
+    int standalone;
+
+    h2_stream_state_t state;
+    unsigned int suspended : 1;
+    unsigned int data_sent : 1;
+    unsigned int data_received : 1;
+    uint32_t error_code;
+
+    apr_bucket_brigade *input;
+    apr_bucket_brigade *output;
+    
+    apr_table_t *saves;
+} h2_proxy_stream;
+
+
+static void dispatch_event(h2_proxy_session *session, h2_proxys_event_t ev, 
+                           int arg, const char *msg);
+
+
+static apr_status_t proxy_session_pre_close(void *theconn)
 {
-    rewrite_server_conf *conf;
+    proxy_conn_rec *p_conn = (proxy_conn_rec *)theconn;
+    h2_proxy_session *session = p_conn->data;
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    if (session && session->ngh2) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c, 
+                      "proxy_session(%s): pool cleanup, state=%d, streams=%d",
+                      session->id, session->state, 
+                      (int)h2_ihash_count(session->streams));
+        session->aborted = 1;
+        dispatch_event(session, H2_PROXYS_EV_PRE_CLOSE, 0, NULL);
+        nghttp2_session_del(session->ngh2);
+        session->ngh2 = NULL;
+        p_conn->data = NULL;
+    }

@@ -1,16 +1,30 @@
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    if (!(have_rsa || have_dsa
+#ifndef OPENSSL_NO_EC
+        || have_ecc
+#endif
+          )) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+#ifndef OPENSSL_NO_EC
+                "Oops, no RSA, DSA or ECC server private key found?!");
+#else
+                "Oops, no RSA or DSA server private key found?!");
+#endif
+        ssl_die();
+    }
+}
+
+static void ssl_init_proxy_certs(server_rec *s,
+                                 apr_pool_t *p,
+                                 apr_pool_t *ptemp,
+                                 modssl_ctx_t *mctx)
+{
+    int n, ncerts = 0;
+    STACK_OF(X509_INFO) *sk;
+    modssl_pk_proxy_t *pkp = mctx->pkp;
+
+    SSL_CTX_set_client_cert_cb(mctx->ssl_ctx,
+                               ssl_callback_proxy_cert);
+
+    if (!(pkp->cert_file || pkp->cert_path)) {
+        return;

@@ -1,13 +1,13 @@
-                              "AuthDigestEnableQueryStringHack")) {
-                d_uri.query = r_uri.query;
-            }
         }
+#endif
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+        e = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
 
-        if (r->method_number == M_CONNECT) {
-            if (strcmp(resp->uri, r_uri.hostinfo)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Digest: uri mismatch - <%s> does not match "
-                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
-                return HTTP_BAD_REQUEST;
-            }
-        }
+        return ap_pass_brigade(r->output_filters, bb);
+    }
+    else {              /* unusual method (not GET or POST) */
+        if (r->method_number == M_INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Invalid method in request %s", r->the_request);
+            return HTTP_NOT_IMPLEMENTED;

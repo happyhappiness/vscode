@@ -1,20 +1,27 @@
- * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
- *                         calling ap_setup_prelinked_modules
- * 20020903.10 (2.0.55-dev) add ap_log_cerror()
- * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
- * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
- * 20020903.13 (2.0.62-dev) Add *ftp_directory_charset to proxy_dir_conf
- */
+      "specify an address and/or port with a key pair name.\n"
+      "Optional third parameter of MUTUAL configures the port for mutual authentication."),
+    AP_INIT_TAKE2("NWSSLUpgradeable", set_secure_upgradeable_listener, NULL, RSRC_CONF,
+      "specify an address and/or port with a key pair name, that can be upgraded to an SSL connection.\n"
+      "The address and/or port must have already be defined using a Listen directive."),
+    AP_INIT_ITERATE("NWSSLTrustedCerts", set_trusted_certs, NULL, RSRC_CONF,
+      "Adds trusted certificates that are used to create secure connections to proxied servers"),
+    {NULL}
+};
 
-#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
+static void register_hooks(apr_pool_t *p)
+{
+    ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);
 
-#ifndef MODULE_MAGIC_NUMBER_MAJOR
-#define MODULE_MAGIC_NUMBER_MAJOR 20020903
-#endif
-#define MODULE_MAGIC_NUMBER_MINOR 13                    /* 0...n */
+    ap_hook_pre_config(nwssl_pre_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_pre_connection(nwssl_pre_connection, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_config(nwssl_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_fixups(nwssl_hook_Fixup, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_http_method(nwssl_hook_http_method,   NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_default_port  (nwssl_hook_default_port,  NULL,NULL, APR_HOOK_MIDDLE);
+    ap_hook_insert_filter (ssl_hook_Insert_Filter, NULL,NULL, APR_HOOK_MIDDLE);
 
-/**
- * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
- * specified value.
- * <pre>
- * Useful for testing for features.
+    APR_REGISTER_OPTIONAL_FN(ssl_is_https);
+    APR_REGISTER_OPTIONAL_FN(ssl_var_lookup);
+
+    APR_REGISTER_OPTIONAL_FN(ssl_proxy_enable);
+    APR_REGISTER_OPTIONAL_FN(ssl_engine_disable);

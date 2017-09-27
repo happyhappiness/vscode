@@ -1,30 +1,13 @@
-	}
+        case H2_SESSION_ST_LOCAL_SHUTDOWN:
+            /* just leave */
+            transit(session, "conn error", H2_SESSION_ST_DONE);
+            break;
+        
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03401)
+                          "h2_session(%ld): conn error -> shutdown", session->id);
+            h2_session_shutdown(session, arg, msg, 0);
+            break;
     }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+}
 
-    return DECLINED;
-++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800

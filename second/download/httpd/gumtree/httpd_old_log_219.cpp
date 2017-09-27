@@ -1,1 +1,1 @@
-ap_rputs(t->text, r);
+ap_rputs("<hr />", r);

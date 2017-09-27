@@ -1,1 +1,0 @@
-luaPushError(lua, "wrong number or type of arguments");

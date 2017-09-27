@@ -1,13 +1,48 @@
-#ifdef LDAP_OPT_NETWORK_TIMEOUT
-    if (st->connectionTimeout > 0) {
-        timeOut.tv_sec = st->connectionTimeout;
     }
-
-    if (st->connectionTimeout >= 0) {
-        rc = apr_ldap_set_option(ldc->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
-                                 (void *)&timeOut, &(result));
-        if (APR_SUCCESS != rc) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set the connection timeout");
+    /* check if ProxyBlock directive on this host */
+    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
+        return ap_proxyerror(r, HTTP_FORBIDDEN,
+                             "Connect to remote machine blocked");
+    }
+    /*
+     * When SSL is configured, determine the hostname (SNI) for the request
+     * and save it in conn->ssl_hostname. Close any reused connection whose
+     * SNI differs.
+     */
+    if (conn->is_ssl) {
+        const char *ssl_hostname;
+        /*
+         * In the case of ProxyPreserveHost on use the hostname of
+         * the request if present otherwise use the one from the
+         * backend request URI.
+         */
+        if (conf->preserve_host) {
+            ssl_hostname = r->hostname;
+        }
+        else if (conn->forward
+                 && ((forward_info *)(conn->forward))->use_http_connect) {
+            ssl_hostname = ((forward_info *)conn->forward)->target_host;
+        }
+        else {
+            ssl_hostname = conn->hostname;
+        }
+        /*
+         * Close if a SNI is in use but this request requires no or
+         * a different one, or no SNI is in use but one is required.
+         */
+        if ((conn->ssl_hostname && (!ssl_hostname ||
+                                    strcasecmp(conn->ssl_hostname,
+                                               ssl_hostname) != 0)) ||
+                (!conn->ssl_hostname && ssl_hostname && conn->sock)) {
+            socket_cleanup(conn);
+        }
+        if (conn->ssl_hostname == NULL) {
+            conn->ssl_hostname = apr_pstrdup(conn->scpool, ssl_hostname);
         }
     }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);
+    return OK;
+}
+

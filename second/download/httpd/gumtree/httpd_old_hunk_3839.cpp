@@ -1,52 +1,26 @@
-#endif
 
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-    ap_hard_timeout("proxy send body", r);
+    if (retained->is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00493)
+                     AP_SIG_GRACEFUL_STRING
+                     " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_GRACEFUL);
 
-    while (!con->aborted && f != NULL) {
-	n = ap_bread(f, buf, IOBUFSIZE);
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_sent += n;
 
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
 
-	while (n && !con->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0) {
-		if (f2 != NULL) {
-		    ap_pclosef(c->req->pool, c->fp->fd);
-		    c->fp = NULL;
-		    f2 = NULL;
-		    con->aborted = 1;
-		    unlink(c->tempfile);
-		}
-		break;
-	    }
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-	    n -= w;
-	    o += w;
-	}
     }
-    if (!con->aborted)
-	ap_bflush(con->client);
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
 
-    ap_kill_timeout(r);
-    return total_bytes_sent;
-}
-
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+        ap_reclaim_child_processes(1,  /* Start with SIGTERM */
+                                   event_note_child_killed);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00494)
+                     "SIGHUP received.  Attempting to restart");
+    }

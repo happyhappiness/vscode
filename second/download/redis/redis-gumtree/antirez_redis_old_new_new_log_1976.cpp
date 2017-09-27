@@ -1,1 +1,0 @@
-addReplyError(c, "dbfilename can't be a path, just a filename");

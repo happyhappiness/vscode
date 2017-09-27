@@ -1,15 +1,25 @@
-    restart_pending = shutdown_pending = 0;
+                 * Note: this uses a power-of-two allocator to avoid
+                 * doing O(n) allocs and using O(n^2) space for
+                 * continuations that span many many lines.
+                 */
+                apr_size_t fold_len = last_len + len + 1; /* trailing null */
 
-    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
-    event_handles[RESTART_HANDLE] = restart_event;
+                if (fold_len >= (apr_size_t)(r->server->limit_req_fieldsize)) {
+                    r->status = HTTP_BAD_REQUEST;
+                    /* report what we have accumulated so far before the
+                     * overflow (last_field) as the field with the problem
+                     */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Size of a request header field "
+                                               "after folding "
+                                               "exceeds server limit.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool, last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
 
-    /* Create a single child process */
-    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
-                        &child_exit_event, &child_pid);
-    if (rv < 0)
-    {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "master_main: create child process failed. Exiting.");
-        shutdown_pending = 1;
-        goto die_now;
-    }
+                if (fold_len > alloc_len) {
+                    char *fold_buf;
+                    alloc_len += alloc_len;

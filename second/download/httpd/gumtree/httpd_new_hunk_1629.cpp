@@ -1,17 +1,48 @@
-        return rc;
+        ap_rvputs(r, comment, "\n", NULL);
     }
-    r->status = status;
+    return;                     /* comments are ignored in the
+                                   'formatted' form */
+}
 
-    rc = ajp_msg_get_string(msg, &ptr);
-    if (rc == APR_SUCCESS) {
-#if defined(AS400) || defined(_OSD_POSIX) /* EBCDIC platforms */
-        ptr = apr_pstrdup(r->pool, ptr);
-        ap_xlate_proto_from_ascii(ptr, strlen(ptr));
-#endif
-        r->status_line =  apr_psprintf(r->pool, "%d %s", status, ptr);
-    } else {
-        r->status_line = NULL;
+static void menu_default(request_rec *r, char *menu, char *href, char *text)
+{
+    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
+        return;                 /* don't print such lines, these aren't
+                                   really href's */
     }
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+    }
+    return;
+}
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-           "ajp_unmarshal_response: status = %d", status);
+static void menu_directive(request_rec *r, char *menu, char *href, char *text)
+{
+    if (!strcasecmp(href, "error") || !strcasecmp(href, "nocontent")) {
+        return;                 /* don't print such lines, as this isn't
+                                   really an href */
+    }
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+    }
+    return;
+}
+
+static void menu_footer(request_rec *r)
+{

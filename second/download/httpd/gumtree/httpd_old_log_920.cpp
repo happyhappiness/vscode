@@ -1,1 +1,2 @@
-apr_file_printf(writetty, "Ok: Pass Phrase Dialog successful.\n");
+fprintf (stderr, "Reducing via rule %d (line %d), ",
+	       ssl_expr_yyn, ssl_expr_yyrline[ssl_expr_yyn]);

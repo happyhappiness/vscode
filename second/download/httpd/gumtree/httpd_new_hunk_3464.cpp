@@ -1,30 +1,37 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			    "ISA sent invalid headers", r->filename);
-		return FALSE;
-	    }
+    }
 
-	    *value++ = '\0';
-	    while (*value && ap_isspace(*value)) ++value;
+    ap_pid_fname = arg;
+    return NULL;
+}
 
-	    /* Check all the special-case headers. Similar to what
-	     * scan_script_header() does (see that function for
-	     * more detail)
-	     */
+void ap_mpm_dump_pidfile(apr_pool_t *p, apr_file_t *out)
+{
+    apr_file_printf(out, "PidFile: \"%s\"\n",
+                    ap_server_root_relative(p, ap_pid_fname));
+}
 
-	    if (!strcasecmp(data, "Content-Type")) {
-		char *tmp;
-		/* Nuke trailing whitespace */
-		
-		char *endp = value + strlen(value) - 1;
-		while (endp > value && ap_isspace(*endp)) *endp-- = '\0';
-            
-		tmp = ap_pstrdup (r->pool, value);
-		ap_str_tolower(tmp);
-		r->content_type = tmp;
-	    }
-	    else if (!strcasecmp(data, "Content-Length")) {
-		ap_table_set(r->headers_out, data, value);
-	    }
-	    else if (!strcasecmp(data, "Transfer-Encoding")) {
-		ap_table_set(r->headers_out, data, value);
-++ apache_1.3.1/src/os/win32/multithread.c	1998-07-13 19:32:51.000000000 +0800
+const char *ap_mpm_set_max_requests(cmd_parms *cmd, void *dummy,
+                                    const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    if (!strcasecmp(cmd->cmd->name, "MaxRequestsPerChild")) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00545)
+                     "MaxRequestsPerChild is deprecated, use "
+                     "MaxConnectionsPerChild instead.");
+    }
+
+    ap_max_requests_per_child = atoi(arg);
+
+    return NULL;
+}
+
+const char *ap_mpm_set_coredumpdir(cmd_parms *cmd, void *dummy,
+                                   const char *arg)
+{
+    apr_finfo_t finfo;
+    const char *fname;
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

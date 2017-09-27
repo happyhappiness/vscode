@@ -1,15 +1,12 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+static void store_slotmem(ap_slotmem_instance_t *slotmem)
+{
+    apr_file_t *fp;
+    apr_status_t rv;
+    apr_size_t nbytes;
+    const char *storename;
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+    storename = slotmem_filename(slotmem->gpool, slotmem->name, 1);
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02334)
+                 "storing %s", storename);
+

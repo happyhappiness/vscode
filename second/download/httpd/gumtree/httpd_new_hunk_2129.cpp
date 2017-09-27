@@ -1,14 +1,40 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+
+            if (current->token.type == TOKEN_NOT) {
+                current->value = !current->value;
+            }
+            break;
+
+        case TOKEN_ACCESS:
+            if (current->left || !current->right ||
+                (current->right->token.type != TOKEN_STRING &&
+                 current->right->token.type != TOKEN_RE)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s: Token '-A' must be followed by a URI string.",
+                            expr, r->filename);
+                *was_error = 1;
+                return 0;
+            }
+            current->right->token.value =
+                ap_ssi_parse_string(ctx, current->right->token.value, NULL, 0,
+                                    SSI_EXPAND_DROP_NAME);
+            rr = ap_sub_req_lookup_uri(current->right->token.value, r, NULL);
+            /* 400 and higher are considered access denied */
+            if (rr->status < HTTP_BAD_REQUEST) {
+                current->value = 1;
+            }
+            else {
+                current->value = 0;
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rr->status, r, 
+                              "mod_include: The tested "
+                              "subrequest -A \"%s\" returned an error code.",
+                              current->right->token.value);
+            }
+            ap_destroy_sub_req(rr);
+            break;
+
+        case TOKEN_RE:
+            if (!error) {
+                error = "No operator before regex in expr \"%s\" in file %s";
+            }
+        case TOKEN_LBRACE:
+            if (!error) {

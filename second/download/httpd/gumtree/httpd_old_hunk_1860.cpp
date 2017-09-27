@@ -1,42 +1,45 @@
-	ap_destroy_sub_req(pa_req);
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %lu: Released the start mutex", my_pid);
     }
-}
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);
+    }
 
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
+        }
+    }
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+        while (g_blocked_threads > 0) {
+            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %lu: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+            for (i=g_blocked_threads; i > 0; i--) {
+                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+            }
+            Sleep(1000);
+        }
+        /* Empty the accept queue of completion contexts */
+        apr_thread_mutex_lock(qlock);
+        while (qhead) {
+            CloseHandle(qhead->Overlapped.hEvent);
+            closesocket(qhead->accept_socket);
+            qhead = qhead->next;
+        }
+        apr_thread_mutex_unlock(qlock);
+    }
 
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
-
-    if (buffer)
-	*buffer = '\0';
-    w = buffer ? buffer : x;
-
-    ap_hard_timeout("read script header", r);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015')
-		w[p - 2] = '\0';
-	    else
-		w[p - 1] = '\0';
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+    /* Give busy threads a chance to service their connections,
+     * (no more than the global server timeout period which 
+     * we track in msec remaining).
+     */
+    watch_thread = 0;

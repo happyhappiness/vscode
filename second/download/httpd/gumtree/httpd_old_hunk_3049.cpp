@@ -1,31 +1,17 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+         * Calling ap_save_brigade with NULL as filter is OK, because
+         * input_brigade already has been created and does not need to get
+         * created by ap_save_brigade.
+         */
+        status = ap_save_brigade(NULL, &input_brigade, &temp_brigade, p);
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: processing prefetched request body failed"
+                         " to %pI (%s) from %s (%s)",
+                         p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                         c->remote_ip, c->remote_host ? c->remote_host: "");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);
+    /* Ensure we don't hit a wall where we have a buffer too small
+     * for ap_get_brigade's filters to fetch us another bucket,
+     * surrender once we hit 80 bytes less than MAX_MEM_SPOOL

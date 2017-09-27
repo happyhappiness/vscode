@@ -1,9 +1,11 @@
-/* Automatically generated file - do not edit */
+            }
+        }
+    }
+    return 0;
+}
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+void proxy_util_register_hooks(apr_pool_t *p)
+{
+    APR_REGISTER_OPTIONAL_FN(ap_proxy_retry_worker);
+    APR_REGISTER_OPTIONAL_FN(ap_proxy_clear_connection);
+}

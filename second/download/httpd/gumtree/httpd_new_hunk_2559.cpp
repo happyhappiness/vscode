@@ -1,46 +1,31 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
+                                   num_idx * sizeof(SHMCBIndex);
+    header->subcache_data_size = header->subcache_size -
+                                 header->subcache_data_offset;
+    header->index_num = num_idx;
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+    /* Output trace info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00824)
+                 "shmcb_init_memory choices follow");
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00825)
+                 "subcache_num = %u", header->subcache_num);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00826)
+                 "subcache_size = %u", header->subcache_size);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00827)
+                 "subcache_data_offset = %u", header->subcache_data_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00828)
+                 "subcache_data_size = %u", header->subcache_data_size);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00829)
+                 "index_num = %u", header->index_num);
+    /* The header is done, make the caches empty */
+    for (loop = 0; loop < header->subcache_num; loop++) {
+        SHMCBSubcache *subcache = SHMCB_SUBCACHE(header, loop);
+        subcache->idx_pos = subcache->idx_used = 0;
+        subcache->data_pos = subcache->data_used = 0;
     }
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(00830)
+                 "Shared memory socache initialised");
+    /* Success ... */
 
-/* set request */
-    len = decodeenc(path);
+    return APR_SUCCESS;
+}
+

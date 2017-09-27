@@ -1,26 +1,21 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+             * ssl_io_filter_error will disable the ssl filters when it
+             * sees this status code.
+             */
+            return MODSSL_ERROR_HTTP_ON_HTTPS;
         }
-    }
+        else if (ssl_err == SSL_ERROR_SYSCALL) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");
+        }
+        else /* if (ssl_err == SSL_ERROR_SSL) */ {
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, server);
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+        }

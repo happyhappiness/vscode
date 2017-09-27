@@ -1,1 +1,0 @@
-printf("Cannot stat file: %s\n", argv[1]);

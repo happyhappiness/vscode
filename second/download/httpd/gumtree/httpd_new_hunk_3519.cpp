@@ -1,30 +1,13 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+    apr_table_t *t;
+    va_list vp;
 
-    return DECLINED;
-++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
+    /* create RFC2109 compliant cookie */
+    const char *rfc2109 = apr_pstrcat(r->pool, name, "=;Max-Age=0;",
+                                attrs ? attrs : CLEAR_ATTRS, NULL);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00009) LOG_PREFIX
+                  "user '%s' removed cookie: '%s'", r->user, rfc2109);
+
+    /* write the cookie to the header table(s) provided */
+    va_start(vp, attrs);
+    while ((t = va_arg(vp, apr_table_t *))) {
+        apr_table_addn(t, SET_COOKIE, rfc2109);

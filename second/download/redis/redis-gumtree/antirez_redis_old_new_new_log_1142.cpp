@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"CONFIG REWRITE failed: %s", strerror(errno));

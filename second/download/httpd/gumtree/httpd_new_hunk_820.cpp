@@ -1,15 +1,13 @@
-        ERR_error_string_n(e, err, sizeof err);
-        annotation = ssl_log_annotation(err);
-
-        if (annotation) {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s %s",
-                         e, err, annotation);
-        }
-        else {
-            ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s",
-                         e, err);
-        }
+    if (!filename) {
+        return;
     }
-}
+
+    fname = ap_server_root_relative(p, filename);
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
+                     NULL, "Invalid PID file path %s, ignoring.", filename);
+        return;
+    }
+
+    mypid = getpid();
+    if (mypid != saved_pid

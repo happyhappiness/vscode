@@ -1,18 +1,17 @@
-
-    case OP_CALLOUT:
-    fprintf(f, "    %s %d %d %d", OP_names[*code], code[1], GET(code,2),
-      GET(code, 2 + LINK_SIZE));
-    break;
-
-#ifdef SUPPORT_UCP
-    case OP_PROP:
-    case OP_NOTPROP:
-    fprintf(f, "    %s %s", OP_names[*code], get_ucpname(code[1]));
-    break;
-#endif
-
-    /* OP_XCLASS can only occur in UTF-8 mode. However, there's no harm in
-    having this code always here, and it makes it less messy without all those
-    #ifdefs. */
-
-    case OP_CLASS:
+                ;
+            ftpmessage[j] = '\0';
+            if (ftpmessage[0] != '\0')
+                 size = ftpmessage; /* already pstrdup'ed: no copy necessary */
+        }
+        else if (rc == 550) {    /* Not a regular file */
+            ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, r->server,
+                         "proxy: FTP: SIZE shows this is a directory");
+            dirlisting = 1;
+            rc = proxy_ftp_command(apr_pstrcat(p, "CWD ",
+                           ftp_escape_globbingchars(p, path, fdconf), CRLF, NULL),
+                           r, origin, bb, &ftpmessage);
+            /* possible results: 250, 421, 500, 501, 502, 530, 550 */
+            /* 250 Requested file action okay, completed. */
+            /* 421 Service not available, closing control connection. */
+            /* 500 Syntax error, command unrecognized. */
+            /* 501 Syntax error in parameters or arguments. */

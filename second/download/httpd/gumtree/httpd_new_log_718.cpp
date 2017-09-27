@@ -1,1 +1,1 @@
-shown = level;
+ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);

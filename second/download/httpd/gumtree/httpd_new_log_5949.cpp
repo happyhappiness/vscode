@@ -1,0 +1,1 @@
+ap_add_output_filter("H2_TRAILERS", task, r, r->connection);

@@ -1,1 +1,0 @@
-addReplySds(c,sdsnew(invalid_hll_err));

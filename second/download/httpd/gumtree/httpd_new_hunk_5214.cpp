@@ -1,14 +1,41 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_INFO, r,
-                     "client stopped connection before send mmap completed");
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
+
+        rv = mc->stapling_cache->init(mc->stapling_cache_context,
+                                     "mod_ssl-stapling", &hints, s, p);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01872)
+                         "Could not initialize stapling cache. Exiting.");
+            return ssl_die(s);
         }
+    }
+#endif
+
+    /*
+     * Warn the user that he should use the session cache.
+     * But we can operate without it, of course.
+     */
+    if (mc->sesscache == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01873)
+                     "Init: Session Cache is not configured "
+                     "[hint: SSLSessionCache]");
+        return APR_SUCCESS;
+    }
+
+    memset(&hints, 0, sizeof hints);
+    hints.avg_obj_size = 150;
+    hints.avg_id_len = 30;
+    hints.expiry_interval = 30;
+
+    rv = mc->sesscache->init(mc->sesscache_context, "mod_ssl-session", &hints, s, p);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01874)
+                     "Could not initialize session cache. Exiting.");
+        return ssl_die(s);
+    }
+
+    return APR_SUCCESS;
+}
+
+void ssl_scache_kill(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+

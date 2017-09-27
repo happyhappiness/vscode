@@ -1,14 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			     "proxy: error creating cache directory %s",
-			     c->filename);
-	    *p = '/';
-	    ++p;
-	}
-#if defined(__EMX__) || defined(WIN32)
-	/* Under OS/2 use rename. */
-	if (rename(c->tempfile, c->filename) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, s,
-			 "proxy: error renaming cache file %s to %s",
-			 c->tempfile, c->filename);
+
+    /* set the user, even though the user is unauthenticated at this point */
+    if (user && *user) {
+        r->user = (char *) *user;
     }
--- apache_1.3.1/src/modules/proxy/proxy_connect.c	1998-06-08 22:23:50.000000000 +0800
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "from session: " MOD_SESSION_USER ": %s, " MOD_SESSION_PW
+                  ": %s, " MOD_AUTH_FORM_HASH ": %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  hash ? *hash : "<null>");
+
+    return APR_SUCCESS;

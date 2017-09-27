@@ -1,13 +1,14 @@
-    if (i == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
-    }
-    else {
-	pasv[i - 1] = '\0';
-	pstr = strtok(pasv, " ");	/* separate result code */
-	if (pstr != NULL) {
-	    presult = atoi(pstr);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");
+        }
+
+        /* Set a timeout on the socket */
+        if (worker->timeout_set == 1) {
+            apr_socket_timeout_set(newsock, worker->timeout);
+        }
+        else if (conf->timeout_set == 1) {
+            apr_socket_timeout_set(newsock, conf->timeout);
+        }
+        else {

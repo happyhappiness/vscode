@@ -1,20 +1,22 @@
-        return -1;
-    if ((a->waittime) > (b->waittime))
-        return 1;
-    return 0;
+
+    printf("Compiled in modules:\n");
+    for (n = 0; ap_loaded_modules[n]; ++n)
+        printf("  %s\n", ap_loaded_modules[n]->name);
 }
 
-static void output_results(int sig)
+AP_DECLARE(void *) ap_retained_data_get(const char *key)
 {
-    double timetaken;
+    void *retained;
 
-    if (sig) {
-        lasttime = apr_time_now();  /* record final time if interrupted */
-    }
-    timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
+    apr_pool_userdata_get((void *)&retained, key, ap_pglobal);
+    return retained;
+}
 
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hu\n", port);
-#ifdef USE_SSL
+AP_DECLARE(void *) ap_retained_data_create(const char *key, apr_size_t size)
+{
+    void *retained;
+
+    retained = apr_pcalloc(ap_pglobal, size);
+    apr_pool_userdata_set((const void *)retained, key, apr_pool_cleanup_null, ap_pglobal);
+    return retained;
+}

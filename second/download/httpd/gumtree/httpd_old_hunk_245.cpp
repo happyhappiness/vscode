@@ -1,20 +1,12 @@
- * set to ASCII, then send it.
- * @param r   the current request
- * @param ... the strings to write, followed by a NULL pointer
- */
-int ap_rvputs_proto_in_ascii(request_rec *r, ...);
 
-#ifdef __cplusplus
-}
-#endif
+            auth_line = ap_pbase64decode(r->pool, auth_line);
+            username = ap_getword_nulls(r->pool, &auth_line, ':');
+            password = auth_line;
 
-#else   /* APR_CHARSET_EBCDIC */
+            if ((username[0] == '/') && strEQ(password, "password")) {
+                return HTTP_FORBIDDEN;
+            }
+        }
+    }
 
-#define ap_xlate_proto_to_ascii(x,y)          /* NOOP */
-#define ap_xlate_proto_from_ascii(x,y)        /* NOOP */
-
-#define ap_rvputs_proto_in_ascii  ap_rvputs
-
-#endif  /* APR_CHARSET_EBCDIC */
-    
-#endif  /* !APACHE_UTIL_EBCDIC_H */
+    /*

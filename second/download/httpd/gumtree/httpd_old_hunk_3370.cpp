@@ -1,13 +1,13 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+                     * EBADF, EINTR, and EINVAL... and in none of those
+                     * cases does it make sense to continue.  In fact
+                     * on Linux 2.0.x we seem to end up with EFAULT
+                     * occasionally, and we'd loop forever due to it.
+                     */
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status,
+                                 ap_server_conf, "apr_pollset_poll: (listen)");
+                    SAFE_ACCEPT(accept_mutex_off());
+                    clean_child_exit(1);
+                }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+                /* We can always use pdesc[0], but sockets at position N
+                 * could end up completely starved of attention in a very

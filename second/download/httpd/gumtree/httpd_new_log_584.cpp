@@ -1,0 +1,1 @@
+ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, r->server);

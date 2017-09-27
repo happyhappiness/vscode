@@ -1,1 +1,0 @@
-printf("\nTesting against inherited fd (%s):\n", cfg.unix.path);

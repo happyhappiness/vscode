@@ -1,13 +1,13 @@
+    {
+	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
 
-        if (!cid->dconf.fake_async && (tf->dwFlags & HSE_IO_ASYNC)) {
-            if (cid->dconf.log_unsupported)
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
-                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
-            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-            return 0;
-        }
-        
-        /* Presume the handle was opened with the CORRECT semantics
-         * for TransmitFile 
-         */
+    hash = TABLE_HASH(key);

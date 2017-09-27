@@ -1,1 +1,0 @@
-vsnprintf(msg+len,sizeof(msg)-len,reason,ap);

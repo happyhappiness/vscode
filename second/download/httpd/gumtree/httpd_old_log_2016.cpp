@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Cannot allocate shared memory: (%d)%s", rv,
-                     apr_strerror(rv, buf, sizeof(buf)));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: CONNECT: sending the CONNECT request to the remote proxy");

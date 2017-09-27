@@ -1,35 +1,27 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
-
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00478)
+                     "apr_thread_join: unable to join the start " "thread");
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
+}
 
-    r->status = 200;
-    r->status_line = "200 OK";
+static void child_main(int child_num_arg)
+{
+    apr_thread_t **threads;
+    apr_status_t rv;
+    thread_starter *ts;
+    apr_threadattr_t *thread_attr;
+    apr_thread_t *start_thread_id;
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    mpm_state = AP_MPMQ_STARTING;       /* for benefit of any hooks that run as this
+                                         * child initializes
+                                         */
+    ap_my_pid = getpid();
+    ap_fatal_signal_child_setup(ap_server_conf);
+    apr_pool_create(&pchild, pconf);
+
+    /*stuff to do before we switch id's, so we have permissions. */
+    ap_reopen_scoreboard(pchild, NULL, 0);
+
+    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }

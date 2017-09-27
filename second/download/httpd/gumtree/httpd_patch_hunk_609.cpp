@@ -1,28 +1,44 @@
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to create child stdin pipe.");
-         apr_pool_destroy(ptemp);
-         return -1;
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                      "Unable to get upgradeable socket handle");
+         return ap_pass_brigade(f->next, bb);
      }
  
-+    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
-+    if (((rv = apr_file_open_stdout(&child_out, p))
-+            != APR_SUCCESS) ||
-+        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
-+            != APR_SUCCESS)) {
-+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-+                     "Parent: Could not set child process stdout");
-+    }
-+    if (((rv = apr_file_open_stderr(&child_err, p))
-+            != APR_SUCCESS) ||
-+        ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
-+            != APR_SUCCESS)) {
-+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-+                     "Parent: Could not set child process stderr");
-+    }
+ 
+-    if (r->method_number == M_OPTIONS) {
+-        apr_bucket *b = NULL;
+-        /* This is a mandatory SSL upgrade. */
+-
+-        upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+-
+-        ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
+-                    UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
+-
+-        b = apr_bucket_flush_create(f->c->bucket_alloc);
+-        APR_BRIGADE_INSERT_TAIL(upgradebb, b);
+-        ap_pass_brigade(f->next, upgradebb);
+-    }
+-    else {
+-        /* This is optional, and should be configurable, for now don't bother
+-         * doing anything.
+-         */
+-        return ap_pass_brigade(f->next, bb);
++    /* Send the interim 101 response. */
++    upgradebb = apr_brigade_create(r->pool, f->c->bucket_alloc);
 +
-     /* Create the child_ready_event */
-     waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
-     if (!waitlist[waitlist_ready]) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                      "Parent: Could not create ready event for child process");
-         apr_pool_destroy (ptemp);
++    ap_fputstrs(f->next, upgradebb, SWITCH_STATUS_LINE, CRLF,
++                UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);
++
++    b = apr_bucket_flush_create(f->c->bucket_alloc);
++    APR_BRIGADE_INSERT_TAIL(upgradebb, b);
++
++    rv = ap_pass_brigade(f->next, upgradebb);
++    if (rv) {
++        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
++                      "could not send interim 101 Upgrade response");
++        return AP_FILTER_ERROR;
+     }
+ 
+     key = get_port_key(r->connection);
+ 
+     if (csd && key) {
+         int sockdes;

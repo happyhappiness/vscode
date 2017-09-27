@@ -1,13 +1,13 @@
-{
-    cache_server_conf *conf;
-    cache_request_rec *cache;
-    char *port_str, *hn, *lcs;
-    const char *hostname, *scheme;
-    int i;
-    char *path, *querystring;
+    worker = ap_proxy_get_worker(cmd->temp_pool, conf, name);
+    if (!worker) {
+        const char *err;
+        if ((err = ap_proxy_add_worker(&worker, cmd->pool, conf, name)) != NULL)
+            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+    } else {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);
+    }
+    PROXY_COPY_CONF_PARAMS(worker, conf);
 
-    cache = (cache_request_rec *) ap_get_module_config(r->request_config,
-                                                       &cache_module);
-    if (!cache) {
-        /* This should never happen */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+    arr = apr_table_elts(params);
+    elts = (const apr_table_entry_t *)arr->elts;

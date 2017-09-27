@@ -1,13 +1,13 @@
+        ctx.propfind_type = DAV_PROPFIND_IS_PROP;
+    }
+    else {
+        /* "propfind" element must have one of the above three children */
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The \"propfind\" element does not contain one of "
+                      "the required child elements (the specific command).");
+        return HTTP_BAD_REQUEST;
+    }
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    ctx.w.walk_type = DAV_WALKTYPE_NORMAL | DAV_WALKTYPE_AUTH;

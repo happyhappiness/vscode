@@ -1,3 +1,6 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
-                     "%s: apr_gethostname() failed to determine ServerName",
-                     ap_server_argv0);
+E(apr_status_t) apr_file_puts(const char *str, apr_file_t *thefile)
+{
+    apr_size_t len = strlen(str);
+
+    return apr_file_write(thefile, str, &len);
+};

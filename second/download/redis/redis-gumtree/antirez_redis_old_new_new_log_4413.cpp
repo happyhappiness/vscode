@@ -1,1 +1,0 @@
-redis::value_error("invalid number");

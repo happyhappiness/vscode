@@ -1,65 +1,39 @@
- {
-     apr_pool_destroy(process->pool); /* and destroy all descendent pools */
-     apr_terminate();
-     exit(process_exit_value);
- }
+  */
+ AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter(const char *name,
+                                             ap_out_filter_func filter_func,
+                                             ap_init_filter_func filter_init,
+                                             ap_filter_type ftype);
  
--static process_rec *create_process(int argc, const char * const *argv)
-+static process_rec *init_process(int *argc, const char * const * *argv)
- {
-     process_rec *process;
-     apr_pool_t *cntx;
-     apr_status_t stat;
-+    const char *failed = "apr_app_initialize()";
++/* For httpd-2.2 I suggest replacing the above with
++#define ap_register_output_filter(name,ffunc,init,ftype) \
++             ap_register_output_filter_protocol(name,ffunc,init,ftype,0)
++*/
 +
-+    stat = apr_app_initialize(argc, argv, NULL);
-+    if (stat == APR_SUCCESS) {
-+        failed = "apr_pool_create()";
-+        stat = apr_pool_create(&cntx, NULL);
-+    }
- 
--    stat = apr_pool_create(&cntx, NULL);
-     if (stat != APR_SUCCESS) {
--        /* XXX From the time that we took away the NULL pool->malloc mapping
--         *     we have been unable to log here without segfaulting.
-+        /* For all intents and purposes, this is impossibly unlikely,
-+         * but APR doesn't exist yet, we can't use it for reporting
-+         * these earliest two failures;
-          */
--        ap_log_error(APLOG_MARK, APLOG_ERR, stat, NULL,
--                     "apr_pool_create() failed to create "
--                     "initial context");
-+        char ctimebuff[APR_CTIME_LEN];
-+        apr_ctime(ctimebuff, apr_time_now());
-+        fprintf(stderr, "[%s] [crit] (%d) %s: %s failed "
-+                        "to initial context, exiting\n", 
-+                        ctimebuff, stat, (*argv)[0], failed);
-         apr_terminate();
-         exit(1);
-     }
- 
-     apr_pool_tag(cntx, "process");
-     ap_open_stderr_log(cntx);
- 
-+    /* Now we have initialized apr and our logger, no more
-+     * exceptional error reporting required for the lifetime
-+     * of this server process.
-+     */
++/**
++ * This function is used to register an output filter with the system. 
++ * After this registration is performed, then a filter may be added 
++ * into the filter chain by using ap_add_output_filter() and simply 
++ * specifying the name.  It may also be used as a provider under mod_filter.
++ *
++ * @param name The name to attach to the filter function
++ * @param filter_func The filter function to name
++ * @param filter_init The function to call before the filter handlers 
++ *                    are invoked
++ * @param ftype The type of filter function, either ::AP_FTYPE_CONTENT or
++ *              ::AP_FTYPE_CONNECTION
++ * @param proto_flags Protocol flags: logical OR of AP_FILTER_PROTO_* bits
++ * @see ap_add_output_filter()
++ */
++AP_DECLARE(ap_filter_rec_t *) ap_register_output_filter_protocol(
++                                            const char *name,
++                                            ap_out_filter_func filter_func,
++                                            ap_init_filter_func filter_init,
++                                            ap_filter_type ftype,
++                                            unsigned int proto_flags);
 +
-     process = apr_palloc(cntx, sizeof(process_rec));
-     process->pool = cntx;
- 
-     apr_pool_create(&process->pconf, process->pool);
-     apr_pool_tag(process->pconf, "pconf");
--    process->argc = argc;
--    process->argv = argv;
--    process->short_name = apr_filename_of_pathname(argv[0]);
-+    process->argc = *argc;
-+    process->argv = *argv;
-+    process->short_name = apr_filepath_name_get((*argv)[0]);
-     return process;
- }
- 
- static void usage(process_rec *process)
- {
-     const char *bin = process->argv[0];
+ /**
+  * Adds a named filter into the filter chain on the specified request record.
+  * The filter will be installed with the specified context pointer.
+  *
+  * Filters added in this way will always be placed at the end of the filters
+  * that have the same type (thus, the filters have the same order as the

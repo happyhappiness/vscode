@@ -1,18 +1,13 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+        mpm_main_cleanup();
+        return 1;
+    }
+    else {  /* the only other way out is a restart */
+        /* advance to the next generation */
+        /* XXX: we really need to make sure this new generation number isn't in
+         * use by any of the children.

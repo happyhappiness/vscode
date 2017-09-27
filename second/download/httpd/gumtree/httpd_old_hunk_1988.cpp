@@ -1,15 +1,13 @@
+    if (!fname) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                     MODNAME ": Invalid magic file path %s", conf->magicfile);
+        return -1;
     }
-    else {
-	alarm_fn = fn;
-	alarm_expiry_time = time(NULL) + x;
+    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED,
+                                APR_OS_DEFAULT, p) != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                     MODNAME ": can't read magic file %s", fname);
+        return -1;
     }
-#else
-    if (x) {
-	alarm_fn = fn;
-    }
-#ifndef OPTIMIZE_TIMEOUTS
-    old = alarm(x);
-#else
-    if (child_timeouts) {
-	old = alarm(x);
-    }
+
+    /* set up the magic list (empty) */

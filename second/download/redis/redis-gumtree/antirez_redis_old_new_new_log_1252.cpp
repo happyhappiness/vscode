@@ -1,1 +1,0 @@
-ci = sdscatlen(ci,node->slaveof->name,40);

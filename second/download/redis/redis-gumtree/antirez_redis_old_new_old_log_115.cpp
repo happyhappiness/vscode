@@ -1,1 +1,0 @@
-len = snprintf(buf,size,"\"%c\"",byte);

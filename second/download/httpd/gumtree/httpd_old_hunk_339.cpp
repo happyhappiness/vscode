@@ -1,18 +1,14 @@
-#endif
-        rv = unixd_set_proc_mutex_perms(accept_mutex);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                         "Couldn't set permissions on cross-process lock; "
-                         "check User and Group directives");
-            return 1;
-        }
-    }
+	     * needs to be extended to handle whatever servers folks want to
+	     * test against. -djg
+	     */
 
-    if (!is_graceful) {
-        if (ap_run_pre_mpm(s->process->pool, SB_SHARED) != OK) {
-            return 1;
-        }
-        /* fix the generation number in the global score; we just got a new,
-         * cleared scoreboard
-         */
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
+	    /* check response code */
+	    part = strstr(c->cbuff, "HTTP");	/* really HTTP/1.x_ */
+	    strncpy(respcode, (part + strlen("HTTP/1.x_")), 3);
+	    respcode[3] = '\0';
+	    if (respcode[0] != '2') {
+		err_response++;
+		if (verbosity >= 2)
+		    printf("WARNING: Response code not 2xx (%s)\n", respcode);
+	    }
+	    else if (verbosity >= 3) {

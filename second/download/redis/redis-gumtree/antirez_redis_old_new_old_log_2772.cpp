@@ -1,1 +1,0 @@
-f("%d\n", server.auto_aofrewrite_perc);

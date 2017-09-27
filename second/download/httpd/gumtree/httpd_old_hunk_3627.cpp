@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+                break;
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+            case AP_FCGI_STDERR:
+                /* TODO: Should probably clean up this logging a bit... */
+                if (clen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", iobuf);
+                }
+
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }

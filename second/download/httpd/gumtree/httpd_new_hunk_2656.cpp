@@ -1,27 +1,52 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+            token = ap_get_token(r->pool, &accepts, 0);
+            while (token && token[0] && strcasecmp(token, "gzip")) {
+                /* skip parameters, XXX: ;q=foo evaluation? */
+                while (*accepts == ';') {
+                    ++accepts;
+                    ap_get_token(r->pool, &accepts, 1);
+                }
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
+                /* retrieve next token */
+                if (*accepts == ',') {
+                    ++accepts;
+                }
+                token = (*accepts) ? ap_get_token(r->pool, &accepts, 0) : NULL;
+            }
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
+            /* No acceptable token found. */
+            if (token == NULL || token[0] == '\0') {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                              "Not compressing (no Accept-Encoding: gzip)");
+                ap_remove_output_filter(f);
+                return ap_pass_brigade(f->next, bb);
+            }
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                          "Forcing compression (force-gzip set)");
+        }
 
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800
+        /* At this point we have decided to filter the content. Let's try to
+         * to initialize zlib (except for 304 responses, where we will only
+         * send out the headers).
+         */
+
+        if (r->status != HTTP_NOT_MODIFIED) {
+            ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+            ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+            ctx->libz_end_func = deflateEnd;
+
+            zRC = deflateInit2(&ctx->stream, c->compressionlevel, Z_DEFLATED,
+                               c->windowSize, c->memlevel,
+                               Z_DEFAULT_STRATEGY);
+
+            if (zRC != Z_OK) {
+                deflateEnd(&ctx->stream);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01383)
+                              "unable to init Zlib: "
+                              "deflateInit2 returned %d: URL %s",
+                              zRC, r->uri);
+                /*
+                 * Remove ourselves as it does not make sense to return:
+                 * We are not able to init libz and pass data down the chain

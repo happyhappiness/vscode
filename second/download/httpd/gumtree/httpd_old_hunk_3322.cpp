@@ -1,20 +1,24 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    apr_thread_mutex_create(&g_timer_ring_mtx, APR_THREAD_MUTEX_DEFAULT, pchild);
+    APR_RING_INIT(&timer_free_ring, timer_event_t, link);
+    APR_RING_INIT(&timer_ring, timer_event_t, link);
+    
+    ap_run_child_init(pchild, ap_server_conf);
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    /* done with init critical section */
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    /* Just use the standard apr_setup_signal_thread to block all signals
+     * from being received.  The child processes no longer use signals for
+     * any communication with the parent process.
+     */
+    rv = apr_setup_signal_thread();
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "Couldn't initialize signal thread");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
+
+    if (ap_max_requests_per_child) {
+        requests_this_child = ap_max_requests_per_child;

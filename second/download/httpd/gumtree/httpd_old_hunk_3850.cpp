@@ -1,31 +1,18 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+        ap_log_error(APLOG_MARK, APLOG_ALERT | level_flags, 0,
+                     (startup ? NULL : s),
+                     "no listening sockets available, shutting down");
+        return DONE;
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
+    if ((rv = ap_mpm_pod_open(pconf, &pod))) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
+                     (startup ? NULL : s),
+                     "could not open pipe-of-death");
+        return DONE;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+    return OK;
+}
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);
+static int prefork_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
+{
+    int no_detach, debug, foreground;

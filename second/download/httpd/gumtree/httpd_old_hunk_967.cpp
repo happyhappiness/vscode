@@ -1,19 +1,13 @@
-            if (!signal) {
-                fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
-                return;
-            }
-        }
+    }
+    return APR_SUCCESS; 
+}
 
-        fprintf(stderr,"The %s service is %s.\n", mpm_display_name, 
-               signal ? "restarting" : "stopping");
+APR_DECLARE(apr_status_t) apr_file_puts(const char *str, apr_file_t *thefile)
+{
+    DWORD len = strlen(str);
 
-        apr_snprintf(prefix, sizeof(prefix), "ap%ld", (long)service_pid);
-        setup_signal_names(prefix);
+    return apr_file_write(thefile, str, &len);
+}
 
-        if (!signal) 
-        {
-            int ticks = 60;
-            ap_signal_parent(SIGNAL_PARENT_SHUTDOWN);
-            while (--ticks)
-            {
-                if (!IsWindow(hwnd)) {
+APR_DECLARE(apr_status_t) apr_file_gets(char *str, int len, apr_file_t *thefile)
+{

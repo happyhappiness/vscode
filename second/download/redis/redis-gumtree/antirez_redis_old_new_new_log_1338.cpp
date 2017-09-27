@@ -1,1 +1,0 @@
-printf("ERROR: Merging two empty ziplists created entries.\n");

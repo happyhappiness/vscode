@@ -1,0 +1,1 @@
+ap_rputs("  <table id=\"indexlist\">\n   <tr class=\"indexhead\">", r);

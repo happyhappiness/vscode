@@ -1,13 +1,32 @@
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_WARNING, errno,
-                         ap_server_conf,
-                         "processor unbind failed %d", status);
-#endif
-        RAISE_SIGSTOP(MAKE_CHILD);
+    ((re->options & PCRE_EXTRA) != 0)? "extra " : "",
+    ((re->options & PCRE_UNGREEDY) != 0)? "ungreedy " : "");
+  }
 
-        apr_signal(SIGTERM, just_die);
+if ((re->options & PCRE_FIRSTSET) != 0)
+  {
+  int ch = re->first_byte & 255;
+  const char *caseless = ((re->first_byte & REQ_CASELESS) == 0)? "" : " (caseless)";
+  if (isprint(ch)) printf("First char = %c%s\n", ch, caseless);
+    else printf("First char = \\x%02x%s\n", ch, caseless);
+  }
+
+if ((re->options & PCRE_REQCHSET) != 0)
+  {
+  int ch = re->req_byte & 255;
+  const char *caseless = ((re->req_byte & REQ_CASELESS) == 0)? "" : " (caseless)";
+  if (isprint(ch)) printf("Req char = %c%s\n", ch, caseless);
+    else printf("Req char = \\x%02x%s\n", ch, caseless);
+  }
+
+print_internals(re, stdout);
+
+/* This check is done here in the debugging case so that the code that
+was compiled can be seen. */
+
+if (code - codestart > length)
+  {
+  *errorptr = ERR23;
+  (pcre_free)(re);
+  *erroroffset = ptr - (uschar *)pattern;
+  return NULL;
+  }

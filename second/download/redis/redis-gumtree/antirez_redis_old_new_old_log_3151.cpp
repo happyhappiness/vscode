@@ -1,1 +1,0 @@
-snprintf(buf2+len,sizeof(buf2)-len,"%ld.%ld",(long)time(NULL),(long)val);

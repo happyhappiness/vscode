@@ -1,1 +1,0 @@
-serverLog(LL_NOTICE,"Replication failed, can't BGSAVE");

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot reinit SSLMutex with file `%s'",
-                         mc->szMutexFile);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                      "LDAP: SSL trusted certificate authority file - %s", 
+                       file);

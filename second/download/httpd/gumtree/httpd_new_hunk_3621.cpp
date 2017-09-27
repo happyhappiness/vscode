@@ -1,32 +1,25 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+                      "Unable to find entry function '%s' in %s (not a valid function)",
+                      prov_spec->function_name, prov_spec->file_name);
+        ap_lua_release_state(L, spec, r);
+        return AUTHZ_GENERAL_ERROR;
     }
-#if !defined(__EMX__) && !defined(WIN32)
-    /* make sure the childs have access to this file */
-    if (geteuid() == 0 /* is superuser */)
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-#endif
-
-    return;
-}
-
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
-
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0') {
-        return;
+    ap_lua_run_lua_request(L, r);
+    if (prov_func->args) {
+        int i;
+        if (!lua_checkstack(L, prov_func->args->nelts)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02315)
+                          "Error: authz provider %s: too many arguments", prov_spec->name);
+            ap_lua_release_state(L, spec, r);
+            return AUTHZ_GENERAL_ERROR;
+        }
+        for (i = 0; i < prov_func->args->nelts; i++) {
+            const char *arg = APR_ARRAY_IDX(prov_func->args, i, const char *);
+            lua_pushstring(L, arg);
+        }
+        nargs = prov_func->args->nelts;
     }
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    if (lua_pcall(L, 1 + nargs, 1, 0)) {
+        const char *err = lua_tostring(L, -1);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02316)
+                      "Error executing authz provider %s: %s", prov_spec->name, err);
+        ap_lua_release_state(L, spec, r);

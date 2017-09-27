@@ -1,0 +1,1 @@
+h2_ihash_iter(m->tasks, task_abort_connection, m);

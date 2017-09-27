@@ -1,16 +1,13 @@
-        }
-        if (cid->dconf.log_to_errlog)
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "ISAPI: %s: %s", cid->r->filename,
-                          (char*) buf_data);
-        return 1;
-        
-    case HSE_REQ_IO_COMPLETION:
-        /* Emulates a completion port...  Record callback address and 
-         * user defined arg, we will call this after any async request 
-         * (e.g. transmitfile) as if the request executed async.
-         * Per MS docs... HSE_REQ_IO_COMPLETION replaces any prior call
-         * to HSE_REQ_IO_COMPLETION, and buf_data may be set to NULL.
+        return my_addr;
+    }
+
+    hep = gethostbyname(w);
+
+    if ((!hep) || (hep->h_addrtype != AF_INET || !hep->h_addr_list[0])) {
+        /* XXX Should be echoing by h_errno the actual failure, no? 
+         * ap_log_error would be good here.  Better yet - APRize.
          */
-        if (cid->dconf.fake_async) {
-            cid->completion = (PFN_HSE_IO_COMPLETION) buf_data;
+        fprintf(stderr, "Cannot resolve host name %s --- exiting!\n", w);
+        exit(1);
+    }
+

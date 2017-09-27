@@ -1,12 +1,14 @@
-            && (service_to_start_success != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL,
-                     "%s: Unable to start the service manager.",
-                     service_name);
-        exit(APEXIT_INIT);
-    }
+                     "Loading certificate & private key of SSL-aware server");
 
-    /* Win9x: disable AcceptEx */
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
-        use_acceptex = 0;
-    }
-
+        /*
+         * Read in server certificate(s): This is the easy part
+         * because this file isn't encrypted in any way.
+         */
+        if (sc->server->pks->cert_files[0] == NULL
+            && sc->server->pkcs7 == NULL) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
+                         "Server should be SSL-aware but has no certificate "
+                         "configured [Hint: SSLCertificateFile] (%s:%d)",
+                         pServ->defn_name, pServ->defn_line_number);
+            ssl_die();
+        }

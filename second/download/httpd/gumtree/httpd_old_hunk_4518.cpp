@@ -1,13 +1,30 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
+         */
+        status = apr_file_seek(fd, APR_SET, &offset);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = apr_file_read(fd, io->scratch + io->slen, &len);
+#if LOG_SCRATCH
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->c, APLOGNO(03387)
+                      "h2_conn_io(%ld): FILE_to_scratch(%ld)", 
+                      io->c->id, (long)len); 
+#endif
+        if (status != APR_SUCCESS && status != APR_EOF) {
+            return status;
+        }
+        io->slen += len;
     }
+    else {
+        status = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
+        if (status == APR_SUCCESS) {
+#if LOG_SCRATCH
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03388)
+                          "h2_conn_io(%ld): read_to_scratch(%ld)", 
+                          io->c->id, (long)b->length); 
+#endif
+            memcpy(io->scratch+io->slen, data, len);
+            io->slen += len;
+        }
+    }
+    return status;
+}

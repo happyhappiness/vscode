@@ -1,15 +1,14 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+    apr_shm_t *shm;
+    apr_status_t rv;
 
-        r->read_chunked = 1;
+    if (gpool == NULL) {
+        return APR_ENOSHMAVAIL;
     }
-    else if (lenp) {
-        char *pos = lenp;
+    fname = slotmem_filename(pool, name, 0);
+    if (!fname) {
+        return APR_ENOSHMAVAIL;
+    }
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02301)
+                 "attach looking for %s", fname);
+

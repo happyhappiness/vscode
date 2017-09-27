@@ -1,20 +1,57 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
+        APR_BRIGADE_INSERT_TAIL(bb,
+                                apr_bucket_flush_create(conn->bucket_alloc));
+        rv = ap_pass_brigade(conn->output_filters, bb);
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    if (rv) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02029)
+                      "failed to send 101 interim response for connection "
+                      "upgrade");
+        return rv;
+    }
 
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    ssl_init_ssl_connection(conn, r);
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    sslconn = myConnConfig(conn);
+    ssl = sslconn->ssl;
+
+    /* Perform initial SSL handshake. */
+    SSL_set_accept_state(ssl);
+    SSL_do_handshake(ssl);
+
+    if (SSL_get_state(ssl) != SSL_ST_OK) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02030)
+                      "TLS upgrade handshake failed: not accepted by client!?");
+
+        return APR_ECONNABORTED;
+    }
+
+    return APR_SUCCESS;
+}
+
+/* Perform a speculative (and non-blocking) read from the connection
+ * filters for the given request, to determine whether there is any
+ * pending data to read.  Return non-zero if there is, else zero. */
+static int has_buffered_data(request_rec *r)
+{
+    apr_bucket_brigade *bb;
+    apr_off_t len;
+    apr_status_t rv;
+    int result;
+
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    rv = ap_get_brigade(r->connection->input_filters, bb, AP_MODE_SPECULATIVE,
+                        APR_NONBLOCK_READ, 1);
+    result = rv == APR_SUCCESS
+        && apr_brigade_length(bb, 1, &len) == APR_SUCCESS
+        && len > 0;
+
+    apr_brigade_destroy(bb);
+
+    return result;
+}
+
+/*
+ *  Post Read Request Handler
+ */

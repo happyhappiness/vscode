@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                          "apr_socket_opt_set(APR_TCP_NODELAY): "
-                          "Failed to set");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s failed the size check "
+                     "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
+                     key, len, conf->minfs);

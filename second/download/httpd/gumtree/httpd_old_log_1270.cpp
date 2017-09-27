@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
-                      "DBD: mod_dbd not compatible with apr in get_driver");
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                      "Failed to acquire DBD connection from pool!");

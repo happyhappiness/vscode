@@ -1,13 +1,13 @@
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+        (*starting_elem)++;
+        i++;
+    }
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02492)
+                      "ap_fcgi_encode_env: out of space "
+                      "encoding environment");
+    }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    return rv;
+}

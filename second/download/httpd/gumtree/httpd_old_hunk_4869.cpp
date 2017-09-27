@@ -1,17 +1,16 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+                      APLOGrtrace4(r) ? ", headers:" : "");
+
+        /*
+         * Date and Server are less interesting, use TRACE5 for them while
+         * using TRACE4 for the other headers.
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Date",
+                      proxy_date ? proxy_date : date );
+        if (server)
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Server",
+                          server);
     }
 
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
-    }
-#endif
 
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+    /* unset so we don't send them again */
+    apr_table_unset(r->headers_out, "Date");        /* Avoid bogosity */

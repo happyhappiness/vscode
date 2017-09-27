@@ -1,13 +1,13 @@
-
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+            b = apr_bucket_flush_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, b);
+            rv = ap_pass_brigade(cid->r->output_filters, bb);
+            cid->response_sent = 1;
+            if (rv != APR_SUCCESS)
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at

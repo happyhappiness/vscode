@@ -1,31 +1,26 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+    case HSE_REQ_MAP_URL_TO_PATH:
+    {
+        /* Map a URL to a filename */
+        char *file = (char *)buf_data;
+        apr_uint32_t len;
+        subreq = ap_sub_req_lookup_uri(apr_pstrndup(r->pool, file, *buf_size),
+                                       r, NULL);
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+        len = apr_cpystrn(file, subreq->filename, *buf_size) - file;
 
-    ap_kill_timeout(r);
+
+        /* IIS puts a trailing slash on directories, Apache doesn't */
+        if (subreq->finfo.filetype == APR_DIR) {
+            if (len < *buf_size - 1) {
+                file[len++] = '\\';
+                file[len] = '\0';
+            }
+        }
+        *buf_size = len;
+        return 1;
+    }
+
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,

@@ -1,3 +1,1 @@
-printf("error reading postfile: read only %"
-	       APR_SIZE_T_FMT " bytes",
-	       length);
+apr_file_printf(errfile, " -c  Create a new file.\n");

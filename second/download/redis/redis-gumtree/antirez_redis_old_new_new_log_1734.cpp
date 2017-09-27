@@ -1,1 +1,0 @@
-printf("\n-------- summary -------\n\n");

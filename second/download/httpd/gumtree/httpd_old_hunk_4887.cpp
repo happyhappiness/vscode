@@ -1,13 +1,13 @@
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
-    version_locked++;
-    ap_open_logs(server_conf, pconf);
-    set_group_privs();
+    connectport = proxyname ? proxyport : uri.port;
 
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
-#ifdef WIN32
-    if (!child) {
-	printf("%s \n", ap_get_server_version());
+    /* Do a DNS lookup for the next hop */
+    rv = apr_sockaddr_info_get(&nexthop, connectname, APR_UNSPEC, 
+                               connectport, 0, p);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO()
+                      "failed to resolve hostname '%s'", connectname);
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             apr_pstrcat(p, "DNS lookup failure for: ",
+                                         connectname, NULL));
     }
+

@@ -1,13 +1,13 @@
+        case LELONG:
+            v = (long) v;
+            break;
+        case STRING:
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01520)
+                        MODNAME ": can't happen: m->type=%d", m->type);
+            return -1;
+        }
+    return v;
 }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char parsed_string[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

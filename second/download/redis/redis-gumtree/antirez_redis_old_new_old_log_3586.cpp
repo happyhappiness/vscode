@@ -1,1 +1,0 @@
-fprintf(fp,"%d\n",getpid());

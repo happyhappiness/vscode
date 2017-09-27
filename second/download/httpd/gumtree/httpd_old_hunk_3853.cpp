@@ -1,13 +1,12 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
-    }
+        }
 
-    fputs("%response\n", f);
-    hdrs_arr = table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+        /* This child needs the existing stderr opened for logging,
+         * already
+         */
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+
+        /* The parent is responsible for providing the
+         * COMPLETE ARGUMENTS REQUIRED to the child.
+         *
+         * No further argument parsing is needed, but
+         * for good measure we will provide a simple

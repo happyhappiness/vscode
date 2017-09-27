@@ -1,13 +1,14 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+        /* we treat this as a NOP */
+        return APR_SUCCESS;
     }
-#elif defined(__EMX__)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+    s = nghttp2_session_find_stream(session->ngh2, stream->id);
+    if (!s) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
+                      session->id, stream->id);
+        return APR_EINVAL;
+    }
+    
+    s_parent = nghttp2_stream_get_parent(s);
+    if (s_parent) {
+        nghttp2_priority_spec ps;

@@ -1,1 +1,0 @@
-fprintf(stderr, "Completed %ld requests\n", done);

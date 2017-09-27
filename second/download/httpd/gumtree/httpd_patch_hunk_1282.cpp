@@ -1,14 +1,33 @@
-         proxy_worker *worker = ap_proxy_get_worker(cmd->temp_pool, conf, r);
-         if (!worker) {
-             const char *err = ap_proxy_add_worker(&worker, cmd->pool, conf, r);
-             if (err)
-                 return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
-         } else {
--            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
-                          "worker %s already used by another worker", worker->name);
-         }
-         PROXY_COPY_CONF_PARAMS(worker, conf);
+     /* Release the start_mutex to let the new process (in the restart
+      * scenario) a chance to begin accepting and servicing requests
+      */
+     rv = apr_proc_mutex_unlock(start_mutex);
+     if (rv == APR_SUCCESS) {
+         ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+-                     "Child %d: Released the start mutex", my_pid);
++                     "Child %lu: Released the start mutex", my_pid);
+     }
+     else {
+         ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+-                     "Child %d: Failure releasing the start mutex", my_pid);
++                     "Child %lu: Failure releasing the start mutex", my_pid);
+     }
  
-         for (i = 0; i < arr->nelts; i++) {
-             const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+     /* Shutdown the worker threads */
+     if (!use_acceptex) {
+         for (i = 0; i < threads_created; i++) {
+             add_job(INVALID_SOCKET);
+         }
+     }
+     else { /* Windows NT/2000 */
+         /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+         while (g_blocked_threads > 0) {
+             ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+-                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
++                         "Child %lu: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+             for (i=g_blocked_threads; i > 0; i--) {
+                 PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+             }
+             Sleep(1000);
+         }
+         /* Empty the accept queue of completion contexts */

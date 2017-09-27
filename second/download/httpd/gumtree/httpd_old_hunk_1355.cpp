@@ -1,13 +1,13 @@
-    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
-    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
-    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
-    fprintf(stderr, "    -h              Display usage information (this message)\n");
-#ifdef USE_SSL
-    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
-    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
-#endif
-    exit(EINVAL);
-}
+     * restarts, so we'll create a global pool and never clean it.
+     */
+    rv = apr_pool_create(&global_pool, NULL);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Fatal error: unable to create global pool "
+                     "for use with by the scoreboard");
+        return rv;
+    }
 
-/* ------------------------------------------------------- */
-
+    /* The config says to create a name-based shmem */
+    if (ap_scoreboard_fname) {
+        /* make sure it's an absolute pathname */

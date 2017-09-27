@@ -1,25 +1,49 @@
-	return ap_proxyerror(r, err);	/* give up */
+}
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+static apr_status_t stream_release(h2_session *session, 
+                                   h2_stream *stream,
+                                   uint32_t error_code) 
+{
+    conn_rec *c = session->c;
+    apr_bucket *b;
+    apr_status_t status;
+    
+    if (!error_code) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_stream(%ld-%d): handled, closing", 
+                      session->id, (int)stream->id);
+        if (H2_STREAM_CLIENT_INITIATED(stream->id)) {
+            if (stream->id > session->local.completed_max) {
+                session->local.completed_max = stream->id;
+            }
+        }
     }
-
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03065)
+                      "h2_stream(%ld-%d): closing with err=%d %s", 
+                      session->id, (int)stream->id, (int)error_code,
+                      h2_h2_err_description(error_code));
+        h2_stream_rst(stream, error_code);
     }
-#endif
+    
+    b = h2_bucket_eos_create(c->bucket_alloc, stream);
+    APR_BRIGADE_INSERT_TAIL(session->bbtmp, b);
+    status = h2_conn_io_pass(&session->io, session->bbtmp);
+    apr_brigade_cleanup(session->bbtmp);
+    return status;
+}
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+static int on_stream_close_cb(nghttp2_session *ngh2, int32_t stream_id,
+                              uint32_t error_code, void *userp)
+{
+    h2_session *session = (h2_session *)userp;
+    h2_stream *stream;
+    
+    (void)ngh2;
+    stream = get_stream(session, stream_id);
+    if (stream) {
+        stream_release(session, stream, error_code);
+    }
+    return 0;
+}
+

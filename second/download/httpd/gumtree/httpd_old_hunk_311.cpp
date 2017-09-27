@@ -1,22 +1,12 @@
-                apr_pstrcat(p, "Corrupt status line returned by remote "
-                            "server: ", buffer, NULL));
-            }
-            backasswards = 0;
+     * child at once.
+     */
+    ap_scoreboard_image->parent[0].quiescing = 0;
+    ap_scoreboard_image->parent[0].pid = child_pid;
 
-            keepchar = buffer[12];
-            if (keepchar == '\0') {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d status line "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
-            }
-            buffer[12] = '\0';
-            r->status = atoi(&buffer[9]);
-
-            buffer[12] = keepchar;
-            r->status_line = apr_pstrdup(p, &buffer[9]);
-            
-
-            /* read the headers. */
-            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
-            /* Also, take care with headers with multiple occurences. */
+    /* Wait for shutdown or restart events or for child death */
+    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
+    cld = rv - WAIT_OBJECT_0;
+    if (rv == WAIT_FAILED) {
+        /* Something serious is wrong */
+        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");

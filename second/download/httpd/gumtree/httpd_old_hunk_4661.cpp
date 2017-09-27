@@ -1,13 +1,13 @@
-            if (result != DECLINED)
-                return result;
+static apr_status_t accept_mutex_on(void)
+{
+    apr_status_t rv = apr_proc_mutex_lock(my_bucket->mutex);
+    if (rv != APR_SUCCESS) {
+        const char *msg = "couldn't grab the accept mutex";
+
+        if (retained->my_generation !=
+            ap_scoreboard_image->global->running_generation) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf, APLOGNO(00143) "%s", msg);
+            clean_child_exit(0);
         }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+        else {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00144) "%s", msg);

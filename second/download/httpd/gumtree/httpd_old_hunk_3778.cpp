@@ -1,16 +1,32 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+                    return decl_die(access_status, "check user", r);
+                }
+                if ((access_status = ap_run_auth_checker(r)) != OK) {
+                    return decl_die(access_status, "check authorization", r);
+                }
+            }
+            break;
+        case SATISFY_ANY:
+            if ((access_status = ap_run_access_checker(r)) == OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                              "request authorized without authentication by "
+                              "access_checker hook and 'Satisfy any': %s",
+                              r->uri);
+                break;
+            }
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+            access_status = ap_run_access_checker_ex(r);
+            if (access_status == OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                              "request authorized without authentication by "
+                              "access_checker_ex hook: %s", r->uri);
+            }
+            else if (access_status != DECLINED) {
+                return decl_die(access_status, "check access", r);
+            }
+            else {
+                if ((access_status = ap_run_check_user_id(r)) != OK) {
+                    return decl_die(access_status, "check user", r);
+                }
+                if (r->user == NULL) {
+                    /* don't let buggy authn module crash us in authz */
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00028)

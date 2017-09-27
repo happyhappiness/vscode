@@ -1,14 +1,13 @@
-                "<th>Elected</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
-
-            worker = (proxy_worker *)balancer->workers->elts;
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                char fbuf[50];
-                ap_rvputs(r, "<tr>\n<td><a href=\"",
-                          ap_escape_uri(r->pool, r->uri), "?b=",
-                          balancer->name + sizeof("balancer://") - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->name),
-                          "&nonce=", balancer_nonce, 
-                          "\">", NULL);
-                ap_rvputs(r, worker->name, "</a></td>", NULL);
-                ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p,
+                          "Failed to enable the '%s' Accept Filter",
+                          accf);
+        }
+#else
+#ifdef APR_TCP_DEFER_ACCEPT
+        rv = apr_socket_opt_set(s, APR_TCP_DEFER_ACCEPT, 30);
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p,
+                              "Failed to enable APR_TCP_DEFER_ACCEPT");
+        }
+#endif
+#endif

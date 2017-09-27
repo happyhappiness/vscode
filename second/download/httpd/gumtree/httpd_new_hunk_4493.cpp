@@ -1,13 +1,13 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        access_status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00569)
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+
+    /*
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body

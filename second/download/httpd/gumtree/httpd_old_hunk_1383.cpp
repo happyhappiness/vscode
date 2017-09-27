@@ -1,13 +1,12 @@
-
-    if (r->proto_num < 1001) {
-        /* don't send interim response to HTTP/1.0 Client */
-        return;
-    }
-    if (!ap_is_HTTP_INFO(r->status)) {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                      "Status is %d - not sending interim response", r->status);
-        return;
+        return !OK;
     }
 
-    /* if we send an interim response, we're no longer in a state of
-     * expecting one.  Also, this could feasibly be in a subrequest,
+    return OK;
+}
+
+#define MODSSL_TMP_KEY_INIT_RSA(s, bits) \
+    ssl_tmp_key_init_rsa(s, bits, SSL_TMP_KEY_RSA_##bits)
+
+#define MODSSL_TMP_KEY_INIT_DH(s, bits) \
+    ssl_tmp_key_init_dh(s, bits, SSL_TMP_KEY_DH_##bits)
+

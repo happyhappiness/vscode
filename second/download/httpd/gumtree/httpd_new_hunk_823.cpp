@@ -1,12 +1,13 @@
-    apr_status_t rv;
+AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
+{
+    piped_log *pl;
+    apr_file_t *dummy = NULL;
+    int rc;
 
-    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
-        return TRUE;
-    if ((rv = apr_global_mutex_unlock(mc->pMutex)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to release SSL session cache lock");
-        return FALSE;
+    rc = log_child(p, program, &dummy);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "Couldn't start piped log process");
+        return NULL;
     }
-    return TRUE;
-}
 

@@ -1,32 +1,16 @@
-	    ap_pclosesocket(p, dsock);	/* and try the regular way */
+        q = &linger_q;
+        cs->pub.state = CONN_STATE_LINGER_NORMAL;
     }
-
-    if (!pasvmode) {		/* set up data connection */
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+    apr_atomic_inc32(&lingering_count);
+    apr_thread_mutex_lock(timeout_mutex);
+    TO_QUEUE_APPEND(*q, cs);
+    cs->pfd.reqevents = (
+            cs->pub.sense == CONN_SENSE_WANT_WRITE ? APR_POLLOUT :
+                    APR_POLLIN) | APR_POLLHUP | APR_POLLERR;
+    cs->pub.sense = CONN_SENSE_DEFAULT;
+    rv = apr_pollset_add(event_pollset, &cs->pfd);
+    apr_thread_mutex_unlock(timeout_mutex);
+    if (rv != APR_SUCCESS && !APR_STATUS_IS_EEXIST(rv)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "start_lingering_close: apr_pollset_add failure");
+        apr_thread_mutex_lock(timeout_mutex);

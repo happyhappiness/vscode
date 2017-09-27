@@ -1,21 +1,26 @@
-                     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                  "ap_proxy_ajp_request error read after end");
-                     backend_failed = 1;
-                 }
-                 break;
-             case CMD_AJP13_SEND_HEADERS:
-+                if (headers_sent) {
-+                    /* Do not send anything to the client.
-+                     * Backend already send us the headers.
-+                     */
-+                    backend_failed = 1;
-+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+                                 "proxy: Backend sent headers twice.");
-+                    break;
-+                }
-                 /* AJP13_SEND_HEADERS: process them */
-                 status = ajp_parse_header(r, conf, conn->data);
-                 if (status != APR_SUCCESS) {
-                     backend_failed = 1;
-                 }
-                 headers_sent = 1;
+      */
+     cookie_table = apr_table_make(r->pool, 2);
+     apr_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
+ 
+     while (1) {
+ 
+-        if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
++        int rv = (*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data);
++        if (rv == 0) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                           "Premature end of script headers: %s",
+                           apr_filepath_name_get(r->filename));
+             return HTTP_INTERNAL_SERVER_ERROR;
+         }
++        else if (rv == -1) {
++            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
++                          "Script timed out before returning headers: %s",
++                          apr_filepath_name_get(r->filename));
++            return HTTP_GATEWAY_TIME_OUT;
++        }
+ 
+         /* Delete terminal (CR?)LF */
+ 
+         p = strlen(w);
+              /* Indeed, the host's '\n':
+                 '\012' for UNIX; '\015' for MacOS; '\025' for OS/390

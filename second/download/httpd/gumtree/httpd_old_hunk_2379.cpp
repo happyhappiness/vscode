@@ -1,13 +1,13 @@
+#else
+#define ap_log_rerror ap_log_rerror_
+#endif
+AP_DECLARE(void) ap_log_rerror_(const char *file, int line, int module_index,
+                                int level, apr_status_t status,
+                                const request_rec *r, const char *fmt, ...)
+			    __attribute__((format(printf,7,8)));
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
-
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+/**
+ * ap_log_cerror() - log messages which are related to a particular
+ * connection.  This uses a printf-like format to log messages to the
+ * error_log.
+ * @param file The file in which this function is called

@@ -1,22 +1,15 @@
-#define APLOG_MARK	__FILE__,__LINE__
-
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-			     const request_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
-
-void ap_log_pid (pool *p, char *fname);
-/* These are for legacy code, new code should use ap_log_error,
- * or ap_log_rerror.
- */
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
-++ apache_1.3.2/src/include/http_protocol.h	1998-08-09 22:33:10.000000000 +0800
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+    }
+    apr_brigade_length(bb, 0, &transferred);
+    if (transferred != -1)
+        p_conn->worker->s->transferred += transferred;
+    status = ap_pass_brigade(origin->output_filters, bb);
+    /* Cleanup the brigade now to avoid buckets lifetime
+     * issues in case of error returned below. */
+    apr_brigade_cleanup(bb);
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01084)
+                      "pass request body failed to %pI (%s)",
+                      p_conn->addr, p_conn->hostname);
+        if (origin->aborted) {
+            const char *ssl_note;

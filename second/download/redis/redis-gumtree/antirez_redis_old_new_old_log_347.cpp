@@ -1,1 +1,0 @@
-SHIFT_ERROR(positions[0].offset, "RDB CRC64 does not match.");

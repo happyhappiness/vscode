@@ -1,1 +1,0 @@
-s(c,sdscatprintf(sdsempty(),"%d\r\n",removed));

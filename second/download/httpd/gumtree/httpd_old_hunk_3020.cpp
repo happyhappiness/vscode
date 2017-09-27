@@ -1,40 +1,24 @@
-	return;
+        apr_cpystrn(message, cmd, sizeof(message));
+        if ((crlf = strchr(message, '\r')) != NULL ||
+            (crlf = strchr(message, '\n')) != NULL)
+            *crlf = '\0';
+        if (strncmp(message,"PASS ", 5) == 0)
+            strcpy(&message[5], "****");
+        ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                     "proxy:>FTP: %s", message);
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
+    rc = ftp_getrc_msg(ftp_ctrl, bb, message, sizeof message);
+    if (rc == -1 || rc == 421)
+        strcpy(message,"<unable to read result>");
+    if ((crlf = strchr(message, '\r')) != NULL ||
+        (crlf = strchr(message, '\n')) != NULL)
+        *crlf = '\0';
+    ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                 "proxy:<FTP: %3.3u %s", rc, message);
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
+    if (pmessage != NULL)
+        *pmessage = apr_pstrdup(r->pool, message);
+
+    return rc;
 }
-
-
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
-
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
-
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
-
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

@@ -1,13 +1,13 @@
+    ts->child_num_arg = child_num_arg;
+    ts->threadattr = thread_attr;
 
-    /*
-     * Now that we are ready to send a response, we need to combine the two
-     * header field tables into a single table.  If we don't do this, our
-     * later attempts to set or unset a given fieldname might be bypassed.
-     */
-    if (!is_empty_table(r->err_headers_out))
-        r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                        r->headers_out);
+    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
+                           ts, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create worker thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
+    }
 
-    ap_hard_timeout("send headers", r);
-
-    ap_basic_http_header(r);
+    mpm_state = AP_MPMQ_RUNNING;

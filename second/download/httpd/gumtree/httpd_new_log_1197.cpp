@@ -1,1 +1,0 @@
-printf("%2d: %.*s\n", i, substring_length, substring_start);

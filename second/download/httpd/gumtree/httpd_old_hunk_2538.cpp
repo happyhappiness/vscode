@@ -1,14 +1,25 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+static const char *cachefilehandle(cmd_parms *cmd, void *dummy, const char *filename)
+{
+#if APR_HAS_SENDFILE
+    cache_the_file(cmd, filename, 0);
+#else
+    /* Sendfile not supported by this OS */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                 "mod_file_cache: unable to cache file: %s. Sendfile is not supported on this OS", filename);
+#endif
+    return NULL;
+}
+static const char *cachefilemmap(cmd_parms *cmd, void *dummy, const char *filename)
+{
+#if APR_HAS_MMAP
+    cache_the_file(cmd, filename, 1);
+#else
+    /* MMAP not supported by this OS */
+    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);
+#endif
+    return NULL;
+}
+
+static int file_cache_post_config(apr_pool_t *p, apr_pool_t *plog,
+                                   apr_pool_t *ptemp, server_rec *s)

@@ -1,21 +1,14 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+                     */
+                    if ((rv = wd_startup(w, wd_server_conf->pool)) != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01571)
+                                "Watchdog: Failed to create parent worker thread.");
+                        return rv;
+                    }
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02976)
+                            "Watchdog: Created parent worker thread (%s).", w->name);
+                    wd_server_conf->parent_workers++;
+                }
+            }
+        }
+    }
+    if (wd_server_conf->parent_workers) {

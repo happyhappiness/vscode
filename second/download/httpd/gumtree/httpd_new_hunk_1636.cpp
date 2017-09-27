@@ -1,13 +1,13 @@
-    apr_interval_time_t org;
-    apr_byte_t result;
+    else {
+        /* no last slash, buh?! */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "internal error in mod_cern_meta: %s", r->filename);
+        /* should really barf, but hey, let's be friends... */
+        return DECLINED;
+    };
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Into ajp_handle_cping_cpong");
-
-    rc = ajp_msg_create(r->pool, AJP_HEADER_SZ_LEN+1, &msg);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_handle_cping_cpong: ajp_msg_create failed");
-        return rc;
-    }
-
+    metafilename = apr_pstrcat(r->pool, scrap_book, "/",
+               dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
+               "/", real_file,
+         dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
+               NULL);

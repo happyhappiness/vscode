@@ -1,1 +1,1 @@
-(isprint(c = code[3]);
+printf("    [^\\x%02x]", c);

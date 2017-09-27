@@ -1,1 +1,0 @@
-(prof_dump_header(propagate_err, &cnt_all);

@@ -1,1 +1,0 @@
-err = sendSynchronousCommand(fd,"AUTH",server.masterauth,NULL);

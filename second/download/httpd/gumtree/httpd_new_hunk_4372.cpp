@@ -1,32 +1,49 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
-    }
-#if !defined(__EMX__) && !defined(WIN32)
-    /* make sure the childs have access to this file */
-    if (geteuid() == 0 /* is superuser */)
-        chown(conf->rewritelockfile, ap_user_id, -1 /* no gid change */);
-#endif
+    int id;
+    apr_pool_t *pool;
+    h2_proxy_session *session;
 
-    return;
-}
+    const char *url;
+    request_rec *r;
+    h2_proxy_request *req;
+    const char *real_server_uri;
+    const char *p_server_uri;
+    int standalone;
 
-static void rewritelock_open(server_rec *s, pool *p)
+    h2_stream_state_t state;
+    unsigned int suspended : 1;
+    unsigned int waiting_on_100 : 1;
+    unsigned int waiting_on_ping : 1;
+    uint32_t error_code;
+
+    apr_bucket_brigade *input;
+    apr_off_t data_sent;
+    apr_bucket_brigade *output;
+    apr_off_t data_received;
+    
+    apr_table_t *saves;
+} h2_proxy_stream;
+
+
+static void dispatch_event(h2_proxy_session *session, h2_proxys_event_t ev, 
+                           int arg, const char *msg);
+static void ping_arrived(h2_proxy_session *session);
+static apr_status_t check_suspended(h2_proxy_session *session);
+static void stream_resume(h2_proxy_stream *stream);
+
+
+static apr_status_t proxy_session_pre_close(void *theconn)
 {
-    rewrite_server_conf *conf;
+    proxy_conn_rec *p_conn = (proxy_conn_rec *)theconn;
+    h2_proxy_session *session = p_conn->data;
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0') {
-        return;
+    if (session && session->ngh2) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c, 
+                      "proxy_session(%s): pool cleanup, state=%d, streams=%d",
+                      session->id, session->state, 
+                      (int)h2_proxy_ihash_count(session->streams));
+        session->aborted = 1;
+        dispatch_event(session, H2_PROXYS_EV_PRE_CLOSE, 0, NULL);
+        nghttp2_session_del(session->ngh2);
+        session->ngh2 = NULL;
+        p_conn->data = NULL;
     }
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,

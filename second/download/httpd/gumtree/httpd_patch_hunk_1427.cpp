@@ -1,13 +1,18 @@
+                                 AP_MODE_READBYTES, APR_BLOCK_READ,
+                                 maxsize - AJP_HEADER_SZ);
+ 
+         if (status != APR_SUCCESS) {
+             /* We had a failure: Close connection to backend */
+             conn->close++;
+-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++            ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                          "proxy: ap_get_brigade failed");
+             apr_brigade_destroy(input_brigade);
+-            return HTTP_BAD_REQUEST;
++            return ap_map_http_request_error(status, HTTP_BAD_REQUEST);
          }
-         if (len <= 0) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                           "proxy: error reading status line from remote "
-                           "server %s:%d", backend->hostname, backend->port);
-             if (APR_STATUS_IS_TIMEUP(rc)) {
-+                apr_table_set(r->notes, "proxy_timedout", "1");
-                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                               "proxy: read timeout");
-             }
-             /*
-              * If we are a reverse proxy request shutdown the connection
-              * WITHOUT ANY response to trigger a retry by the client
+ 
+         /* have something */
+         if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+             ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                          "proxy: APR_BUCKET_IS_EOS");

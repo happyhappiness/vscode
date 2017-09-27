@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Object refcount: %d", o->refcount);

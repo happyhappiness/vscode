@@ -1,21 +1,13 @@
-            r->server = s;
-            return;
-        }
-    }
-}
-
-
-AP_DECLARE(void) ap_update_vhost_from_headers(request_rec *r)
+static apr_status_t recall_headers(cache_handle_t *h, request_rec *r)
 {
-    /* must set this for HTTP/1.1 support */
-    if (r->hostname || (r->hostname = apr_table_get(r->headers_in, "Host"))) {
-        fix_hostname(r);
-        if (r->status != HTTP_OK)
-            return;
+    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
+
+    /* This case should not happen... */
+    if (!dobj->hfd) {
+        /* XXX log message */
+        return APR_NOTFOUND;
     }
-    /* check if we tucked away a name_chain */
-    if (r->connection->vhost_lookup_data) {
-        if (r->hostname)
-            check_hostalias(r);
-        else
-            check_serverpath(r);
+
+    h->req_hdrs = apr_table_make(r->pool, 20);
+    h->resp_hdrs = apr_table_make(r->pool, 20);
+

@@ -1,1 +1,2 @@
-ap_rputs("</td></tr>\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_socket_accept: (client socket)");

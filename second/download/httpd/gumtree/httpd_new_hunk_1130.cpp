@@ -1,25 +1,23 @@
-            APR_BRIGADE_INSERT_TAIL(bb, e);
+            /*
+             * Log SSL errors and any unexpected conditions.
+             */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, server));
+            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+
+        }
+        if (inctx->rc == APR_SUCCESS) {
+            inctx->rc = APR_EGENERAL;
         }
 
-        e = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, e);
-
-        status = ap_pass_brigade(r->output_filters, bb);
-        if (status == APR_SUCCESS
-            || r->status != HTTP_OK
-            || c->aborted) {
-            return OK;
-        }
-        else {
-            /* no way to know what type of error occurred */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                          "default_handler: ap_pass_brigade returned %i",
-                          status);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
+        return ssl_filter_io_shutdown(filter_ctx, c, 1);
     }
-    else {              /* unusual method (not GET or POST) */
-        if (r->method_number == M_INVALID) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid method in request %s", r->the_request);
-            return HTTP_NOT_IMPLEMENTED;
+    sc = mySrvConfig(sslconn->server);
+
+    /*
+     * Check for failed client authentication
+     */
+    verify_result = SSL_get_verify_result(filter_ctx->pssl);
+

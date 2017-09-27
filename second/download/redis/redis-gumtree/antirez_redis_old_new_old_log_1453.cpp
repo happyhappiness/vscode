@@ -1,1 +1,0 @@
-printf("NREAD %d (%d)\n", (int)nread, (int)readlen);

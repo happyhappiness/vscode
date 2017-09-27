@@ -1,19 +1,13 @@
-    if (!method_restricted)
-	return OK;
+    timetaken = ((float)apr_time_sec(timetakenusec)) +
+        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+    printf("\n\n");
+    printf("Server Software:        %s\n", servername);
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %hu\n", port);
+#ifdef USE_SSL
+    if (is_ssl && ssl_info) {
+        printf("SSL/TLS Protocol:       %s\n", ssl_info);
+    }
+#endif
+    printf("\n");

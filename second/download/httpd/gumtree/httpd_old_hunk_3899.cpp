@@ -1,56 +1,92 @@
-
-static int getsfunc_FILE(char *buf, int len, void *f)
-{
-    return fgets(buf, len, (FILE *) f) != NULL;
+        }
+        
+    }
+    return session;
 }
 
-API_EXPORT(int) ap_scan_script_header_err(request_rec *r, FILE *f, char *buffer)
+h2_session *h2_session_create(conn_rec *c, h2_config *config, 
+                              h2_workers *workers)
 {
-    return scan_script_header_err_core(r, buffer, getsfunc_FILE, f);
+    return h2_session_create_int(c, NULL, config, workers);
 }
 
-static int getsfunc_BUFF(char *w, int len, void *fb)
+h2_session *h2_session_rcreate(request_rec *r, h2_config *config, 
+                               h2_workers *workers)
 {
-    return ap_bgets(w, len, (BUFF *) fb) > 0;
+    return h2_session_create_int(r->connection, r, config, workers);
 }
 
-API_EXPORT(int) ap_scan_script_header_err_buff(request_rec *r, BUFF *fb,
-					    char *buffer)
+void h2_session_destroy(h2_session *session)
 {
-    return scan_script_header_err_core(r, buffer, getsfunc_BUFF, fb);
+    AP_DEBUG_ASSERT(session);
+    if (session->mplx) {
+        h2_mplx_release_and_join(session->mplx, session->iowait);
+        session->mplx = NULL;
+    }
+    if (session->streams) {
+        if (h2_stream_set_size(session->streams)) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session(%ld): destroy, %d streams open",
+                          session->id, (int)h2_stream_set_size(session->streams));
+        }
+        h2_stream_set_destroy(session->streams);
+        session->streams = NULL;
+    }
+    if (session->ngh2) {
+        nghttp2_session_del(session->ngh2);
+        session->ngh2 = NULL;
+    }
+    h2_conn_io_destroy(&session->io);
+    
+    if (session->iowait) {
+        apr_thread_cond_destroy(session->iowait);
+        session->iowait = NULL;
+    }
+    
+    if (session->pool) {
+        apr_pool_destroy(session->pool);
+    }
 }
 
-
-API_EXPORT(void) ap_send_size(size_t size, request_rec *r)
+static apr_status_t h2_session_abort_int(h2_session *session, int reason)
 {
-    /* XXX: this -1 thing is a gross hack */
-    if (size == (size_t)-1)
-	ap_rputs("    -", r);
-    else if (!size)
-	ap_rputs("   0k", r);
-    else if (size < 1024)
-	ap_rputs("   1k", r);
-    else if (size < 1048576)
-	ap_rprintf(r, "%4dk", (size + 512) / 1024);
-    else if (size < 103809024)
-	ap_rprintf(r, "%4.1fM", size / 1048576.0);
-    else
-	ap_rprintf(r, "%4dM", (size + 524288) / 1048576);
+    AP_DEBUG_ASSERT(session);
+    if (!session->aborted) {
+        session->aborted = 1;
+        if (session->ngh2) {
+            
+            if (!reason) {
+                nghttp2_submit_goaway(session->ngh2, NGHTTP2_FLAG_NONE, 
+                                      session->max_stream_received, 
+                                      reason, NULL, 0);
+                nghttp2_session_send(session->ngh2);
+                h2_conn_io_flush(&session->io);
+            }
+            else {
+                const char *err = nghttp2_strerror(reason);
+                
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "session(%ld): aborting session, reason=%d %s",
+                              session->id, reason, err);
+                
+                if (NGHTTP2_ERR_EOF == reason) {
+                    /* This is our way of indication that the connection is
+                     * gone. No use to send any GOAWAY frames. */
+                    nghttp2_session_terminate_session(session->ngh2, reason);
+                }
+                else {
+                    /* The connection might still be there and we shut down
+                     * with GOAWAY and reason information. */
+                     nghttp2_submit_goaway(session->ngh2, NGHTTP2_FLAG_NONE, 
+                                           session->max_stream_received, 
+                                           reason, (const uint8_t *)err, 
+                                           strlen(err));
+                     nghttp2_session_send(session->ngh2);
+                     h2_conn_io_flush(&session->io);
+                }
+            }
+        }
+        h2_mplx_abort(session->mplx);
+    }
+    return APR_SUCCESS;
 }
-
-#if defined(__EMX__) || defined(WIN32)
-static char **create_argv_cmd(pool *p, char *av0, const char *args, char *path)
-{
-    register int x, n;
-    char **av;
-    char *w;
-
-    for (x = 0, n = 2; args[x]; x++)
-	if (args[x] == '+')
-	    ++n;
-
-    /* Add extra strings to array. */
-    n = n + 2;
-
-    av = (char **) ap_palloc(p, (n + 1) * sizeof(char *));
-    av[0] = av0;

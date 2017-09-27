@@ -1,47 +1,26 @@
-    else {
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
+        fprintf(stderr, "apr_MD5InitEBCDIC()->%d\n", rv);
+        return APR_EGENERAL;
     }
-#endif
-}
-    
+#endif /*APR_CHARSET_EBCDIC*/
 
-void ap_log_pid (pool *p, char *fname)
-{
-    FILE *pid_file;
-
-    if (!fname) return;
-    fname = ap_server_root_relative (p, fname);
-    if(!(pid_file = fopen(fname,"w"))) {
-	perror("fopen");
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-        exit(1);
-    }
-    fprintf(pid_file,"%ld\n",(long)getpid());
-    fclose(pid_file);
+    /* Set MD5 as default */
+    (*hdbm)->alg = ALG_APMD5;
+    (*hdbm)->type = "default";
+    return APR_SUCCESS;
 }
 
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
+static apr_status_t htdbm_open(htdbm_t *htdbm)
 {
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, err);
+    if (htdbm->create)
+        return apr_dbm_open_ex(&htdbm->dbm, htdbm->type, htdbm->filename, APR_DBM_RWCREATE,
+                            APR_OS_DEFAULT, htdbm->pool);
+    else
+        return apr_dbm_open_ex(&htdbm->dbm, htdbm->type, htdbm->filename,
+                            htdbm->rdonly ? APR_DBM_READONLY : APR_DBM_READWRITE,
+                            APR_OS_DEFAULT, htdbm->pool);
 }
 
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-			      const char *msg, server_rec *s)
+static apr_status_t htdbm_save(htdbm_t *htdbm, int *changed)
 {
-    ap_log_error(file, 0, APLOG_ERR, s, msg);
-}
+    apr_datum_t key, val;
 
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-{
-    char buf[MAX_STRING_LEN];
-    va_list args;
-    
-    va_start(args, fmt);
-    ap_vsnprintf(buf, sizeof(buf), fmt, args);
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, buf);
-    va_end(args);
-}
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

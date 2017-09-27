@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Automatically using MD5 format.\n");
+apr_file_printf(errfile, "password for user %s\n", user);

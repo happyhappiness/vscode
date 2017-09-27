@@ -1,26 +1,13 @@
-    apr_set_os_error(0);
-
-    /* Run GetExtensionVersion() */
-    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
-        apr_status_t rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "ISAPI: failed call to GetExtensionVersion() in %s", 
-                     isa->filename);
-        apr_dso_unload(isa->handle);
-        isa->handle = NULL;
-        return rv;
+                        "Parent: Unable to create child stdin pipe.");
+        apr_pool_destroy(ptemp);
+        return -1;
     }
 
-    apr_pool_cleanup_register(p, isa, cleanup_isapi, 
-                              apr_pool_cleanup_null);
-
-    return APR_SUCCESS;
-}
-
-apr_status_t isapi_lookup(apr_pool_t *p, server_rec *s, request_rec *r, 
-                          const char *fpath, isapi_loaded** isa)
-{
-    apr_status_t rv;
-    const char *key;
-
-    if ((rv = apr_thread_mutex_lock(loaded.lock)) != APR_SUCCESS) {
+    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
+    if (((rv = apr_file_open_stdout(&child_out, p))
+            != APR_SUCCESS) ||
+        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
+            != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");
+    }

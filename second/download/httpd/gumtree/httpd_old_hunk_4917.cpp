@@ -1,14 +1,18 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+}
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec* s)
+{
+    int is_parent;
+    static int restart_num = 0;
+    int startup = 0;
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    /* We want this only in the parent and only the first time around */
+    is_parent = (parent_pid == my_pid);
+    if (is_parent && restart_num++ == 0) {
+        startup = 1;
+    }
+
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00439)

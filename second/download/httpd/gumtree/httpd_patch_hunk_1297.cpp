@@ -1,14 +1,20 @@
-         if (APR_STATUS_IS_ENOENT(retcode)) {
-             return DECLINED;
-         }
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-             "meta file permissions deny server access: %s", metafilename);
-         return HTTP_FORBIDDEN;
--    };
-+    }
  
-     /* read the headers in */
-     rv = scan_meta_file(r, f);
-     apr_file_close(f);
+     if ((parent_pid != my_pid) || one_process)
+     {
+         /* The child process or in one_process (debug) mode
+          */
+         ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+-                     "Child %d: Child process is running", my_pid);
++                     "Child %lu: Child process is running", my_pid);
  
-     return rv;
+         child_main(pconf);
+ 
+         ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+-                     "Child %d: Child process is exiting", my_pid);
++                     "Child %lu: Child process is exiting", my_pid);
+         return 1;
+     }
+     else
+     {
+         /* A real-honest to goodness parent */
+         ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,

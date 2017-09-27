@@ -1,13 +1,13 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
-    }
+    ap_rputs("  namespace.\n", r);
+    ap_rputs("  </P>\n", r);
+    ap_rprintf(r, "  <H2>Startup callbacks so far:</H2>\n  <OL>\n%s  </OL>\n",
+            trace);
+    ap_rputs("  <H2>Connection-specific callbacks so far:</H2>\n", r);
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    status =  apr_pool_userdata_get(&conn_data, CONN_NOTE,
+                                    r->connection->pool);
+    if ((status == APR_SUCCESS) && conn_data) {
+        ap_rprintf(r, "  <OL>\n%s  </OL>\n", (char *) conn_data);
+    } else {
+        ap_rputs("  <P>No connection-specific callback information was "
+                 "retrieved.</P>\n", r);

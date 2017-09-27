@@ -1,1 +1,1 @@
-printf("%3d-", i-8);
+printf("First char = \\x%02x\n", re->first_char);

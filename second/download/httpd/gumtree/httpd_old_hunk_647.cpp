@@ -1,17 +1,42 @@
- * @see add_input_filter()
- */
-AP_DECLARE(ap_filter_rec_t *) ap_register_input_filter(const char *name,
-                                          ap_in_filter_func filter_func,
-                                          ap_init_filter_func filter_init,
-                                          ap_filter_type ftype);
-/**
- * This function is used to register an output filter with the system. 
- * After this registration is performed, then a filter may be added 
- * into the filter chain by using ap_add_output_filter() and simply 
- * specifying the name.
- *
- * @param name The name to attach to the filter function
- * @param filter_func The filter function to name
- * @param filter_init The function to call before the filter handlers 
- *                    are invoked
- * @param ftype The type of filter function, either ::AP_FTYPE_CONTENT or
+    apr_int32_t autoindex_opts = autoindex_conf->opts;
+    char keyid;
+    char direction;
+    char *colargs;
+    char *fullpath;
+    apr_size_t dirpathlen;
+    char *ctype = "text/html";
+    char *charset;
+
+    if ((status = apr_dir_open(&thedir, name, r->pool)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Can't open directory for index: %s", r->filename);
+        return HTTP_FORBIDDEN;
+    }
+
+    if (autoindex_conf->ctype) {
+        ctype = autoindex_conf->ctype;
+    }
+    if (autoindex_conf->charset) {
+        charset = autoindex_conf->charset;
+    }
+    else {
+#if APR_HAS_UNICODE_FS
+        charset = "UTF-8";
+#else
+        charset = "ISO-8859-1";
+#endif
+    }
+    if (*charset) {
+        ap_set_content_type(r, apr_pstrcat(r->pool, ctype, ";charset=",
+                            charset, NULL));
+    }
+    else {
+        ap_set_content_type(r, ctype);
+    }
+
+    if (autoindex_opts & TRACK_MODIFIED) {
+        ap_update_mtime(r, r->finfo.mtime);
+        ap_set_last_modified(r);
+        ap_set_etag(r);
+    }
+    if (r->header_only) {

@@ -1,23 +1,17 @@
-         foreground = ap_exists_config_define("FOREGROUND");
+     restart_pending = shutdown_pending = 0;
+ 
+     event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+     event_handles[RESTART_HANDLE] = restart_event;
+ 
+     /* Create a single child process */
+-    rv = create_process(pconf, &event_handles[CHILD_HANDLE], 
++    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
+                         &child_exit_event, &child_pid);
+-    if (rv < 0) 
++    if (rv < 0)
+     {
+         ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                      "master_main: create child process failed. Exiting.");
+         shutdown_pending = 1;
+         goto die_now;
      }
- 
-     /* sigh, want this only the second time around */
-     if (restart_num++ == 1) {
-         is_graceful = 0;
--        
-+
-         if (!one_process && !foreground) {
-             rv = apr_proc_detach(no_detach ? APR_PROC_DETACH_FOREGROUND
-                                            : APR_PROC_DETACH_DAEMONIZE);
-             if (rv != APR_SUCCESS) {
-                 ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                              "apr_proc_detach failed");
-                 return HTTP_INTERNAL_SERVER_ERROR;
--            }                  
-+            }
-         }
- 
-         server_pid = getpid();
-     }
- 
-     beosd_pre_config();

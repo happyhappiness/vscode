@@ -1,37 +1,32 @@
-        b = apr_bucket_transient_create(buf_data, buf_size, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        b = apr_bucket_flush_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        cid->response_sent = 1;
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
+    }
+    else if (!one_process && !ap_my_generation) {
+        /* Open a null handle to soak stdout in this process.
+         * We need to emulate apr_proc_detach, unix performs this
+         * same check in the pre_config hook (although it is
+         * arguably premature).  Services already fixed this.
+         */
+        apr_file_t *nullfile;
+        apr_status_t rv;
+        apr_pool_t *pproc = apr_pool_parent_get(pconf);
+
+        if ((rv = apr_file_open(&nullfile, "NUL",
+                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                                pproc)) == APR_SUCCESS) {
+            apr_file_t *nullstdout;
+            if (apr_file_open_stdout(&nullstdout, pproc)
+                    == APR_SUCCESS)
+                apr_file_dup2(nullstdout, nullfile, pproc);
+            apr_file_close(nullfile);
+        }
     }
 
-    if ((flags & HSE_IO_ASYNC) && cid->completion) {
-        if (rv == OK) {
-            cid->completion(cid->ecb, cid->completion_arg, 
-                            *size_arg, ERROR_SUCCESS);
-        }
-        else {
-            cid->completion(cid->ecb, cid->completion_arg, 
-                            *size_arg, ERROR_WRITE_FAULT);
-        }
+    /* Win9x: disable AcceptEx */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        use_acceptex = 0;
     }
-    return (rv == OK);
-}
 
-int APR_THREAD_FUNC ServerSupportFunction(isapi_cid    *cid, 
-                                          apr_uint32_t  HSE_code,
-                                          void         *buf_ptr,
-                                          apr_uint32_t *buf_size,
-                                          apr_uint32_t *data_type)
-{
-    request_rec *r = cid->r;
-    conn_rec *c = r->connection;
-    char *buf_data = (char*)buf_ptr;
-    request_rec *subreq;
-
-    switch (HSE_code) {
-    case HSE_REQ_SEND_URL_REDIRECT_RESP:
-        /* Set the status to be returned when the HttpExtensionProc()
-         * is done.
-         * WARNING: Microsoft now advertises HSE_REQ_SEND_URL_REDIRECT_RESP

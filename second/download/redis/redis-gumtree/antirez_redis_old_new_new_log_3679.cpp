@@ -1,1 +1,0 @@
-addReplyMultiBulkLen(c,c->argc-2);

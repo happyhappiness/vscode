@@ -1,13 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    /* The shared memory file must not exist before we create the
+     * segment. */
+    apr_shm_remove(fname, pool); /* ignore errors */
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    rv = apr_shm_create(&ap_scoreboard_shm, scoreboard_size, fname, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00001)
+                     "unable to create or access scoreboard \"%s\" "
+                     "(name-based shared memory failure)", fname);
+        return rv;
+    }
+#endif /* APR_HAS_SHARED_MEMORY */
+    return APR_SUCCESS;

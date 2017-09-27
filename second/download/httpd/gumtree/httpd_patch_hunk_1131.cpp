@@ -1,17 +1,25 @@
- static void show_compile_settings(void)
- {
-     printf("Server version: %s\n", ap_get_server_version());
-     printf("Server built:   %s\n", ap_get_server_built());
-     printf("Server's Module Magic Number: %u:%u\n",
-            MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
--
-+    printf("Server loaded:  APR %s, APR-Util %s\n",
-+           apr_version_string(), apu_version_string());
-+    printf("Compiled using: APR %s, APR-Util %s\n",
-+           APR_VERSION_STRING, APU_VERSION_STRING);
-     /* sizeof(foo) is long on some platforms so we might as well
-      * make it long everywhere to keep the printf format
-      * consistent
-      */
-     printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
+              */
+             ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                           "SSL client authentication failed, "
+                           "accepting certificate based on "
+                           "\"SSLVerifyClient optional_no_ca\" "
+                           "configuration");
+-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
++            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+         }
+         else {
+             const char *error = sslconn->verify_error ?
+                 sslconn->verify_error :
+                 X509_verify_cert_error_string(verify_result);
  
+             ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL client authentication failed: %s",
+                          error ? error : "unknown");
+-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
++            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, server);
+ 
+             return ssl_filter_io_shutdown(filter_ctx, c, 1);
+         }
+     }
+ 
+     /*

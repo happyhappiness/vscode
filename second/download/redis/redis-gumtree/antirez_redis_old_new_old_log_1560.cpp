@@ -1,1 +1,0 @@
-buferror(buf, sizeof(buf));

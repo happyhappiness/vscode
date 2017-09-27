@@ -1,18 +1,25 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
-}
+                if (r->server->limit_req_fields
+                    && (++fields_read > r->server->limit_req_fields)) {
+                    r->status = HTTP_BAD_REQUEST;
+                    apr_table_setn(r->notes, "error-notes",
+                                   "The number of request header fields "
+                                   "exceeds this server's limit.");
+                    return;
+                }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
+                if (!(value = strchr(last_field, ':'))) { /* Find ':' or    */
+                    r->status = HTTP_BAD_REQUEST;      /* abort bad request */
+                    apr_table_setn(r->notes, "error-notes",
+                                   apr_pstrcat(r->pool,
+                                               "Request header field is "
+                                               "missing ':' separator.<br />\n"
+                                               "<pre>\n",
+                                               ap_escape_html(r->pool,
+                                                              last_field),
+                                               "</pre>\n", NULL));
+                    return;
+                }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+                tmp_field = value - 1; /* last character of field-name */
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+                *value++ = '\0'; /* NUL-terminate at colon */

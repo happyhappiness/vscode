@@ -1,21 +1,13 @@
-    srand(seed);
-    return rv;
-}
 
-static void putline(apr_file_t *f, const char *l)
-{
-    apr_status_t rc;
-    rc = apr_file_puts(l, f);
-    if (rc != APR_SUCCESS) {
-        char errstr[MAX_STRING_LEN];
-        apr_strerror(rc, errstr, MAX_STRING_LEN);
-        apr_file_printf(errfile, "Error writing temp file: %s" NL, errstr);
-        apr_file_close(f);
-        exit(ERR_FILEPERM);
-    }
-}
+            strcpy(malformed, MALFORMED_MESSAGE);
+            strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
 
-/*
- * Make a password record from the given information.  A zero return
- * indicates success; failure means that the output buffer contains an
- * error message instead.
+            if (!buffer) {
+                /* Soak up all the script output - may save an outright kill */
+                while ((*getsfunc)(w, MAX_STRING_LEN - 1, getsfunc_data) > 0) {
+                    continue;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "%s: %s", malformed,

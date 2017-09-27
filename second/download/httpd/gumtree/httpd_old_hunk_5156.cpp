@@ -1,13 +1,12 @@
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "canonicalising URL %s", url);
 
-	    if (pos) {
-		*pos = '\0';
-	    }
-
-	    if ((pw = getpwnam(username)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwnam: invalid username %s", username);
-		return (pid);
-	    }
-	    execuser = ap_pstrcat(r->pool, "~", pw->pw_name, NULL);
-	    user_gid = pw->pw_gid;
-
+    /*
+     * do syntactic check.
+     * We break the URL into host, port, path, search
+     */
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00867) "error parsing URL %s: %s",
+                      url, err);
+        return HTTP_BAD_REQUEST;
+    }

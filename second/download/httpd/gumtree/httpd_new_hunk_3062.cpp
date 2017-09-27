@@ -1,24 +1,15 @@
+                                                proxyport, server_portstr,
+                                                sizeof(server_portstr))) != OK)
+            break;
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+        /* Step Two: Make the Connection */
+        if (ap_proxy_connect_backend(proxy_function, backend, worker, r->server)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01114)
+                          "HTTP: failed to make connection to backend: %s",
+                          backend->hostname);
+            status = HTTP_SERVICE_UNAVAILABLE;
+            break;
+        }
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
-    }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+        /* Step Three: Create conn_rec */
+        if (!backend->connection) {

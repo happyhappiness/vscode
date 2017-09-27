@@ -1,1 +1,0 @@
-lua_pushvalue(l, -1);

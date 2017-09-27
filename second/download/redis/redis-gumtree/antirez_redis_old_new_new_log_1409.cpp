@@ -1,1 +1,0 @@
-lua_pop(L, lua_gettop(L)-1);

@@ -1,1 +1,1 @@
-ap_rputs("</td></tr>\n", r);
+fprintf(stderr, "%s", cmnt + 1);

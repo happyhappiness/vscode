@@ -1,22 +1,13 @@
-}
-
-static void set_signals(void)
-{
-#ifndef NO_USE_SIGACTION
-    struct sigaction sa;
-#endif
-
-    if (!one_process) {
-        ap_fatal_signal_setup(ap_server_conf, pconf);
-    }
-
-#ifndef NO_USE_SIGACTION
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                     "sigaction(SIGTERM)");
-#ifdef SIGINT
-    if (sigaction(SIGINT, &sa, NULL) < 0)
+            /* listener not dead yet */
+            apr_sleep(apr_time_make(0, 500000));
+            wakeup_listener();
+            ++iter;
+        }
+        if (iter >= 10) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                         "the listener thread didn't exit");
+        }
+        else {
+            rv = apr_thread_join(&thread_rv, listener);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,

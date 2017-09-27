@@ -1,13 +1,23 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: AJP: request failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        if (status == AJP_EOVERFLOW)
+            return HTTP_BAD_REQUEST;
+        else {
+            /*
+             * This is only non fatal when the method is idempotent. In this
+             * case we can dare to retry it with a different worker if we are
+             * a balancer member.
+             */
+            if (is_idempotent(r) == METHOD_IDEMPOTENT) {
+                return HTTP_SERVICE_UNAVAILABLE;
+            }
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
-    clear_connection(r->pool, r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+    /* allocate an AJP message to store the data of the buckets */
+    bufsiz = maxsize;
+    status = ajp_alloc_data_msg(r->pool, &buff, &bufsiz, &msg);
+    if (status != APR_SUCCESS) {

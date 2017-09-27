@@ -1,14 +1,39 @@
-                if (ap_pass_brigade(r->output_filters,
-                                    output_brigade) != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "proxy: error processing body");
-                    isok = 0;
-                }
-                /* XXX: what about flush here? See mod_jk */
-                data_sent = 1;
-                break;
-            default:
-                isok = 0;
-                break;
-        }
+                "Illegal attempt to re-initialise SSL for server "
+                "(theoretically shouldn't happen!)");
+        ssl_die();
+    }
+}
 
+#ifndef OPENSSL_NO_TLSEXT
+static void ssl_init_ctx_tls_extensions(server_rec *s,
+                                        apr_pool_t *p,
+                                        apr_pool_t *ptemp,
+                                        modssl_ctx_t *mctx)
+{
+    /*
+     * Configure TLS extensions support
+     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring TLS extension handling");
+
+    /*
+     * Server name indication (SNI)
+     */
+    if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
+                          ssl_callback_ServerNameIndication) ||
+        !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Unable to initialize TLS servername extension "
+                     "callback (incompatible OpenSSL version?)");
+        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
+        ssl_die();
+    }
+}
+#endif
+
+static void ssl_init_ctx_protocol(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = NULL;

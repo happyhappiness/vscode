@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+        limit = atoi(arg2);
+
+        if (limit <= 0) {
+            return "The recursion limit must be greater than zero.";
+        }
+        if (limit < 4) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "Limiting the subrequest depth to a very low level may"
+                         " cause normal requests to fail.");
+        }
     }
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    conf->subreq_limit = limit;

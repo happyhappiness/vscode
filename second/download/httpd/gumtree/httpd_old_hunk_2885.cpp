@@ -1,13 +1,27 @@
-    if (!method_restricted)
-	return OK;
+{
+    headers_conf *dirconf = ap_get_module_config(r->per_dir_config,
+                                                 &headers_module);
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    /* do the fixup */
+    if (dirconf->fixup_in->nelts) {
+        do_headers_fixup(r, r->headers_in, dirconf->fixup_in, 1);
+    }
+    if (dirconf->fixup_err->nelts) {
+        do_headers_fixup(r, r->err_headers_out, dirconf->fixup_err, 1);
+    }
+    if (dirconf->fixup_out->nelts) {
+        do_headers_fixup(r, r->headers_out, dirconf->fixup_out, 1);
+    }
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    return DECLINED;
 }
 
-module MODULE_VAR_EXPORT auth_module =
+static const command_rec headers_cmds[] =
 {
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    AP_INIT_RAW_ARGS("Header", header_cmd, &hdr_out, OR_FILEINFO,
+                     "an optional condition, an action, header and value "
+                     "followed by optional env clause"),
+    AP_INIT_RAW_ARGS("RequestHeader", header_cmd, &hdr_in, OR_FILEINFO,
+                     "an action, header and value followed by optional env "
+                     "clause"),
+    {NULL}

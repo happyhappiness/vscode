@@ -1,1 +1,0 @@
-sdsfree(config.mb_delim);

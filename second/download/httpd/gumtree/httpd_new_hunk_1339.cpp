@@ -1,13 +1,23 @@
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: Require ThreadLimit > 0, setting to 1");
-        thread_limit = 1;
     }
-    return NULL;
-}
-static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy)
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+
+        if (psf->error_override && ap_is_HTTP_ERROR(r->status)) {
+            /* clear r->status for override error, otherwise ErrorDocument
+             * thinks that this is a recursive error, and doesn't find the
+             * custom error page
+             */
+            rv = r->status;
+            r->status = HTTP_OK;
+        } else {
+            rv = OK;
+        }
     }
-    if (use_acceptex) {
+
+    if (backend_failed) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: dialog to %pI (%s) failed",
+                     conn->worker->cp->addr,

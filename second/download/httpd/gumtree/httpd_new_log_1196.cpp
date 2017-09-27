@@ -1,1 +1,1 @@
-printf("ovector only has room for %d captured substrings\n", rc - 1);
+apr_err("apr_socket_connect()", rv);

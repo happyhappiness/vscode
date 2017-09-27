@@ -1,14 +1,42 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
+     */
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        if (APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);
+        }
+        else if (APR_STATUS_IS_EDSOOPEN(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);
+        }
+        else if (APR_STATUS_IS_ESYMNOTFOUND(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in get_driver");
+        }
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
--- apache_1.3.0/src/main/buff.c	1998-05-17 00:34:48.000000000 +0800
+    rv = apr_dbd_open_ex(rec->driver, rec->pool, cfg->params, &rec->handle, &err);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: Can't connect to %s: %s", cfg->name, err);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in open");
+            break;
+        }
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }

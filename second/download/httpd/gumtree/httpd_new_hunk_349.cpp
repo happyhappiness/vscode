@@ -1,30 +1,54 @@
-        case AP_MPMQ_MAX_REQUESTS_DAEMON:
-            *result = ap_max_requests_per_child;
-            return APR_SUCCESS;
-        case AP_MPMQ_MAX_DAEMONS:
-            *result = ap_daemons_limit;
-            return APR_SUCCESS;
-        case AP_MPMQ_MPM_STATE:
-            *result = mpm_state;
-            return APR_SUCCESS;
-    }
-    return APR_ENOTIMPL;
+
+    apr_file_printf(f, "\n");
 }
 
-/* a clean exit from a child with proper cleanup */ 
-static void clean_child_exit(int code) __attribute__ ((noreturn));
-static void clean_child_exit(int code)
+static void usage(void)
 {
-    mpm_state = AP_MPMQ_STOPPING;
-    if (pchild) {
-        apr_pool_destroy(pchild);
-    }
-    exit(code);
+    apr_file_printf(errfile, "Usage: htdigest [-c] passwordfile realm username\n");
+    apr_file_printf(errfile, "The -c flag creates a new file.\n");
+    exit(1);
 }
 
-static void just_die(int sig)
+static void interrupted(void)
 {
-    clean_child_exit(0);
+    apr_file_printf(errfile, "Interrupted.\n");
+    cleanup_tempfile_and_exit(1);
 }
 
-/*****************************************************************
+static void terminate(void)
+{
+    apr_terminate();
+#ifdef NETWARE
+    pressanykey();
+#endif
+}
+
+int main(int argc, const char * const argv[])
+{
+    apr_file_t *f;
+    apr_status_t rv;
+    char tn[] = "htdigest.tmp.XXXXXX";
+    char *dirname;
+    char user[MAX_STRING_LEN];
+    char realm[MAX_STRING_LEN];
+    char line[MAX_STRING_LEN];
+    char l[MAX_STRING_LEN];
+    char w[MAX_STRING_LEN];
+    char x[MAX_STRING_LEN];
+    int found;
+   
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate); 
+    apr_pool_create(&cntxt, NULL);
+    apr_file_open_stderr(&errfile, cntxt);
+
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);
+        exit(1);
+    }
+#endif
+    
+    apr_signal(SIGINT, (void (*)(int)) interrupted);

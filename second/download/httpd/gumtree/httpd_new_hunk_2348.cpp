@@ -1,14 +1,18 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+    }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    SSL_set_shutdown(ssl, shutdown_type);
+    SSL_smart_shutdown(ssl);
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    /* and finally log the fact that we've closed the connection */
+    if (APLOG_CS_IS_LEVEL(c, mySrvFromConn(c), loglevel)) {
+        ap_log_cserror(APLOG_MARK, loglevel, 0, c, mySrvFromConn(c),
+                       "Connection closed to child %ld with %s shutdown "
+                       "(server %s)",
+                       c->id, type,
+                       ssl_util_vhostid(c->pool, mySrvFromConn(c)));
+    }
+
+    /* deallocate the SSL connection */
+    if (sslconn->client_cert) {
+        X509_free(sslconn->client_cert);
+        sslconn->client_cert = NULL;

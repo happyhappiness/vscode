@@ -1,7 +1,2 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
-                    time_str,
-                    r->connection->remote_ip,
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-                    description);
+fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                    "%s\n", ap_server_argv0, fname);

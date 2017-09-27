@@ -1,21 +1,60 @@
- * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
- *                         ap_finalize_sub_req_protocol on Win32 and NetWare
- * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
- *                         calling ap_setup_prelinked_modules
- * 20020903.10 (2.0.55-dev) add ap_log_cerror()
- * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
- * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
- */
+    return OK;
+}
 
-#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */, 
+                 apr_pool_t *ptemp, server_rec *s_main)
+{
+    apr_pool_t *stderr_p;
+    server_rec *virt, *q;
+    int replace_stderr;
 
-#ifndef MODULE_MAGIC_NUMBER_MAJOR
-#define MODULE_MAGIC_NUMBER_MAJOR 20020903
-#endif
-#define MODULE_MAGIC_NUMBER_MINOR 12                    /* 0...n */
 
-/**
- * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
- * specified value.
- * <pre>
- * Useful for testing for features.
+    /* Register to throw away the read_handles list when we
+     * cleanup plog.  Upon fork() for the apache children,
+     * this read_handles list is closed so only the parent
+     * can relaunch a lost log child.  These read handles 
+     * are always closed on exec.
+     * We won't care what happens to our stderr log child 
+     * between log phases, so we don't mind losing stderr's 
+     * read_handle a little bit early.
+     */
+    apr_pool_cleanup_register(p, NULL, clear_handle_list,
+                              apr_pool_cleanup_null);
+
+    /* HERE we need a stdout log that outlives plog.
+     * We *presume* the parent of plog is a process 
+     * or global pool which spans server restarts.
+     * Create our stderr_pool as a child of the plog's
+     * parent pool.
+     */
+    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
+    apr_pool_tag(stderr_p, "stderr_pool");
+    
+    if (open_error_log(s_main, 1, stderr_p) != OK) {
+        return DONE;
+    }
+
+    replace_stderr = 1;
+    if (s_main->error_log) {
+        apr_status_t rv;
+        
+        /* Replace existing stderr with new log. */
+        apr_file_flush(s_main->error_log);
+        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main,
+                         "unable to replace stderr with error_log");
+        }
+        else {
+            /* We are done with stderr_pool, close it, killing
+             * the previous generation's stderr logger
+             */
+            if (stderr_pool)
+                apr_pool_destroy(stderr_pool);
+            stderr_pool = stderr_p;
+            replace_stderr = 0;
+        }
+    }
+    /* note that stderr may still need to be replaced with something
+     * because it points to the old error log, or back to the tty
+     * of the submitter.

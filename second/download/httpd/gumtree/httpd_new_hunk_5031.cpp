@@ -1,24 +1,17 @@
-		ap_proxy_send_headers(r, c->resp_line, c->hdrs);
-		ap_kill_timeout(r);
-	    }
-	    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-	    r->sent_bodyct = 1;
-	    if (!r->header_only)
-		ap_proxy_send_fb(c->fp, r, NULL);
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
 
-		if (curpos == -1)
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    return OK;
-	}
+    apr_file_printf(errfile,
+    "%s -- Program to Create DBM Files for use by RewriteMap" NL
+    "Usage: %s [-v] [-f format] -i SOURCE_TXT -o OUTPUT_DBM" NL
+    NL
+    "Options: " NL
+    " -v    More verbose output" NL
+    NL
+    " -i    Source Text File. If '-', use stdin." NL
+    NL
+    " -o    Output DBM." NL
+    NL
+    " -f    DBM Format.  If not specified, will use the APR Default." NL
+    "           GDBM for GDBM files (%s)" NL
+    "           SDBM for SDBM files (%s)" NL
+    "           DB   for berkeley DB files (%s)" NL
+    "           NDBM for NDBM files (%s)" NL

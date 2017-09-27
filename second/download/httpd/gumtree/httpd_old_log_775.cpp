@@ -1,0 +1,1 @@
+ap_add_output_filter("CHUNK", NULL, r, r->connection);

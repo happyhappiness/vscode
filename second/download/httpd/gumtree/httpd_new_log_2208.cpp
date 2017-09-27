@@ -1,0 +1,1 @@
+printf("Compiled using: APR %s\n", APR_VERSION_STRING);

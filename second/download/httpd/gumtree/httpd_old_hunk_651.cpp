@@ -1,41 +1,21 @@
-
-
-/*
- * Authorization header verification code
- */
-
-static const char *get_hash(request_rec *r, const char *user,
-                            const char *realm, const char *auth_pwfile)
-{
-    ap_configfile_t *f;
-    char l[MAX_STRING_LEN];
-    const char *rpw;
-    char *w, *x;
-    apr_status_t sts;
-
-    if ((sts = ap_pcfg_openfile(&f, r->pool, auth_pwfile)) != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, sts, r,
-                      "Digest: Could not open password file: %s", auth_pwfile);
-        return NULL;
-    }
-    while (!(ap_cfg_getline(l, MAX_STRING_LEN, f))) {
-        if ((l[0] == '#') || (!l[0])) {
-            continue;
+    while ((rv = apr_file_gets(argsbuffer, HUGE_STRING_LEN,
+                               script_err)) == APR_SUCCESS) {
+        newline = strchr(argsbuffer, '\n');
+        if (newline) {
+            *newline = '\0';
         }
-        rpw = l;
-        w = ap_getword(r->pool, &rpw, ':');
-        x = ap_getword(r->pool, &rpw, ':');
-
-        if (x && w && !strcmp(user, w) && !strcmp(realm, x)) {
-            ap_cfg_closefile(f);
-            return apr_pstrdup(r->pool, rpw);
-        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                      "%s", argsbuffer);            
     }
-    ap_cfg_closefile(f);
-    return NULL;
+
+    return rv;
 }
 
-static int check_nc(const request_rec *r, const digest_header_rec *resp,
-                    const digest_config_rec *conf)
+static int log_script(request_rec *r, cgi_server_conf * conf, int ret,
+                      char *dbuf, const char *sbuf, apr_bucket_brigade *bb, 
+                      apr_file_t *script_err)
 {
-    unsigned long nc;
+    const apr_array_header_t *hdrs_arr = apr_table_elts(r->headers_in);
+    const apr_table_entry_t *hdrs = (const apr_table_entry_t *) hdrs_arr->elts;
+    char argsbuffer[HUGE_STRING_LEN];
+    apr_file_t *f = NULL;

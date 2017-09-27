@@ -1,24 +1,65 @@
-    buff[35] = ' ';
-    ap_proxy_sec2hex(c->len, buff + 36);
-    buff[44] = '\n';
-    buff[45] = '\0';
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                /* We found the user we were looking for */
+                found++;
+                if ((mask & APHTP_DELUSER)) {
+                    /* Delete entry from the file */
+                    apr_file_printf(errfile, "Deleting ");
+                }
+                else if ((mask & APHTP_VERIFY)) {
+                    /* Verify */
+                    char *hash = colon + 1;
+                    size_t len;
 
-/* if file not modified */
-    if (r->status == HTTP_NOT_MODIFIED) {
-	if (c->ims != BAD_DATE && lmod != BAD_DATE && lmod <= c->ims) {
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
-		if (curpos == -1)
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    Explain0("Remote document not modified, use local copy");
-	    /* CHECKME: Is this right? Shouldn't we check IMS again here? */
+                    len = strcspn(hash, "\r\n");
+                    if (len == 0) {
+                        apr_file_printf(errfile, "Empty hash for user %s" NL,
+                                        user);
+                        exit(ERR_INVALID);
+                    }
+                    hash[len] = '\0';
+
+                    i = verify(&ctx, hash);
+                    if (i != 0) {
+                        apr_file_printf(errfile, "%s" NL, ctx.errstr);
+                        exit(i);
+                    }
+                }
+                else {
+                    /* Update entry */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, ctx.out);
+                }
+            }
+        }
+        apr_file_close(fpw);
+    }
+    if (!found) {
+        if (mask & APHTP_DELUSER) {
+            apr_file_printf(errfile, "User %s not found" NL, user);
+            exit(0);
+        }
+        else if (mask & APHTP_VERIFY) {
+            apr_file_printf(errfile, "User %s not found" NL, user);
+            exit(ERR_BADUSER);
+        }
+        else {
+            apr_file_printf(errfile, "Adding ");
+            putline(ftemp, ctx.out);
+        }
+    }
+    if (mask & APHTP_VERIFY) {
+        apr_file_printf(errfile, "Password for user %s correct." NL, user);
+        exit(0);
+    }
+
+    apr_file_printf(errfile, "password for user %s" NL, user);
+
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {

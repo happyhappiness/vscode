@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
-    }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
 
-    Explain0("FTP: connected.");
+    /*
+     * record that we've entered the world !
+     */
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
 
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+
+    restart_pending = shutdown_pending = 0;
+

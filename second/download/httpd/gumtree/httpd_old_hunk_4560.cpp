@@ -1,18 +1,47 @@
-	    hold_off_on_exponential_spawning = 10;
-	}
+                    if (APR_STATUS_IS_ETIMEDOUT(status)
+                        || APR_STATUS_IS_ECONNABORTED(status)
+                        || APR_STATUS_IS_ECONNRESET(status)
+                        || APR_STATUS_IS_EOF(status)
+                        || APR_STATUS_IS_EBADF(status)) {
+                        /* common status for a client that has left */
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
+                                      "h2_session(%ld): input gone", session->id);
+                    }
+                    else {
+                        /* uncommon status, log on INFO so that we see this */
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);
+                    }
+                    return status;
+                }
+                /* subsequent failure after success(es), return initial
+                 * status. */
+                return rstatus;
+        }
+        if ((session->io.bytes_read - read_start) > (64*1024)) {
+            /* read enough in one go, give write a chance */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
+                          "h2_session(%ld): read 64k, returning", session->id);
+            break;
+        }
+    }
+    return rstatus;
+}
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
+static const char *StateNames[] = {
+    "INIT",      /* H2_SESSION_ST_INIT */
+    "DONE",      /* H2_SESSION_ST_DONE */
+    "IDLE",      /* H2_SESSION_ST_IDLE */
+    "BUSY",      /* H2_SESSION_ST_BUSY */
+    "WAIT",      /* H2_SESSION_ST_WAIT */
+};
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+static const char *state_name(h2_session_state state)
+{
+    if (state >= (sizeof(StateNames)/sizeof(StateNames[0]))) {
+        return "unknown";
+    }
+    return StateNames[state];
+}

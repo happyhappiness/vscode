@@ -1,21 +1,14 @@
- 	    m = m->next;
- 	}
- #if MIME_MAGIC_DEBUG
- 	ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
- 		    MODNAME ": matched after %d rules", rule_counter);
- #endif
--	return 1;		/* all through */
-+        return 1;  /* all through */
-     }
- #if MIME_MAGIC_DEBUG
-     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
- 		MODNAME ": failed after %d rules", rule_counter);
- #endif
--    return 0;			/* no match at all */
-+    return 0;  /* no match at all */
- }
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->connection->remote_ip);
  
- static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)
- {
-     char *pp;
-     unsigned long v;
+             ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                          "Failed expression: %s", req->cpExpr);
+ 
+-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
++            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                           "access to %s failed, reason: %s",
+                           r->filename,
+                           "SSL requirement expression not fulfilled "
+                           "(see SSL logfile for more details)");
+ 
+             /* remember forbidden access for strict require option */

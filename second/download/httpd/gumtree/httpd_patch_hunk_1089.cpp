@@ -1,34 +1,39 @@
-         if (existing_file) {
-             /*
-              * Check that this existing file is readable and writable.
-              */
-             if (!accessible(pool, pwfilename, APR_READ | APR_APPEND)) {
-                 apr_file_printf(errfile, "%s: cannot open file %s for "
--                                "read/write access\n", argv[0], pwfilename);
-+                                "read/write access" NL, argv[0], pwfilename);
-                 exit(ERR_FILEPERM);
-             }
-         }
-         else {
-             /*
-              * Error out if -c was omitted for this non-existant file.
-              */
-             if (!(mask & APHTP_NEWFILE)) {
-                 apr_file_printf(errfile,
--                        "%s: cannot modify file %s; use '-c' to create it\n",
-+                        "%s: cannot modify file %s; use '-c' to create it" NL,
-                         argv[0], pwfilename);
-                 exit(ERR_FILEPERM);
-             }
-             /*
-              * As it doesn't exist yet, verify that we can create it.
-              */
-             if (!accessible(pool, pwfilename, APR_CREATE | APR_WRITE)) {
--                apr_file_printf(errfile, "%s: cannot create file %s\n",
-+                apr_file_printf(errfile, "%s: cannot create file %s" NL,
-                                 argv[0], pwfilename);
-                 exit(ERR_FILEPERM);
-             }
-         }
-     }
  
+     *url = apr_pstrcat(r->pool, worker->name, path, NULL);
+ 
+     return OK;
+ }
+ 
++static void force_recovery(proxy_balancer *balancer, server_rec *s)
++{
++    int i;
++    int ok = 0;
++    proxy_worker *worker;
++
++    worker = (proxy_worker *)balancer->workers->elts;
++    for (i = 0; i < balancer->workers->nelts; i++, worker++) {
++        if (!(worker->s->status & PROXY_WORKER_IN_ERROR)) {
++            ok = 1;
++            break;    
++        }
++    }
++    if (!ok) {
++        /* If all workers are in error state force the recovery.
++         */
++        worker = (proxy_worker *)balancer->workers->elts;
++        for (i = 0; i < balancer->workers->nelts; i++, worker++) {
++            ++worker->s->retries;
++            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
++            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
++                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
++                         balancer->name, worker->hostname);
++        }
++    }
++}
++
+ static int proxy_balancer_pre_request(proxy_worker **worker,
+                                       proxy_balancer **balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf, char **url)
+ {
+     int access_status;

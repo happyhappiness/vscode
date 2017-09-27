@@ -1,25 +1,15 @@
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
-		    r->server, "need AuthName: %s", r->uri);
-        return SERVER_ERROR;
     }
 
-    if (!auth_line) {
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
+    if (!conf->check_nc || !client_shm) {
+        return OK;
     }
 
-    if (strcasecmp(ap_getword(r->pool, &auth_line, ' '), "Basic")) {
-        /* Client tried to authenticate using wrong auth scheme */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "client used wrong authentication scheme: %s", r->uri);
-        ap_note_basic_auth_failure(r);
-        return AUTH_REQUIRED;
-    }
-
-    t = ap_uudecode(r->pool, auth_line);
+    if ((conf->qop_list != NULL)
+        &&(conf->qop_list[0] != NULL)
+        &&!strcasecmp(conf->qop_list[0], "none")) {
+        /* qop is none, client must not send a nonce count */
+        if (snc != NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01772)
+                          "invalid nc %s received - no nonce count allowed when qop=none",
+                          snc);
+            return !OK;

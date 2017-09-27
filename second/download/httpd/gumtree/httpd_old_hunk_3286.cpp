@@ -1,31 +1,62 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+{
+    apr_file_t *stderr_file;
+    apr_status_t rc;
+    char *filename = ap_server_root_relative(p, fname);
+    if (!filename) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
+                     APR_EBADPATH, NULL, "Invalid -E error log file %s",
+                     fname);
+        return APR_EBADPATH;
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
-
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
+    if ((rc = apr_file_open(&stderr_file, filename,
+                            APR_APPEND | APR_WRITE | APR_CREATE | APR_LARGEFILE,
+                            APR_OS_DEFAULT, p)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                     "%s: could not open error log file %s.",
+                     ap_server_argv0, fname);
+        return rc;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    if (!stderr_pool) {
+        /* This is safe provided we revert it when we are finished.
+         * We don't manager the callers pool!
+         */
+        stderr_pool = p;
     }
-    ap_rputs("</BODY></HTML>\n", r);
+    if ((rc = apr_file_open_stderr(&stderr_log, stderr_pool)) 
+            == APR_SUCCESS) {
+        apr_file_flush(stderr_log);
+        if ((rc = apr_file_dup2(stderr_log, stderr_file, stderr_pool)) 
+                == APR_SUCCESS) {
+            apr_file_close(stderr_file);
+            /*
+             * You might ponder why stderr_pool should survive?
+             * The trouble is, stderr_pool may have s_main->error_log,
+             * so we aren't in a position to destory stderr_pool until
+             * the next recycle.  There's also an apparent bug which 
+             * is not; if some folk decided to call this function before 
+             * the core open error logs hook, this pool won't survive.
+             * Neither does the stderr logger, so this isn't a problem.
+             */
+        }
+    }
+    /* Revert, see above */
+    if (stderr_pool == p)
+        stderr_pool = NULL;
 
-    ap_kill_timeout(r);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error log file");
+    }
+    return rc;
+}
+
+static void log_child_errfn(apr_pool_t *pool, apr_status_t err,
+                            const char *description)
+{
+    ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL,
+                 "%s", description);
+}
+
+/* Create a child process running PROGNAME with a pipe connected to
+ * the childs stdin.  The write-end of the pipe will be placed in
+ * *FPIN on successful return.  If dummy_stderr is non-zero, the

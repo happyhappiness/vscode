@@ -1,14 +1,17 @@
-    ap_hard_timeout("send directory", r);
 
-    /* Spew HTML preamble */
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
 
-    title_endp = title_name + strlen(title_name) - 1;
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "Timeout during reading request entity data");
+                return HTTP_REQUEST_TIME_OUT;
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error reading request entity data");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-    while (title_endp > title_name && *title_endp == '/')
-	*title_endp-- = '\0';
-
-    if ((!(tmp = find_header(autoindex_conf, r)))
-	|| (!(insert_readme(name, tmp, title_name, NO_HRULE, FRONT_MATTER, r)))
-	) {
-	emit_preamble(r, title_name);
-	ap_rvputs(r, "<H1>Index of ", title_name, "</H1>\n", NULL);
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);

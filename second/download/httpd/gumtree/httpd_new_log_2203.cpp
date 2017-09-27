@@ -1,0 +1,1 @@
+f(pid_file, "%" APR_PID_T_FMT APR_EOL_STR, mypid);

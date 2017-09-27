@@ -1,13 +1,13 @@
-            if (result != DECLINED)
-                return result;
-        }
-    }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
+    if (!r->assbackwards) {
+        const char *tenc;
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00567)
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;

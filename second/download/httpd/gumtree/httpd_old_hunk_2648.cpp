@@ -1,13 +1,17 @@
-    if (!method_restricted)
-	return OK;
+                     *   Hopefully it will not be needed.
+                     * . It is not possible to noop an instance which has
+                     *   already run.
+                     */
+                    if (last_xlate_ctx == f->ctx) {
+                        last_xlate_ctx->noop = 1;
+                        if (debug >= DBGLVL_PMC) {
+                            const char *symbol = output ? "->" : "<-";
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                          0, f->r,
+                                          "%s %s - disabling "
+                                          "translation %s%s%s; existing "
+                                          "translation %s%s%s",
+                                          f->r->uri ? "uri" : "file",
+                                          f->r->uri ? f->r->uri : f->r->filename,
+                                          last_xlate_ctx->dc->charset_source,

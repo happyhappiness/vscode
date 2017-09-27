@@ -1,26 +1,22 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+                                     "server reached MaxClients setting, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
+                    }
+                } else {
+                    static int reported = 0;
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+                    if (!reported) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     ap_server_conf,
+                                     "server is within MinSpareThreads of MaxClients, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
+                    }
+                }
+            }
+            idle_spawn_rate = 1;
+        }
+        else {
+            if (free_length > idle_spawn_rate) {
+                free_length = idle_spawn_rate;
+            }

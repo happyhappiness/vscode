@@ -1,27 +1,19 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+        certs = p7->d.signed_and_enveloped->cert;
+        p7->d.signed_and_enveloped->cert = NULL;
+        PKCS7_free(p7);
+        break;
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l))
-	    ++l;
+    default:
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02213)
+                     "Don't understand PKCS7 file %s", pkcs7);
+        ssl_die();
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-	    /* Nuke trailing whitespace */
+    if (!certs) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02214)
+                     "No certificates in %s", pkcs7);
+        ssl_die();
+    }
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp))
-		*endp-- = '\0';
+    fclose(f);
 
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
-++ apache_1.3.1/src/modules/standard/mod_cgi.c	1998-06-28 02:09:31.000000000 +0800

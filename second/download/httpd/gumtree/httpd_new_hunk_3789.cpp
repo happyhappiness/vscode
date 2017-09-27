@@ -1,14 +1,13 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+             * conversion because we're not converting between two single-byte
+             * charsets.  This will affect most CGI scripts and may affect
+             * some modules.
+             * Content-Length can't be unset here because that would break
+             * being able to read the request body.
+             * Processing of chunked request bodies is not impacted by this
+             * filter since the length was not declared anyway.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, f->r,
+                          "Request body length may change, resulting in "
+                          "misprocessing by some modules or scripts");
+        }
+    }

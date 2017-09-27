@@ -1,13 +1,16 @@
+             */
+            rv = apr_file_write_full(tempsock, data, len, NULL);
 
-    url = ap_pstrdup(r->pool, &url[1]);	/* make it point to "//", which is what proxy_canon_netloc expects */
+            if (rv != APR_SUCCESS) {
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,  APLOGNO(02651)
+                              "Error writing request body to script %s", 
+                              r->filename);
 
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
+            }
+        }
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
 
-    if (err != NULL)
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-		     "%s", err);
-
-    r->hostname = host;
-
-    return host;		/* ought to return the port, too */
-}

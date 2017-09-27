@@ -1,13 +1,17 @@
+        s = s->next;
+    }
+}
 
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
-
-#ifndef __EMX__
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+/*
+ * This routine is called before the server processes the configuration
+ * files.  There is no return value.
+ */
+static int proxy_pre_config(apr_pool_t *pconf, apr_pool_t *plog,
+                            apr_pool_t *ptemp)
+{
+    APR_OPTIONAL_HOOK(ap, status_hook, proxy_status_hook, NULL, NULL,
+                      APR_HOOK_MIDDLE);
+    /* Reset workers count on gracefull restart */
+    proxy_lb_workers = 0;
+    return OK;
+}

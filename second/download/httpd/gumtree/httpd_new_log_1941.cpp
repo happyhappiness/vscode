@@ -1,1 +1,0 @@
-printf("Failed requests:        %d\n", bad);

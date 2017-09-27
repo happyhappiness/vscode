@@ -1,1 +1,2 @@
-ap_add_output_filter("FIXUP_HEADERS_ERR", NULL, r, r->connection);
+printf("Connect:    " CONF_FMT_STRING, 
+                mincon, meancon, maxcon);

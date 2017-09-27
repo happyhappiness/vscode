@@ -1,28 +1,31 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+                        exit(2);
+                    }
+                }
+            }
+            else if (nLogFDprev) {
+                apr_file_close(nLogFDprev);
+            }
+            nMessCount = 0;
+        }
+        nWrite = nRead;
+        apr_file_write(nLogFD, buf, &nWrite);
+        if (nWrite != nRead) {
+            nMessCount++;
+            sprintf(errbuf,
+                    "Error writing to log file. "
+                    "%10d messages lost.\n",
+                    nMessCount);
+            nWrite = strlen(errbuf);
+            apr_file_trunc(nLogFD, 0);
+            if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                fprintf(stderr, "Error writing to the file %s\n", buf2);
+                exit(2);
+            }
+        }
+        else {
+            nMessCount++;
+        }
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
-
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    /* Of course we never, but prevent compiler warnings */
+    return 0;
+}

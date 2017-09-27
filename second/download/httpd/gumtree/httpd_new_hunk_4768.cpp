@@ -1,91 +1,69 @@
-    else {
-	syslog(level & APLOG_LEVELMASK, "%s", errstr);
+static int proxy_match_word(struct dirconn_entry *This, request_rec *r)
+{
+    const char *host = proxy_get_host_of_request(r);
+    return host != NULL && ap_strstr_c(host, This->name) != NULL;
+}
+
+/* Backwards-compatible interface. */
+PROXY_DECLARE(int) ap_proxy_checkproxyblock(request_rec *r, proxy_server_conf *conf,
+                             apr_sockaddr_t *uri_addr)
+{
+    return ap_proxy_checkproxyblock2(r, conf, uri_addr->hostname, uri_addr);
+}
+
+#define MAX_IP_STR_LEN (46)
+
+PROXY_DECLARE(int) ap_proxy_checkproxyblock2(request_rec *r, proxy_server_conf *conf,
+                                             const char *hostname, apr_sockaddr_t *addr)
+{
+    int j;
+
+    /* XXX FIXME: conf->noproxies->elts is part of an opaque structure */
+    for (j = 0; j < conf->noproxies->nelts; j++) {
+        struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
+        struct apr_sockaddr_t *conf_addr;
+
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "checking remote machine [%s] against [%s]",
+                      hostname, npent[j].name);
+        if (ap_strstr_c(hostname, npent[j].name) || npent[j].name[0] == '*') {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00916)
+                          "connect to remote machine %s blocked: name %s "
+                          "matched", hostname, npent[j].name);
+            return HTTP_FORBIDDEN;
+        }
+
+        /* No IP address checks if no IP address was passed in,
+         * i.e. the forward address proxy case, where this server does
+         * not resolve the hostname.  */
+        if (!addr)
+            continue;
+
+        for (conf_addr = npent[j].addr; conf_addr; conf_addr = conf_addr->next) {
+            char caddr[MAX_IP_STR_LEN], uaddr[MAX_IP_STR_LEN];
+            apr_sockaddr_t *uri_addr;
+
+            if (apr_sockaddr_ip_getbuf(caddr, sizeof caddr, conf_addr))
+                continue;
+
+            for (uri_addr = addr; uri_addr; uri_addr = uri_addr->next) {
+                if (apr_sockaddr_ip_getbuf(uaddr, sizeof uaddr, uri_addr))
+                    continue;
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "ProxyBlock comparing %s and %s", caddr, uaddr);
+                if (!strcmp(caddr, uaddr)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
+                                  "connect to remote machine %s blocked: "
+                                  "IP %s matched", hostname, caddr);
+                    return HTTP_FORBIDDEN;
+                }
+            }
+        }
     }
-#endif
-}
-    
-API_EXPORT(void) ap_log_error (const char *file, int line, int level,
-			      const server_rec *s, const char *fmt, ...)
-{
-    va_list args;
 
-    va_start(args, fmt);
-    log_error_core(file, line, level, s, NULL, fmt, args);
-    va_end(args);
+    return OK;
 }
 
-API_EXPORT(void) ap_log_rerror(const char *file, int line, int level,
-			       const request_rec *r, const char *fmt, ...)
+/* set up the minimal filter set */
+PROXY_DECLARE(int) ap_proxy_pre_http_request(conn_rec *c, request_rec *r)
 {
-    va_list args;
-
-    va_start(args, fmt);
-    log_error_core(file, line, level, r->server, r, fmt, args);
-    if (ap_table_get(r->notes, "error-notes") == NULL) {
-	char errstr[MAX_STRING_LEN];
-
-	ap_vsnprintf(errstr, sizeof(errstr), fmt, args);
-	ap_table_set(r->notes, "error-notes", errstr);
-    }
-    va_end(args);
-}
-
-void ap_log_pid (pool *p, char *fname)
-{
-    FILE *pid_file;
-    struct stat finfo;
-    static pid_t saved_pid = -1;
-    pid_t mypid;
-
-    if (!fname) return;
-
-    fname = ap_server_root_relative (p, fname);
-    mypid = getpid();
-    if (mypid != saved_pid && stat(fname,&finfo) == 0) {
-      /* USR1 and HUP call this on each restart.
-       * Only warn on first time through for this pid.
-       *
-       * XXX: Could just write first time through too, although
-       *      that may screw up scripts written to do something
-       *      based on the last modification time of the pid file.
-       */
-      ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-		   ap_psprintf(p,
-			       "pid file %s overwritten -- Unclean shutdown of previous apache run?",
-			       fname)
-		   );
-    }
-
-    if(!(pid_file = fopen(fname,"w"))) {
-	perror("fopen");
-        fprintf(stderr,"httpd: could not log pid to file %s\n", fname);
-        exit(1);
-    }
-    fprintf(pid_file,"%ld\n",(long)mypid);
-    fclose(pid_file);
-    saved_pid = mypid;
-}
-
-API_EXPORT(void) ap_log_error_old (const char *err, server_rec *s)
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, s, "%s", err);
-}
-
-API_EXPORT(void) ap_log_unixerr (const char *routine, const char *file,
-			      const char *msg, server_rec *s)
-{
-    ap_log_error(file, 0, APLOG_ERR, s, "%s", msg);
-}
-
-API_EXPORT(void) ap_log_printf (const server_rec *s, const char *fmt, ...)
-{
-    va_list args;
-    
-    va_start(args, fmt);
-    log_error_core(APLOG_MARK, APLOG_ERR, s, NULL, fmt, args);
-    va_end(args);
-}
-
-API_EXPORT(void) ap_log_reason (const char *reason, const char *file, request_rec *r) 
-{
-    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,

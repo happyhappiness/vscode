@@ -1,16 +1,14 @@
- RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
- {
-     conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-     SSLModConfigRec *mc = myModConfig(c->base_server);
-     int idx;
+      * and any initial read will fail.
+      */
+     rv = apr_socket_timeout_set(csd, c->base_server->timeout);
+     if (rv != APR_SUCCESS) {
+         /* expected cause is that the client disconnected already */
+         ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+-                     "apr_socket_timeout_set");
++                      "apr_socket_timeout_set");
+     }
  
--    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
--                 "handing out temporary %d bit RSA key", keylen);
-+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-+                  "handing out temporary %d bit RSA key", keylen);
- 
-     /* doesn't matter if export flag is on,
-      * we won't be asked for keylen > 512 in that case.
-      * if we are asked for a keylen > 1024, it is too expensive
-      * to generate on the fly.
-      * XXX: any reason not to generate 2048 bit keys at startup?
+     net->c = c;
+     net->in_ctx = NULL;
+     net->out_ctx = NULL;
+     net->client_socket = csd;

@@ -1,22 +1,30 @@
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Parent: Sent the scoreboard to the child");
-    return 0;
+        }
+
+        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
+                     "connect to listener on %pI", ap_listeners->bind_addr);
+    }
+
+    /* Create the request string. We include a User-Agent so that
+     * adminstrators can track down the cause of the odd-looking
+     * requests in their logs.
+     */
+    srequest = apr_pstrcat(p, "GET / HTTP/1.0\r\nUser-Agent: ",
+                           ap_get_server_version(),
+                           " (internal dummy connection)\r\n\r\n", NULL);
+
+    /* Since some operating systems support buffering of data or entire
+     * requests in the kernel, we send a simple request, to make sure
+     * the server pops out of a blocking accept().
+     */
+    /* XXX: This is HTTP specific. We should look at the Protocol for each
+     * listener, and send the correct type of request to trigger any Accept
+     * Filters.
+     */
+    len = strlen(srequest);
+    apr_socket_send(sock, srequest, &len);
+    apr_socket_close(sock);
+    apr_pool_destroy(p);
+
+    return rv;
 }
 
-
-/*
- * get_listeners_from_parent()
- * The listen sockets are opened in the parent. This function, which runs
- * exclusively in the child process, receives them from the parent and
- * makes them availeble in the child.
- */
-void get_listeners_from_parent(server_rec *s)
-{
-    WSAPROTOCOL_INFO WSAProtocolInfo;
-    HANDLE pipe;
-    ap_listen_rec *lr;
-    DWORD BytesRead;
-    int lcnt = 0;
-    SOCKET nsd;
-
-    /* Set up a default listener if necessary */

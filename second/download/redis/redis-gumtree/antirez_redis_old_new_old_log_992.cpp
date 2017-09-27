@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Error reply to PING from master: '%s'",buf);

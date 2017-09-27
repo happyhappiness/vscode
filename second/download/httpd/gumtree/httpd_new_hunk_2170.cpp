@@ -1,18 +1,14 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return HTTP_BAD_GATEWAY;
-    }
+         * code).  This would get several different types of documents
+         * translated properly: mod_autoindex output, mod_status output,
+         * mod_info output, hard-coded error documents, etc.
+         */
+            strcmp(mime_type, DIR_MAGIC_TYPE) == 0 ||
+#endif
+            strncasecmp(mime_type, "message/", 8) == 0 || 
+            dc->force_xlate == FX_FORCE) {
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return HTTP_FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+            rv = apr_xlate_open(&ctx->xlate,
+                                dc->charset_default, dc->charset_source, f->r->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                              "can't open translation %s->%s",

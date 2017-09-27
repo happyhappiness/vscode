@@ -1,16 +1,13 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
-
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
     }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
+    else if (strncmp(l, "ledate", NLEDATE) == 0) {
+        m->type = LEDATE;
+        l += NLEDATE;
     }
-
-    /* perform sub-request for the file name without the suffix */
+    else {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv,
+                    MODNAME ": type %s invalid", l);
+        return -1;
+    }
+    /* New-style anding: "0 byte&0x80 =0x80 dynamically linked" */
+    if (*l == '&') {
+        ++l;

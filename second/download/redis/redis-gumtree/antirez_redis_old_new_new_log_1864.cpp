@@ -1,1 +1,0 @@
-sentinelSendHello(ri);

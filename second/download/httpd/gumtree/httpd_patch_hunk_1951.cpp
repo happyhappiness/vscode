@@ -1,0 +1,14 @@
+     return APR_SUCCESS;
+ }
+ 
+ static void htdbm_usage(void)
+ {
+ 
+-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
++#if (!(defined(WIN32) || defined(NETWARE)))
+ #define CRYPT_OPTION "d"
+ #else
+ #define CRYPT_OPTION ""
+ #endif
+     fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
+     fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");

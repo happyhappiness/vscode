@@ -1,21 +1,10 @@
-        return -1;
-    if ((a->waittime) > (b->waittime))
-        return 1;
-    return 0;
+
+    printf("Compiled in modules:\n");
+    for (n = 0; ap_loaded_modules[n]; ++n)
+        printf("  %s\n", ap_loaded_modules[n]->name);
 }
 
-static void output_results(void)
+AP_DECLARE(const char *) ap_show_mpm(void)
 {
-    apr_interval_time_t timetakenusec;
-    float timetaken;
-
-    endtime = apr_time_now();
-    timetakenusec = endtime - start;
-    timetaken = ((float)apr_time_sec(timetakenusec)) +
-        ((float)apr_time_usec(timetakenusec)) / 1000000.0F;
-
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hu\n", port);
-#ifdef USE_SSL
+    return MPM_NAME;
+}

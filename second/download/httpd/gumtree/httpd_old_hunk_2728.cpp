@@ -1,61 +1,34 @@
+                                   e_info->in_pipe,
+                                   e_info->out_pipe,
+                                   e_info->err_pipe)) != APR_SUCCESS) ||
+        ((rc = apr_procattr_dir_set(procattr,
+                        ap_make_dirstr_parent(r->pool,
+                                              r->filename))) != APR_SUCCESS) ||
+#ifdef RLIMIT_CPU
+        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_CPU,
+                                      conf->limit_cpu)) != APR_SUCCESS) ||
+#endif
+#if defined(RLIMIT_DATA) || defined(RLIMIT_VMEM) || defined(RLIMIT_AS)
+        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_MEM,
+                                      conf->limit_mem)) != APR_SUCCESS) ||
+#endif
+#ifdef RLIMIT_NPROC
+        ((rc = apr_procattr_limit_set(procattr, APR_LIMIT_NPROC,
+                                      conf->limit_nproc)) != APR_SUCCESS) ||
+#endif
+        ((rc = apr_procattr_cmdtype_set(procattr,
+                                        e_info->cmd_type)) != APR_SUCCESS) ||
 
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
-
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs
-	(
-	    r,
-	    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	    "<HTML>\n <HEAD>\n  <TITLE>Index of ",
-	    title,
-	    "</TITLE>\n </HEAD>\n <BODY>\n",
-	    NULL
-	);
-}
-
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to)
-	to = "";
-    if (!path)
-	path = "";
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to)))
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    else if (to)
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    else
-	p->apply_to = NULL;
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH)
-	if (!strcmp(to, "**DIRECTORY**"))
-	    to = "^^DIRECTORY^^";
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
+        ((rc = apr_procattr_detach_set(procattr,
+                                        e_info->detached)) != APR_SUCCESS) ||
+        ((rc = apr_procattr_addrspace_set(procattr,
+                                        e_info->addrspace)) != APR_SUCCESS) ||
+        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
+        /* Something bad happened, tell the world. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                      "couldn't set child process attributes: %s", r->filename);
     }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to, cmd->path, alt);
-    return NULL;
-}
-
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
-{
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+    else {
+        procnew = apr_pcalloc(p, sizeof(*procnew));
+        rc = ap_os_create_privileged_process(r, procnew, command, argv, env,
+                                             procattr, p);

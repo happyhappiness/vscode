@@ -1,23 +1,19 @@
-                              "insecure SSL re-negotiation required, but "
-                              "a pipelined request is present; keepalive "
-                              "disabled");
-                r->connection->keepalive = AP_CONN_CLOSE;
+                    }
+
+                    if (lastmod) {
+                        apr_table_set(r->headers_in, "If-Modified-Since",
+                                      lastmod);
+                    }
+                    /*
+                     * Do not do Range requests with our own conditionals: If
+                     * we get 304 the Range does not matter and otherwise the
+                     * entity changed and we want to have the complete entity
+                     */
+                    apr_table_unset(r->headers_in, "Range");
+                }
+                return DECLINED;
             }
 
-#if defined(SSL_get_secure_renegotiation_support)
-            reneg_support = SSL_get_secure_renegotiation_support(ssl) ?
-                            "client does" : "client does not";
-#else
-            reneg_support = "server does not";
-#endif
-            /* Perform a full renegotiation. */
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Performing full renegotiation: complete handshake "
-                          "protocol (%s support secure renegotiation)",
-                          reneg_support);
+            /* Okay, this response looks okay.  Merge in our stuff and go. */
+            ap_cache_accept_headers(h, r, 0);
 
-            SSL_set_session_id_context(ssl,
-                                       (unsigned char *)&id,
-                                       sizeof(id));
-
-            /* Toggle the renegotiation state to allow the new

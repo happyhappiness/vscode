@@ -1,13 +1,13 @@
-            }
-            else {
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                              "No matching SSL virtual host for servername "
-                              "%s found (using default/first virtual host)",
-                              servername);
-                return SSL_TLSEXT_ERR_ALERT_WARNING;
-            }
-        }
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    return SSL_TLSEXT_ERR_NOACK;
-}
+    r->ap_auth_type = "Basic";
+
+    res = get_basic_auth(r, &sent_user, &sent_pw);
+    if (res) {
+        return res;
+    }
+

@@ -1,18 +1,13 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+/*******************************************************************************
+ * Once per lifetime init, retrieve optional functions
+ */
+apr_status_t h2_switch_init(apr_pool_t *pool, server_rec *s)
+{
+    (void)pool;
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "h2_switch init");
+
+    return APR_SUCCESS;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+static int h2_protocol_propose(conn_rec *c, request_rec *r,
+                               server_rec *s,

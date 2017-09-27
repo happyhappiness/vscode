@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"(forcing SIGSEGV to print the bug report.)");

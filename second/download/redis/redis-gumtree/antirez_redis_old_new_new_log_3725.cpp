@@ -1,1 +1,0 @@
-(redisClient *c;

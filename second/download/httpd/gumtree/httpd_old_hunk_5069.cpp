@@ -1,22 +1,12 @@
-    if (r->finfo.st_mode == 0         /* doesn't exist */
-        || S_ISDIR(r->finfo.st_mode)
-        || S_ISREG(r->finfo.st_mode)
-        || S_ISLNK(r->finfo.st_mode)) {
-        return OK;
-    }
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                "object is not a file, directory or symlink: %s",
-                r->filename);
-    return HTTP_FORBIDDEN;
+}
+static void lua_insert_filter_harness(request_rec *r)
+{
+    /* ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, "LuaHookInsertFilter not yet implemented"); */
 }
 
-
-static int check_symlinks(char *d, int opts)
+static int lua_quick_harness(request_rec *r, int lookup)
 {
-#if defined(__EMX__) || defined(WIN32)
-    /* OS/2 doesn't have symlinks */
-    return OK;
-#else
-    struct stat lfi, fi;
-    char *lastp;
-    int res;
+    if (lookup) {
+        return DECLINED;
+    }
+    return lua_request_rec_hook_harness(r, "quick", APR_HOOK_MIDDLE);

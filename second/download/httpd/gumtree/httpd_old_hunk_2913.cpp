@@ -1,26 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+    case LEDATE:
+        apr_ctime(time_str, apr_time_from_sec(*(time_t *)&p->l));
+        pp = time_str;
+        (void) magic_rsl_printf(r, m->desc, pp);
+        return;
+    default:
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": invalid m->type (%d) in mprint().",
+                    m->type);
+        return;
     }
 
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    v = signextend(r->server, m, v) & m->mask;

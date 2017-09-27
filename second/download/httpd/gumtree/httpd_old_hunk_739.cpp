@@ -1,23 +1,19 @@
-            /* XXX Two significant problems; 1, we don't check to see if we are
-             * setting redundant filters.    2, we insert these in the types config
-             * hook, which may be too early (dunno.)
-             */
-            if (exinfo->input_filters && r->proxyreq == PROXYREQ_NONE) {
-                const char *filter, *filters = exinfo->input_filters;
-                while (*filters 
-                    && (filter = ap_getword(r->pool, &filters, ';'))) {
-                    ap_add_input_filter(filter, NULL, r, r->connection);
-                }
-                if (conf->multimatch & MULTIMATCH_FILTERS) {
-                    found = 1;
-                }
-            }
-            if (exinfo->output_filters && r->proxyreq == PROXYREQ_NONE) {
-                const char *filter, *filters = exinfo->output_filters;
-                while (*filters 
-                    && (filter = ap_getword(r->pool, &filters, ';'))) {
-                    ap_add_output_filter(filter, NULL, r, r->connection);
-                }
-                if (conf->multimatch & MULTIMATCH_FILTERS) {
-                    found = 1;
-                }
+    ssl_filter_ctx_t *filter_ctx = data;
+
+    if (filter_ctx->pssl) {
+        conn_rec *c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
+        SSLConnRec *sslconn = myConnConfig(c);
+
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                     "SSL connection destroyed without being closed");
+
+        SSL_free(filter_ctx->pssl);
+        sslconn->ssl = filter_ctx->pssl = NULL;
+    }
+  
+    return APR_SUCCESS;
+}
+
+/*
+ * The hook is NOT registered with ap_hook_process_connection. Instead, it is
+ * called manually from the churn () before it tries to read any data.

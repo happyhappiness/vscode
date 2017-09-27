@@ -1,3 +1,3 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s",
-                         e, err);
+fprintf(stderr, "Could not open passwd file %s for writing: %s\n",
+		    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));

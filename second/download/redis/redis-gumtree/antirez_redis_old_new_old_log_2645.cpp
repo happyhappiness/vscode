@@ -1,1 +1,0 @@
-printf(" -c <clients>       Number of parallel connections (default 50)\n");

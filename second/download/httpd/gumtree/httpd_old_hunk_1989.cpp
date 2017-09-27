@@ -1,12 +1,12 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+    } else {
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                AJP13_MAX_SEND_BODY_SZ);
+
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: ap_get_brigade failed");
+            apr_brigade_destroy(input_brigade);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+

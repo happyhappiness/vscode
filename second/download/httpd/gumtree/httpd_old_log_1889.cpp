@@ -1,0 +1,1 @@
+ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);

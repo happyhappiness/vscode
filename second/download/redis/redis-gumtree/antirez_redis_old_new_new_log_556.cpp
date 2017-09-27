@@ -1,1 +1,0 @@
-serverLogRaw(LL_WARNING|LL_RAW, "\n------ STACK TRACE ------\n");

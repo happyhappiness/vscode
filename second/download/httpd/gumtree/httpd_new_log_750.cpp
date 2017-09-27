@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_USE_PROC_PTHREAD_SERIALIZE\n", r);
+ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);

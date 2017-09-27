@@ -1,2 +1,1 @@
-fprintf(stderr,
-		"overlay_tables: base's pool is not an ancestor of p\n");
+printf("0x%02x", *tables++);

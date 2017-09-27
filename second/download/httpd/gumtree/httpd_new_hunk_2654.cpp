@@ -1,33 +1,14 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+         */
+        if (r->content_type == NULL
+             || strncmp(r->content_type, "text/html", 9)) {
+            const char *env_value = apr_table_get(r->subprocess_env,
+                                                  "gzip-only-text/html");
+            if ( env_value && (strcmp(env_value,"1") == 0) ) {
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                              "Not compressing, (gzip-only-text/html)");
+                ap_remove_output_filter(f);
+                return ap_pass_brigade(f->next, bb);
+            }
+        }
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
-
-    ap_kill_timeout(r);
+        /* Let's see what our current Content-Encoding is.

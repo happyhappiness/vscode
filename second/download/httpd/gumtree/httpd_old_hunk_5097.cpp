@@ -1,30 +1,13 @@
-    err = ap_proxy_host2addr(host, &server_hp);
-    if (err != NULL)
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
-    }
-
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-    }
-
+                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            }
+            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
+            }
+            if (i != 0) {
+                PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                memset(buf, 0, (unsigned int)bufsize);
+                return (-1);
+            }
+            len = strlen(buf);
+            if (len < 1)
+                apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase empty (needs to be at least 1 character).\n");

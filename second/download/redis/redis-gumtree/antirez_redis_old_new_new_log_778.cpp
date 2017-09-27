@@ -1,1 +1,0 @@
-serverLog(LL_DEBUG,"Ping packet received: %p", (void*)link->node);

@@ -1,1 +1,0 @@
-snprintf(filename,256,"/proc/%d/stat",getpid());

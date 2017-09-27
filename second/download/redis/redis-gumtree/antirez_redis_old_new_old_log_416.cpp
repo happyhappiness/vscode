@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset, "Error reading element key at index %llu (length: %llu)", i, length);

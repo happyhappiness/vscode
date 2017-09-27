@@ -1,13 +1,13 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+                                 SERVICE_START | SERVICE_QUERY_STATUS);
     }
-#elif defined(__EMX__)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+#endif
+    if (!schService) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                     APLOGNO(00373) "Failed to open the '%s' service",
+                     mpm_display_name);
+        CloseServiceHandle(schSCManager);
+        return (rv);
+    }
+
+    if (QueryServiceStatus(schService, &globdat.ssStatus)

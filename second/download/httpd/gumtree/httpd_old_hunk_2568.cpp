@@ -1,14 +1,23 @@
-#include "http_main.h"
-#include "http_request.h"
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+                return 0;
+            }
+            else {
+                /* Already stale, quietly remove and treat as not-found */
+                idx->removed = 1;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "shmcb_subcache_retrieve discarding expired entry");
+                return -1;
+            }
+        }
+        /* Increment */
+        loop++;
+        pos = SHMCB_CYCLIC_INCREMENT(pos, 1, header->index_num);
+    }
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "shmcb_subcache_retrieve found no match");
+    return -1;
+}
+
+static int shmcb_subcache_remove(server_rec *s, SHMCBHeader *header,
+                                 SHMCBSubcache *subcache,

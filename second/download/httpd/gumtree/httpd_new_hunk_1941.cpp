@@ -1,13 +1,23 @@
-	return ap_proxyerror(r, err);	/* give up */
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+#endif
+    exit(EINVAL);
+}
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+/* ------------------------------------------------------- */
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+/* split URL into parts */
+
+static int parse_url(const char *url)
+{
+    char *cp;
+    char *h;
+    char *scope_id;
+    apr_status_t rv;
+

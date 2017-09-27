@@ -1,17 +1,13 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
+
+        if (!inf->x509 || !inf->x_pkey) {
+            sk_X509_INFO_free(sk);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s, APLOGNO(02252)
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");
+            ssl_die();
+            return;
         }
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02207)
+                 "loaded %d client certs for SSL proxy",

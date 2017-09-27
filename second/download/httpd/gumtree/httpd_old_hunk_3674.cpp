@@ -1,13 +1,14 @@
-	else
-	    return ap_proxyerror(r, /*HTTP_BAD_GATEWAY*/ ap_pstrcat(r->pool,
-				"Could not connect to remote machine: ",
-				strerror(errno), NULL));
+{
+    const char *type = ap_auth_type(r);
+    if (type) {
+        ap_run_note_auth_failure(r, type);
     }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, APLOGNO(00571) "need AuthType to note auth failure: %s", r->uri);
+    }
+}
 
-    clear_connection(r->headers_in);	/* Strip connection-based headers */
-
-    f = ap_bcreate(p, B_RDWR | B_SOCKET);
-    ap_bpushfd(f, sock, sock);
-
-    ap_hard_timeout("proxy send", r);
-    ap_bvputs(f, r->method, " ", proxyhost ? url : urlptr, " HTTP/1.0" CRLF,
+AP_DECLARE(void) ap_note_basic_auth_failure(request_rec *r)
+{
+    ap_note_auth_failure(r);

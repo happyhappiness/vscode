@@ -1,13 +1,28 @@
-            else /* if (ssl_err == SSL_ERROR_SSL) */ {
-                /*
-                 * Log SSL errors and any unexpected conditions.
-                 */
-                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
-                              "SSL library error %d reading data", ssl_err);
-                ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, c->base_server);
+    }
+    else {
+        /* Use the server port */
+        port_str = apr_psprintf(p, ":%u", ap_get_server_port(r));
+    }
 
-            }
-            if (inctx->rc == APR_SUCCESS) {
-                inctx->rc = APR_EGENERAL;
-            }
-            break;
+    /* Key format is a URI, optionally without the query-string */
+    if (conf->ignorequerystring) {
+        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
+                           r->parsed_uri.path, "?", NULL);
+    }
+    else {
+        *key = apr_pstrcat(p, scheme, "://", hostname, port_str,
+                           r->parsed_uri.path, "?", r->parsed_uri.query, NULL);
+    }
+
+    /*
+     * Store the key in the request_config for the cache as r->parsed_uri
+     * might have changed in the time from our first visit here triggered by the
+     * quick handler and our possible second visit triggered by the CACHE_SAVE
+     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
+     * resource in the cache under a key where it is never found by the quick
+     * handler during following requests.
+     */
+    cache->key = apr_pstrdup(r->pool, *key);
+
+    return APR_SUCCESS;
+}

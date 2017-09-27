@@ -1,26 +1,36 @@
+    lua_setfield(L, LUA_REGISTRYINDEX, "Apache2.Wombat.pool");
+    *vm = L;
 
-	errmsg = ap_srm_command_loop(&parms, dc);
+    return APR_SUCCESS;
+}
 
-	ap_cfg_closefile(f);
+/**
+ * Function used to create a lua_State instance bound into the web
+ * server in the appropriate scope.
+ */
+AP_LUA_DECLARE(lua_State*)ap_lua_get_lua_state(apr_pool_t *lifecycle_pool,
+                                               ap_lua_vm_spec *spec)
+{
+    lua_State *L = NULL;
 
-	if (errmsg) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r->server, "%s: %s",
-                        filename, errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*result = dc;
+    if (apr_pool_userdata_get((void **)&L, spec->file,
+                              lifecycle_pool) == APR_SUCCESS) {
+      
+      if(L==NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01483)
+                      "creating lua_State with file %s", spec->file);
+        /* not available, so create */
+        
+        if(!vm_construct(&L, spec, lifecycle_pool)) {
+          AP_DEBUG_ASSERT(L != NULL);
+          apr_pool_userdata_set(L, 
+                                spec->file, 
+                                cleanup_lua,
+                                lifecycle_pool);
+        }
+      }
     }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    return HTTP_FORBIDDEN;
-	}
-    }
+        /*}*/
 
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+    return L;
+}

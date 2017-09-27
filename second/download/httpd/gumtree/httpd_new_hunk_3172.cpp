@@ -1,46 +1,42 @@
-	ap_destroy_sub_req(pa_req);
+        else {
+            /* If the reneg buffer size is set to zero, just fail. */
+            rv = HTTP_REQUEST_ENTITY_TOO_LARGE;
+        }
+
+        if (rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02257)
+                          "could not buffer message body to allow "
+                          "SSL renegotiation to proceed");
+            return rv;
+        }
     }
-}
 
+    /*
+     * now do the renegotiation if anything was actually reconfigured
+     */
+    if (renegotiate) {
+        /*
+         * Now we force the SSL renegotiation by sending the Hello Request
+         * message to the client. Here we have to do a workaround: Actually
+         * OpenSSL returns immediately after sending the Hello Request (the
+         * intent AFAIK is because the SSL/TLS protocol says it's not a must
+         * that the client replies to a Hello Request). But because we insist
+         * on a reply (anything else is an error for us) we have to go to the
+         * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
+         * here because it resets too much of the connection.  So we set the
+         * state explicitly and continue the handshake manually.
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02221)
+                      "Requesting connection re-negotiation");
 
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-				       int (*getsfunc) (char *, int, void *),
-				       void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
+        if (renegotiate_quick) {
+            STACK_OF(X509) *cert_stack;
 
-    if (buffer) {
-	*buffer = '\0';
-    }
-    w = buffer ? buffer : x;
+            /* perform just a manual re-verification of the peer */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02258)
+                         "Performing quick renegotiation: "
+                         "just re-verifying the peer");
 
-    ap_hard_timeout("read script header", r);
+            cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
 
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015') {
-		w[p - 2] = '\0';
-	    }
-	    else {
-		w[p - 1] = '\0';
-	    }
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+            cert = SSL_get_peer_certificate(ssl);

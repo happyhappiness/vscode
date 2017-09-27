@@ -1,38 +1,14 @@
- 		start_connect(c);
- 		continue;
- 	    }
- 	    if (rv & APR_POLLOUT) {
-                 if (c->state == STATE_CONNECTING) {
-                     apr_pollfd_t remove_pollfd;
--                    rv = apr_connect(c->aprsock, destsa);
-+                    rv = apr_socket_connect(c->aprsock, destsa);
-                     remove_pollfd.desc_type = APR_POLL_SOCKET;
-                     remove_pollfd.desc.s = c->aprsock;
-                     apr_pollset_remove(readbits, &remove_pollfd);
-                     if (rv != APR_SUCCESS) {
-                         apr_socket_close(c->aprsock);
-                         err_conn++;
-                         if (bad++ > 10) {
-                             fprintf(stderr,
-                                     "\nTest aborted after 10 failures\n\n");
--                            apr_err("apr_connect()", rv);
-+                            apr_err("apr_socket_connect()", rv);
-                         }
-                         c->state = STATE_UNCONNECTED;
-                         start_connect(c);
-                         continue;
-                     }
-                     else {
-                         c->state = STATE_CONNECTED;
-+                        started++;
-+#ifdef USE_SSL
-+                        if (c->ssl)
-+                            ssl_proceed_handshake(c);
-+                        else
-+#endif
-                         write_request(c);
-                     }
-                 }
-                 else {
-                     write_request(c);
-                 }
+         rc  = ajp_msg_peek_uint16(msg, &name);
+         if (rc != APR_SUCCESS) {
+             return rc;
+         }
+ 
+         if ((name & 0XFF00) == 0XA000) {
+-            ajp_msg_peek_uint16(msg, &name);
++            ajp_msg_get_uint16(msg, &name);
+             stringname = long_res_header_for_sc(name);
+             if (stringname == NULL) {
+                 ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "ajp_unmarshal_response: "
+                        "No such sc (%08x)",
+                        name);

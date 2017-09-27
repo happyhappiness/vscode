@@ -1,1 +1,0 @@
-__redisSetError(c,c->reader->err,c->reader->errstr);

@@ -1,13 +1,14 @@
-	return ap_proxyerror(r, err);	/* give up */
-
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+        rv = ap_regkey_value_array_get(&svc_args, key, "ConfigArgs", p);
+        ap_regkey_close(key);
     }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    if (rv != APR_SUCCESS) {
+        if (rv == ERROR_FILE_NOT_FOUND) {
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00367)
+                         "No ConfigArgs registered for the '%s' service, "
+                         "perhaps this service is not installed?",
+                         mpm_service_name);
+            return APR_SUCCESS;
+        }
+        else
+            return (rv);
+    }

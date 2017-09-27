@@ -1,25 +1,14 @@
-        }
-
-        /* We're cool with filtering this. */
-        ctx = f->ctx = apr_pcalloc(r->pool, sizeof(*ctx));
-        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-
-        zRC = deflateInit2(&ctx->stream, c->compressionlevel, Z_DEFLATED,
-                           c->windowSize, c->memlevel,
-                           Z_DEFAULT_STRATEGY);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "unable to init Zlib: "
-                          "deflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /* add immortal gzip header */
-        e = apr_bucket_immortal_create(gzip_header, sizeof gzip_header,
-                                       f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Zlib: Checksum of inflated stream invalid");
+                    return APR_EGENERAL;
+                }
+                ctx->validation_buffer += VALIDATION_SIZE / 2;
+                compLen = getLong(ctx->validation_buffer);
+                /* gzip stores original size only as 4 byte value */
+                if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Zlib: Length of inflated stream invalid");
+                    return APR_EGENERAL;
+                }
+            }
+            else {

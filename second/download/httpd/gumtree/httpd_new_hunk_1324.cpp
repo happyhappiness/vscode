@@ -1,18 +1,18 @@
-                ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                              "SSL Proxy: Peer certificate CN mismatch:"
-                              " Certificate CN: %s Requested hostname: %s",
-                              hostname, hostname_note);
-                /* ensure that the SSL structures etc are freed, etc: */
-                ssl_filter_io_shutdown(filter_ctx, c, 1);
-                apr_table_set(c->notes, "SSL_connect_rv", "err");
-                return HTTP_BAD_GATEWAY;
-            }
+
+    rv = ap_process_config_tree(server_conf, ap_conftree,
+                                process->pconf, ptemp);
+    if (rv == OK) {
+        ap_fixup_virtual_hosts(pconf, server_conf);
+        ap_fini_vhost_config(pconf, server_conf);
+        /*
+         * Sort hooks again because ap_process_config_tree may have added
+         * modules and hence hooks. This happens with mod_perl and modules
+         * written in perl.
+         */
+        apr_hook_sort_all();
+
+        if (configtestonly) {
+            ap_run_test_config(pconf, server_conf);
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, "Syntax OK");
+            destroy_and_exit_process(process, 0);
         }
-
-        apr_table_set(c->notes, "SSL_connect_rv", "ok");
-        return APR_SUCCESS;
-    }
-
-    if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
-        bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
-                                     (filter_ctx->pbioRead->ptr);

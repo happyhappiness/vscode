@@ -1,18 +1,38 @@
-	    hold_off_on_exponential_spawning = 10;
-	}
+             * This is what we call an 'idle block'. Limit the amount 
+             * of busy workers we allow for this connection until it
+             * well behaves.
+             */
+            now = apr_time_now();
+            m->last_idle_block = now;
+            if (m->workers_limit > 2 
+                && now - m->last_limit_change >= m->limit_change_interval) {
+                if (m->workers_limit > 16) {
+                    m->workers_limit = 16;
+                }
+                else if (m->workers_limit > 8) {
+                    m->workers_limit = 8;
+                }
+                else if (m->workers_limit > 4) {
+                    m->workers_limit = 4;
+                }
+                else if (m->workers_limit > 2) {
+                    m->workers_limit = 2;
+                }
+                m->last_limit_change = now;
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                              "h2_mplx(%ld): decrease worker limit to %d",
+                              m->id, m->workers_limit);
+            }
+            
+            if (m->workers_busy > m->workers_limit) {
+                status = unschedule_slow_tasks(m);
+            }
+        }
+        leave_mutex(m, acquired);
+    }
+    return status;
+}
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
+/*******************************************************************************
+ * HTTP/2 request engines
+ ******************************************************************************/

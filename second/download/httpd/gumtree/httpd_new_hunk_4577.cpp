@@ -1,13 +1,24 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+                                       apr_off_t readbytes)
+{
+    h2_task *task;
+    apr_status_t status = APR_SUCCESS;
+    apr_bucket *b, *next;
+    apr_off_t bblen;
+    const int trace1 = APLOGctrace1(f->c);
+    apr_size_t rmax = ((readbytes <= APR_SIZE_MAX)? 
+                       (apr_size_t)readbytes : APR_SIZE_MAX);
+    
+    task = h2_ctx_cget_task(f->c);
+    ap_assert(task);
+
+    if (trace1) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_slave_in(%s): read, mode=%d, block=%d, readbytes=%ld", 
+                      task->id, mode, block, (long)readbytes);
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+    
+    if (mode == AP_MODE_INIT) {
+        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
+    }
+    
+    if (f->c->aborted) {

@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt SO_REUSEADDR: %s\n", strerror(errno));

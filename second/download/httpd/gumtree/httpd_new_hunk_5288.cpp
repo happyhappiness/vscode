@@ -1,24 +1,13 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
-        }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
-#endif
+     * multiple requests to the same FastCGI connection, but
+     * we don't support that, and always use a value of '1' to
+     * keep things simple. */
+    apr_uint16_t request_id = 1;
+    apr_status_t rv;
+    apr_pool_t *temp_pool;
+    const char *err;
 
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
-
+    /* Step 1: Send AP_FCGI_BEGIN_REQUEST */
+    rv = send_begin_request(conn, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01073)
+                      "Failed Writing Request to %s:", server_portstr);

@@ -1,0 +1,1 @@
+fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");

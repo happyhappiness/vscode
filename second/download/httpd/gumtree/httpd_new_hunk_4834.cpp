@@ -1,24 +1,16 @@
-     * If the requests aren't pipelined, then the client is still waiting
-     * for the final buffer flush from us, and we will block in the implicit
-     * read().  B_SAFEREAD ensures that the BUFF layer flushes if it will
-     * have to block during a read.
-     */
-    ap_bsetflag(conn->client, B_SAFEREAD, 1);
-    while ((len = getline(l, sizeof(l), conn->client, 0)) <= 0) {
-        if ((len < 0) || ap_bgetflag(conn->client, B_EOF)) {
-            ap_bsetflag(conn->client, B_SAFEREAD, 0);
-            return 0;
-        }
-    }
-    /* we've probably got something to do, ignore graceful restart requests */
-#ifdef SIGUSR1
-    signal(SIGUSR1, SIG_IGN);
-#endif
-
-    ap_bsetflag(conn->client, B_SAFEREAD, 0);
-
-    r->request_time = time(NULL);
-    r->the_request = ap_pstrdup(r->pool, l);
-    r->method = ap_getword_white(r->pool, &ll);
-    uri = ap_getword_white(r->pool, &ll);
-
+    apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout." NL);
+    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+        " (default)"
+        "." NL);
+    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+            " (8 chars max, insecure)." NL);
+    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
+    apr_file_printf(errfile, " -s  Force SHA encryption of the password"
+            " (insecure)." NL);
+    apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);
+    apr_file_printf(errfile, " -D  Delete the specified user." NL);
+    apr_file_printf(errfile,
+            "On other systems than Windows and NetWare the '-p' flag will "
+            "probably not work." NL);

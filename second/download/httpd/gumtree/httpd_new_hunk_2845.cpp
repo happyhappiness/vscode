@@ -1,28 +1,27 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    char *ret;
+    int status;
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    /* It may have changed since last time, so try again */
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
+    if ((ret = try_alias_list(r, dirconf->redirects, 1, &status)) != NULL) {
+        if (ret == PREGSUB_ERROR)
+            return HTTP_INTERNAL_SERVER_ERROR;
+        if (ap_is_HTTP_REDIRECT(status)) {
+            if (ret[0] == '/') {
+                char *orig_target = ret;
 
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+                ret = ap_construct_url(r->pool, ret, r);
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00675)
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);
+            }
+            if (!ap_is_url(ret)) {
+                status = HTTP_INTERNAL_SERVER_ERROR;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00676)
+                              "cannot redirect '%s' to '%s'; "
+                              "target is not a valid absoluteURI or abs_path",
+                              r->uri, ret);
+            }
+            else {
+                /* append requested query only, if the config didn't

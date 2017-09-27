@@ -1,16 +1,18 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
+                pollevent = cur->rtnevents;
+                if (pollevent & (APR_POLLIN | APR_POLLHUP)) {
+#ifdef DEBUGGING
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01025)
+                                  "sock was readable");
 #endif
-
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+                    done |= ap_proxy_transfer_between_connections(r, backconn,
+                                                                  c, bb_back,
+                                                                  bb_front,
+                                                                  "sock", NULL,
+                                                                  CONN_BLKSZ, 1)
+                                                                 != APR_SUCCESS;
+                }
+                else if (pollevent & APR_POLLERR) {
+                    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(01026)
+                                  "err on backconn");
+                    backconn->aborted = 1;
+                    done = 1;

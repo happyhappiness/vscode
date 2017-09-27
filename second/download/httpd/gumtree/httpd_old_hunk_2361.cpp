@@ -1,9 +1,12 @@
-/* Automatically generated file - do not edit */
+     */
+    if ((access_status = ap_run_type_checker(r)) != OK) {
+        return decl_die(access_status, "find types", r);
+    }
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    if ((access_status = ap_run_fixups(r)) != OK) {
+        return access_status;
+    }
+
+    return OK;
+}
+

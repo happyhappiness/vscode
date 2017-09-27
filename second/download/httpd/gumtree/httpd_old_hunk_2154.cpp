@@ -1,13 +1,12 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+            || npent[j].name[0] == '*') {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: connect to remote machine %s blocked: name %s matched", uri_addr->hostname, npent[j].name);
+            return HTTP_FORBIDDEN;
+        }
+        while (conf_addr) {
+            while (uri_addr) {
+                char *conf_ip;
+                char *uri_ip;
+                apr_sockaddr_ip_get(&conf_ip, conf_addr);
+                apr_sockaddr_ip_get(&uri_ip, uri_addr);
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,

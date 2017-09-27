@@ -1,20 +1,28 @@
-void ap_send_error_response(request_rec *r, int recursive_error)
-{
-    BUFF *fd = r->connection->client;
-    int status = r->status;
-    int idx = ap_index_of_response(status);
-    char *custom_response;
-    const char *location = ap_table_get(r->headers_out, "Location");
-
-    /* We need to special-case the handling of 204 and 304 responses,
-     * since they have specific HTTP requirements and do not include a
-     * message body.  Note that being assbackwards here is not an option.
-     */
-    if (status == HTTP_NOT_MODIFIED) {
-        if (!ap_is_empty_table(r->err_headers_out))
-            r->headers_out = ap_overlay_tables(r->pool, r->err_headers_out,
-                                               r->headers_out);
-        ap_hard_timeout("send 304", r);
-
-        ap_basic_http_header(r);
-        ap_set_keepalive(r);
+        if (wsel && bsel) {
+            ap_rputs("<h3>Edit worker settings for ", r);
+            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
+            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
+            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
+            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
+            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
+            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
+            ap_rvputs(r, "value=\"", wsel->route, NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Route Redirect:</td><td><input name=\"rr\" type=text ", r);
+            ap_rvputs(r, "value=\"", wsel->redirect, NULL);
+            ap_rputs("\"></td></tr>\n", r);
+            ap_rputs("<tr><td>Status:</td><td>Disabled: <input name=\"dw\" value=\"Disable\" type=radio", r);
+            if (wsel->s->status & PROXY_WORKER_DISABLED)
+                ap_rputs(" checked", r);
+            ap_rputs("> | Enabled: <input name=\"dw\" value=\"Enable\" type=radio", r);
+            if (!(wsel->s->status & PROXY_WORKER_DISABLED))
+                ap_rputs(" checked", r);
+            ap_rputs("></td></tr>\n", r);
+            ap_rputs("<tr><td colspan=2><input type=submit value=\"Submit\"></td></tr>\n", r);
+            ap_rvputs(r, "</table>\n<input type=hidden name=\"w\" ",  NULL);
+            ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+            ap_rvputs(r, "<input type=hidden name=\"b\" ", NULL);
+            ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n</form>\n", NULL);

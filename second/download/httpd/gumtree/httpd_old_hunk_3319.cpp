@@ -1,17 +1,18 @@
+                ap_scoreboard_image->servers[child_num_arg][i].status;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
+            my_info = (proc_info *) malloc(sizeof(proc_info));
+            if (my_info == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                             "malloc: out of memory");
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,

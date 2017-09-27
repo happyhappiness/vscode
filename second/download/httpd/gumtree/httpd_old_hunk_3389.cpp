@@ -1,26 +1,42 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+        /* The event needs to be removed from the accepted socket,
+         * if not removed from the listen socket prior to accept(),
+         */
+        rv = WSAEventSelect(nlsd, events[2], FD_ACCEPT);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_ERR,
+                         apr_get_netos_error(), ap_server_conf,
+                         "WSAEventSelect() failed.");
+            CloseHandle(events[2]);
+            return 1;
         }
     }
 
-    /* Pass two --- wildcard matches */
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                 "Child %d: Accept thread listening on %s:%d using %s", my_pid,
+                 lr->bind_addr->hostname ? lr->bind_addr->hostname : "*",
+                 lr->bind_addr->port, accf_name);
 
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
+    while (!shutdown_in_progress) {
+        if (!context) {
+            context = mpm_get_completion_context();
+            if (!context) {
+                /* Hopefully a temporary condition in the provider? */
+                ++err_count;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "winnt_accept: Too many failures grabbing a "
+                                 "connection ctx.  Aborting.");
+                    break;
+                }
 
-             if (result != DECLINED)
-                 return result;
-         }
-    }
+                /* Temporary resource constraint? */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, apr_get_netos_error(), 
+                             ap_server_conf,
+                             "winnt_accept: Failed to grab a connection ctx."
+                             "  Temporary resource constraint? Retrying.");
+                Sleep(100);
+                continue;
+            }
+        }
 
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+        if (accf > 0) /* Either 'connect' or 'data' */

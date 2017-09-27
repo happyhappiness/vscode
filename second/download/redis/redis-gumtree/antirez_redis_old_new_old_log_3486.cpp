@@ -1,1 +1,0 @@
-addReplyError(c,"wrong number of arguments for ZRANGEBYSCORE");

@@ -1,22 +1,13 @@
-                         * the network is up again, and restart the children.
-                         * Ben Hyde noted that temporary ENETDOWN situations
-                         * occur in mobile IP.
-                         */
-                         ap_log_error(APLOG_MARK, APLOG_EMERG, stat, ap_server_conf,
-                             "apr_accept: giving up.");
--                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, ptrans, 
--                                         bucket_alloc, pthrd);
-+                        clean_child_exit(APEXIT_CHILDFATAL, my_worker_num, pthrd, 
-+                                         bucket_alloc);
-                 }
-                 else {
-                         ap_log_error(APLOG_MARK, APLOG_ERR, stat, ap_server_conf,
-                             "apr_accept: (client socket)");
--                        clean_child_exit(1, my_worker_num, ptrans, bucket_alloc, pthrd);
-+                        clean_child_exit(1, my_worker_num, pthrd, bucket_alloc);
-                 }
-             }
-         }
+             SSL_do_handshake(ssl);
  
-         ap_create_sb_handle(&sbh, ptrans, 0, my_worker_num);
-         /*
+             if (SSL_get_state(ssl) != SSL_ST_OK) {
+                 ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                              "Re-negotiation request failed");
+ 
++                r->connection->aborted = 1;
+                 return HTTP_FORBIDDEN;
+             }
+ 
+             ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                          "Awaiting re-negotiation handshake");
+ 

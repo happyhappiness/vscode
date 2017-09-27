@@ -1,13 +1,13 @@
-    if (i == -1) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Error reading from remote server");
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(02813),
+                               "AcceptPathInfo off disallows user's path");
     }
-    if (i != 220) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
+/*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                                   "file permissions deny server execution");
     }
 
-    Explain0("FTP: connected.");
-
-    ap_bputs("USER ", f);
-    ap_bwrite(f, user, userlen);
+*/
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);

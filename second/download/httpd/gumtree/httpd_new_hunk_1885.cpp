@@ -1,13 +1,39 @@
+    ap_listen_rec *lr;
+    int have_idle_worker = 0;
+    int last_poll_idx = 0;
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    free(ti);
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    rv = apr_pollset_create(&pollset, num_listensocks, tpool, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "Couldn't create pollset in thread;"
+                     " check system or user limits");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
+    }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    for (lr = ap_listeners; lr != NULL; lr = lr->next) {
+        apr_pollfd_t pfd = { 0 };
+
+        pfd.desc_type = APR_POLL_SOCKET;
+        pfd.desc.s = lr->sd;
+        pfd.reqevents = APR_POLLIN;
+        pfd.client_data = lr;
+
+        rv = apr_pollset_add(pollset, &pfd);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                         "Couldn't create add listener to pollset;"
+                         " check system or user limits");
+            /* let the parent decide how bad this really is */
+            clean_child_exit(APEXIT_CHILDSICK);
+        }
+
+        lr->accept_func = ap_unixd_accept;
+    }
+
+    /* Unblock the signal used to wake this thread up, and set a handler for
+     * it.
+     */
+    unblock_signal(LISTENER_SIGNAL);

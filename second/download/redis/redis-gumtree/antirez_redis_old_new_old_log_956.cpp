@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Delay next BGSAVE for SYNC");

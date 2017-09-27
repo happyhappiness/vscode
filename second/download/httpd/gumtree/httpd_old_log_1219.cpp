@@ -1,2 +1,2 @@
-printf("Invalid postfile name (%s): %s\n", pfile,
-	       apr_strerror(rv, errmsg, sizeof errmsg));
+apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");

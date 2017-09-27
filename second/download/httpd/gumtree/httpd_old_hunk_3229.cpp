@@ -1,26 +1,18 @@
+    }
 
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            int result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+    lockfile = apr_global_mutex_lockfile(mc->stapling_mutex);
+    if ((rv = apr_global_mutex_child_init(&mc->stapling_mutex,
+                                          lockfile, p)) != APR_SUCCESS) {
+        if (lockfile) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_STAPLING_MUTEX_TYPE, lockfile);
         }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit %s mutex", SSL_STAPLING_MUTEX_TYPE);
+        }
+        return FALSE;
     }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             int result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
--- apache_1.3.0/src/main/http_core.c	1998-05-28 23:28:13.000000000 +0800
+    return TRUE;
+}

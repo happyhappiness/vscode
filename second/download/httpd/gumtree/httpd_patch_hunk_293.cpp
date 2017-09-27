@@ -1,18 +1,91 @@
-                 if (d->icon_width) {
-                     ap_rprintf(r, " width=\"%d\"", d->icon_width);
-                 }
-                 if (d->icon_height) {
-                     ap_rprintf(r, " height=\"%d\"", d->icon_height);
-                 }
--                ap_rputs(" /></th>", r);
-+
-+                if (autoindex_opts & EMIT_XHTML) {
-+                    ap_rputs(" /", r);
-+                }
-+                ap_rputs("></th>", r);
-             }
-             else {
-                 ap_rputs("&nbsp;</th>", r);
-             }
+         was specified at startup) */
+     if (hold_screen_on_exit > 0) {
+         hold_screen_on_exit = 0;
+     }
  
-             ++cols;
+     ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+-		"%s configured -- resuming normal operations",
+-		ap_get_server_version());
++            "%s configured -- resuming normal operations",
++            ap_get_server_version());
+     ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+-		"Server built: %s", ap_get_server_built());
++            "Server built: %s", ap_get_server_built());
+ #ifdef AP_MPM_WANT_SET_ACCEPT_LOCK_MECH
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+-		"AcceptMutex: %s (default: %s)",
+-		apr_proc_mutex_name(accept_mutex),
+-		apr_proc_mutex_defname());
++            "AcceptMutex: %s (default: %s)",
++            apr_proc_mutex_name(accept_mutex),
++            apr_proc_mutex_defname());
+ #endif
+     show_server_data();
+ 
++    mpm_state = AP_MPMQ_RUNNING;
+     while (!restart_pending && !shutdown_pending) {
+         perform_idle_server_maintenance(pconf);
+         if (show_settings)
+             display_settings();
+         apr_thread_yield();
+         apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+     }
++    mpm_state = AP_MPMQ_STOPPING;
+ 
+ 
+     /* Shutdown the listen sockets so that we don't get stuck in a blocking call. 
+     shutdown_listeners();*/
+ 
+     if (shutdown_pending) { /* Got an unload from the console */
+         ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+             "caught SIGTERM, shutting down");
+ 
+-        DBPRINT0 ("Shutdown pending. Waiting for threads to terminate...\n");
+-        while (worker_thread_count > 0)
++        while (worker_thread_count > 0) {
++            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...", 
++                    worker_thread_count);
+             apr_thread_yield();
++        }
+ 
+         return 1;
+     }
+     else {  /* the only other way out is a restart */
+         /* advance to the next generation */
+         /* XXX: we really need to make sure this new generation number isn't in
+          * use by any of the children.
+          */
+         ++ap_my_generation;
+         ap_scoreboard_image->global->running_generation = ap_my_generation;
+ 
+     	ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+-		    "Graceful restart requested, doing restart");
++                "Graceful restart requested, doing restart");
+ 
+         /* Wait for all of the threads to terminate before initiating the restart */
+-        DBPRINT0 ("Restart pending. Waiting for threads to terminate...\n");
+         while (worker_thread_count > 0) {
++            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
++                    worker_thread_count);
+             apr_thread_yield();
+         }
+-        DBPRINT0 ("restarting...\n");
++        printf ("\nRestarting...\n");
+     }
+ 
+     return 0;
+ }
+ 
+ static int netware_pre_config(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp)
+ {
+     int debug;
+     char *addrname = NULL;
+ 
++    mpm_state = AP_MPMQ_STARTING;
++
+     debug = ap_exists_config_define("DEBUG");
+ 
+     is_graceful = 0;
+     ap_my_pid = getpid();
+     addrname = getaddressspacename (NULL, NULL);
+     if (addrname) {

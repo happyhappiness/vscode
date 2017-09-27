@@ -1,13 +1,13 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+                      r->filename, header);
+        return NULL;
     }
-#endif
 
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
+    do {
+        ++cp;
+    } while (apr_isspace(*cp));
 
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00682)
+                      "Syntax error in type map --- no header body: %s for %s",
+                      r->filename, header);
+        return NULL;

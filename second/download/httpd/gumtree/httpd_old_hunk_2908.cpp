@@ -1,14 +1,13 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
-
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
     }
+#endif
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800
+    for (m = conf->magic; m; m = m->next) {
+#if MIME_MAGIC_DEBUG
+        rule_counter++;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
+#endif
+
+        /* check if main entry matches */
+        if (!mget(r, &p, s, m, nbytes) ||
+            !mcheck(r, &p, m)) {

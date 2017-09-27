@@ -1,1 +1,2 @@
-cc = apr_file_puts(buf, fptr);
+fprintf(stderr,
+		"overlay_tables: overlay's pool is not an ancestor of p\n");

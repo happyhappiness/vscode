@@ -1,1 +1,0 @@
-s[j++]="    error(\"global variable '\"..n..\"' is not declared\", 2)\n";

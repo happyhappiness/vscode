@@ -1,12 +1,13 @@
-	ap_log_error(APLOG_MARK, APLOG_EMERG, server_conf,
-		    "flock: LOCK_UN: Error freeing accept lock. Exiting!");
-	clean_child_exit(APEXIT_CHILDFATAL);
+                ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01884)
+                             "Operating in SSL FIPS mode");
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01885) "FIPS mode failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die();
+            }
+        }
     }
-}
-
-#else
-/* Default --- no serialization.  Other methods *could* go here,
- * as #elifs...
- */
-#if !defined(MULTITHREAD)
-/* Multithreaded systems don't complete between processes for
+    else {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01886)
+                     "SSL FIPS mode disabled");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
-                      "in %s", r->filename);
+ap_rputs("<body><h1 style=\"text-align: center\">"
+             "Apache Server Information</h1>\n", r);

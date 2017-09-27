@@ -1,13 +1,13 @@
-	    cmd->server->server_uid = ap_user_id;
-	    fprintf(stderr,
-		    "Warning: User directive in <VirtualHost> "
-		    "requires SUEXEC wrapper.\n");
-	}
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
     }
-#if !defined (BIG_SECURITY_HOLE) && !defined (OS2)
-    if (cmd->server->server_uid == 0) {
-	fprintf(stderr,
-		"Error:\tApache has not been designed to serve pages while\n"
-		"\trunning as root.  There are known race conditions that\n"
-		"\twill allow any local user to read any file on the system.\n"
-		"\tShould you still desire to serve pages as root then\n"
+
+    ldc->last_backend_conn = r->request_time;
+    ldc->reason = "Comparison complete";
+    if ((LDAP_COMPARE_TRUE == result) ||
+        (LDAP_COMPARE_FALSE == result) ||
+        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
+        if (curl) {
+            /* compare completed; caching result */

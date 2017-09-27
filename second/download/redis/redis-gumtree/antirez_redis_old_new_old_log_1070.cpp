@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE, "supervised by upstart, will stop to signal readyness");

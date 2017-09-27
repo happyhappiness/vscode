@@ -1,18 +1,39 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+        worker->s->error_time = 0;
+        worker->s->retries = 0;
+    }
+    return connected ? OK : DECLINED;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+static apr_status_t connection_shutdown(void *theconn)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    proxy_conn_rec *conn = (proxy_conn_rec *)theconn;
+    conn_rec *c = conn->connection;
+    if (c) {
+        if (!c->aborted) {
+            apr_interval_time_t saved_timeout = 0;
+            apr_socket_timeout_get(conn->sock, &saved_timeout);
+            if (saved_timeout) {
+                apr_socket_timeout_set(conn->sock, 0);
+            }
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+            (void)ap_shutdown_conn(c, 0);
+            c->aborted = 1;
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+            if (saved_timeout) {
+                apr_socket_timeout_set(conn->sock, saved_timeout);
+            }
+        }
+
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02642)
+                      "proxy: connection shutdown");
+    }
+    return APR_SUCCESS;
+}
+
+
+PROXY_DECLARE(int) ap_proxy_connection_create(const char *proxy_function,
+                                              proxy_conn_rec *conn,
+                                              conn_rec *c,
+                                              server_rec *s)
+{
+    apr_sockaddr_t *backend_addr = conn->addr;

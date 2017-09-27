@@ -1,1 +1,1 @@
-fprintf(stderr, "Reading a token: ");
+fprintf (stderr, "\n");

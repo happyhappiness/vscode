@@ -1,1 +1,0 @@
-current = sdscatvprintf(current,_format,_cpy);

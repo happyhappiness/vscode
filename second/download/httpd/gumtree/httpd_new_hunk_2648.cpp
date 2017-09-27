@@ -1,19 +1,17 @@
-    if (!method_restricted)
-	return OK;
+                     *   Hopefully it will not be needed.
+                     * . It is not possible to noop an instance which has
+                     *   already run.
+                     */
+                    if (last_xlate_ctx == f->ctx) {
+                        last_xlate_ctx->noop = 1;
+                        if (APLOGrtrace1(f->r)) {
+                            const char *symbol = output ? "->" : "<-";
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-	"access to %s failed for %s, reason: user %s not allowed access",
-	r->uri,
-	ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME),
-	user);
-	
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
-++ apache_1.3.1/src/modules/standard/mod_auth_db.c	1998-07-04 06:08:50.000000000 +0800
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                          0, f->r, APLOGNO(01451)
+                                          "%s %s - disabling "
+                                          "translation %s%s%s; existing "
+                                          "translation %s%s%s",
+                                          f->r->uri ? "uri" : "file",
+                                          f->r->uri ? f->r->uri : f->r->filename,
+                                          last_xlate_ctx->dc->charset_source,

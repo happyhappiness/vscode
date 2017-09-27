@@ -1,22 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+    start_thread_may_exit = 1;  /* tell it to give up in case it is still
+                                 * trying to take over slots from a
+                                 * previous generation
+                                 */
+    rv = apr_thread_join(&thread_rv, start_thread_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "apr_thread_join: unable to join the start " "thread");
     }
+}
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
-
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+static void child_main(int child_num_arg)
+{

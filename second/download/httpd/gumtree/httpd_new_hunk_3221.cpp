@@ -1,21 +1,13 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+    i2d_OCSP_RESPONSE(rsp, &p);
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    if (conf->rewritelogfile == NULL) {
-        return;
-    }
-    if (*(conf->rewritelogfile) == '\0') {
-        return;
-    }
-    if (conf->rewritelogfp > 0) {
-        return; /* virtual log shared w/ main server */
+    rv = mc->stapling_cache->store(mc->stapling_cache_context, s,
+                                   cinf->idx, sizeof(cinf->idx),
+                                   expiry, resp_der, resp_derlen, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01929)
+                     "stapling_cache_response: OCSP response session store error!");
+        return FALSE;
     }
 
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 
+    return TRUE;
+}

@@ -1,1 +1,0 @@
-ldbLog(sdscatprintf(sdsempty(),"<error> %s",error));

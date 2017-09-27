@@ -1,1 +1,0 @@
-fprintf(stderr, ">>> '%s'\n", line);

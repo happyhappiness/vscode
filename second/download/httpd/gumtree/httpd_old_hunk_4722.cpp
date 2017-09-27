@@ -1,13 +1,17 @@
-
-	    name = ent->pw_name;
-	}
-	else
-	    name = ap_user_name;
-
-#ifndef __EMX__
-	/* OS/2 dosen't support groups. */
-
-	/* Reset `groups' attributes. */
-
-	if (initgroups(name, ap_group_id) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT, server_conf,
+    if (statement == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01660)
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserRealmQuery with the key '%s'", conf->realm);
+        return AUTH_GENERAL_ERROR;
+    }
+    if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
+                              0, user, realm, NULL) != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01661)
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);
+        return AUTH_GENERAL_ERROR;
+    }
+    for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
+         rv != -1;
+         rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
+        if (rv != 0) {

@@ -1,21 +1,19 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+    }
+    else {
+        user = "anonymous";
+        password = "apache-proxy@";
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01036)
+                  "connecting %s to %s:%d", url, connectname, connectport);
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+    if (worker->s->is_address_reusable) {
+        if (!worker->cp->addr) {
+            if ((err = PROXY_THREAD_LOCK(worker->balancer)) != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, APLOGNO(01037) "lock");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        connect_addr = worker->cp->addr;
+        address_pool = worker->cp->pool;
+    }

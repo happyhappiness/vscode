@@ -1,19 +1,17 @@
-                                       getpid(), t, ldc->reason, ldap_err2string(result));
-                     }
-                 }
-             }
-         }
-         else if (strcmp(w, "ldap-attribute") == 0) {
-+            if (req->dn == NULL || strlen(req->dn) == 0) {
-+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-+                              "[%d] auth_ldap authorise: "
-+                              "require ldap-attribute: user's DN has not been defined; failing authorisation", 
-+                              getpid());
-+                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
-+            }
-             while (t[0]) {
-                 w = ap_getword(r->pool, &t, '=');
-                 value = ap_getword_conf(r->pool, &t);
- 
-                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                               "[%d] auth_ldap authorise: checking attribute"
+ static void show_compile_settings(void)
+ {
+     printf("Server version: %s\n", ap_get_server_version());
+     printf("Server built:   %s\n", ap_get_server_built());
+     printf("Server's Module Magic Number: %u:%u\n",
+            MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
+-
++    printf("Server loaded:  APR %s, APR-UTIL %s\n",
++           apr_version_string(), apu_version_string());
++    printf("Compiled using: APR %s, APR-UTIL %s\n",
++           APR_VERSION_STRING, APU_VERSION_STRING);
+     /* sizeof(foo) is long on some platforms so we might as well
+      * make it long everywhere to keep the printf format
+      * consistent
+      */
+     printf("Architecture:   %ld-bit\n", 8 * (long)sizeof(void *));
+     printf("Server compiled with....\n");

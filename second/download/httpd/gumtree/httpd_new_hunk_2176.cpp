@@ -1,13 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+    apr_interval_time_t org;
+    apr_byte_t result;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_handle_cping_cpong");
+
+    rc = ajp_msg_create(r->pool, AJP_PING_PONG_SZ, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_msg_create failed");
+        return rc;
     }
+

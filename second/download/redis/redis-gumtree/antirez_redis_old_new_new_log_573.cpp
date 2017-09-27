@@ -1,1 +1,0 @@
-snprintf(_prefixfmt,sizeof(_prefixfmt),"%%s%%%ud) ",idxlen);

@@ -1,22 +1,21 @@
+             return rv;
+         }
+     }
  
- int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey)
- {
-     conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-     server_rec *s = mySrvFromConn(c);
-     SSLSrvConfigRec *sc = mySrvConfig(s);
--    X509_NAME *ca_name, *issuer;
-+    X509_NAME *ca_name, *issuer, *ca_issuer;
-     X509_INFO *info;
-+    X509 *ca_cert;
-     STACK_OF(X509_NAME) *ca_list;
-     STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
--    int i, j;
-+    STACK_OF(X509) *ca_certs;
-+    STACK_OF(X509) **ca_cert_chains;
-+    int i, j, k;
+     apr_file_close(dobj->hfd); /* flush and close */
  
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  SSLPROXY_CERT_CB_LOG_FMT "entered",
-                  sc->vhost_id);
- 
-     if (!certs || (sk_X509_INFO_num(certs) <= 0)) {
+-    /* Remove old file with the same name. If remove fails, then
+-     * perhaps we need to create the directory tree where we are
+-     * about to write the new headers file.
+-     */
+-    rv = apr_file_remove(dobj->hdrsfile, r->pool);
+-    if (rv != APR_SUCCESS) {
+-        mkdir_structure(conf, dobj->hdrsfile, r->pool);
+-    }
+-
+     rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile, r->pool);
+     if (rv != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                      "disk_cache: rename tempfile to hdrsfile failed: %s -> %s",
+                      dobj->tempfile, dobj->hdrsfile);
+         apr_file_remove(dobj->tempfile, r->pool);

@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset[2], "Followed by invalid type");

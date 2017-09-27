@@ -1,37 +1,42 @@
-        b = apr_bucket_transient_create(buf_data, buf_size, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        b = apr_bucket_flush_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        rv = ap_pass_brigade(r->output_filters, bb);
-        cid->response_sent = 1;
+     * If that changes, the driver DSO could be registered to unload against
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
+     */
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_ENOTIMPL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s not available", cfg->name);
+            break;
+        case APR_EDSOOPEN:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: can't find driver for %s", cfg->name);
+            break;
+        case APR_ESYMNOTFOUND:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: driver for %s is invalid or corrupted",
+                         cfg->name);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in get_driver");
+            break;
+        }
+
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
 
-    if ((flags & HSE_IO_ASYNC) && cid->completion) {
-        if (rv == OK) {
-            cid->completion(cid->ecb, cid->completion_arg,
-                            *size_arg, ERROR_SUCCESS);
+    rv = apr_dbd_open(rec->driver, rec->pool, cfg->params, &rec->handle);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: Can't connect to %s", cfg->name);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
+                         "DBD: mod_dbd not compatible with APR in open");
+            break;
         }
-        else {
-            cid->completion(cid->ecb, cid->completion_arg,
-                            *size_arg, ERROR_WRITE_FAULT);
-        }
-    }
-    return (rv == OK);
-}
-
-int APR_THREAD_FUNC ServerSupportFunction(isapi_cid    *cid,
-                                          apr_uint32_t  HSE_code,
-                                          void         *buf_ptr,
-                                          apr_uint32_t *buf_size,
-                                          apr_uint32_t *data_type)
-{
-    request_rec *r = cid->r;
-    conn_rec *c = r->connection;
-    char *buf_data = (char*)buf_ptr;
-    request_rec *subreq;
-
-    switch (HSE_code) {
-    case HSE_REQ_SEND_URL_REDIRECT_RESP:
-        /* Set the status to be returned when the HttpExtensionProc()
-         * is done.
-         * WARNING: Microsoft now advertises HSE_REQ_SEND_URL_REDIRECT_RESP

@@ -1,133 +1,152 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
-static const char end_ifdefine_section[] = "</IfDefine>";
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
 
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd,
-					      unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		      && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>')
-                         ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <VirtualHost> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Limit> section", NULL);
-    }
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE
-	&& cmd->path != NULL) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <Directory/Location/Files> "
-			  "section", NULL);
-    }
-    
-    if (((forbidden & NOT_IN_DIRECTORY)
-	 && (cmd->end_token == end_directory_section
-	     || cmd->end_token == end_directorymatch_section)) 
-	|| ((forbidden & NOT_IN_LOCATION)
-	    && (cmd->end_token == end_location_section
-		|| cmd->end_token == end_locationmatch_section)) 
-	|| ((forbidden & NOT_IN_FILES)
-	    && (cmd->end_token == end_files_section
-		|| cmd->end_token == end_filesmatch_section))) {
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-			  " cannot occur within <", cmd->end_token+2,
-			  " section", NULL);
-    }
-
-    return NULL;
+#endif
 }
 
-static const char *set_access_name(cmd_parms *cmd, void *dummy, char *arg)
+/*
+ * close our side of the connection
+ * Pre-condition: cs is not in any timeout queue and not in the pollset,
+ *                timeout_mutex is not locked
+ * return: 0 if connection is fully closed,
+ *         1 if connection is lingering
+ * may be called by listener or by worker thread
+ */
+static int start_lingering_close(event_conn_state_t *cs)
 {
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
+    apr_status_t rv;
 
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
+    cs->c->sbh = NULL;  /* prevent scoreboard updates from the listener 
+                         * worker will loop around and set SERVER_READY soon
+                         */
+
+    if (ap_start_lingering_close(cs->c)) {
+        apr_pool_clear(cs->p);
+        ap_push_pool(worker_queue_info, cs->p);
+        return 0;
     }
+    else {
+        apr_socket_t *csd = ap_get_conn_socket(cs->c);
+        struct timeout_queue *q;
 
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
+#ifdef AP_DEBUG
+        {
+            rv = apr_socket_timeout_set(csd, 0);
+            AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+        }
+#else
+        apr_socket_timeout_set(csd, 0);
+#endif
+        /*
+         * If some module requested a shortened waiting period, only wait for
+         * 2s (SECONDS_TO_LINGER). This is useful for mitigating certain
+         * DoS attacks.
+         */
+        if (apr_table_get(cs->c->notes, "short-lingering-close")) {
+            cs->expiration_time =
+                apr_time_now() + apr_time_from_sec(SECONDS_TO_LINGER);
+            q = &short_linger_q;
+            cs->pub.state = CONN_STATE_LINGER_SHORT;
+        }
+        else {
+            cs->expiration_time =
+                apr_time_now() + apr_time_from_sec(MAX_SECS_TO_LINGER);
+            q = &linger_q;
+            cs->pub.state = CONN_STATE_LINGER_NORMAL;
+        }
+        apr_thread_mutex_lock(timeout_mutex);
+        TO_QUEUE_APPEND(*q, cs);
+        cs->pfd.reqevents = APR_POLLIN | APR_POLLHUP | APR_POLLERR;
+        rv = apr_pollset_add(event_pollset, &cs->pfd);
+        apr_thread_mutex_unlock(timeout_mutex);
+        if (rv != APR_SUCCESS && !APR_STATUS_IS_EEXIST(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                         "start_lingering_close: apr_pollset_add failure");
+            apr_thread_mutex_lock(timeout_mutex);
+            TO_QUEUE_REMOVE(*q, cs);
+            apr_thread_mutex_unlock(timeout_mutex);
+            apr_socket_close(cs->pfd.desc.s);
+            apr_pool_clear(cs->p);
+            ap_push_pool(worker_queue_info, cs->p);
+            return 0;
+        }
+    }
+    return 1;
 }
 
-static const char *set_document_root(cmd_parms *cmd, void *dummy, char *arg)
+/*
+ * forcibly close a lingering connection after the lingering period has
+ * expired
+ * Pre-condition: cs is not in any timeout queue and not in the pollset
+ * return: irrelevant (need same prototype as start_lingering_close)
+ */
+static int stop_lingering_close(event_conn_state_t *cs)
 {
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd,
-					   NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
+    apr_status_t rv;
+    apr_socket_t *csd = ap_get_conn_socket(cs->c);
+    ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, ap_server_conf,
+                 "socket reached timeout in lingering-close state");
+    rv = apr_socket_close(csd);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00468) "error closing socket");
+        AP_DEBUG_ASSERT(0);
     }
-
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory(arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf(stderr, "Warning: DocumentRoot [%s] does not exist\n",
-		    arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
-    }
-    
-    conf->ap_document_root = arg;
-    return NULL;
+    apr_pool_clear(cs->p);
+    ap_push_pool(worker_queue_info, cs->p);
+    return 0;
 }
 
-static const char *set_error_document(cmd_parms *cmd, core_dir_config *conf,
-				      char *line)
+/*
+ * process one connection in the worker
+ * return: 1 if the connection has been completed,
+ *         0 if it is still open and waiting for some event
+ */
+static int process_socket(apr_thread_t *thd, apr_pool_t * p, apr_socket_t * sock,
+                          event_conn_state_t * cs, int my_child_num,
+                          int my_thread_num)
 {
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
+    conn_rec *c;
+    long conn_id = ID_FROM_CHILD_THREAD(my_child_num, my_thread_num);
+    int rc;
+    ap_sb_handle_t *sbh;
 
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-  
-    w = ap_getword_conf_nc(cmd->pool, &line);
-    error_number = atoi(w);
+    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
 
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+    if (cs == NULL) {           /* This is a new connection */
+        listener_poll_type *pt = apr_pcalloc(p, sizeof(*pt));
+        cs = apr_pcalloc(p, sizeof(event_conn_state_t));
+        cs->bucket_alloc = apr_bucket_alloc_create(p);
+        c = ap_run_create_connection(p, ap_server_conf, sock,
+                                     conn_id, sbh, cs->bucket_alloc);
+        if (!c) {
+            apr_bucket_alloc_destroy(cs->bucket_alloc);
+            apr_pool_clear(p);
+            ap_push_pool(worker_queue_info, p);
+            return 1;
+        }
+        apr_atomic_inc32(&connection_count);
+        apr_pool_cleanup_register(c->pool, NULL, decrement_connection_count, apr_pool_cleanup_null);
+        c->current_thread = thd;
+        cs->c = c;
+        c->cs = &(cs->pub);
+        cs->p = p;
+        cs->pfd.desc_type = APR_POLL_SOCKET;
+        cs->pfd.reqevents = APR_POLLIN;
+        cs->pfd.desc.s = sock;
+        pt->type = PT_CSD;
+        pt->baton = cs;
+        cs->pfd.client_data = pt;
+        TO_QUEUE_ELEM_INIT(cs);
 
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
-        index_number = idx500;
-    }
-    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ",
-			  w, NULL);
-    }
-                
-    /* Store it... */
+        ap_update_vhost_given_ip(c);
 
-    if (conf->response_code_strings == NULL) {
-	conf->response_code_strings =
-	    ap_pcalloc(cmd->pool,
-		       sizeof(*conf->response_code_strings) * RESPONSE_CODES);
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup(cmd->pool, line);
+        rc = ap_run_pre_connection(c, sock);
+        if (rc != OK && rc != DONE) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(00469)
+                          "process_socket: connection aborted");
+            c->aborted = 1;
+        }
 
-    return NULL;
-}
-
-/* access.conf commands...
- *
+        /**
+         * XXX If the platform does not have a usable way of bundling
+         * accept() with a socket readability check, like Win32,

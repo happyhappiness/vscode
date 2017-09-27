@@ -1,50 +1,13 @@
-                        else if (*end &&        /* neither empty nor [Bb] */
-                                 ((*end != 'B' && *end != 'b') || end[1])) {
-                            rv = APR_EGENERAL;
-                        }
+                        apr_brigade_length(output_brigade, 0, &bb_len);
+                        if (bb_len != -1)
+                            conn->worker->s->read += bb_len;
                     }
-                    if (rv != APR_SUCCESS) {
-                        apr_file_printf(errfile, "Invalid limit: %s"
-                                                 APR_EOL_STR APR_EOL_STR, arg);
-                        usage();
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");
+                        output_failed = 1;
                     }
-                } while(0);
-                break;
-
-            case 'p':
-                if (proxypath) {
-                    usage();
-                }
-                proxypath = apr_pstrdup(pool, arg);
-                if (apr_filepath_set(proxypath, pool) != APR_SUCCESS) {
-                    usage();
-                }
-                break;
-            } /* switch */
-        } /* else */
-    } /* while */
-
-    if (o->ind != argc) {
-         usage();
-    }
-
-    if (isdaemon && (repeat <= 0 || verbose || realclean || dryrun)) {
-         usage();
-    }
-
-    if (!isdaemon && intelligent) {
-         usage();
-    }
-
-    if (!proxypath || max <= 0) {
-         usage();
-    }
-
-    if (apr_filepath_get(&path, 0, pool) != APR_SUCCESS) {
-        usage();
-    }
-    baselen = strlen(path);
-
-#ifndef DEBUG
-    if (isdaemon) {
-        apr_file_close(errfile);
+                    data_sent = 1;

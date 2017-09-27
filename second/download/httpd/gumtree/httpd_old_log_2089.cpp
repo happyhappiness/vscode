@@ -1,2 +1,3 @@
 ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "shmcb_remove_session_id, internal error");
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");

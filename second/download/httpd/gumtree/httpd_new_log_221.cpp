@@ -1,1 +1,1 @@
-ap_fputs(output, bb, "<D:response>");
+ap_rputs(" /", r);

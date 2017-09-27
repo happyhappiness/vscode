@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
+                             c->client_ip);
+            break;
         }
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
-
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
+        /* Something horribly wrong happened.  Someone didn't block! */
+        if (APR_BRIGADE_EMPTY(bb)) {
+            apr_brigade_cleanup(bb);
+            ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01612)
+                         "ProtocolEcho: Error - read empty brigade from %s!",
+                         c->client_ip);
+            break;
         }
+

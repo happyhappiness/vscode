@@ -1,13 +1,13 @@
-        int res;
-        if (!cid->dconf.fake_async) {
-            if (cid->dconf.log_unsupported) 
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                            "ISAPI: asynchronous I/O not supported: %s", 
-                            r->filename);
-            SetLastError(ERROR_INVALID_PARAMETER);
-            return 0;
-        }
+{
+    r->status = status;
 
-        if (r->remaining < *buf_size) {
-            *buf_size = (apr_size_t)r->remaining;
-        }
+    /* ### I really don't think this is needed; gotta test */
+    r->status_line = ap_get_status_line(status);
+
+    ap_set_content_type(r, "text/html");
+
+    /* begin the response now... */
+    ap_rvputs(r,
+              DAV_RESPONSE_BODY_1,
+              r->status_line,
+              DAV_RESPONSE_BODY_2,

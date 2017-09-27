@@ -1,1 +1,0 @@
-addReplyError(c,"You must specify a subcommand for DEBUG. Try DEBUG HELP for info.");

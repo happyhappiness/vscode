@@ -1,33 +1,32 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool,
-				       num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+     */
+    if (mctx->auth.ca_cert_file || mctx->auth.ca_cert_path) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                     "Configuring client authentication");
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	      (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+        if (!SSL_CTX_load_verify_locations(ctx,
+                                           mctx->auth.ca_cert_file,
+                                           mctx->auth.ca_cert_path))
+        {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01895)
+                    "Unable to configure verify locations "
+                    "for client authentication");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die();
+        }
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-			   ((autoindex_opts & FANCY_INDEXING) ? HRULE
-			                                      : NO_HRULE),
-			   END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+        if (mctx->pks && (mctx->pks->ca_name_file || mctx->pks->ca_name_path)) {
+            ca_list = ssl_init_FindCAList(s, ptemp,
+                                          mctx->pks->ca_name_file,
+                                          mctx->pks->ca_name_path);
+        } else
+            ca_list = ssl_init_FindCAList(s, ptemp,
+                                          mctx->auth.ca_cert_file,
+                                          mctx->auth.ca_cert_path);
+        if (sk_X509_NAME_num(ca_list) <= 0) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01896)
+                    "Unable to determine list of acceptable "
+                    "CA certificates for client authentication");
+            ssl_die();
+        }
 
-    ap_kill_timeout(r);
+        SSL_CTX_set_client_CA_list(ctx, ca_list);

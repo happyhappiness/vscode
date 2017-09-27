@@ -1,13 +1,19 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
+                lua_setglobal(L, "r");
+                lua_settop(L, t);
+            }
+
+            if (lua_pcall(L, 1, 1, 0)) {
+                report_lua_error(L, r);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            rc = DECLINED;
+            if (lua_isnumber(L, -1)) {
+                rc = lua_tointeger(L, -1);
+            }
+            if (rc != DECLINED) {
+                return rc;
+            }
+        }
     }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+    return DECLINED;
+}

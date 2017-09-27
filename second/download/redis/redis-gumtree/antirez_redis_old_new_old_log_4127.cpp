@@ -1,1 +1,0 @@
-sprintf(errorbuf, errormsg, filename);

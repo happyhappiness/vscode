@@ -1,46 +1,60 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+                                           "ISO-8859-1",  NULL));
+    }
+    else {
+        if (xfer_type != 'A' && size != NULL) {
+            /* We "trust" the ftp server to really serve (size) bytes... */
+            apr_table_setn(r->headers_out, "Content-Length", size);
+            ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                         "proxy: FTP: Content-Length set to %s", size);
+        }
+    }
+    if (r->content_type) {
+        apr_table_setn(r->headers_out, "Content-Type", r->content_type);
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                     "proxy: FTP: Content-Type set to %s", r->content_type);
     }
 
-/* set request */
-    len = decodeenc(path);
+#if defined(USE_MDTM) && (defined(HAVE_TIMEGM) || defined(HAVE_GMTOFF))
+    if (mtime != 0L) {
+        char datestr[APR_RFC822_DATE_LEN];
+        apr_rfc822_date(datestr, mtime);
+        apr_table_set(r->headers_out, "Last-Modified", datestr);
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                     "proxy: FTP: Last-Modified set to %s", datestr);
+    }
+#endif /* USE_MDTM */
+
+    /* If an encoding has been set by mistake, delete it.
+     * @@@ FIXME (e.g., for ftp://user@host/file*.tar.gz,
+     * @@@        the encoding is currently set to x-gzip)
+     */
+    if (dirlisting && r->content_encoding != NULL)
+        r->content_encoding = NULL;
+
+    /* set content-encoding (not for dir listings, they are uncompressed)*/
+    if (r->content_encoding != NULL && r->content_encoding[0] != '\0') {
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                     "proxy: FTP: Content-Encoding set to %s",
+                     r->content_encoding);
+        apr_table_setn(r->headers_out, "Content-Encoding", r->content_encoding);
+    }
+
+    /* wait for connection */
+    if (use_port) {
+        for (;;) {
+            rv = apr_socket_accept(&data_sock, local_sock, r->pool);
+            if (rv == APR_EINTR) {
+                continue;
+            }
+            else if (rv == APR_SUCCESS) {
+                break;
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                            "proxy: FTP: failed to accept data connection");
+                proxy_ftp_cleanup(r, backend);
+                return HTTP_BAD_GATEWAY;
+            }
+        }
+    }
+

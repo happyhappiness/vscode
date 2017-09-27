@@ -1,19 +1,12 @@
-    piped_log *pl = data;
-
-    apr_file_close(ap_piped_log_write_fd(pl));
-    return APR_SUCCESS;
+        return 0;
+    else
+        return 1;
 }
+#endif /* USE_ALTERNATE_IS_CONNECTED */
 
-AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
+PROXY_DECLARE(int) ap_proxy_connect_backend(const char *proxy_function,
+                                            proxy_conn_rec *conn,
+                                            proxy_worker *worker,
+                                            server_rec *s)
 {
-    piped_log *pl;
-    apr_file_t *dummy = NULL;
-    int rc;
-
-    rc = log_child(p, program, &dummy, 0);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                     "Couldn't start piped log process");
-        return NULL;
-    }
-
+    apr_status_t rv;

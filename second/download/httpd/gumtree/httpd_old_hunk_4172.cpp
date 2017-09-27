@@ -1,13 +1,13 @@
+    }
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT | level_flags, 0,
+                     (startup ? NULL : s),
+                     "no listening sockets available, shutting down");
+        return DONE;
+    }
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+    if (one_process) {
+        num_buckets = 1;
+    }
+    else if (!retained->is_graceful) { /* Preserve the number of buckets

@@ -1,1 +1,0 @@
-rewriteConfigYesNoOption(state,"cluster-enabled",server.cluster_enabled,0);

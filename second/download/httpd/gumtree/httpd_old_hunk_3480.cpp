@@ -1,20 +1,12 @@
-	     */
-	    break;
-#endif
-	case 'S':
-	    ap_dump_settings = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    else
+        r->proto_num = HTTP_VERSION(1, 0);
 
-    ap_suexec_enabled = init_suexec();
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    return 1;
+}
 
-    child_timeouts = !ap_standalone || one_process;
-
-    if (ap_standalone) {
-	ap_open_logs(server_conf, pconf);
-	ap_set_version();
-	ap_init_modules(pconf, server_conf);
+AP_DECLARE(void) ap_get_mime_headers_core(request_rec *r, apr_bucket_brigade *bb)
+{
+    char *last_field = NULL;
+    apr_size_t last_len = 0;
+    apr_size_t alloc_len = 0;
+    char *field;

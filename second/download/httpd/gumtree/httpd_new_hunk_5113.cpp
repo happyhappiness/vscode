@@ -1,24 +1,13 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+        int active_children;
+        int index;
+        apr_time_t cutoff = 0;
 
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-                "see the\n", HARD_SERVER_LIMIT);
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_threads_per_child < 1) {
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-	ap_threads_per_child = 1;
-    }
+        /* Close our listeners, and then ask our children to do same */
+        ap_close_listeners();
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_GRACEFUL);
+        ap_relieve_child_processes(worker_note_child_killed);
 
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            ap_remove_pid(pconf, ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00296)

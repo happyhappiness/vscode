@@ -1,13 +1,20 @@
-     * you access /symlink (or /symlink/) you would get a 403 without this
-     * S_ISDIR test.  But if you accessed /symlink/index.html, for example,
-     * you would *not* get the 403.
-     */
-    if (!S_ISDIR(r->finfo.st_mode)
-        && (res = check_symlinks(r->filename, ap_allow_options(r)))) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Symbolic link not allowed: %s", r->filename);
-        return res;
-    }
-    return OK;                  /* Can only "fail" if access denied by the
-                                 * symlink goop. */
-}
+                            sizeof(szPath));
+                if ((rv = exists_and_readable(szPath, p, NULL))
+                    != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02201)
+                                 "Init: Can't open server certificate file %s",
+                                 szPath);
+                    ssl_die();
+                }
+                if ((pX509Cert = SSL_read_X509(szPath, NULL, NULL)) == NULL) {
+                    ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02241)
+                                 "Init: Unable to read server certificate from"
+                                 " file %s", szPath);
+                    ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                    ssl_die();
+                }
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02202)
+                             "Init: Read server certificate from '%s'",
+                             szPath);
+            }
+            /*

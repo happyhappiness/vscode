@@ -1,1 +1,0 @@
-addReplyError(c,"Node config epoch is already non-zero");

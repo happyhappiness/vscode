@@ -1,134 +1,114 @@
-        "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
-        trstring, tdstring, tdstring, doclen);
-     printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
-        "<td colspan=2 %s>%d</td></tr>\n",
-        trstring, tdstring, tdstring, concurrency);
-     printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
--       "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
--       trstring, tdstring, tdstring, apr_time_sec(timetaken),
--           (long)apr_time_usec(timetaken));
-+       "<td colspan=2 %s>%.3f seconds</td></tr>\n",
-+       trstring, tdstring, tdstring, timetaken);
-     printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
--       "<td colspan=2 %s>%ld</td></tr>\n",
-+       "<td colspan=2 %s>%d</td></tr>\n",
-        trstring, tdstring, tdstring, done);
-     printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
--       "<td colspan=2 %s>%ld</td></tr>\n",
-+       "<td colspan=2 %s>%d</td></tr>\n",
-        trstring, tdstring, tdstring, bad);
-     if (bad)
-         printf("<tr %s><td colspan=4 %s >   (Connect: %d, Length: %d, Exceptions: %d)</td></tr>\n",
-            trstring, tdstring, err_conn, err_length, err_except);
-     if (err_response)
-         printf("<tr %s><th colspan=2 %s>Non-2xx responses:</th>"
-            "<td colspan=2 %s>%d</td></tr>\n",
-            trstring, tdstring, tdstring, err_response);
-     if (keepalive)
-         printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
--           "<td colspan=2 %s>%ld</td></tr>\n",
-+           "<td colspan=2 %s>%d</td></tr>\n",
-            trstring, tdstring, tdstring, doneka);
-     printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
--       "<td colspan=2 %s>%ld bytes</td></tr>\n",
-+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-        trstring, tdstring, tdstring, totalread);
-     if (posting > 0)
-         printf("<tr %s><th colspan=2 %s>Total POSTed:</th>"
--           "<td colspan=2 %s>%ld</td></tr>\n",
-+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
-            trstring, tdstring, tdstring, totalposted);
-     printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
--       "<td colspan=2 %s>%ld bytes</td></tr>\n",
-+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-        trstring, tdstring, tdstring, totalbread);
- 
-     /* avoid divide by zero */
-     if (timetaken) {
-         printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
-            "<td colspan=2 %s>%.2f</td></tr>\n",
--           trstring, tdstring, tdstring, 1000 * (float) (done) / timetaken);
-+           trstring, tdstring, tdstring, (double) done * 1000 / timetaken);
-         printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
-            "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
--           trstring, tdstring, tdstring, (float) (totalread) / timetaken);
-+           trstring, tdstring, tdstring, (double) totalread / timetaken);
-         if (posting > 0) {
-             printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-                "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
-                trstring, tdstring, tdstring,
--               (float) (totalposted) / timetaken);
-+               (double) totalposted / timetaken);
-             printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-                "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-                trstring, tdstring, tdstring,
--               (float) (totalread + totalposted) / timetaken);
-+               (double) (totalread + totalposted) / timetaken);
-         }
+         --*recursion;
      }
-     {
-         /* work out connection times */
--        long i;
-+        int i;
-         apr_interval_time_t totalcon = 0, total = 0;
-         apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX;
-         apr_interval_time_t maxcon = 0, maxtot = 0;
  
--        for (i = 0; i < requests; i++) {
--            struct data s = stats[i];
--            mincon = ap_min(mincon, s.ctime);
--            mintot = ap_min(mintot, s.time);
--            maxcon = ap_max(maxcon, s.ctime);
--            maxtot = ap_max(maxtot, s.time);
--            totalcon += s.ctime;
--            total += s.time;
-+        for (i = 0; i < done; i++) {
-+            struct data *s = &stats[i];
-+            mincon = ap_min(mincon, s->ctime);
-+            mintot = ap_min(mintot, s->time);
-+            maxcon = ap_max(maxcon, s->ctime);
-+            maxtot = ap_max(maxtot, s->time);
-+            totalcon += s->ctime;
-+            total    += s->time;
-         }
-+        /*
-+         * Reduce stats from apr time to milliseconds
-+         */
-+        mincon   = ap_round_ms(mincon);
-+        mintot   = ap_round_ms(mintot);
-+        maxcon   = ap_round_ms(maxcon);
-+        maxtot   = ap_round_ms(maxtot);
-+        totalcon = ap_round_ms(totalcon);
-+        total    = ap_round_ms(total);
- 
--        if (requests > 0) { /* avoid division by zero (if 0 requests) */
-+        if (done > 0) { /* avoid division by zero (if 0 done) */
-             printf("<tr %s><th %s colspan=4>Connnection Times (ms)</th></tr>\n",
-                trstring, tdstring);
-             printf("<tr %s><th %s>&nbsp;</th> <th %s>min</th>   <th %s>avg</th>   <th %s>max</th></tr>\n",
-                trstring, tdstring, tdstring, tdstring, tdstring);
-             printf("<tr %s><th %s>Connect:</th>"
-                "<td %s>%5" APR_TIME_T_FMT "</td>"
-                "<td %s>%5" APR_TIME_T_FMT "</td>"
-                "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
--               trstring, tdstring, tdstring, mincon, tdstring, totalcon / requests, tdstring, maxcon);
-+               trstring, tdstring, tdstring, mincon, tdstring, totalcon / done, tdstring, maxcon);
-             printf("<tr %s><th %s>Processing:</th>"
-                "<td %s>%5" APR_TIME_T_FMT "</td>"
-                "<td %s>%5" APR_TIME_T_FMT "</td>"
-                "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-                trstring, tdstring, tdstring, mintot - mincon, tdstring,
--               (total / requests) - (totalcon / requests), tdstring, maxtot - maxcon);
-+               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);
-             printf("<tr %s><th %s>Total:</th>"
-                "<td %s>%5" APR_TIME_T_FMT "</td>"
-                "<td %s>%5" APR_TIME_T_FMT "</td>"
-                "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
--               trstring, tdstring, tdstring, mintot, tdstring, total / requests, tdstring, maxtot);
-+               trstring, tdstring, tdstring, mintot, tdstring, total / done, tdstring, maxtot);
-         }
-         printf("</table>\n");
-     }
+     return NULL;
  }
  
- /* --------------------------------------------------------- */
+-static const char *set_loglevel(cmd_parms *cmd, void *dummy, const char *arg)
++static const char *set_loglevel(cmd_parms *cmd, void *config_, const char *arg_)
+ {
+-    char *str;
++    char *level_str;
++    int level;
++    module *module;
++    char *arg = apr_pstrdup(cmd->temp_pool, arg_);
++    struct ap_logconf *log;
++    const char *err;
+ 
+-    const char *err = ap_check_cmd_context(cmd,
+-                                           NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
++    /* XXX: what check is necessary here? */
++#if 0
++    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE);
+     if (err != NULL) {
+         return err;
+     }
++#endif
+ 
+-    if ((str = ap_getword_conf(cmd->pool, &arg))) {
+-        if (!strcasecmp(str, "emerg")) {
+-            cmd->server->loglevel = APLOG_EMERG;
+-        }
+-        else if (!strcasecmp(str, "alert")) {
+-            cmd->server->loglevel = APLOG_ALERT;
+-        }
+-        else if (!strcasecmp(str, "crit")) {
+-            cmd->server->loglevel = APLOG_CRIT;
+-        }
+-        else if (!strcasecmp(str, "error")) {
+-            cmd->server->loglevel = APLOG_ERR;
+-        }
+-        else if (!strcasecmp(str, "warn")) {
+-            cmd->server->loglevel = APLOG_WARNING;
+-        }
+-        else if (!strcasecmp(str, "notice")) {
+-            cmd->server->loglevel = APLOG_NOTICE;
+-        }
+-        else if (!strcasecmp(str, "info")) {
+-            cmd->server->loglevel = APLOG_INFO;
+-        }
+-        else if (!strcasecmp(str, "debug")) {
+-            cmd->server->loglevel = APLOG_DEBUG;
+-        }
+-        else {
+-            return "LogLevel requires level keyword: one of "
+-                   "emerg/alert/crit/error/warn/notice/info/debug";
++    if (cmd->path) {
++        core_dir_config *dconf = config_;
++        if (!dconf->log) {
++            dconf->log = ap_new_log_config(cmd->pool, NULL);
+         }
++        log = dconf->log;
+     }
+     else {
+-        return "LogLevel requires level keyword";
++        log = &cmd->server->log;
++    }
++
++    if (arg == NULL)
++        return "LogLevel requires level keyword or module loglevel specifier";
++
++    level_str = ap_strchr(arg, ':');
++
++    if (level_str == NULL) {
++        err = ap_parse_log_level(arg, &log->level);
++        if (err != NULL)
++            return err;
++        ap_reset_module_loglevels(log, APLOG_NO_MODULE);
++        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
++                     "Setting LogLevel for all modules to %s", arg);
++        return NULL;
++    }
++
++    *level_str++ = '\0';
++    if (!*level_str) {
++        return apr_psprintf(cmd->temp_pool, "Module specifier '%s' must be "
++                            "followed by a log level keyword", arg);
++    }
++
++    err = ap_parse_log_level(level_str, &level);
++    if (err != NULL)
++        return apr_psprintf(cmd->temp_pool, "%s:%s: %s", arg, level_str, err);
++
++    if ((module = find_module(cmd->server, arg)) == NULL) {
++        char *name = apr_psprintf(cmd->temp_pool, "%s_module", arg);
++        ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, cmd->server,
++                     "Cannot find module '%s', trying '%s'", arg, name);
++        module = find_module(cmd->server, name);
++    }
++
++    if (module == NULL) {
++        return apr_psprintf(cmd->temp_pool, "Cannot find module %s", arg);
+     }
+ 
++    ap_set_module_loglevel(cmd->pool, log, module->module_index, level);
++    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
++                 "Setting LogLevel for module %s to %s", module->name,
++                 level_str);
++
+     return NULL;
+ }
+ 
+ AP_DECLARE(const char *) ap_psignature(const char *prefix, request_rec *r)
+ {
+     char sport[20];

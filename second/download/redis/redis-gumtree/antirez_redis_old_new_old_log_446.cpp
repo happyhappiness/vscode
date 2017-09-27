@@ -1,1 +1,0 @@
-printf("%s\n", helpEntries[80].full);

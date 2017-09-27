@@ -1,15 +1,26 @@
-                                      conf->limit_nproc)) != APR_SUCCESS) ||
-#endif
-        ((rc = apr_procattr_cmdtype_set(procattr,
-                                        e_info->cmd_type)) != APR_SUCCESS) ||
+    apr_set_os_error(0);
 
-        ((rc = apr_procattr_detach_set(procattr,
-                                        e_info->detached & AP_PROC_DETACHED)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_addrspace_set(procattr,
-                                        (e_info->detached & AP_PROC_NEWADDRSPACE) ? 1 : 0)) != APR_SUCCESS) ||
-        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
-        /* Something bad happened, tell the world. */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                      "couldn't set child process attributes: %s", r->filename);
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s",
+                     isa->filename);
+        apr_dso_unload(isa->handle);
+        isa->handle = NULL;
+        return rv;
     }
-    else {
+
+    apr_pool_cleanup_register(p, isa, cleanup_isapi,
+                              apr_pool_cleanup_null);
+
+    return APR_SUCCESS;
+}
+
+apr_status_t isapi_lookup(apr_pool_t *p, server_rec *s, request_rec *r,
+                          const char *fpath, isapi_loaded** isa)
+{
+    apr_status_t rv;
+    const char *key;
+
+    if ((rv = apr_thread_mutex_lock(loaded.lock)) != APR_SUCCESS) {

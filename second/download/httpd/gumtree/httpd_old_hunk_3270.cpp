@@ -1,35 +1,31 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
-
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+    if ((errstatus = ap_discard_request_body(r)) != OK) {
+        return errstatus;
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
 
-    r->status = 200;
-    r->status_line = "200 OK";
+    if (r->method_number == M_GET || r->method_number == M_POST) {
+        if (r->finfo.filetype == APR_NOFILE) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "File does not exist: %s", r->filename);
+            return HTTP_NOT_FOUND;
+        }
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+        /* Don't try to serve a dir.  Some OSs do weird things with
+         * raw I/O on a dir.
+         */
+        if (r->finfo.filetype == APR_DIR) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Attempt to serve directory: %s", r->filename);
+            return HTTP_NOT_FOUND;
+        }
+
+        if ((r->used_path_info != AP_REQ_ACCEPT_PATH_INFO) &&
+            r->path_info && *r->path_info)
+        {
+            /* default to reject */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "File does not exist: %s",
+                          apr_pstrcat(r->pool, r->filename, r->path_info, NULL));
+            return HTTP_NOT_FOUND;
+        }
+
+        /* We understood the (non-GET) method, but it might not be legal for

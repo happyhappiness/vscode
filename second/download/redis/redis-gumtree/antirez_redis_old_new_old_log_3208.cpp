@@ -1,1 +1,0 @@
-c->obuf = sdscatprintf(c->obuf,"$%d\r\n%s\r\n",config.datasize,data);

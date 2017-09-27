@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", fname);
+ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
+                              NULL, AP_FTYPE_CONTENT_SET);

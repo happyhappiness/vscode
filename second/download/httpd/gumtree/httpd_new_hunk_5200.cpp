@@ -1,21 +1,27 @@
-#endif
+        if (mctx->crl_check_mode == SSL_CRLCHECK_LEAF ||
+            mctx->crl_check_mode == SSL_CRLCHECK_CHAIN) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01899)
+                         "Host %s: CRL checking has been enabled, but "
+                         "neither %sCARevocationFile nor %sCARevocationPath "
+                         "is configured", mctx->sc->vhost_id, cfgp, cfgp);
+            return ssl_die(s);
+        }
+        return APR_SUCCESS;
+    }
 
-static void show_compile_settings(void)
-{
-    printf("Server version: %s\n", ap_get_server_version());
-    printf("Server built:   %s\n", ap_get_server_built());
-    printf("Server's Module Magic Number: %u:%u\n",
-	   MODULE_MAGIC_NUMBER_MAJOR, MODULE_MAGIC_NUMBER_MINOR);
-    printf("Server compiled with....\n");
-#ifdef BIG_SECURITY_HOLE
-    printf(" -D BIG_SECURITY_HOLE\n");
-#endif
-#ifdef SECURITY_HOLE_PASS_AUTHORIZATION
-    printf(" -D SECURITY_HOLE_PASS_AUTHORIZATION\n");
-#endif
-#ifdef HAVE_MMAP
-    printf(" -D HAVE_MMAP\n");
-#endif
-#ifdef HAVE_SHMGET
-    printf(" -D HAVE_SHMGET\n");
-#endif
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01900)
+                 "Configuring certificate revocation facility");
+
+    if (!store || !X509_STORE_load_locations(store, mctx->crl_file,
+                                             mctx->crl_path)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01901)
+                     "Host %s: unable to configure X.509 CRL storage "
+                     "for certificate revocation", mctx->sc->vhost_id);
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+        return ssl_die(s);
+    }
+
+    switch (mctx->crl_check_mode) {
+       case SSL_CRLCHECK_LEAF:
+           crlflags = X509_V_FLAG_CRL_CHECK;
+           break;

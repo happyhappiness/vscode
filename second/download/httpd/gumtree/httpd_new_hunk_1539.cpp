@@ -1,18 +1,15 @@
-                                  "Request header field is missing ':' "
-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
-                                  last_field);
-                    return;
-                }
 
-                if (value == last_field) {
-                    r->status = HTTP_BAD_REQUEST;
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header field name was empty");
-                    return;
-                }
+    rv = apr_file_mktemp(&dobj->hfd, dobj->tempfile,
+                         APR_CREATE | APR_WRITE | APR_BINARY |
+                         APR_BUFFERED | APR_EXCL, r->pool);
 
-                *value++ = '\0'; /* NUL-terminate at colon */
+    if (rv != APR_SUCCESS) {
+       ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+           "disk_cache: could not create temp file %s",
+           dobj->tempfile);
+        return rv;
+    }
 
-                if (strpbrk(last_field, "\t\n\v\f\r ")) {
-                    r->status = HTTP_BAD_REQUEST;
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+    disk_info.format = DISK_FORMAT_VERSION;
+    disk_info.date = info->date;
+    disk_info.expire = info->expire;

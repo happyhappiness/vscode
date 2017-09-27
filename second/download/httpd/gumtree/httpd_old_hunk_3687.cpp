@@ -1,31 +1,21 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        if (apr_table_get(grpstatus, w)) {
+            return AUTHZ_GRANTED;
+        }
     }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
-    }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01667)
+                    "Authorization of user %s to access %s failed, reason: "
+                    "user is not part of the 'require'ed group(s).",
+                    r->user, r->uri);
 
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
-    }
-    ap_rputs("</BODY></HTML>\n", r);
+    return AUTHZ_DENIED;
+}
 
-    ap_kill_timeout(r);
+APR_OPTIONAL_FN_TYPE(authz_owner_get_file_group) *authz_owner_get_file_group;
+
+static authz_status filegroup_check_authorization(request_rec *r,
+                                                  const char *require_args,
+                                                  const void *parsed_require_args)
+{
+    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,

@@ -1,17 +1,18 @@
-	    int cond_status = OK;
+             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
+             bkt = APR_BUCKET_NEXT(bkt))
+        {
+            const char *data;
+            apr_size_t len;
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
+            /* If we actually see the EOS, that means we screwed up! */
+            if (APR_BUCKET_IS_EOS(bkt)) {
+                inflateEnd(&ctx->stream);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01390)
+                              "Encountered EOS bucket in inflate filter (bug?)");
+                return APR_EGENERAL;
+            }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+            if (APR_BUCKET_IS_FLUSH(bkt)) {
+                apr_bucket *tmp_heap;
+                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+                if (zRC != Z_OK) {

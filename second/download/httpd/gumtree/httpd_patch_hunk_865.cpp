@@ -1,14 +1,25 @@
-      * and any initial read will fail.
-      */
-     rv = apr_socket_timeout_set(csd, c->base_server->timeout);
-     if (rv != APR_SUCCESS) {
-         /* expected cause is that the client disconnected already */
-         ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
--                     "apr_socket_timeout_set");
-+                      "apr_socket_timeout_set");
+     if (err != NULL) {
+         return err;
      }
  
-     net->c = c;
-     net->in_ctx = NULL;
-     net->out_ctx = NULL;
-     net->client_socket = csd;
+     ap_daemons_min_free = atoi(arg);
+     if (ap_daemons_min_free <= 0) {
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: detected MinSpareServers set to non-positive.");
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Resetting to 1 to avoid almost certain Apache failure.");
+-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
++       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Please read the documentation.");
+        ap_daemons_min_free = 1;
+     }
+-       
++
+     return NULL;
+ }
+ 
+ static const char *set_max_free_servers(cmd_parms *cmd, void *dummy, const char *arg)
+ {
+     const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);

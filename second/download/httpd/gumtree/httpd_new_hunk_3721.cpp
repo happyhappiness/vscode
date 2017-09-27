@@ -1,21 +1,32 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	if (ap_suexec_enabled) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		         "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);
-	}
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    ap_wait_t status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+                          "ajp_marshal_into_msgb: "
+                          "Error appending the method '%s' as request attribute",
+                          r->method);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Forward the SSL protocol name.
+     * Modern Tomcat versions know how to retrieve
+     * the protocol name from this attribute.
+     */
+    if (is_ssl) {
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_PROTOCOL_INDICATOR))
+            && envvar[0]) {
+            const char *key = SC_A_SSL_PROTOCOL;
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+                ajp_msg_append_string(msg, key)   ||
+                ajp_msg_append_string(msg, envvar)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02830)
+                        "ajp_marshal_into_msgb: "
+                        "Error appending attribute %s=%s",
+                        key, envvar);
+                return AJP_EOVERFLOW;
+            }
+        }
+    }
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.

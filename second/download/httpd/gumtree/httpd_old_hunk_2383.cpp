@@ -1,14 +1,13 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
--- apache_1.3.0/src/main/http_request.c	1998-05-28 06:56:00.000000000 +0800
+ * In filter->ctx, the callback will find its context. This context is
+ * provided here, so that a filter may be installed multiple times, each
+ * receiving its own per-install context pointer.
+ *
+ * Callbacks are associated with a filter definition, which is specified
+ * by name. See ap_register_input_filter() and ap_register_output_filter()
+ * for setting the association between a name for a filter and its 
+ * associated callback (and other information).
+ *
+ * If the initialization function argument passed to the registration
+ * functions is non-NULL, it will be called iff the filter is in the input
+ * or output filter chains and before any data is generated to allow the
+ * filter to prepare for processing.

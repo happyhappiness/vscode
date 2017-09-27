@@ -1,1 +1,1 @@
-(*code != OP_TYPEEXACT;
+(*code != OP_NOTEXACT;

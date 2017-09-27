@@ -1,1 +1,0 @@
-addReplyError(c,"Protocol error: too big bulk count string");

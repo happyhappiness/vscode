@@ -1,1 +1,0 @@
-ap_rputs(first->desc, r);

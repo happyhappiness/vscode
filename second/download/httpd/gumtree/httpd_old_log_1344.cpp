@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "Reconfigured cipher suite will force renegotiation");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");

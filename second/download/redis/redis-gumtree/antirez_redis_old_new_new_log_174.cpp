@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Master replication ID changed to %s",new);

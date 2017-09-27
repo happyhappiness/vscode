@@ -1,21 +1,12 @@
-                usage();
-            }
-        }
-    }
+    tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+    if (tenc && (strcasecmp(tenc, "chunked") == 0)) {
+        /* The AJP protocol does not want body data yet */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: request is chunked");
+    } else {
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                maxsize - AJP_HEADER_SZ);
 
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
-        apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
+        if (status != APR_SUCCESS) {
+            /* We had a failure: Close connection to backend */

@@ -1,17 +1,12 @@
-
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+                          "ajp_marshal_into_msgb: "
+                          "Error appending the method '%s' as request attribute",
+                          r->method);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.

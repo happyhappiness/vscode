@@ -1,41 +1,23 @@
-	    return cond_status;
-	}
+     *     not to mention allocating a totally useless array in the first
+     *     place, which would suck. */
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    envarr = apr_table_elts(r->subprocess_env);
+    elts = (const apr_table_entry_t *) envarr->elts;
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+#ifdef FCGI_DUMP_ENV_VARS
+    {
+        int i;
+        
+        for (i = 0; i < envarr->nelts; ++i) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01062)
+                          "sending env var '%s' value '%s'",
+                          elts[i].key, elts[i].val);
+        }
+    }
+#endif
 
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
+    /* Send envvars over in as many FastCGI records as it takes, */
+    next_elem = 0; /* starting with the first one */
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    avail_len = 16 * 1024; /* our limit per record, which could have been up
+                            * to AP_FCGI_MAX_CONTENT_LEN

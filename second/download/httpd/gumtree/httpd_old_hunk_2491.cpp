@@ -1,30 +1,13 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(send_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", send_pw) != NULL)
-		   && (strpbrk(".", send_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			send_pw ? send_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			send_pw ? send_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+                r->args = apr_pstrcat(r->pool, r->args, (char*) buf_data, NULL);
+            else
+                r->args = apr_pstrdup(r->pool, (char*) buf_data);
+        }
+        if (cid->dconf.log_to_errlog)
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "ISAPI: %s: %s", cid->r->filename,
+                          (char*) buf_data);
+        return 1;
 
-    return DECLINED;
--- apache_1.3.0/src/modules/standard/mod_auth.c	1998-04-11 20:00:44.000000000 +0800
+    case HSE_REQ_IO_COMPLETION:
+        /* Emulates a completion port...  Record callback address and
+         * user defined arg, we will call this after any async request

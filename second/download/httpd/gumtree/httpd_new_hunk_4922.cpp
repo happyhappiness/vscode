@@ -1,13 +1,15 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
     }
+    r->hostname = host;
+    return;
+
+bad:
+    r->status = HTTP_BAD_REQUEST;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00550)
+                  "Client sent malformed Host header: %s",
+                  r->hostname);
+    return;
+}
+
+
+/* return 1 if host matches ServerName or ServerAliases */
+static int matches_aliases(server_rec *s, const char *host)

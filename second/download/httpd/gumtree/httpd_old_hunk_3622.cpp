@@ -1,41 +1,22 @@
- * field is still a time_t stamp.  By doing that, it is possible for a site to
- * have a "flag second" in which they stop all of their old-format servers,
- * wait one entire second, and then start all of their new-servers.  This
- * procedure will ensure that the new space of identifiers is completely unique
- * from the old space.  (Since the first four unencoded bytes always differ.)
- */
-
-static unsigned global_in_addr;
-
-static APACHE_TLS unique_id_rec cur_unique_id;
-
-static void unique_id_global_init(server_rec *s, pool *p)
-{
-#ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 256
-#endif
-    char str[MAXHOSTNAMELEN + 1];
-    struct hostent *hent;
-#ifndef NO_GETTIMEOFDAY
-    struct timeval tv;
-#endif
-
-    /*
-     * First of all, verify some assumptions that have been made about the
-     * contents of unique_id_rec.  We do it this way because it isn't
-     * affected by trailing padding.
-     */
-    if (XtOffsetOf(unique_id_rec, counter) + sizeof(cur_unique_id.counter)
-        != 14) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, s,
-                    "mod_unique_id: sorry the size assumptions are wrong "
-                    "in mod_unique_id.c, please remove it from your server "
-                    "or fix the code!");
-        exit(1);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /*
-     * Now get the global in_addr.  Note that it is not sufficient to use one
-     * of the addresses from the main_server, since those aren't as likely to
-     * be unique as the physical address of the machine
-     */
+    /* Create shared memory space */
+    rs = apr_temp_dir_get(&tempdir, pconf);
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                 "mod_lua IVM: Failed to find temporary directory");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    lua_ivm_shmfile = apr_psprintf(pconf, "%s/httpd_lua_shm.%ld", tempdir,
+                           (long int)getpid());
+    rs = apr_shm_create(&lua_ivm_shm, sizeof(apr_pool_t**),
+                    (const char *) lua_ivm_shmfile, pconf);
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    pool = (apr_pool_t **)apr_shm_baseaddr_get(lua_ivm_shm);
+    apr_pool_create(pool, pconf);

@@ -1,13 +1,24 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
     }
+    if (ctx->passwd_src == PW_ARG)
+        args_left++;
+    if (rv != APR_EOF)
+        usage();
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
+        apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).
+     */
+    i = state->ind;

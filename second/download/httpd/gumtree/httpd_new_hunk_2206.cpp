@@ -1,14 +1,18 @@
-	     * how libraries and such are going to fail.  If we can't
-	     * do this F_DUPFD there's a good chance that apache has too
-	     * few descriptors available to it.  Note we don't warn on
-	     * the high line, because if it fails we'll eventually try
-	     * the low line...
-	     */
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, NULL,
-		        "unable to open a file descriptor above %u, "
-			"you may need to increase the number of descriptors",
-			LOW_SLACK_LINE);
-	    low_warned = 1;
-	}
-	return fd;
-++ apache_1.3.1/src/ap/ap_snprintf.c	1998-07-09 01:46:56.000000000 +0800
+                ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                             "%s: Unable to create the start_mutex.",
+                             service_name);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+        }
+        /* Always reset our console handler to be the first, even on a restart
+        *  because some modules (e.g. mod_perl) might have set a console 
+        *  handler to terminate the process.
+        */
+        if (strcasecmp(signal_arg, "runservice"))
+            mpm_start_console_handler();
+    }
+    else /* parent_pid != my_pid */
+    {
+        mpm_start_child_console_handler();
+    }
+    return OK;

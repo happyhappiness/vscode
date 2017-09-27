@@ -1,31 +1,30 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+            if (!strcmp(v, filegroup)) {
+                return AUTHZ_GRANTED;
+            }
+        }
     }
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01805)
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
+    return AUTHZ_DENIED;
+}
 
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
+static const authz_provider authz_dbmgroup_provider =
+{
+    &dbmgroup_check_authorization,
+    NULL,
+};
 
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+static const authz_provider authz_dbmfilegroup_provider =
+{
+    &dbmfilegroup_check_authorization,
+    NULL,
+};
+
+
+static void register_hooks(apr_pool_t *p)
+{
+    authz_owner_get_file_group = APR_RETRIEVE_OPTIONAL_FN(authz_owner_get_file_group);

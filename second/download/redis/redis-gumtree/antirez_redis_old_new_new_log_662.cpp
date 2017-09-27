@@ -1,1 +1,0 @@
-DWORD error = GetLastError();

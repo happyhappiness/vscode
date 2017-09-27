@@ -1,29 +1,17 @@
-	}
+    const char *suite;
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    /*
+     *  Configure SSL Cipher Suite. Always disable NULL and export ciphers,
+     *  see also ssl_engine_config.c:ssl_cmd_SSLCipherSuite().
+     *  OpenSSL's SSL_DEFAULT_CIPHER_LIST includes !aNULL:!eNULL from 0.9.8f,
+     *  and !EXP from 0.9.8zf/1.0.1m/1.0.2a, so prepend them while we support
+     *  earlier versions.
+     */
+    suite = mctx->auth.cipher_suite ? mctx->auth.cipher_suite :
+            apr_pstrcat(ptemp, "!aNULL:!eNULL:!EXP:", SSL_DEFAULT_CIPHER_LIST,
+                        NULL);
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Configuring permitted SSL ciphers [%s]",
+                 suite);
+

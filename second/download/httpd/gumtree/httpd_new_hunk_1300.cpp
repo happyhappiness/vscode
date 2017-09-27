@@ -1,43 +1,32 @@
-static int proxy_balancer_post_request(proxy_worker *worker,
-                                       proxy_balancer *balancer,
-                                       request_rec *r,
-                                       proxy_server_conf *conf)
-{
-
-    apr_status_t rv;
-
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Lock failed for post_request",
-            balancer->name);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if (!apr_is_empty_array(balancer->errstatuses)) {
-        int i;
-        for (i = 0; i < balancer->errstatuses->nelts; i++) {
-            int val = ((int *)balancer->errstatuses->elts)[i];
-            if (r->status == val) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                             "proxy: BALANCER: (%s).  Forcing recovery for worker (%s), failonstatus %d",
-                             balancer->name, worker->name, val);
-                worker->s->status |= PROXY_WORKER_IN_ERROR;
-                worker->s->error_time = apr_time_now();
-                break;
-            }
-        }
-    }
-
-    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy_balancer_post_request for (%s)", balancer->name);
-
-    if (worker && worker->s->busy)
-        worker->s->busy--;
-
-    return OK;
-
 }
+
+AP_DECLARE(void) ap_send_interim_response(request_rec *r, int send_headers)
+{
+    hdr_ptr x;
+    char *status_line = NULL;
+    request_rec *rr;
+
+    if (r->proto_num < 1001) {
+        /* don't send interim response to HTTP/1.0 Client */
+        return;
+    }
+    if (!ap_is_HTTP_INFO(r->status)) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                      "Status is %d - not sending interim response", r->status);
+        return;
+    }
+
+    /* if we send an interim response, we're no longer in a state of
+     * expecting one.  Also, this could feasibly be in a subrequest,
+     * so we need to propagate the fact that we responded.
+     */
+    for (rr = r; rr != NULL; rr = rr->main) {
+        rr->expecting_100 = 0;
+    }
+
+    status_line = apr_pstrcat(r->pool, AP_SERVER_PROTOCOL, " ", r->status_line, CRLF, NULL);
+    ap_xlate_proto_to_ascii(status_line, strlen(status_line));
+
+    x.f = r->connection->output_filters;
+    x.bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+

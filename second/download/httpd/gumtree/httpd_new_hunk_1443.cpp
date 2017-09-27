@@ -1,33 +1,27 @@
-        idx = SSL_TMP_KEY_DH_1024;
+            }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "No matching SSL virtual host for servername "
+                              "%s found (using default/first virtual host)",
+                              servername);
+                /*
+                 * RFC 6066 section 3 says "It is NOT RECOMMENDED to send
+                 * a warning-level unrecognized_name(112) alert, because
+                 * the client's behavior in response to warning-level alerts
+                 * is unpredictable."
+                 *
+                 * To maintain backwards compatibility in mod_ssl, we
+                 * no longer send any alert (neither warning- nor fatal-level),
+                 * i.e. we take the second action suggested in RFC 6066:
+                 * "If the server understood the ClientHello extension but
+                 * does not recognize the server name, the server SHOULD take
+                 * one of two actions: either abort the handshake by sending
+                 * a fatal-level unrecognized_name(112) alert or continue
+                 * the handshake."
+                 */
+            }
+        }
     }
 
-    return (DH *)mc->pTmpKeys[idx];
+    return SSL_TLSEXT_ERR_NOACK;
 }
-
-#ifndef OPENSSL_NO_EC
-EC_KEY *ssl_callback_TmpECDH(SSL *ssl, int export, int keylen)
-{
-    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-    SSLModConfigRec *mc = myModConfigFromConn(c);
-    int idx;
-
-    /* XXX Uses 256-bit key for now. TODO: support other sizes. */
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                  "handing out temporary 256 bit ECC key");
-
-    switch (keylen) {
-      case 256:
-      default:
-        idx = SSL_TMP_KEY_EC_256;
-    }
-
-    return (EC_KEY *)mc->pTmpKeys[idx];
-}
-#endif
-
-/*
- * This OpenSSL callback function is called when OpenSSL
- * does client authentication and verifies the certificate chain.
- */
-int ssl_callback_SSLVerify(int ok, X509_STORE_CTX *ctx)
-{

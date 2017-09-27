@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s failed the size check "
+                     "(%" APR_OFF_T_FMT " > %" APR_OFF_T_FMT ")",
+                     key, len, conf->maxfs);

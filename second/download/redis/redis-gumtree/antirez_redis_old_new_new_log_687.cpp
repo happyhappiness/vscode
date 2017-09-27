@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Unable to send PSYNC to master: %s",reply);

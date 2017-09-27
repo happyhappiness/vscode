@@ -1,50 +1,34 @@
-        return errstatus;
-    }
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
-
-    if (r->method_number == M_INVALID) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	char *emsg;
-
-	emsg = "File does not exist: ";
-	if (r->path_info == NULL) {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, NULL);
-	}
-	else {
-	    emsg = ap_pstrcat(r->pool, emsg, r->filename, r->path_info, NULL);
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r, emsg);
-	ap_table_setn(r->notes, "error-notes", emsg);
-	return HTTP_NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(OS2) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
+#ifndef OPENSSL_NO_SSL2
+#define SSL2_HELP_MSG "SSL2, "
 #else
-    f = ap_pfopen(r->pool, r->filename, "r");
+#define SSL2_HELP_MSG ""
 #endif
 
-    if (f == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+#ifdef HAVE_TLSV1_X
+#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
+#else
+#define TLS1_X_HELP_MSG ""
+#endif
+
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n"); 
+    fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+#endif
+    exit(EINVAL);
+}
+
+/* ------------------------------------------------------- */
+

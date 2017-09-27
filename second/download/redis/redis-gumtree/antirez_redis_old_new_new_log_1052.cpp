@@ -1,1 +1,0 @@
-serverLog(LL_WARNING, "Writing initial AOF, can't exit.");

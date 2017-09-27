@@ -1,18 +1,29 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+                                       proxy_server_conf *conf)
+{
+    apr_status_t rv;
+
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    /* TODO: calculate the bytes transferred
+     * This will enable to elect the worker that has
+     * the lowest load.
+     * The bytes transferred depends on the protocol
+     * used, so each protocol handler should keep the
+     * track on that.
+     */
+
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Unlock failed for post_request",
+            balancer->name);
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
+
+    return OK;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,

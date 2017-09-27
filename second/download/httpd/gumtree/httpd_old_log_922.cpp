@@ -1,1 +1,1 @@
-fprintf(stderr, "Starting parse\n");
+fprintf (stderr, " -> %s\n", ssl_expr_yytname[ssl_expr_yyr1[ssl_expr_yyn]]);

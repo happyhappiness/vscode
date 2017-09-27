@@ -1,13 +1,19 @@
-    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_CLOSE_CONNECTION "
-                          "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+    }
+    return HTTP_INTERNAL_SERVER_ERROR;
+}
 
-    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
-        /* Returns True if client is connected c.f. MSKB Q188346
-         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
-         */
+static void menu_header(request_rec *r, char *menu)
+{
+    ap_set_content_type(r, "text/html");
+
+    ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", r->uri,
+           "</title>\n</head><body>\n", NULL);
+
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<h1>Menu for ", r->uri, "</h1>\n<hr />\n\n", NULL);
+    }
+
+    return;
+}
+
+static void menu_blank(request_rec *r, char *menu)

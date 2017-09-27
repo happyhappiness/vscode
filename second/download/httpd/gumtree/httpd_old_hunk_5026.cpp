@@ -1,22 +1,14 @@
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
+    return 0;
+}
 
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
--- apache_1.3.1/src/modules/example/mod_example.c	1998-06-15 05:10:25.000000000 +0800
+static void usage(void)
+{
+    apr_file_printf(errfile, "Usage:" NL
+        "\thtpasswd [-cimBdpsD] [-C cost] passwordfile username" NL
+        "\thtpasswd -b[cmBdpsD] [-C cost] passwordfile username password" NL
+        NL
+        "\thtpasswd -n[imBdps] [-C cost] username" NL
+        "\thtpasswd -nb[mBdps] [-C cost] username password" NL
+        " -c  Create a new file." NL
+        " -n  Don't update file; display results on stdout." NL
+        " -b  Use the password from the command line rather than prompting "

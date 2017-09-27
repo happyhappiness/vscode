@@ -1,1 +1,0 @@
-fprintf(stderr,"Unknown command '%s'\n",argv[0]);

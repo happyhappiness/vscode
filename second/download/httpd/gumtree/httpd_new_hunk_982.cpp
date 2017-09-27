@@ -1,29 +1,54 @@
-    if (changed_limit_at_restart) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
-                     "ignored during restart");
-        changed_limit_at_restart = 0;
-    }
+  If there isn't enough space in the offset vector, treat this as if it were a
+  non-capturing bracket. Don't worry about setting the flag for the error case
+  here; that is handled in the code for KET. */
 
-    /* Initialize cross-process accept lock */
-    ap_lock_fname = apr_psprintf(_pconf, "%s.%" APR_PID_T_FMT,
-                                 ap_server_root_relative(_pconf, ap_lock_fname),
-                                 ap_my_pid);
+  if (op > OP_BRA)
+    {
+    number = op - OP_BRA;
 
-    rv = apr_proc_mutex_create(&accept_mutex, ap_lock_fname,
-                               ap_accept_lock_mech, _pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock");
-        mpm_state = AP_MPMQ_STOPPING;
-        return 1;
-    }
+    /* For extended extraction brackets (large number), we have to fish out the
+    number from a dummy opcode at the start. */
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    if (ap_accept_lock_mech == APR_LOCK_DEFAULT ||
-        ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
-#else
-    if (ap_accept_lock_mech == APR_LOCK_SYSVSEM) {
+    if (number > EXTRACT_BASIC_MAX)
+      number = GET2(ecode, 2+LINK_SIZE);
+    offset = number << 1;
+
+#ifdef DEBUG
+    printf("start bracket %d subject=", number);
+    pchars(eptr, 16, TRUE, md);
+    printf("\n");
 #endif
-        rv = unixd_set_proc_mutex_perms(accept_mutex);
-        if (rv != APR_SUCCESS) {
+
+    if (offset < md->offset_max)
+      {
+      save_offset1 = md->offset_vector[offset];
+      save_offset2 = md->offset_vector[offset+1];
+      save_offset3 = md->offset_vector[md->offset_end - number];
+      save_capture_last = md->capture_last;
+
+      DPRINTF(("saving %d %d %d\n", save_offset1, save_offset2, save_offset3));
+      md->offset_vector[md->offset_end - number] = eptr - md->start_subject;
+
+      do
+        {
+        RMATCH(rrc, eptr, ecode + 1 + LINK_SIZE, offset_top, md, ims, eptrb,
+          match_isgroup);
+        if (rrc != MATCH_NOMATCH) RRETURN(rrc);
+        md->capture_last = save_capture_last;
+        ecode += GET(ecode, 1);
+        }
+      while (*ecode == OP_ALT);
+
+      DPRINTF(("bracket %d failed\n", number));
+
+      md->offset_vector[offset] = save_offset1;
+      md->offset_vector[offset+1] = save_offset2;
+      md->offset_vector[md->offset_end - number] = save_offset3;
+
+      RRETURN(MATCH_NOMATCH);
+      }
+
+    /* Insufficient room for saving captured contents */
+
+    else op = OP_BRA;
+    }

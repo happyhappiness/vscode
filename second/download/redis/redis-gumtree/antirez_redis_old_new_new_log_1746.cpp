@@ -1,1 +1,0 @@
-printf("[%05.2f%%] Sampled %llu keys so far\n", pct, sampled);

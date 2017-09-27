@@ -1,1 +1,0 @@
-printf("*** ERROR! Duplicated element detected\n");

@@ -1,1 +1,0 @@
-g(LL_NOTICE, "supervised by upstart, will stop to signal readiness");

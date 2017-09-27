@@ -1,1 +1,1 @@
-printf("    \\x%02x{", c);
+(isprint(c = code[1]);

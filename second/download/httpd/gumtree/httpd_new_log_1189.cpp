@@ -1,1 +1,1 @@
-GETCHARLEN(fc, ecode, length);
+printf("Named substrings\n");

@@ -1,340 +1,282 @@
-    return (apr_table_get(r->headers_in, "Request-Range")
-            || ((ua = apr_table_get(r->headers_in, "User-Agent"))
-                && ap_strstr_c(ua, "MSIE 3")));
-}
-
-#define BYTERANGE_FMT "%" APR_OFF_T_FMT "-%" APR_OFF_T_FMT "/%" APR_OFF_T_FMT
-
-static apr_status_t copy_brigade_range(apr_bucket_brigade *bb,
-                                       apr_bucket_brigade *bbout,
-                                       apr_off_t start,
-                                       apr_off_t end)
-{
-    apr_bucket *first = NULL, *last = NULL, *out_first = NULL, *e;
-    apr_uint64_t pos = 0, off_first = 0, off_last = 0;
-    apr_status_t rv;
-    apr_uint64_t start64, end64;
-    apr_off_t pofft = 0;
-
-    /*
-     * Once we know that start and end are >= 0 convert everything to apr_uint64_t.
-     * See the comments in apr_brigade_partition why.
-     * In short apr_off_t (for values >= 0)and apr_size_t fit into apr_uint64_t.
-     */
-    start64 = (apr_uint64_t)start;
-    end64 = (apr_uint64_t)end;
-
-    if (start < 0 || end < 0 || start64 > end64)
-        return APR_EINVAL;
-
-    for (e = APR_BRIGADE_FIRST(bb);
-         e != APR_BRIGADE_SENTINEL(bb);
-         e = APR_BUCKET_NEXT(e))
-    {
-        apr_uint64_t elen64;
-        /* we know that no bucket has undefined length (-1) */
-        AP_DEBUG_ASSERT(e->length != (apr_size_t)(-1));
-        elen64 = (apr_uint64_t)e->length;
-        if (!first && (elen64 + pos > start64)) {
-            first = e;
-            off_first = pos;
-        }
-        if (elen64 + pos > end64) {
-            last = e;
-            off_last = pos;
-            break;
-        }
-        pos += elen64;
-    }
-    if (!first || !last)
-        return APR_EINVAL;
-
-    e = first;
-    while (1)
-    {
-        apr_bucket *copy;
-        AP_DEBUG_ASSERT(e != APR_BRIGADE_SENTINEL(bb));
-        rv = apr_bucket_copy(e, &copy);
-        if (rv != APR_SUCCESS) {
-            apr_brigade_cleanup(bbout);
-            return rv;
-        }
-
-        APR_BRIGADE_INSERT_TAIL(bbout, copy);
-        if (e == first) {
-            if (off_first != start64) {
-                rv = apr_bucket_split(copy, (apr_size_t)(start64 - off_first));
-                if (rv != APR_SUCCESS) {
-                    apr_brigade_cleanup(bbout);
-                    return rv;
-                }
-                out_first = APR_BUCKET_NEXT(copy);
-                APR_BUCKET_REMOVE(copy);
-                apr_bucket_destroy(copy);
-            }
-            else {
-                out_first = copy;
-            }
-        }
-        if (e == last) {
-            if (e == first) {
-                off_last += start64 - off_first;
-                copy = out_first;
-            }
-            if (end64 - off_last != (apr_uint64_t)e->length) {
-                rv = apr_bucket_split(copy, (apr_size_t)(end64 + 1 - off_last));
-                if (rv != APR_SUCCESS) {
-                    apr_brigade_cleanup(bbout);
-                    return rv;
-                }
-                copy = APR_BUCKET_NEXT(copy);
-                if (copy != APR_BRIGADE_SENTINEL(bbout)) {
-                    APR_BUCKET_REMOVE(copy);
-                    apr_bucket_destroy(copy);
-                }
-            }
-            break;
-        }
-        e = APR_BUCKET_NEXT(e);
+        APR_BRIGADE_CONCAT(ctx->proc_bb, newbb);
     }
 
-    AP_DEBUG_ASSERT(APR_SUCCESS == apr_brigade_length(bbout, 1, &pofft));
-    pos = (apr_uint64_t)pofft;
-    AP_DEBUG_ASSERT(pos == end64 - start64 + 1);
     return APR_SUCCESS;
 }
 
-typedef struct indexes_t {
-    apr_off_t start;
-    apr_off_t end;
-} indexes_t;
 
-static int get_max_ranges(request_rec *r) {
-    core_dir_config *core_conf = (core_dir_config *)ap_get_module_config(r->per_dir_config,
-                                                                         &core_module);
-    if (core_conf->max_ranges >= 0 || core_conf->max_ranges == AP_MAXRANGES_UNLIMITED) {
-        return core_conf->max_ranges;
-    }
-
-    /* Any other negative val means the default */
-    return AP_DEFAULT_MAX_RANGES;
-}
-
-static apr_status_t send_416(ap_filter_t *f, apr_bucket_brigade *tmpbb)
+/* Filter to inflate for a content-transforming proxy.  */
+static apr_status_t inflate_out_filter(ap_filter_t *f,
+                                      apr_bucket_brigade *bb)
 {
-    apr_bucket *e;
-    conn_rec *c = f->r->connection;
-    ap_remove_output_filter(f);
-    f->r->status = HTTP_OK;
-    e = ap_bucket_error_create(HTTP_RANGE_NOT_SATISFIABLE, NULL,
-                               f->r->pool, c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(tmpbb, e);
-    e = apr_bucket_eos_create(c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(tmpbb, e);
-    return ap_pass_brigade(f->next, tmpbb);
-}
-
-AP_CORE_DECLARE_NONSTD(apr_status_t) ap_byterange_filter(ap_filter_t *f,
-                                                         apr_bucket_brigade *bb)
-{
+    int zlib_method;
+    int zlib_flags;
+    int deflate_init = 1;
+    apr_bucket *bkt;
     request_rec *r = f->r;
-    conn_rec *c = r->connection;
-    apr_bucket *e;
-    apr_bucket_brigade *bsend;
-    apr_bucket_brigade *tmpbb;
-    apr_off_t range_start;
-    apr_off_t range_end;
-    apr_off_t clength = 0;
+    deflate_ctx *ctx = f->ctx;
+    int zRC;
     apr_status_t rv;
-    int found = 0;
-    int num_ranges;
-    char *boundary = NULL;
-    char *bound_head = NULL;
-    apr_array_header_t *indexes;
-    indexes_t *idx;
-    int original_status;
-    int max_ranges = get_max_ranges(r);
-    int i;
+    deflate_filter_config *c;
 
-    /*
-     * Iterate through the brigade until reaching EOS or a bucket with
-     * unknown length.
-     */
-    for (e = APR_BRIGADE_FIRST(bb);
-         (e != APR_BRIGADE_SENTINEL(bb) && !APR_BUCKET_IS_EOS(e)
-          && e->length != (apr_size_t)-1);
-         e = APR_BUCKET_NEXT(e)) {
-        clength += e->length;
+    /* Do nothing if asked to filter nothing. */
+    if (APR_BRIGADE_EMPTY(bb)) {
+        return APR_SUCCESS;
     }
 
-    /*
-     * Don't attempt to do byte range work if this brigade doesn't
-     * contain an EOS, or if any of the buckets has an unknown length;
-     * this avoids the cases where it is expensive to perform
-     * byteranging (i.e. may require arbitrary amounts of memory).
-     */
-    if (!APR_BUCKET_IS_EOS(e) || clength <= 0) {
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, bb);
-    }
+    c = ap_get_module_config(r->server->module_config, &deflate_module);
 
-    original_status = r->status;
-    num_ranges = ap_set_byterange(r, clength, &indexes);
+    if (!ctx) {
+        int found = 0;
+        char *token;
+        const char *encoding;
 
-    /* We have nothing to do, get out of the way. */
-    if (num_ranges == 0 || (max_ranges >= 0 && num_ranges > max_ranges)) {
-        r->status = original_status;
-        ap_remove_output_filter(f);
-        return ap_pass_brigade(f->next, bb);
-    }
-
-    /* this brigade holds what we will be sending */
-    bsend = apr_brigade_create(r->pool, c->bucket_alloc);
-
-    if (num_ranges < 0)
-        return send_416(f, bsend);
-  
-    if (num_ranges > 1) {
-        /* Is ap_make_content_type required here? */
-        const char *orig_ct = ap_make_content_type(r, r->content_type);
-        boundary = apr_psprintf(r->pool, "%" APR_UINT64_T_HEX_FMT "%lx",
-                                (apr_uint64_t)r->request_time, c->id);
-
-        ap_set_content_type(r, apr_pstrcat(r->pool, "multipart",
-                                           use_range_x(r) ? "/x-" : "/",
-                                           "byteranges; boundary=",
-                                           boundary, NULL));
-
-        bound_head = apr_pstrcat(r->pool,
-                                 CRLF "--", boundary,
-                                 CRLF "Content-type: ",
-                                 orig_ct,
-                                 CRLF "Content-range: bytes ",
-                                 NULL);
-        ap_xlate_proto_to_ascii(bound_head, strlen(bound_head));
-    }
-
-    tmpbb = apr_brigade_create(r->pool, c->bucket_alloc);
-
-    idx = (indexes_t *)indexes->elts;
-    for (i = 0; i < indexes->nelts; i++, idx++) {
-        range_start = idx->start;
-        range_end = idx->end;
-
-        rv = copy_brigade_range(bb, tmpbb, range_start, range_end);
-        if (rv != APR_SUCCESS ) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "copy_brigade_range() failed [%" APR_OFF_T_FMT
-                          "-%" APR_OFF_T_FMT ",%" APR_OFF_T_FMT "]",
-                          range_start, range_end, clength);
-            continue;
+        /* only work on main request/no subrequests */
+        if (!ap_is_initial_req(r)) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
-        found = 1;
 
-        /*
-         * For single range requests, we must produce Content-Range header.
-         * Otherwise, we need to produce the multipart boundaries.
+        /* Let's see what our current Content-Encoding is.
+         * If gzip is present, don't gzip again.  (We could, but let's not.)
          */
-        if (num_ranges == 1) {
-            apr_table_setn(r->headers_out, "Content-Range",
-                           apr_psprintf(r->pool, "bytes " BYTERANGE_FMT,
-                                        range_start, range_end, clength));
-        }
-        else {
-            char *ts;
+        encoding = apr_table_get(r->headers_out, "Content-Encoding");
+        if (encoding) {
+            const char *tmp = encoding;
 
-            e = apr_bucket_pool_create(bound_head, strlen(bound_head),
-                                       r->pool, c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bsend, e);
-
-            ts = apr_psprintf(r->pool, BYTERANGE_FMT CRLF CRLF,
-                              range_start, range_end, clength);
-            ap_xlate_proto_to_ascii(ts, strlen(ts));
-            e = apr_bucket_pool_create(ts, strlen(ts), r->pool,
-                                       c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(bsend, e);
+            token = ap_get_token(r->pool, &tmp, 0);
+            while (token && token[0]) {
+                if (!strcasecmp(token, "gzip")) {
+                    found = 1;
+                    break;
+                }
+                /* Otherwise, skip token */
+                tmp++;
+                token = ap_get_token(r->pool, &tmp, 0);
+            }
         }
 
-        APR_BRIGADE_CONCAT(bsend, tmpbb);
-        if (i && !(i & 0x1F)) {
-            /*
-             * Every now and then, pass what we have down the filter chain.
-             * In this case, the content-length filter cannot calculate and
-             * set the content length and we must remove any Content-Length
-             * header already present.
-             */
-            apr_table_unset(r->headers_out, "Content-Length");
-            if ((rv = ap_pass_brigade(f->next, bsend)) != APR_SUCCESS)
-                return rv;
-            apr_brigade_cleanup(bsend);
+        if (found == 0) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
+        apr_table_unset(r->headers_out, "Content-Encoding");
+
+        /* No need to inflate HEAD or 204/304 */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(bb))) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+
+        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
+        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
+
+
+        zRC = inflateInit2(&ctx->stream, c->windowSize);
+
+        if (zRC != Z_OK) {
+            f->ctx = NULL;
+            inflateEnd(&ctx->stream);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+        /* initialize deflate output buffer */
+        ctx->stream.next_out = ctx->buffer;
+        ctx->stream.avail_out = c->bufferSize;
+
+        deflate_init = 0;
     }
 
-    if (found == 0) {
-        /* bsend is assumed to be empty if we get here. */
-        return send_416(f, bsend);
+    for (bkt = APR_BRIGADE_FIRST(bb);
+         bkt != APR_BRIGADE_SENTINEL(bb);
+         bkt = APR_BUCKET_NEXT(bkt))
+    {
+        const char *data;
+        apr_size_t len;
+
+        /* If we actually see the EOS, that means we screwed up! */
+        /* no it doesn't - not in a HEAD or 204/304 */
+        if (APR_BUCKET_IS_EOS(bkt)) {
+            inflateEnd(&ctx->stream);
+            return ap_pass_brigade(f->next, bb);
+        }
+
+        if (APR_BUCKET_IS_FLUSH(bkt)) {
+            apr_bucket *tmp_heap;
+            zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
+            if (zRC != Z_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Inflate error %d on flush", zRC);
+                inflateEnd(&ctx->stream);
+                return APR_EGENERAL;
+            }
+
+            ctx->stream.next_out = ctx->buffer;
+            len = c->bufferSize - ctx->stream.avail_out;
+
+            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                             NULL, f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+            ctx->stream.avail_out = c->bufferSize;
+
+            /* Move everything to the returning brigade. */
+            APR_BUCKET_REMOVE(bkt);
+            break;
+        }
+
+        /* read */
+        apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
+
+        /* first bucket contains zlib header */
+        if (!deflate_init++) {
+            if (len < 10) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Insufficient data for inflate");
+                return APR_EGENERAL;
+            }
+            else  {
+                zlib_method = data[2];
+                zlib_flags = data[3];
+                if (zlib_method != Z_DEFLATED) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "inflate: data not deflated!");
+                    ap_remove_output_filter(f);
+                    return ap_pass_brigade(f->next, bb);
+                }
+                if (data[0] != deflate_magic[0] ||
+                    data[1] != deflate_magic[1] ||
+                    (zlib_flags & RESERVED) != 0) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "inflate: bad header");
+                    return APR_EGENERAL ;
+                }
+                data += 10 ;
+                len -= 10 ;
+           }
+           if (zlib_flags & EXTRA_FIELD) {
+               unsigned int bytes = (unsigned int)(data[0]);
+               bytes += ((unsigned int)(data[1])) << 8;
+               bytes += 2;
+               if (len < bytes) {
+                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                 "inflate: extra field too big (not "
+                                 "supported)");
+                   return APR_EGENERAL;
+               }
+               data += bytes;
+               len -= bytes;
+           }
+           if (zlib_flags & ORIG_NAME) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & COMMENT) {
+               while (len-- && *data++);
+           }
+           if (zlib_flags & HEAD_CRC) {
+                len -= 2;
+                data += 2;
+           }
+        }
+
+        /* pass through zlib inflate. */
+        ctx->stream.next_in = (unsigned char *)data;
+        ctx->stream.avail_in = len;
+
+        zRC = Z_OK;
+
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+                apr_bucket *tmp_heap;
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                                  NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+                ctx->stream.avail_out = c->bufferSize;
+            }
+
+            zRC = inflate(&ctx->stream, Z_NO_FLUSH);
+
+            if (zRC == Z_STREAM_END) {
+                break;
+            }
+
+            if (zRC != Z_OK) {
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
+            }
+        }
+        if (zRC == Z_STREAM_END) {
+            apr_bucket *tmp_heap, *eos;
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Zlib: Inflated %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out,
+                          r->uri);
+
+            len = c->bufferSize - ctx->stream.avail_out;
+
+            ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+            tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                              NULL, f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
+            ctx->stream.avail_out = c->bufferSize;
+
+            /* Is the remaining 8 bytes already in the avail stream? */
+            if (ctx->stream.avail_in >= 8) {
+                unsigned long compCRC, compLen;
+                compCRC = getLong(ctx->stream.next_in);
+                if (ctx->crc != compCRC) {
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
+                }
+                ctx->stream.next_in += 4;
+                compLen = getLong(ctx->stream.next_in);
+                if (ctx->stream.total_out != compLen) {
+                    inflateEnd(&ctx->stream);
+                    return APR_EGENERAL;
+                }
+            }
+            else {
+                /* FIXME: We need to grab the 8 verification bytes
+                 * from the wire! */
+                inflateEnd(&ctx->stream);
+                return APR_EGENERAL;
+            }
+
+            inflateEnd(&ctx->stream);
+
+            eos = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, eos);
+            break;
+        }
+
     }
 
-    if (num_ranges > 1) {
-        char *end;
-
-        /* add the final boundary */
-        end = apr_pstrcat(r->pool, CRLF "--", boundary, "--" CRLF, NULL);
-        ap_xlate_proto_to_ascii(end, strlen(end));
-        e = apr_bucket_pool_create(end, strlen(end), r->pool, c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bsend, e);
-    }
-
-    e = apr_bucket_eos_create(c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bsend, e);
-
-    /* we're done with the original content - all of our data is in bsend. */
-    apr_brigade_cleanup(bb);
-    apr_brigade_destroy(tmpbb);
-
-    /* send our multipart output */
-    return ap_pass_brigade(f->next, bsend);
+    rv = ap_pass_brigade(f->next, ctx->proc_bb);
+    apr_brigade_cleanup(ctx->proc_bb);
+    return rv ;
 }
 
-/* for consistency with 2.2 code which uses apr_strtoff()
- * (missing from apr 0.9)
- */
-static apr_status_t strtoff(apr_off_t *offset, const char *nptr,
-                           char **endptr, int base)
+static void register_hooks(apr_pool_t *p)
 {
-   errno = 0;
-   if (sizeof(apr_off_t) == 4) {
-       *offset = strtol(nptr, endptr, base);
-   }
-   else {
-       *offset = apr_strtoi64(nptr, endptr, base);
-   }
-   return APR_FROM_OS_ERROR(errno);
+    ap_register_output_filter(deflateFilterName, deflate_out_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
+    ap_register_output_filter("INFLATE", inflate_out_filter, NULL,
+                              AP_FTYPE_RESOURCE-1);
+    ap_register_input_filter(deflateFilterName, deflate_in_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);
 }
 
-static int ap_set_byterange(request_rec *r, apr_off_t clength,
-                            apr_array_header_t **indexes)
-{
-    const char *range;
-    const char *if_range;
-    const char *match;
-    const char *ct;
-    char *cur;
-    int num_ranges = 0, unsatisfiable = 0;
-    apr_off_t sum_lengths = 0;
-    indexes_t *idx;
-    int ranges = 1;
-    const char *it;
-
-    if (r->assbackwards) {
-        return 0;
-    }
-
-    /*
-     * Check for Range request-header (HTTP/1.1) or Request-Range for
-     * backwards-compatibility with second-draft Luotonen/Franks
-     * byte-ranges (e.g. Netscape Navigator 2-3).
-     *
-     * We support this form, with Request-Range, and (farther down) we
-     * send multipart/x-byteranges instead of multipart/byteranges for
-     * Request-Range based requests to work around a bug in Netscape
+static const command_rec deflate_filter_cmds[] = {
+    AP_INIT_TAKE12("DeflateFilterNote", deflate_set_note, NULL, RSRC_CONF,

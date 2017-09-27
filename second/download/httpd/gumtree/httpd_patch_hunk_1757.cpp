@@ -1,16 +1,14 @@
-                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                               "attempt to make remote request from mod_rewrite "
-                               "without proxy enabled: %s", r->filename);
-                 return HTTP_FORBIDDEN;
-             }
+                                          apr_read_type_e block,
+                                          apr_off_t bytes)
+ {
+     struct modssl_buffer_ctx *ctx = f->ctx;
+     apr_status_t rv;
  
-+            if (rulestatus == ACTION_NOESCAPE) {
-+                apr_table_setn(r->notes, "proxy-nocanon", "1");
-+            }
-+
-             /* make sure the QUERY_STRING and
-              * PATH_INFO parts get incorporated
-              */
-             if (r->path_info != NULL) {
-                 r->filename = apr_pstrcat(r->pool, r->filename,
-                                           r->path_info, NULL);
+-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
++    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                   "read from buffered SSL brigade, mode %d, "
+                   "%" APR_OFF_T_FMT " bytes",
+                   mode, bytes);
+ 
+     if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
+         return APR_ENOTIMPL;

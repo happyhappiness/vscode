@@ -1,13 +1,13 @@
-         * exponential mode */
-        hold_off_on_exponential_spawning = 10;
-    }
+    ap_byterange_filter_handle =
+        ap_register_output_filter("BYTERANGE", ap_byterange_filter,
+                                  NULL, AP_FTYPE_PROTOCOL);
+    ap_method_registry_init(p);
+}
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                 "%s configured -- resuming normal operations",
-                 ap_get_server_description());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                 "Server built: %s", ap_get_server_built());
-
-    restart_pending = shutdown_pending = 0;
-    mpm_state = AP_MPMQ_RUNNING;
-
+AP_DECLARE_MODULE(http) = {
+    STANDARD20_MODULE_STUFF,
+    NULL,              /* create per-directory config structure */
+    NULL,              /* merge per-directory config structures */
+    NULL,              /* create per-server config structure */
+    NULL,              /* merge per-server config structures */
+    http_cmds,         /* command apr_table_t */

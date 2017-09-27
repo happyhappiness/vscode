@@ -1,13 +1,66 @@
-         * Client sent us a HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-	 * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-	 * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-               "client sent HTTP/1.1 request without hostname (see RFC2068 section 9, and 14.23): %s", r->uri);
-        ap_die(BAD_REQUEST, r);
-        return;
-    }
+        if (pfd.rtnevents & APR_POLLIN) {
+            /* readbuf has one byte on the end that is always 0, so it's
+             * able to work with a strstr when we search for the end of
+             * the headers, even if we fill the entire length in the recv. */
+            char readbuf[AP_IOBUFSIZE + 1];
+            apr_size_t readbuflen;
+            apr_size_t clen;
+            int rid, type;
+            apr_bucket *b;
+            char plen;
 
-    /* Ignore embedded %2F's in path for proxy requests */
+            memset(readbuf, 0, sizeof(readbuf));
+            memset(farray, 0, sizeof(farray));
+
+            /* First, we grab the header... */
+            readbuflen = FCGI_HEADER_LEN;
+
+            rv = get_data(conn, (char *) farray, &readbuflen);
+            if (rv != APR_SUCCESS) {
+                break;
+            }
+
+            dump_header_to_log(r, farray, readbuflen);
+
+            if (readbuflen != FCGI_HEADER_LEN) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
+                              "Failed to read entire header "
+                              "got %" APR_SIZE_T_FMT " wanted %d",
+                              readbuflen, FCGI_HEADER_LEN);
+                rv = APR_EINVAL;
+                break;
+            }
+
+            fcgi_header_from_array(&header, farray);
+
+            if (header.version != FCGI_VERSION) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
+                              "Got bogus version %d", (int) header.version);
+                rv = APR_EINVAL;
+                break;
+            }
+
+            type = header.type;
+
+            rid = header.requestIdB1 << 8;
+            rid |= header.requestIdB0;
+
+            if (rid != request_id) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01069)
+                              "Got bogus rid %d, expected %d",
+                              rid, request_id);
+                rv = APR_EINVAL;
+                break;
+            }
+
+            clen = header.contentLengthB1 << 8;
+            clen |= header.contentLengthB0;
+
+            plen = header.paddingLength;
+
+recv_again:
+            if (clen > sizeof(readbuf) - 1) {
+                readbuflen = sizeof(readbuf) - 1;
+            } else {
+                readbuflen = clen;
+            }

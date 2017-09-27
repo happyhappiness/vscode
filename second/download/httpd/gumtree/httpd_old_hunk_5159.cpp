@@ -1,13 +1,13 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
-    }
-
-/* firstly, try a proxy, unless a NoProxy directive is active */
+            ap_rputs("      <httpd:workers>\n", r);
+            workers = (proxy_worker **)balancer->workers->elts;
+            for (n = 0; n < balancer->workers->nelts; n++) {
+                worker = *workers;
+                /* Start proxy_worker */
+                ap_rputs("        <httpd:worker>\n", r);
+                ap_rvputs(r, "          <httpd:name>", worker->s->name,
+                          "</httpd:name>\n", NULL);
+                ap_rvputs(r, "          <httpd:scheme>", worker->s->scheme,
+                          "</httpd:scheme>\n", NULL);
+                ap_rvputs(r, "          <httpd:hostname>", worker->s->hostname,
+                          "</httpd:hostname>\n", NULL);
+                ap_rprintf(r, "          <httpd:loadfactor>%d</httpd:loadfactor>\n",

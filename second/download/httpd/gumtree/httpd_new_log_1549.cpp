@@ -1,2 +1,1 @@
-ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-               "</a></pre>\n", NULL);
+ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);

@@ -1,12 +1,21 @@
-            && (service_to_start_success != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL, 
-                     "%s: Unable to start the service manager.",
-                     service_name);
-        exit(APEXIT_INIT);
-    }
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
 
-    /* Win9x: disable AcceptEx */
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
-        use_acceptex = 0;
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ISAPI: ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
     }
+}
 
+/**********************************************************
+ *

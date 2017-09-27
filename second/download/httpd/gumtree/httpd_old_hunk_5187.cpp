@@ -1,13 +1,14 @@
-    ap_daemons_limit = atoi(arg);
-    if (ap_daemons_limit > HARD_SERVER_LIMIT) {
-       fprintf(stderr, "WARNING: MaxClients of %d exceeds compile time limit "
-           "of %d servers,\n", ap_daemons_limit, HARD_SERVER_LIMIT);
-       fprintf(stderr, " lowering MaxClients to %d.  To increase, please "
-           "see the\n", HARD_SERVER_LIMIT);
-       fprintf(stderr, " HARD_SERVER_LIMIT define in src/httpd.h.\n");
-       ap_daemons_limit = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_daemons_limit < 1) {
-	fprintf(stderr, "WARNING: Require MaxClients > 0, setting to 1\n");
-	ap_daemons_limit = 1;
+        SSLSrvConfigRec *sc = mySrvConfig(s);
+
+        if (sc && sc->server && sc->server->pks) {
+            modssl_pk_server_t *const pks = sc->server->pks;
+            int i;
+
+            for (i = 0; (i < SSL_AIDX_MAX) && pks->cert_files[i]; i++) {
+                apr_file_printf(out, "  %s\n", pks->cert_files[i]);
+            }
+        }
+
+        s = s->next;
     }
+

@@ -1,54 +1,17 @@
 
+    apr_pool_create(&ptrans, pchild);
+    apr_pool_tag(ptrans, "transaction");
 
-AP_DECLARE(server_rec*) ap_read_config(process_rec *process, apr_pool_t *ptemp,
-                                       const char *filename,
-                                       ap_directive_t **conftree)
-{
-    const char *confname, *error;
-    apr_pool_t *p = process->pconf;
-    server_rec *s = init_server_config(process, p);
-
-    init_config_globals(p);
-
-    /* All server-wide config files now have the SAME syntax... */
-    error = process_command_config(s, ap_server_pre_read_config, conftree,
-                                   p, ptemp);
-    if (error) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, "%s: %s",
-                     ap_server_argv0, error);
-        return NULL;
+    /* needs to be done before we switch UIDs so we have permissions */
+    ap_reopen_scoreboard(pchild, NULL, 0);
+    status = apr_proc_mutex_child_init(&accept_mutex, ap_lock_fname, pchild);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                     "Couldn't initialize cross-process lock in child "
+                     "(%s) (%d)", ap_lock_fname, ap_accept_lock_mech);
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    /* process_command_config may change the ServerRoot so
-     * compute this config file name afterwards.
-     */
-    confname = ap_server_root_relative(p, filename);
-
-    if (!confname) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
-                     APR_EBADPATH, NULL, "Invalid config file path %s",
-                     filename);
-        return NULL;
+    if (unixd_setup_child()) {
+	clean_child_exit(APEXIT_CHILDFATAL);
     }
-
-    error = ap_process_resource_config(s, confname, conftree, p, ptemp);
-    if (error) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL,
-                     "%s: %s", ap_server_argv0, error);
-        return NULL;
-    }
-
-    error = process_command_config(s, ap_server_post_read_config, conftree,
-                                   p, ptemp);
-
-    if (error) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, "%s: %s",
-                     ap_server_argv0, error);
-        return NULL;
-    }
-
-    return s;
-}
-
-AP_DECLARE(void) ap_single_module_configure(apr_pool_t *p, server_rec *s,
-                                            module *m)

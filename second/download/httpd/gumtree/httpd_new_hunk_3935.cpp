@@ -1,13 +1,26 @@
-    if ((r->method_number == M_POST || r->method_number == M_PUT)
-	&& *dbuf) {
-	fprintf(f, "\n%s\n", dbuf);
+        return SSL_TLSEXT_ERR_NOACK;
     }
 
-    fputs("%response\n", f);
-    hdrs_arr = ap_table_elts(r->err_headers_out);
-    hdrs = (table_entry *) hdrs_arr->elts;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01952)
+                 "stapling_cb: retrieved cached certificate data");
 
-    for (i = 0; i < hdrs_arr->nelts; ++i) {
-	if (!hdrs[i].key)
-	    continue;
-	fprintf(f, "%s: %s\n", hdrs[i].key, hdrs[i].val);
+    rv = get_and_check_cached_response(s, mctx, &rsp, &ok, cinf, conn->pool);
+    if (rv != 0) {
+        return rv;
+    }
+
+    if (rsp == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
+                     "stapling_cb: renewing cached response");
+        stapling_refresh_mutex_on(s);
+        /* Maybe another request refreshed the OCSP response while this
+         * thread waited for the mutex.  Check again.
+         */
+        rv = get_and_check_cached_response(s, mctx, &rsp, &ok, cinf,
+                                           conn->pool);
+        if (rv != 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: error checking for cached response "
+                         "after obtaining refresh mutex");
+            stapling_refresh_mutex_off(s);
+            return rv;

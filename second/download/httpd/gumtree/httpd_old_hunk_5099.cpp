@@ -1,17 +1,23 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
-	   connection */
-	ap_bputs("TYPE I" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: TYPE I");
-/* responses: 200, 421, 500, 501, 504, 530 */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
-	if (i == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (i != 200 && i != 504) {
-	    ap_kill_timeout(r);
-	    return HTTP_BAD_GATEWAY;
-	}
-/* Allow not implemented */
+        ctx->tmp_flush_bb = apr_brigade_split_ex(bb, flush_upto,
+                                                 ctx->tmp_flush_bb);
+        rv = send_brigade_blocking(net->client_socket, bb,
+                                   &(ctx->bytes_written), c);
+        if (rv != APR_SUCCESS) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+            return rv;
+        }
+        APR_BRIGADE_CONCAT(bb, ctx->tmp_flush_bb);
+    }
+
+    if (bytes_in_brigade >= THRESHOLD_MIN_WRITE) {
+        rv = send_brigade_nonblocking(net->client_socket, bb,
+                                      &(ctx->bytes_written), c);
+        if ((rv != APR_SUCCESS) && (!APR_STATUS_IS_EAGAIN(rv))) {
+            /* The client has aborted the connection */
+            c->aborted = 1;
+            return rv;
+        }
+    }
+
+    setaside_remaining_output(f, ctx, bb, c);

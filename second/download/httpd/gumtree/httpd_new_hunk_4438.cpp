@@ -1,30 +1,32 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+#define h2_util_bb_log(c, sid, level, tag, bb) \
+do { \
+    char buffer[4 * 1024]; \
+    const char *line = "(null)"; \
+    apr_size_t len, bmax = sizeof(buffer)/sizeof(buffer[0]); \
+    len = h2_util_bb_print(buffer, bmax, (tag), "", (bb)); \
+    ap_log_cerror(APLOG_MARK, level, 0, (c), "bb_dump(%s): %s", \
+        (c)->log_id, (len? buffer : line)); \
+} while(0)
 
-    return DECLINED;
-++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
+
+typedef int h2_bucket_gate(apr_bucket *b);
+/**
+ * Transfer buckets from one brigade to another with a limit on the 
+ * maximum amount of bytes transferred. Does no setaside magic, lifetime
+ * of brigades must fit. 
+ * @param to   brigade to transfer buckets to
+ * @param from brigades to remove buckets from
+ * @param plen maximum bytes to transfer, actual bytes transferred
+ * @param peos if an EOS bucket was transferred
+ */
+apr_status_t h2_append_brigade(apr_bucket_brigade *to,
+                               apr_bucket_brigade *from, 
+                               apr_off_t *plen,
+                               int *peos,
+                               h2_bucket_gate *should_append);
+
+/**
+ * Get an approximnation of the memory footprint of the given
+ * brigade. This varies from apr_brigade_length as
+ * - no buckets are ever read
+ * - only buckets known to allocate memory (HEAP+POOL) are counted

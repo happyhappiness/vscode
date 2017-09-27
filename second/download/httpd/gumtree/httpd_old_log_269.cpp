@@ -1,1 +1,0 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);

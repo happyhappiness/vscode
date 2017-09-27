@@ -1,31 +1,20 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case 't':
-	    configtestonly = 1;
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
+     * For non-collections, depth is ignored, unless it is an illegal value (1).
+     */
+    depth = dav_get_depth(r, DAV_INFINITY);
+
+    if (resource->collection && depth != DAV_INFINITY) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00582)
+                      "Depth must be \"infinity\" for DELETE of a collection.");
+        return HTTP_BAD_REQUEST;
     }
 
-    if (!child && run_as_service) {
-	service_cd();
+    if (!resource->collection && depth == 1) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00583)
+                      "Depth of \"1\" is not allowed for DELETE.");
+        return HTTP_BAD_REQUEST;
     }
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-
-    if (configtestonly) {
-        fprintf(stderr, "Syntax OK\n");
-        exit(0);
-    }
-
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    /*
+    ** If any resources fail the lock/If: conditions, then we must fail

@@ -1,12 +1,15 @@
-    name = X509_get_subject_name(info->x509);
-    dn = X509_NAME_oneline(name, name_buf, sizeof(name_buf));
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 SSLPROXY_CERT_CB_LOG_FMT "%s, sending %s", 
-                 sc->vhost_id, msg, dn ? dn : "-uknown-");
-}
-
-/*
- * caller will decrement the cert and key reference
- * so we need to increment here to prevent them from
- * being freed.
+            }
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[MAX_STRING_LEN];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                 "</td><td align=\"right\">%d-%b-%Y %H:%M  ",
+                                 &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    ap_rputs("</td><td>&nbsp;", r);
+                }
+            }

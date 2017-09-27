@@ -1,22 +1,15 @@
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
+{
+    int override_list_ok = 0;
+    char *w, *w2, *w3;
+    const char *errmsg = NULL;
 
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
--- apache_1.3.1/src/modules/example/mod_example.c	1998-06-15 05:10:25.000000000 +0800
+    /** Have we been provided a list of acceptable directives? */
+    if(parms->override_list != NULL)
+         if(apr_table_get(parms->override_list, cmd->name) != NULL)
+              override_list_ok = 1;
+
+    if ((parms->override & cmd->req_override) == 0 && !override_list_ok) {
+        if (parms->override & NONFATAL_OVERRIDE) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, parms->temp_pool,
+                          APLOGNO(02295)
+                          "%s in .htaccess forbidden by AllowOverride",

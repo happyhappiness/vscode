@@ -1,14 +1,14 @@
- AP_DECLARE(piped_log *) ap_open_piped_log(apr_pool_t *p, const char *program)
- {
-     piped_log *pl;
-     apr_file_t *dummy = NULL;
-     int rc;
- 
--    rc = log_child(p, program, &dummy, 0);
-+    rc = log_child(p, program, &dummy);
-     if (rc != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                      "Couldn't start piped log process");
-         return NULL;
+     status = apr_proc_mutex_lock(start_mutex);
+     if (status != APR_SUCCESS) {
+         ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
+                      "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
+         exit(APEXIT_CHILDINIT);
      }
+-    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, 
++    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                  "Child %d: Acquired the start mutex.", my_pid);
  
+     /*
+      * Create the worker thread dispatch IOCompletionPort
+      * on Windows NT/2000
+      */

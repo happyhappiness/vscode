@@ -1,36 +1,91 @@
-#endif
+        exit(2);
+    }
 
-    ap_soft_timeout("send body", r);
+    if (status->rotateReason != ROTATE_NONE && config->verbose) {
+        fprintf(stderr, "File rotation needed, reason: %s\n", ROTATE_REASONS[status->rotateReason]);
+    }
+}
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	/* Contributed by dwd@bell-labs.com for UTS 2.1.2, where the fcntl */
-	/*   O_NDELAY flag causes read to return 0 when there's nothing */
-	/*   available when reading from a pipe.  That makes it tricky */
-	/*   to detect end-of-file :-(.  This stupid bug is even documented */
-	/*   in the read(2) man page where it says that everything but */
-	/*   pipes return -1 and EAGAIN.  That makes it a feature, right? */
-	int afterselect = 0;
-#endif
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+/*
+ * Handle post-rotate processing.
+ */
+static void post_rotate(apr_pool_t *pool, struct logfile *newlog,
+                        rotate_config_t *config, rotate_status_t *status)
+{
+    apr_status_t rv;
+    char error[120];
+    apr_procattr_t *pattr;
+    const char *argv[4];
+    apr_proc_t proc;
 
-        do {
-            n = ap_bread(fb, buf, len);
-#ifdef NDELAY_PIPE_RETURNS_ZERO
-	    if ((n > 0) || (n == 0 && afterselect))
-		break;
-#else
-            if (n >= 0)
-                break;
-#endif
-            if (r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+    /* Handle link file, if configured. */
+    if (config->linkfile) {
+        apr_file_remove(config->linkfile, newlog->pool);
+        if (config->verbose) {
+            fprintf(stderr,"Linking %s to %s\n", newlog->name, config->linkfile);
+        }
+        rv = apr_file_link(newlog->name, config->linkfile);
+        if (rv != APR_SUCCESS) {
+            char error[120];
+            apr_strerror(rv, error, sizeof error);
+            fprintf(stderr, "Error linking file %s to %s (%s)\n",
+                    newlog->name, config->linkfile, error);
+            exit(2);
+        }
+    }
+
+    if (!config->postrotate_prog) {
+        /* Nothing more to do. */
+        return;
+    }
+
+    /* Collect any zombies from a previous run, but don't wait. */
+    while (apr_proc_wait_all_procs(&proc, NULL, NULL, APR_NOWAIT, pool) == APR_CHILD_DONE)
+        /* noop */;
+
+    if ((rv = apr_procattr_create(&pattr, pool)) != APR_SUCCESS) {
+        fprintf(stderr,
+                "post_rotate: apr_procattr_create failed for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
+    }
+
+    rv = apr_procattr_error_check_set(pattr, 1);
+    if (rv == APR_SUCCESS)
+        rv = apr_procattr_cmdtype_set(pattr, APR_PROGRAM_ENV);
+
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr,
+                "post_rotate: could not set up process attributes for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
+    }
+
+    argv[0] = config->postrotate_prog;
+    argv[1] = newlog->name;
+    if (status->current.name) {
+        argv[2] = status->current.name;
+        argv[3] = NULL;
+    }
+    else {
+        argv[2] = NULL;
+    }
+
+    if (config->verbose)
+        fprintf(stderr, "Calling post-rotate program: %s\n", argv[0]);
+
+    rv = apr_proc_create(&proc, argv[0], argv, NULL, pattr, pool);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "Could not spawn post-rotate process '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));
+        return;
+    }
+}
+
+/*
+ * Open a new log file, and if successful
+ * also close the old one.
+ *

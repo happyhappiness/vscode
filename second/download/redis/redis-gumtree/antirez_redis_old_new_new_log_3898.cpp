@@ -1,1 +1,0 @@
-printf("No entry\n");

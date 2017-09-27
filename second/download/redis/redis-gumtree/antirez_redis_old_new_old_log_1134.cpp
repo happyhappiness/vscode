@@ -1,1 +1,0 @@
-(status != REDIS_OK;

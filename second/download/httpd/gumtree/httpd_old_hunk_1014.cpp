@@ -1,14 +1,16 @@
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+#ifdef USE_SSL
+    fprintf(stderr, "    -s              Use httpS instead of HTTP (SSL)\n");
+#endif
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+    exit(EINVAL);
+}
 
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
-			  "%s: %s", malformed, 
-                          apr_filename_of_pathname(r->filename));
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
+/* ------------------------------------------------------- */
 
-	*l++ = '\0';
-	while (*l && apr_isspace(*l)) {
-	    ++l;
+/* split URL into parts */

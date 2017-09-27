@@ -1,64 +1,14 @@
-     * this on Win32, though, since we haven't fork()'d.
-     */
-    r->server->error_log = stderr;
-#endif
+{
+    return ngn->shed;
+}
 
-#ifdef RLIMIT_CPU
-    if (conf->limit_cpu != NULL) {
-        if ((setrlimit(RLIMIT_CPU, conf->limit_cpu)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set CPU usage limit");
-	}
-    }
-#endif
-#ifdef RLIMIT_NPROC
-    if (conf->limit_nproc != NULL) {
-        if ((setrlimit(RLIMIT_NPROC, conf->limit_nproc)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit: failed to set process limit");
-	}
-    }
-#endif
-#if defined(RLIMIT_AS)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_AS, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_AS): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_DATA)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_DATA, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_DATA): failed to set memory "
-			 "usage limit");
-	}
-    }
-#elif defined(RLIMIT_VMEM)
-    if (conf->limit_mem != NULL) {
-        if ((setrlimit(RLIMIT_VMEM, conf->limit_mem)) != 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
+void h2_ngn_shed_abort(h2_ngn_shed *shed)
+{
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c, APLOGNO(03394)
+                  "h2_ngn_shed(%ld): abort", shed->c->id);
+    shed->aborted = 1;
+}
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
-
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
-	    is_script = 1;
+static void ngn_add_task(h2_req_engine *ngn, h2_task *task)
+{
+    h2_ngn_entry *entry = apr_pcalloc(task->pool, sizeof(*entry));

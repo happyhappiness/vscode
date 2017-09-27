@@ -1,26 +1,24 @@
-         idx = SSL_TMP_KEY_RSA_1024;
-     }
+     /* register the core's insert_filter hook and register core-provided
+      * filters
+      */
+     ap_hook_insert_filter(core_insert_filter, NULL, NULL, APR_HOOK_MIDDLE);
  
-     return (RSA *)mc->pTmpKeys[idx];
- }
- 
--/* 
-+/*
-  * Hand out the already generated DH parameters...
-  */
- DH *ssl_callback_TmpDH(SSL *ssl, int export, int keylen)
- {
-     conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-     SSLModConfigRec *mc = myModConfig(c->base_server);
-     int idx;
- 
--    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
--                 "handing out temporary %d bit DH key", keylen);
-+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-+                  "handing out temporary %d bit DH key", keylen);
- 
-     switch (keylen) {
-       case 512:
-         idx = SSL_TMP_KEY_DH_512;
-         break;
- 
+     ap_core_input_filter_handle =
+-        ap_register_input_filter("CORE_IN", core_input_filter,
++        ap_register_input_filter("CORE_IN", ap_core_input_filter,
+                                  NULL, AP_FTYPE_NETWORK);
+-    ap_net_time_filter_handle =
+-        ap_register_input_filter("NET_TIME", net_time_filter,
+-                                 NULL, AP_FTYPE_PROTOCOL);
+     ap_content_length_filter_handle =
+         ap_register_output_filter("CONTENT_LENGTH", ap_content_length_filter,
+                                   NULL, AP_FTYPE_PROTOCOL);
+     ap_core_output_filter_handle =
+-        ap_register_output_filter("CORE", core_output_filter,
++        ap_register_output_filter("CORE", ap_core_output_filter,
+                                   NULL, AP_FTYPE_NETWORK);
+     ap_subreq_core_filter_handle =
+         ap_register_output_filter("SUBREQ_CORE", ap_sub_req_output_filter,
+                                   NULL, AP_FTYPE_CONTENT_SET);
+     ap_old_write_func =
+         ap_register_output_filter("OLD_WRITE", ap_old_write_filter,

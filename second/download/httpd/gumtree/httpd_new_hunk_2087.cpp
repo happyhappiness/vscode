@@ -1,21 +1,20 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
+        }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+    if (SSL_X509_getCN(ptemp, cert, &cn)) {
+        int fnm_flags = APR_FNM_PERIOD|APR_FNM_CASE_BLIND;
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+        if (apr_fnmatch_test(cn)) {
+            if (apr_fnmatch(cn, s->server_hostname,
+                            fnm_flags) == APR_FNM_NOMATCH) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                             "%s server certificate wildcard CommonName "
+                             "(CN) `%s' does NOT match server name!?",
+                             ssl_asn1_keystr(type), cn);
+            }
+        }
+        else if (strNE(s->server_hostname, cn)) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "%s server certificate CommonName (CN) `%s' "
+                         "does NOT match server name!?",
+                         ssl_asn1_keystr(type), cn);

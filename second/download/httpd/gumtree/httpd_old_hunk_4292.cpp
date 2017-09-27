@@ -1,13 +1,16 @@
 
-    tn = NULL;
-    signal(SIGINT, (void (*)()) interrupted);
-    if (argc == 4) {
-	if (strcmp(argv[1], "-c"))
-	    usage();
-	if (!(tfp = fopen(argv[2], "w"))) {
-	    fprintf(stderr, "Could not open passwd file %s for writing.\n",
-		    argv[2]);
-	    perror("fopen");
-	    exit(1);
-	}
-	printf("Adding password for %s.\n", argv[3]);
+    return OK;
+}
+
+static void create_radio(const char *name, unsigned int flag, request_rec *r)
+{
+    ap_rvputs(r, "<td>On <input name='", name, "' id='", name, "' value='1' type=radio", NULL);
+    if (flag)
+        ap_rputs(" checked", r);
+    ap_rvputs(r, "> <br/> Off <input name='", name, "' id='", name, "' value='0' type=radio", NULL);
+    if (!flag)
+        ap_rputs(" checked", r);
+    ap_rputs("></td>\n", r);
+}
+
+static void push2table(const char *input, apr_table_t *params,

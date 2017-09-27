@@ -1,1 +1,0 @@
-addReplyError(c,"This key is not in memory");

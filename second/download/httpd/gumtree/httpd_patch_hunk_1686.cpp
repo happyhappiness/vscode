@@ -1,19 +1,20 @@
-     break;
+                     ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                   "proxy: error creating PASV socket");
+                     proxy_ftp_cleanup(r, backend);
+                     return HTTP_INTERNAL_SERVER_ERROR;
+                 }
  
-     case OP_TYPEEXACT:
-     case OP_TYPEUPTO:
-     case OP_TYPEMINUPTO:
-     fprintf(f, "    %s", OP_names[code[3]]);
-+#ifdef SUPPORT_UCP
-     if (code[3] == OP_PROP || code[3] == OP_NOTPROP)
-       {
-       fprintf(f, " %s ", get_ucpname(code[4]));
-       extra = 1;
-       }
-+#endif
-     fprintf(f, "{");
-     if (*code != OP_TYPEEXACT) fprintf(f, "0,");
-     fprintf(f, "%d}", GET2(code,1));
-     if (*code == OP_TYPEMINUPTO) fprintf(f, "?");
-     break;
+-#if !defined (TPF) && !defined(BEOS)
+                 if (conf->recv_buffer_size > 0
+                         && (rv = apr_socket_opt_set(data_sock, APR_SO_RCVBUF,
+                                                     conf->recv_buffer_size))) {
+                     ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                   "proxy: FTP: apr_socket_opt_set(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
+                 }
+-#endif
  
+                 rv = apr_socket_opt_set(data_sock, APR_TCP_NODELAY, 1);
+                 if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+                     ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "apr_socket_opt_set(APR_TCP_NODELAY): Failed to set");
+                 }

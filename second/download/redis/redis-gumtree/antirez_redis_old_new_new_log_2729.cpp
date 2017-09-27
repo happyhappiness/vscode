@@ -1,1 +1,0 @@
-dst = sdscatlen(dst,o->ptr,sdslen(o->ptr));

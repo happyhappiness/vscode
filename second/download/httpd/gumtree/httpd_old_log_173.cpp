@@ -1,0 +1,1 @@
+ap_rputs("</D:multistatus>" DEBUG_CR, r);

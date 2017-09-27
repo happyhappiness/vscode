@@ -1,24 +1,20 @@
+/* ------------------------------------------------------- */
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+/* display copyright information */
+static void copyright(void)
 {
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1638069 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
     }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1638069 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
     }
+}
 
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

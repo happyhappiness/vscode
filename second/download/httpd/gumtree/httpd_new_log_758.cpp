@@ -1,1 +1,1 @@
-ap_rputs(" -D SHARED_CORE\n", r);
+ap_rputs("</dl><hr />", r);

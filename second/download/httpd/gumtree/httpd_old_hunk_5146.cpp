@@ -1,13 +1,13 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
-    }
-
+            if (bsize == 0) {
+                break;
+            }
+            buf[bsize - 1] = 0;
+            t = strchr(buf, ' ');
+            if (t) {
+                ip = apr_pstrndup(pool, buf, t - buf);
+            } else {
+                ip = NULL;
+            }
+            if (!ip || buf[0] == '#') {
+                /* copy things we can't process */
+                apr_file_printf(fp, "%s\n", buf);

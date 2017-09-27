@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Killing debugging session %ld",(long)pid);

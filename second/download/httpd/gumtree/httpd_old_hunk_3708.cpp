@@ -1,9 +1,15 @@
-/* Automatically generated file - do not edit */
-
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+        }
+        else {
+            apr_pool_cleanup_register(r->pool, (void *)((long)sd),
+                                      close_unix_socket, apr_pool_cleanup_null);
+            break; /* we got connected! */
+        }
+        /* gotta try again, but make sure the cgid daemon is still around */
+        if (kill(daemon_pid, 0) != 0) {
+            return log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno, APLOGNO(01258)
+                                   "cgid daemon is gone; is Apache terminating?");
+        }
+    }
+    *sdptr = sd;
+    return OK;
+}

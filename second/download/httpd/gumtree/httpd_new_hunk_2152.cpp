@@ -1,14 +1,19 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+    apr_rfc822_date(dates, r->request_time);
+    apr_table_setn(r->headers_out, "Date", dates);
+    apr_table_setn(r->headers_out, "Server", ap_get_server_banner());
+
+    /* set content-type */
+    if (dirlisting) {
+        proxy_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+                                                     &proxy_module);
+
+        ap_set_content_type(r, apr_pstrcat(p, "text/html;charset=",
+                                           dconf->ftp_directory_charset ?
+                                           dconf->ftp_directory_charset :
+                                           "ISO-8859-1",  NULL));
+    }
+    else {
+        if (r->content_type) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: Content-Type set to %s", r->content_type);
+        }

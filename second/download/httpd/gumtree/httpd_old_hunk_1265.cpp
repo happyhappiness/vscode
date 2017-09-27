@@ -1,12 +1,16 @@
-        return 0;
-    else
-        return 1;
-}
-#endif /* USE_ALTERNATE_IS_CONNECTED */
+                    }
+                    apr_brigade_cleanup(bb);
+                }
 
-PROXY_DECLARE(int) ap_proxy_connect_backend(const char *proxy_function,
-                                            proxy_conn_rec *conn,
-                                            proxy_worker *worker,
-                                            server_rec *s)
-{
-    apr_status_t rv;
+                /* Detect chunksize error (such as overflow) */
+                if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ctx->remaining = 0; /* Reset it in case we have to
+                                         * come back here later */
+                    bail_out_on_error(ctx, f, http_error);
+                    return rv;
+                }
+
+                if (!ctx->remaining) {
+                    /* Handle trailers by calling ap_get_mime_headers again! */
+                    ctx->state = BODY_NONE;
+                    ap_get_mime_headers(f->r);

@@ -1,1 +1,0 @@
-notifyKeyspaceEvent("zrembyrank",key,c->db->id);

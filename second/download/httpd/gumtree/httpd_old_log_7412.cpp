@@ -1,0 +1,1 @@
+fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");

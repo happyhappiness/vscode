@@ -1,20 +1,19 @@
-     ssl_filter_ctx_t *filter_ctx = data;
+              * children, then idle-loop until it detected that
+              * the network is up again, and restart the children.
+              * Ben Hyde noted that temporary ENETDOWN situations
+              * occur in mobile IP.
+              */
+             ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+-                         "apr_accept: giving up.");
++                         "apr_socket_accept: giving up.");
+             return APR_EGENERAL;
+ #endif /*ENETDOWN*/
  
-     if (filter_ctx->pssl) {
-         conn_rec *c = (conn_rec *)SSL_get_app_data(filter_ctx->pssl);
-         SSLConnRec *sslconn = myConnConfig(c);
- 
--        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
--                     "SSL connection destroyed without being closed");
--
-         SSL_free(filter_ctx->pssl);
-         sslconn->ssl = filter_ctx->pssl = NULL;
+         default:
+             ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+-                         "apr_accept: (client socket)");
++                         "apr_socket_accept: (client socket)");
+             return APR_EGENERAL;
      }
--  
-+
-     return APR_SUCCESS;
+     return status;
  }
- 
- /*
-  * The hook is NOT registered with ap_hook_process_connection. Instead, it is
-  * called manually from the churn () before it tries to read any data.

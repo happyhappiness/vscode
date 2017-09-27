@@ -1,118 +1,59 @@
-     rp->request_config  = ap_create_request_config(c->pool);
-     proxy_run_create_req(r, rp);
+ #define modssl_set_cert_info(info, cert, pkey) \
+     *cert = info->x509; \
+     X509_reference_inc(*cert); \
+     *pkey = info->x_pkey->dec_pkey; \
+     EVP_PKEY_reference_inc(*pkey)
  
-     return rp;
- }
+-int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey) 
++int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey)
+ {
+     conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+     server_rec *s = c->base_server;
+     SSLSrvConfigRec *sc = mySrvConfig(s);
+     X509_NAME *ca_name, *issuer;
+     X509_INFO *info;
+     STACK_OF(X509_NAME) *ca_list;
+     STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
+     int i, j;
+-    
+-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, 
++
++    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  SSLPROXY_CERT_CB_LOG_FMT "entered",
+                  sc->vhost_id);
  
--/*
-- * Reads headers from a buffer and returns an array of headers.
-- * Returns NULL on file error
-- * This routine tries to deal with too long lines and continuation lines.
-- *
-- * Note: Currently the headers are passed through unmerged. This has to be
-- * done so that headers which react badly to merging (such as Set-Cookie
-- * headers, which contain commas within the date field) do not get stuffed
-- * up.
-- */
--PROXY_DECLARE(apr_table_t *)ap_proxy_read_headers(request_rec *r, request_rec *rr, char *buffer, int size, conn_rec *c)
--{
--    apr_table_t *headers_out;
--    int len;
--    char *value, *end;
--    char field[MAX_STRING_LEN];
--    int saw_headers = 0;
--    void *sconf = r->server->module_config;
--    proxy_server_conf *psc;
--
--    psc = (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
--
--    headers_out = apr_table_make(r->pool, 20);
--
--    /*
--     * Read header lines until we get the empty separator line, a read error,
--     * the connection closes (EOF), or we timeout.
--     */
--    while ((len = ap_getline(buffer, size, rr, 1)) > 0) {
--
--	if (!(value = strchr(buffer, ':'))) {     /* Find the colon separator */
--
--	    /* We may encounter invalid headers, usually from buggy
--	     * MS IIS servers, so we need to determine just how to handle
--	     * them. We can either ignore them, assume that they mark the
--	     * start-of-body (eg: a missing CRLF) or (the default) mark
--	     * the headers as totally bogus and return a 500. The sole
--	     * exception is an extra "HTTP/1.0 200, OK" line sprinkled
--	     * in between the usual MIME headers, which is a favorite
--	     * IIS bug.
--	     */
--	     /* XXX: The mask check is buggy if we ever see an HTTP/1.10 */
--
--	    if (!apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
--		if (psc->badopt == bad_error) {
--		    /* Nope, it wasn't even an extra HTTP header. Give up. */
--		    return NULL;
--		}
--		else if (psc->badopt == bad_body) {
--		    /* if we've already started loading headers_out, then
--		     * return what we've accumulated so far, in the hopes
--		     * that they are useful. Otherwise, we completely bail.
--		     */
--		    /* FIXME: We've already scarfed the supposed 1st line of
--		     * the body, so the actual content may end up being bogus
--		     * as well. If the content is HTML, we may be lucky.
--		     */
--		    if (saw_headers) {
--			ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
--			 "proxy: Starting body due to bogus non-header in headers "
--			 "returned by %s (%s)", r->uri, r->method);
--			return headers_out;
--		    } else {
--			 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
--			 "proxy: No HTTP headers "
--			 "returned by %s (%s)", r->uri, r->method);
--			return NULL;
--		    }
--		}
--	    }
--	    /* this is the psc->badopt == bad_ignore case */
--	    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
--			 "proxy: Ignoring bogus HTTP header "
--			 "returned by %s (%s)", r->uri, r->method);
--	    continue;
--	}
--
--        *value = '\0';
--        ++value;
--	/* XXX: RFC2068 defines only SP and HT as whitespace, this test is
--	 * wrong... and so are many others probably.
--	 */
--        while (apr_isspace(*value))
--            ++value;            /* Skip to start of value   */
--
--	/* should strip trailing whitespace as well */
--	for (end = &value[strlen(value)-1]; end > value && apr_isspace(*end); --end)
--	    *end = '\0';
--
--        /* make sure we add so as not to destroy duplicated headers */
--        apr_table_add(headers_out, buffer, value);
--        saw_headers = 1;
--
--	/* the header was too long; at the least we should skip extra data */
--	if (len >= size - 1) { 
--	    while ((len = ap_getline(field, MAX_STRING_LEN, rr, 1))
--		    >= MAX_STRING_LEN - 1) {
--		/* soak up the extra data */
--	    }
--	    if (len == 0) /* time to exit the larger loop as well */
--		break;
--	}
--    }
--    return headers_out;
--}
--
+     if (!certs || (sk_X509_INFO_num(certs) <= 0)) {
+         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                      SSLPROXY_CERT_CB_LOG_FMT
+                      "downstream server wanted client certificate "
+                      "but none are configured", sc->vhost_id);
+         return FALSE;
+-    }                                                                     
++    }
  
- /*
-  * list is a comma-separated list of case-insensitive tokens, with
-  * optional whitespace around the tokens.
-  * The return returns 1 if the token val is found in the list, or 0
-  * otherwise.
+     ca_list = SSL_get_client_CA_list(ssl);
+ 
+     if (!ca_list || (sk_X509_NAME_num(ca_list) <= 0)) {
+-        /* 
+-         * downstream server didn't send us a list of acceptable CA certs, 
++        /*
++         * downstream server didn't send us a list of acceptable CA certs,
+          * so we send the first client cert in the list.
+-         */   
++         */
+         info = sk_X509_INFO_value(certs, 0);
+-        
++
+         modssl_proxy_info_log(s, info, "no acceptable CA list");
+ 
+         modssl_set_cert_info(info, x509, pkey);
+ 
+         return TRUE;
+-    }         
++    }
+ 
+     for (i = 0; i < sk_X509_NAME_num(ca_list); i++) {
+         ca_name = sk_X509_NAME_value(ca_list, i);
+ 
+         for (j = 0; j < sk_X509_INFO_num(certs); j++) {
+             info = sk_X509_INFO_value(certs, j);

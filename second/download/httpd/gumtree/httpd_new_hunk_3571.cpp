@@ -1,46 +1,22 @@
-	ap_destroy_sub_req(pa_req);
+     * XSS security warning: using cookies to store private data only works
+     * when the administrator has full control over the source website. When
+     * in forward-proxy mode, websites are public by definition, and so can
+     * never be secure. Abort the auth attempt in this case.
+     */
+    if (PROXYREQ_PROXY == r->proxyreq) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01809)
+                      "form auth cannot be used for proxy "
+                      "requests due to XSS risk, access denied: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-}
 
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-				       int (*getsfunc) (char *, int, void *),
-				       void *getsfunc_data)
-{
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
-
-    if (buffer) {
-	*buffer = '\0';
+    /* We need an authentication realm. */
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01810)
+                      "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    w = buffer ? buffer : x;
 
-    ap_hard_timeout("read script header", r);
+    r->ap_auth_type = (char *) current_auth;
 
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015') {
-		w[p - 2] = '\0';
-	    }
-	    else {
-		w[p - 1] = '\0';
-	    }
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+    /* try get the username and password from the notes, if present */

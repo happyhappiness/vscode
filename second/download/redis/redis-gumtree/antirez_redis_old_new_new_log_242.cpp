@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Not listening to IPv4: unsupproted");

@@ -1,1 +1,0 @@
-rdbCheckError("Invalid object type: %d", type);

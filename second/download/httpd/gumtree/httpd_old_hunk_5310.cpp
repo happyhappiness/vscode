@@ -1,22 +1,18 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
+                          "could not retrieve OCSP basic response");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+            rc = V_OCSP_CERTSTATUS_UNKNOWN;
+        }
     }
-#endif
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+    if (rc == V_OCSP_CERTSTATUS_GOOD) {
+        if (OCSP_check_nonce(request, basicResponse) != 1) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01924)
+                        "Bad OCSP responder answer (bad nonce)");
+            rc = V_OCSP_CERTSTATUS_UNKNOWN;
+        }
+    }
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+    if (rc == V_OCSP_CERTSTATUS_GOOD) {
+        /* TODO: allow flags configuration. */
+        if (OCSP_basic_verify(basicResponse, NULL, ctx->ctx, 0) != 1) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01925)

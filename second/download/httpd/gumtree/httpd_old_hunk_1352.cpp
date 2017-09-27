@@ -1,13 +1,35 @@
-        apr_socket_timeout_set(csd, conn->base_server->timeout);
-        cur_timeout = conn->base_server->timeout;
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
     }
 
-    if (!r->assbackwards) {
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_REQUEST_TIME_OUT) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
+    if (sick_child_detected) {
+        if (active_thread_count > 0) {
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
+             */
+            sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case.  give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
+
+    ap_max_daemons_limit = last_non_dead + 1;

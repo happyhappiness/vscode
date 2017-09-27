@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"SYNC append only file rewrite performed");

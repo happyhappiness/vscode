@@ -1,13 +1,22 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
+static void ssl_init_ctx_cipher_suite(server_rec *s,
+                                      apr_pool_t *p,
+                                      apr_pool_t *ptemp,
+                                      modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = mctx->ssl_ctx;
+    const char *suite;
 
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
-    }
+    /*
+     *  Configure SSL Cipher Suite. Always disable NULL and export ciphers,
+     *  see also ssl_engine_config.c:ssl_cmd_SSLCipherSuite().
+     *  OpenSSL's SSL_DEFAULT_CIPHER_LIST already includes !aNULL:!eNULL,
+     *  so only prepend !EXP in this case.
+     */
+    suite = mctx->auth.cipher_suite ? mctx->auth.cipher_suite :
+            apr_pstrcat(ptemp, "!EXP:", SSL_DEFAULT_CIPHER_LIST, NULL);
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Configuring permitted SSL ciphers [%s]",
+                 suite);
+
+    if (!SSL_CTX_set_cipher_list(ctx, suite)) {

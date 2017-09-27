@@ -1,12 +1,18 @@
-        int failed = 1;
-        while (connect_addr) {
+                /* bio_filter_out_flush() already passed down a flush bucket
+                 * if there was any data to be flushed.
+                 */
+                apr_bucket_delete(bucket);
+            }
+        }
+        else {
+            /* filter output */
+            const char *data;
+            apr_size_t len;
+            
+            status = apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
 
-	    if ((rv = apr_socket_create(&sock, connect_addr->family, SOCK_STREAM, r->pool)) != APR_SUCCESS) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-			      "proxy: FTP: error creating socket");
-		continue;
-	    }
+            if (!APR_STATUS_IS_EOF(status) && (status != APR_SUCCESS)) {
+                break;
+            }
 
-#if !defined(TPF) && !defined(BEOS)
-	    if (conf->recv_buffer_size > 0
-		&& (rv = apr_socket_opt_set(sock, APR_SO_RCVBUF,
+            status = ssl_filter_write(f, data, len);

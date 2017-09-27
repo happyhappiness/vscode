@@ -1,22 +1,17 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
-    }
-#endif
 
-#ifdef OS2
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+    /*
+     * We need a pool to allocate our mutex.  Since we can't clear
+     * allocated memory from a pool, create a subpool that we can blow
+     * away in the destruction callback.
+     */
+    apr_pool_create(&p, dynlockpool);
+    ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE1, 0, p,
+                  "Creating dynamic lock");
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+    value = apr_palloc(p, sizeof(struct CRYPTO_dynlock_value));
+    value->pool = p;
+    /* Keep our own copy of the place from which we were created,
+       using our own pool. */
+    value->file = apr_pstrdup(p, file);
+    value->line = line;
+    rv = apr_thread_mutex_create(&(value->mutex), APR_THREAD_MUTEX_DEFAULT,

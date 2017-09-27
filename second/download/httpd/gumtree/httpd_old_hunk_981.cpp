@@ -1,53 +1,52 @@
-            /* some child processes appear to be working.  don't kill the
-             * whole server.
-             */
-            sick_child_detected = 0;
-        }
-        else {
-            /* looks like a basket case.  give up.  
-             */
-            shutdown_pending = 1;
-            child_fatal = 1;
-            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf,
-                         "No active workers found..."
-                         " Apache is exiting!");
-            /* the child already logged the failure details */
-            return;
-        }
-    }
-                                                    
-    ap_max_daemons_limit = last_non_dead + 1;
+static BOOL
+match_ref(int offset, register const uschar *eptr, int length, match_data *md,
+  unsigned long int ims)
+{
+const uschar *p = md->start_subject + md->offset_vector[offset];
 
-    if (idle_thread_count > max_spare_threads) {
-        /* Kill off one child */
-        ap_mpm_pod_signal(pod, TRUE);
-        idle_spawn_rate = 1;
-    }
-    else if (idle_thread_count < min_spare_threads) {
-        /* terminate the free list */
-        if (free_length == 0) {
-            /* only report this condition once */
-            static int reported = 0;
-            
-            if (!reported) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, 
-                             ap_server_conf,
-                             "server reached MaxClients setting, consider"
-                             " raising the MaxClients setting");
-                reported = 1;
-            }
-            idle_spawn_rate = 1;
-        }
-        else {
-            if (free_length > idle_spawn_rate) {
-                free_length = idle_spawn_rate;
-            }
-            if (idle_spawn_rate >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, 
-                             ap_server_conf,
-                             "server seems busy, (you may need "
-                             "to increase StartServers, ThreadsPerChild "
-                             "or Min/MaxSpareThreads), "
-                             "spawning %d children, there are around %d idle "
-                             "threads, and %d total children", free_length,
+#ifdef DEBUG
+if (eptr >= md->end_subject)
+  printf("matching subject <null>");
+else
+  {
+  printf("matching subject ");
+  pchars(eptr, length, TRUE, md);
+  }
+printf(" against backref ");
+pchars(p, length, FALSE, md);
+printf("\n");
+#endif
+
+/* Always fail if not enough characters left */
+
+if (length > md->end_subject - eptr) return FALSE;
+
+/* Separate the caselesss case for speed */
+
+if ((ims & PCRE_CASELESS) != 0)
+  {
+  while (length-- > 0)
+    if (md->lcc[*p++] != md->lcc[*eptr++]) return FALSE;
+  }
+else
+  { while (length-- > 0) if (*p++ != *eptr++) return FALSE; }
+
+return TRUE;
+}
+
+
+
+/*************************************************
+*         Match from current position            *
+*************************************************/
+
+/* On entry ecode points to the first opcode, and eptr to the first character
+in the subject string, while eptrb holds the value of eptr at the start of the
+last bracketed group - used for breaking infinite loops matching zero-length
+strings.
+
+Arguments:
+   eptr        pointer in subject
+   ecode       position in code
+   offset_top  current top pointer
+   md          pointer to "static" info for the match

@@ -1,1 +1,0 @@
-printf("key->name: %s\n",(char*)j->key->ptr);

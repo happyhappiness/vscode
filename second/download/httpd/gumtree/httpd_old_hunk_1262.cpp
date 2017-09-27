@@ -1,13 +1,12 @@
-        if (status != APR_SUCCESS) {
-            /* We had a failure: Close connection to backend */
-            conn->close++;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: ap_get_brigade failed");
-            apr_brigade_destroy(input_brigade);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
+    }
+    else if (r->no_cache) {
+        /* or we've been asked not to cache it above */
+        reason = "r->no_cache present";
+    }
 
-        /* have something */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: APR_BUCKET_IS_EOS");
+    if (reason) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: %s not cached. Reason: %s", r->unparsed_uri,
+                     reason);
+
+        /* remove this filter from the chain */

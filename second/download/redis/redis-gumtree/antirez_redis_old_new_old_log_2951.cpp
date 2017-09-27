@@ -1,1 +1,0 @@
-"Unrecovarable error: can't open /dev/urandom:%s";

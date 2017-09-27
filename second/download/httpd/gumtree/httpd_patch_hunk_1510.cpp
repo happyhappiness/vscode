@@ -1,17 +1,18 @@
-     free(ti);
+                                                        &authn_file_module);
+     ap_configfile_t *f;
+     char l[MAX_STRING_LEN];
+     apr_status_t status;
+     char *file_hash = NULL;
  
-     ap_scoreboard_image->servers[process_slot][thread_slot].pid = ap_my_pid;
-     ap_scoreboard_image->servers[process_slot][thread_slot].generation = ap_my_generation;
-     ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
+-    if (!conf->pwfile) {
+-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+-                      "AuthUserFile not specified in the configuration");
+-        return AUTH_GENERAL_ERROR;
+-    }
+-
+     status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
  
-+#ifdef HAVE_PTHREAD_KILL
-+    unblock_signal(WORKER_SIGNAL);
-+    apr_signal(WORKER_SIGNAL, dummy_signal_handler);
-+#endif
-+
-     while (!workers_may_exit) {
-         if (!is_idle) {
-             rv = ap_queue_info_set_idle(worker_queue_info, last_ptrans);
-             last_ptrans = NULL;
-             if (rv != APR_SUCCESS) {
-                 ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+     if (status != APR_SUCCESS) {
+         ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                       "Could not open password file: %s", conf->pwfile);
+         return AUTH_GENERAL_ERROR;

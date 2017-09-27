@@ -1,18 +1,39 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
-    }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+}
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+static void log_backtrace(const request_rec *r)
+{
+    const request_rec *top = r;
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");
+
+    while (top && (top->prev || top->main)) {
+        if (top->prev) {
+            top = top->prev;
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "redirected from r->uri = %s",
+                          top->uri ? top->uri : "(unexpectedly NULL)");
+        }
+
+        if (!top->prev && top->main) {
+            top = top->main;
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "subrequested from r->uri = %s",
+                          top->uri ? top->uri : "(unexpectedly NULL)");
+        }
+    }
+}
+
+/*
+ * check whether redirect limit is reached
+ */
+AP_DECLARE(int) ap_is_recursion_limit_exceeded(const request_rec *r)
+{
+    core_server_config *conf = ap_get_module_config(r->server->module_config,
+                                                    &core_module);
+    const request_rec *top = r;
+    int redirects = 0, subreqs = 0;
+    int rlimit = conf->redirect_limit
+                 ? conf->redirect_limit
+                 : AP_DEFAULT_MAX_INTERNAL_REDIRECTS;
+    int slimit = conf->subreq_limit

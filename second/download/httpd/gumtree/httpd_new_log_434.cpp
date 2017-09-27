@@ -1,1 +1,1 @@
-util_ald_cache_display(r, st);
+ap_rputs(buf, r);

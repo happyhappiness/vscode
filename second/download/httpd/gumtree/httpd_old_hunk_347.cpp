@@ -1,19 +1,13 @@
-	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: Require ThreadLimit > 0, setting to 1");
-	thread_limit = 1;
+            apr_strerror(rv, errbuf, sizeof(errbuf));
+            exit(ERR_FILEPERM);
+        }
+        fprintf(stdout, "Database %s %s.\n", h->filename, 
+                h->create ? "created" : (changed ? "modified" : "updated"));
     }
-    return NULL;
+    if (cmd == HTDBM_NOFILE)
+        fprintf(stderr, "%s:%s\n", h->username, h->userpass);
+    htdbm_terminate(h);
+    apr_terminate();
+    
+    return 0; /* Suppress compiler warning. */
 }
-
-static const command_rec winnt_cmds[] = {
-LISTEN_COMMANDS,
-AP_INIT_TAKE1("ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF,
-  "Number of threads each child creates" ),
-AP_INIT_TAKE1("ThreadLimit", set_thread_limit, NULL, RSRC_CONF,
-  "Maximum worker threads in a server for this run of Apache"),
-{ NULL }
-};
-
-
-/*
- * Signalling Apache on NT.

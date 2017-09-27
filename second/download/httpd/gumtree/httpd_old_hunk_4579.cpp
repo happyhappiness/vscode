@@ -1,17 +1,33 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+        else if (APR_STATUS_IS_EOF(status)) {
+            break;
+        }
+        else if (status != APR_SUCCESS) {
+            return status;
+        }
+        
+        h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
+                       "input.beam recv raw", task->input.bb);
+        if (h2_task_logio_add_bytes_in) {
+            apr_brigade_length(bb, 0, &bblen);
+            h2_task_logio_add_bytes_in(f->c, bblen);
+        }
+    }
+    
+    /* Inspect the buckets received, detect EOS and apply
+     * chunked encoding if necessary */
+    if (status == APR_EOF && APR_BRIGADE_EMPTY(task->input.bb)) {
+        return APR_EOF;
     }
 
-    ap_threads_per_child = atoi(arg);
-#ifdef WIN32
-    if (ap_threads_per_child > 64) {
-	return "Can't have more than 64 threads in Windows (for now)";
+    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
+                   "task_input.bb", task->input.bb);
+           
+    if (APR_BRIGADE_EMPTY(task->input.bb)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_slave_in(%s): no data", task->id);
+        return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
     }
-#endif
-
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+    
+    if (mode == AP_MODE_EXHAUSTIVE) {
+        /* return all we have */
+        APR_BRIGADE_CONCAT(bb, task->input.bb);

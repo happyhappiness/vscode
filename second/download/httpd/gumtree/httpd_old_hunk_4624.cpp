@@ -1,14 +1,12 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+
+    if (!(protocol & SSL_PROTOCOL_TLSV1_2)) {
+        SSL_CTX_set_options(ctx, SSL_OP_NO_TLSv1_2);
     }
-    else {
-	mm = (caddr_t)-1;
+#endif
+
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+    if (sc->cipher_server_pref == TRUE) {
+        SSL_CTX_set_options(ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
     }
--- apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
+#endif
+

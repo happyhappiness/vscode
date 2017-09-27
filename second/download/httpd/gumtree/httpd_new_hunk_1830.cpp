@@ -1,29 +1,12 @@
-            rc = ap_proxygetline(tmp_bb, buffer, sizeof(buffer), rp, 0, &len);
-        }
-        if (len <= 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
-            if (rc == APR_TIMEUP) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: read timeout");
-            }
-            /*
-             * If we are a reverse proxy request shutdown the connection
-             * WITHOUT ANY response to trigger a retry by the client
-             * if allowed (as for idempotent requests).
-             * BUT currently we should not do this if the request is the
-             * first request on a keepalive connection as browsers like
-             * seamonkey only display an empty page in this case and do
-             * not do a retry. We should also not do this on a
-             * connection which times out; instead handle as
-             * we normally would handle timeouts
-             */
-            if (r->proxyreq == PROXYREQ_REVERSE && c->keepalives &&
-                rc != APR_TIMEUP) {
-                apr_bucket *eos;
+    ap_scoreboard_image->global->restart_time = apr_time_now();
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                "Server built: %s", ap_get_server_built());
+    if (one_process) {
+        ap_scoreboard_image->parent[0].pid = getpid();
+        ap_mpm_child_main(pconf);
+        return FALSE;
+    }
 
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: Closing connection to client because"
-                              " reading from backend server %s failed. Number"
-                              " of keepalives %i", backend->hostname, 

@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);
+apr_file_printf(errfile, "%s: unable to read file %s\n", 
+                            argv[0], pwfilename);

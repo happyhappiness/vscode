@@ -1,16 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-	if (sigaction(SIGILL, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGILL)");
-#endif
-	sa.sa_flags = 0;
-    }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+    else if (need_cmnt)
+        h->comment = apr_pstrdup(pool, argv[i+2]);
+
+    switch (cmd) {
+        case HTDBM_VERIFY:
+            if ((rv = htdbm_verify(h)) != APR_SUCCESS) {
+                if (APR_STATUS_IS_ENOENT(rv)) {
+                    fprintf(stderr, "The user '%s' could not be found in database\n", h->username);
+                    exit(ERR_BADUSER);
+                }
+                else {
+                    fprintf(stderr, "Password mismatch for user '%s'\n", h->username);
+                    exit(ERR_PWMISMATCH);

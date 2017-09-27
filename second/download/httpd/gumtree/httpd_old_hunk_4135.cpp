@@ -1,17 +1,13 @@
+        return "DocumentRoot must be a directory";
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    /* TODO: ap_configtestonly */
+    if (apr_filepath_merge((char**)&conf->ap_document_root, NULL, arg,
+                           APR_FILEPATH_TRUENAME, cmd->pool) != APR_SUCCESS
+        || !ap_is_directory(cmd->pool, arg)) {
+        if (cmd->server->is_virtual) {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool, APLOGNO(00112)
+                          "Warning: DocumentRoot [%s] does not exist",
+                          arg);
+            conf->ap_document_root = arg;

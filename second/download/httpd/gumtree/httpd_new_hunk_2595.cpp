@@ -1,10 +1,14 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    ap_dbd_t *rec;
+    apr_status_t rv;
+    const char *err = "";
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    rv = apr_pool_create(&rec_pool, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server, APLOGNO(00624)
+                     "Failed to create memory pool");
+        return rv;
+    }
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    rec = apr_pcalloc(rec_pool, sizeof(ap_dbd_t));
+
+    rec->pool = rec_pool;

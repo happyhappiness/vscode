@@ -1,36 +1,13 @@
-static apr_status_t ssl_io_filter_error(ap_filter_t *f,
-                                        apr_bucket_brigade *bb,
-                                        apr_status_t status)
-{
-    SSLConnRec *sslconn = myConnConfig(f->c);
-    apr_bucket *bucket;
-
-    switch (status) {
-      case HTTP_BAD_REQUEST:
-            /* log the situation */
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
-                         "SSL handshake failed: HTTP spoken on HTTPS port; "
-                         "trying to send HTML error page");
-            ssl_log_ssl_error(APLOG_MARK, APLOG_INFO, sslconn->server);
-
-            sslconn->non_ssl_request = 1;
-            ssl_io_filter_disable(sslconn, f);
-
-            /* fake the request line */
-            bucket = HTTP_ON_HTTPS_PORT_BUCKET(f->c->bucket_alloc);
-            break;
-
-      default:
-        return status;
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "mod_asis: ap_pass_brigade failed for file %s", r->filename);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
-
-    APR_BRIGADE_INSERT_TAIL(bb, bucket);
-    bucket = apr_bucket_eos_create(f->c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(bb, bucket);
-
-    return APR_SUCCESS;
-}
-
-static const char ssl_io_filter[] = "SSL/TLS Filter";
-static const char ssl_io_buffer[] = "SSL/TLS Buffer";
+    else {
+        apr_file_close(f);
+    }
 

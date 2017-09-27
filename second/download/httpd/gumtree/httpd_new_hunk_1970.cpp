@@ -1,13 +1,13 @@
-
-    while (1) {
-        if (!(tag_val = get_tag(r->pool, in, tag, sizeof(tag), 1))) {
-            return 1;
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
         }
-        if (!strcmp(tag, "var")) {
-            const char *val = ap_table_get(r->subprocess_env, tag_val);
+        if (dobj->file_size < conf->minfs) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "cache_disk: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->minfs);
+            /* Remove the intermediate cache file and return non-APR_SUCCESS */
+            file_cache_errorcleanup(dobj, r);
+            return APR_EGENERAL;
+        }
 
-            if (val) {
-                ap_rputs(val, r);
-            }
-            else {
-                ap_rputs("(none)", r);

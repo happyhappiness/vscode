@@ -1,0 +1,2 @@
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01024)
+                      "woke from poll(), i=%d", pollcnt);

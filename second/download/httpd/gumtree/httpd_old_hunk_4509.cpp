@@ -1,14 +1,29 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+                        /* another data bucket before this one in hold. this
+                         * is normal since DATA buckets need not be destroyed
+                         * in order */
+                    }
+                }
+                
+                proxy->bred = NULL;
+            }
+            else {
+                /* it should be there unless we screwed up */
+                ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, beam->send_pool, 
+                              APLOGNO(03384) "h2_beam(%d-%s): emitted bucket not "
+                              "in hold, n=%d", beam->id, beam->tag, 
+                              (int)proxy->n);
+                ap_assert(!proxy->bred);
+            }
+        }
+        /* notify anyone waiting on space to become available */
+        if (!bl.mutex) {
+            r_purge_sent(beam);
+        }
+        else if (beam->m_cond) {
+            apr_thread_cond_broadcast(beam->m_cond);
+        }
+        leave_yellow(beam, &bl);
     }
-    else {
-	mm = (caddr_t)-1;
-    }
--- apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
+}
+
+static void h2_blist_cleanup(h2_blist *bl)

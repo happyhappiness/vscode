@@ -1,13 +1,21 @@
-                    e = apr_bucket_eos_create(r->connection->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
-                    if (ap_pass_brigade(r->output_filters,
-                                        output_brigade) != APR_SUCCESS) {
-                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                      "proxy: error processing end");
-                        output_failed = 1;
-                    }
-                    /* XXX: what about flush here? See mod_jk */
-                    data_sent = 1;
-                }
-                request_ended = 1;
-                break;
+            r->server = s;
+            return;
+        }
+    }
+}
+
+
+AP_DECLARE(void) ap_update_vhost_from_headers(request_rec *r)
+{
+    /* must set this for HTTP/1.1 support */
+    if (r->hostname || (r->hostname = apr_table_get(r->headers_in, "Host"))) {
+        fix_hostname(r);
+        if (r->status != HTTP_OK)
+            return;
+    }
+    /* check if we tucked away a name_chain */
+    if (r->connection->vhost_lookup_data) {
+        if (r->hostname)
+            check_hostalias(r);
+        else
+            check_serverpath(r);

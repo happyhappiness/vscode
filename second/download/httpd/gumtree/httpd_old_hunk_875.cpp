@@ -1,37 +1,40 @@
-    if (!filename) {
-        return APR_EGENERAL;
+        c = ap_run_create_connection(context->ptrans, ap_server_conf,
+                                     context->sock, thread_num, sbh,
+                                     context->ba);
+
+        if (c) {
+            ap_process_connection(c, context->sock);
+            apr_socket_opt_get(context->sock, APR_SO_DISCONNECTED, 
+                               &disconnected);
+            if (!disconnected) {
+                context->accept_socket = INVALID_SOCKET;
+                ap_lingering_close(c);
+            }
+            else if (!use_acceptex) {
+                /* If the socket is disconnected but we are not using acceptex, 
+                 * we cannot reuse the socket. Disconnected sockets are removed
+                 * from the apr_socket_t struct by apr_sendfile() to prevent the
+                 * socket descriptor from being inadvertently closed by a call 
+                 * to apr_socket_close(), so close it directly.
+                 */
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+            }
+        }
+        else {
+            /* ap_run_create_connection closes the socket on failure */
+            context->accept_socket = INVALID_SOCKET;
+        }
     }
 
-    fname = ap_server_root_relative(p, filename);
-    if (!fname) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH, 
-                     NULL, "Invalid PID file path %s, ignoring.", filename);
-        return APR_EGENERAL;
-    }
+    ap_update_child_status_from_indexes(0, thread_num, SERVER_DEAD, 
+                                        (request_rec *) NULL);
 
-    rv = apr_file_open(&pid_file, fname, APR_READ, APR_OS_DEFAULT, p);
-    if (rv != APR_SUCCESS) {
-        return rv;
-    }
-
-    /* Ensure null-termination, so that strtol doesn't go crazy. */
-    buf = apr_palloc(p, BUFFER_SIZE);
-    buf[BUFFER_SIZE - 1] = '\0';
-
-    rv = apr_file_read_full(pid_file, buf, BUFFER_SIZE - 1, &bytes_read);
-    if (rv != APR_SUCCESS && rv != APR_EOF) {
-        return rv;
-    }
-
-    /* If we fill the buffer, we're probably reading a corrupt pid file.
-     * To be nice, let's also ensure the first char is a digit. */
-    if (bytes_read == BUFFER_SIZE - 1 || !apr_isdigit(*buf)) {
-        return APR_EGENERAL;
-    }
-
-    *mypid = strtol(buf, &endptr, 10);
-
-    apr_file_close(pid_file);
-    return APR_SUCCESS;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+    return 0;
 }
 
+
+static void cleanup_thread(HANDLE *handles, int *thread_cnt, int thread_to_clean)
+{

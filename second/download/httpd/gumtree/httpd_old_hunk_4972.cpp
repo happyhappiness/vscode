@@ -1,24 +1,13 @@
-		ap_proxy_send_headers(r, c->resp_line, c->hdrs);
-		ap_kill_timeout(r);
-	    }
-	    ap_bsetopt(r->connection->client, BO_BYTECT, &zero);
-	    r->sent_bodyct = 1;
-	    if (!r->header_only)
-		ap_proxy_send_fb(c->fp, r, NULL, NULL);
-/* set any changed headers somehow */
-/* update dates and version, but not content-length */
-	    if (lmod != c->lmod || expc != c->expire || date != c->date) {
-		off_t curpos = lseek(c->fp->fd, 0, SEEK_SET);
+            ap_rputs("\n"
+                     "</pre>\n", r);
+        }
+    }
 
-		if (curpos == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error seeking on cache file %s",
-				 c->filename);
-		else if (write(c->fp->fd, buff, 35) == -1)
-		    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-				 "proxy: error updating cache file %s",
-				 c->filename);
-	    }
-	    ap_pclosef(r->pool, c->fp->fd);
-	    return OK;
-	}
+    if (ap_extended_status && !short_report) {
+        apr_table_t *vhosts = apr_table_make(r->pool, 10);
+        if (no_table_report)
+            ap_rputs("<hr /><h2>Server Details</h2>\n\n", r);
+        else
+            ap_rputs("\n\n<table border=\"0\"><tr>"
+                     "<th>Srv</th><th>PID</th><th>Acc</th>"
+                     "<th>M</th>"

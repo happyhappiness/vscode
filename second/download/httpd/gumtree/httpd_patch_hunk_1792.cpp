@@ -1,14 +1,14 @@
-             if (argused == 0 && a + 1 < argc) {
-                 if (arg[1] == 'o' && !arg[2]) {
-                     arg = argv[++a];
-                     argused = parse_output_file_name(arg, cmd_data);
-                 } else if (strcmp(arg+1, "MT") == 0) {
-                     if (!cmd_data->options.silent) {
--                        printf("Adding: %s", arg);
-+                        printf("Adding: %s\n", arg);
-                     }
-                     push_count_chars(cmd_data->arglist, arg);
-                     arg = argv[++a];
-                     if (!cmd_data->options.silent) {
-                         printf(" %s\n", arg);
-                     }
+             at = ssl_util_algotypeof(NULL, pPrivateKey);
+             an = ssl_util_algotypestr(at);
+             if (algoKey & at) {
+                 ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                              "Init: Multiple %s server private keys not "
+                              "allowed", an);
+-                ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
++                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+                 ssl_die();
+             }
+             algoKey |= at;
+ 
+             /*
+              * Log the type of reading

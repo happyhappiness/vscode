@@ -1,13 +1,14 @@
-    return APR_SUCCESS;
-}
+    }
+    else {
+        return DECLINED;
+    }
+    def_port = apr_uri_port_of_scheme(scheme);
 
-static void htdbm_usage(void)
-{
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: HTTP: canonicalising URL %s", url);
 
-#if APR_HAVE_CRYPT_H
-#define CRYPT_OPTION "d"
-#else
-#define CRYPT_OPTION ""
-#endif
-    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
-    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
+    /* do syntatic check.
+     * We break the URL into host, port, path, search
+     */
+    port = def_port;
+    err = ap_proxy_canon_netloc(r->pool, &url, NULL, NULL, &host, &port);

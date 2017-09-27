@@ -1,1 +1,0 @@
-printf("  number of values for the random number. For instance\n");

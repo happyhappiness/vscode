@@ -1,36 +1,13 @@
-	{
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
-		return rcode;
-	}
-
-    /* setup the socket for SSL */
-    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
-    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
-    sWS2Opts.options = &sNWTLSOpts;
-
-    if (numcerts) {
-	sNWTLSOpts.walletProvider 		= WAL_PROV_DER;	//the wallet provider defined in wdefs.h
-	sNWTLSOpts.TrustedRootList 		= certarray;	//array of certs in UNICODE format
-	sNWTLSOpts.numElementsInTRList 	= numcerts;     //number of certs in TRList
-    }
-    else {
-        /* setup the socket for SSL */
-    	unicpy(keyFileName, L"SSL CertificateIP");
-    	sWS2Opts.wallet = keyFileName;    /* no client certificate */
-    	sWS2Opts.walletlen = unilen(keyFileName);
-    
-    	sNWTLSOpts.walletProvider 		= WAL_PROV_KMO;	//the wallet provider defined in wdefs.h
+    for ( ; *cp && *cp != ':' ; ++cp) {
+        *cp = apr_tolower(*cp);
     }
 
-    /* make the IOCTL call */
-    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
-                     sizeof(struct tlsclientopts), NULL, 0, NULL,
-                     NULL, NULL);
+    if (!*cp) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Syntax error in type map, no ':' in %s for header %s",
+                      r->filename, header);
+        return NULL;
+    }
 
-    /* make sure that it was successfull */
-	if(SOCKET_ERROR == rcode ){
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
-	}		
-	return rcode;
+    do {
+        ++cp;

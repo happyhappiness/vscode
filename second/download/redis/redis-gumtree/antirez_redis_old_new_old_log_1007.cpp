@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Discarding previously cached master state.");

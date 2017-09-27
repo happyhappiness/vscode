@@ -1,34 +1,12 @@
-/* ------------------------------------------------------- */
-
-/* display copyright information */
-static void copyright(void)
+/* parse the body and return data address and length */
+apr_status_t  ajp_parse_data(request_rec  *r, ajp_msg_t *msg,
+                             apr_uint16_t *len, char **ptr)
 {
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.12 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
-    }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
-}
+    apr_byte_t result;
+    apr_status_t rc;
 
-/* display usage information */
-static void usage(const char *progname)
-{
-    fprintf(stderr, "Usage: %s [options] [http"
-#ifdef USE_SSL
-	    "[s]"
-#endif
-	    "://]hostname[:port]/path\n", progname);
-    fprintf(stderr, "Options are:\n");
-    fprintf(stderr, "    -n requests     Number of requests to perform\n");
-    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
-    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
-    fprintf(stderr, "    -p postfile     File containing data to POST\n");
-    fprintf(stderr, "    -T content-type Content-type header for POSTing\n");
+    rc = ajp_msg_get_uint8(msg, &result);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: ajp_msg_get_byte failed");
+        return rc;

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "index_offset = %u", header->index_offset);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: Last-Modified set to %s", datestr);

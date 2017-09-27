@@ -1,18 +1,16 @@
-#else
-    mode_t rewritelog_mode  = ( S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH );
-#endif
+            }
+        }
+    }
+    else {
+        /* Kill 'em off */
+        if (ap_unixd_killpg(getpgrp(), SIGHUP) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGHUP");
+        }
+        ap_reclaim_child_processes(0);          /* Not when just starting up */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                    "SIGHUP received.  Attempting to restart");
+    }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    return OK;
+}
 
-    if (conf->rewritelogfile == NULL)
-        return;
-    if (*(conf->rewritelogfile) == '\0')
-        return;
-    if (conf->rewritelogfp > 0)
-        return; /* virtual log shared w/ main server */
-
-    fname = ap_server_root_relative(p, conf->rewritelogfile);
-
-    if (*conf->rewritelogfile == '|') {
-        if ((pl = ap_open_piped_log(p, conf->rewritelogfile+1)) == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, s, 

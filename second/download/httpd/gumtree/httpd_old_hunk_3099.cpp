@@ -1,40 +1,26 @@
-	return;
-    }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
-
-    help_proxy_garbage_coll(r);
-
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
-
-
-static void help_proxy_garbage_coll(request_rec *r)
+/**
+ * Crypto decoding for the session.
+ *
+ * @param r The request pointer.
+ * @param z A pointer to where the session will be written.
+ */
+AP_DECLARE(int) ap_session_crypto_decode(request_rec * r, session_rec * z)
 {
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+    char *encoded = NULL;
+    apr_status_t res;
+    const apr_crypto_driver_t *driver = NULL;
+    session_crypto_dir_conf *dconf = ap_get_module_config(r->per_dir_config,
+            &session_crypto_module);
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
+    if ((dconf->passphrase_set) && z->encoded && *z->encoded) {
+        apr_pool_userdata_get((void **)&driver, DRIVER_KEY, r->server->process->pconf);
+        res = decrypt_string(r, driver, dconf, z->encoded, &encoded);
+        if (res != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                    "decrypt session failed, wrong passphrase?");
+            return res;
+        }
+        z->encoded = encoded;
+    }
 
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
-
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);

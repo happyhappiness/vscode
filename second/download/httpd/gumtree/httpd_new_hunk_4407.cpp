@@ -1,14 +1,14 @@
-                 "An appropriate representation of the requested resource ",
-                          ap_escape_html(r->pool, r->uri),
-                          " could not be found on this server.<P>\n", NULL);
-                /* fall through */
-            case MULTIPLE_CHOICES:
-                {
-                    const char *list;
-                    if ((list = ap_table_get(r->notes, "variant-list")))
-                        ap_bputs(list, fd);
-                }
-                break;
-            case LENGTH_REQUIRED:
-                ap_bvputs(fd, "A request of the requested method ", r->method,
-++ apache_1.3.1/src/main/http_request.c	1998-07-02 05:19:54.000000000 +0800
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02937) 
+                      "h2_stream(%ld-%d): data requested but stream not found",
+                      session->id, (int)stream_id);
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+
+    status = h2_stream_out_prepare(stream, &nread, &eos, NULL);
+    if (nread) {
+        *data_flags |=  NGHTTP2_DATA_FLAG_NO_COPY;
+    }
+    
+    switch (status) {
+        case APR_SUCCESS:

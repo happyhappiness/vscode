@@ -1,13 +1,13 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
-    }
-
-/* firstly, try a proxy, unless a NoProxy directive is active */
+                /* A Listener Socket is ready for an accept() */
+                if (workers_were_busy) {
+                    if (!listeners_disabled)
+                        disable_listensocks(process_slot);
+                    listeners_disabled = 1;
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "All workers busy, not accepting new conns "
+                                 "in this process");
+                }
+                else if (  (int)apr_atomic_read32(&connection_count)
+                           - (int)apr_atomic_read32(&lingering_count)
+                         > threads_per_child
+                           + ap_queue_info_get_idlers(worker_queue_info) *

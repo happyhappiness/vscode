@@ -1,14 +1,13 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+        if(res != APR_SUCCESS && !APR_STATUS_IS_EEXIST(res)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, res, ap_server_conf, APLOGNO(00142)
+                         "gprof: error creating directory %s", dir);
+        }
     }
     else {
-	mm = (caddr_t)-1;
+        use_dir = ap_server_root_relative(pconf, DEFAULT_REL_RUNTIMEDIR);
     }
--- apache_1.3.1/src/main/http_log.c	1998-06-05 04:13:19.000000000 +0800
+
+    chdir(use_dir);
+}
+#else
+#define chdir_for_gprof()

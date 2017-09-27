@@ -1,12 +1,12 @@
-    /* Hey... don't be so quick to use reqinfo->dc here; reqinfo may be NULL */
-    charset_req_t *reqinfo = ap_get_module_config(r->request_config,
-                                                  &charset_lite_module);
-    charset_dir_t *dc = ap_get_module_config(r->per_dir_config,
-                                             &charset_lite_module);
 
-    if (reqinfo) {
-        if (reqinfo->output_ctx && !configured_on_output(r, XLATEOUT_FILTER_NAME)) {
-            ap_add_output_filter(XLATEOUT_FILTER_NAME, reqinfo->output_ctx, r,
-                                 r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
+        lockname = apr_pstrcat(r->pool, conf->lockpath, dir, "/", lockname, NULL);
+    }
+    return apr_file_remove(lockname, r->pool);
+}
+
+CACHE_DECLARE(int) ap_cache_check_freshness(cache_handle_t *h,
+                                            request_rec *r)
+{
+    apr_status_t status;
+    apr_int64_t age, maxage_req, maxage_cresp, maxage, smaxage, maxstale;
+    apr_int64_t minfresh;

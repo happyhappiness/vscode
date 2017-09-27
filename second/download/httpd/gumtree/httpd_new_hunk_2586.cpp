@@ -1,16 +1,13 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+                                                &so_module);
+    modie = (ap_module_symbol_t *)sconf->loaded_modules->elts;
+    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
+        modi = &modie[i];
+        if (modi->name != NULL && strcmp(modi->name, modname) == 0) {
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
+                          cmd->pool, APLOGNO(01574) "module %s is already loaded, skipping",
+                          modname);
+            return NULL;
+        }
+    }
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    for (i = 0; ap_preloaded_modules[i]; i++) {

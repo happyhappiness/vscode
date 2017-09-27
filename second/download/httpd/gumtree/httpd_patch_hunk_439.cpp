@@ -1,20 +1,18 @@
-     r = vr;
  
-     /* sure we got r, but don't call ap_log_rerror() because we don't
-      * have r->headers_in and possibly other storage referenced by
-      * ap_log_rerror()
-      */
--    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
-+    ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", 
-+#ifdef AP_UNSAFE_ERROR_LOG_UNESCAPED
-+                 description
-+#else
-+                 ap_escape_logitem(pool, description)
-+#endif
-+                 );
- }
+ /*
+  * worker_main()
+  * Main entry point for the worker threads. Worker threads block in 
+  * win*_get_connection() awaiting a connection to service.
+  */
+-static void worker_main(long thread_num)
++static unsigned int __stdcall worker_main(void *thread_num_val)
+ {
+     static int requests_this_child = 0;
+     PCOMP_CONTEXT context = NULL;
++    int thread_num = (int)thread_num_val;
+     ap_sb_handle_t *sbh;
  
- static int cgid_server(void *data) 
- { 
-     struct sockaddr_un unix_addr;
-     int sd, sd2, rc;
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
+                  "Child %d: Worker thread %ld starting.", my_pid, thread_num);
+     while (1) {
+         conn_rec *c;

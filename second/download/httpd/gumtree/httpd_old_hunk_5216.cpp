@@ -1,16 +1,13 @@
-                --cp;
-        }
-        else {
-#if defined(EACCES)
-            if (errno != EACCES)
-#endif
-                ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-                            "access to %s failed for %s", r->uri,
-                            ap_get_remote_host(r->connection, r->per_dir_config,
-                                            REMOTE_NOLOOKUP));
-            return HTTP_FORBIDDEN;
-        }
-#else
-#error ENOENT || ENOTDIR not defined; please see the
-#error comments at this line in the source for a workaround.
-        /*
+    }
+
+    if (sa == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
+                      "could not connect to OCSP responder '%s'",
+                      uri->hostinfo);
+        apr_socket_close(sd);
+        return NULL;
+    }
+
+    /* send the request and get a response */
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01975)
+                 "sending request to OCSP responder");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Child %d: Unable to access the scoreboard from the parent", my_pid);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %u -- Aborting.", exitcode);

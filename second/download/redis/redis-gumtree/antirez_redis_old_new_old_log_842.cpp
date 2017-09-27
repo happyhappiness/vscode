@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Object raw string len: %zu", sdslen(o->ptr));

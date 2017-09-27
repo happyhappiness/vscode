@@ -1,82 +1,49 @@
-
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
-
-/*
- * Return true if the specified string refers to the parent directory (i.e.,
- * matches ".." or "../").  Hopefully this one call is significantly less
- * expensive than multiple strcmp() calls.
- */
-static ap_inline int is_parent(const char *name)
-{
-    /*
-     * Now, IFF the first two bytes are dots, and the third byte is either
-     * EOS (\0) or a slash followed by EOS, we have a match.
-     */
-    if (((name[0] == '.') && (name[1] == '.'))
-	&& ((name[2] == '\0')
-	    || ((name[2] == '/') && (name[3] == '\0')))) {
-        return 1;
+    if (error_number == 401 && what == REMOTE_PATH) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
+                     "%s:%d cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!", cmd->directive->filename, cmd->directive->line_num);
     }
-    return 0;
-}
+    else { /* Store it... */
+        if (conf->response_code_exprs == NULL) {
+            conf->response_code_exprs = apr_hash_make(cmd->pool);
+        }
 
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs(r, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	      "<HTML>\n <HEAD>\n  <TITLE>Index of ", title,
-	      "</TITLE>\n </HEAD>\n <BODY>\n", NULL);
-}
+        if (strcasecmp(msg, "default") == 0) {
+            /* special case: ErrorDocument 404 default restores the
+             * canned server error response
+             */
+            apr_hash_set(conf->response_code_exprs,
+                    apr_pmemdup(cmd->pool, &index_number, sizeof(index_number)),
+                    sizeof(index_number), &errordocument_default);
+        }
+        else {
+            ap_expr_info_t *expr;
+            const char *expr_err = NULL;
 
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
+            /* hack. Prefix a " if it is a msg; as that is what
+             * http_protocol.c relies on to distinguish between
+             * a msg and a (local) path.
+             */
+            const char *response =
+                    (what == MSG) ? apr_pstrcat(cmd->pool, "\"", msg, NULL) :
+                            apr_pstrdup(cmd->pool, msg);
 
-    if (!to) {
-	to = "";
-    }
-    if (!path) {
-	path = "";
+            expr = ap_expr_parse_cmd(cmd, response, AP_EXPR_FLAG_STRING_RESULT,
+                    &expr_err, NULL);
+
+            if (expr_err) {
+                return apr_pstrcat(cmd->temp_pool,
+                                   "Cannot parse expression in ErrorDocument: ",
+                                   expr_err, NULL);
+            }
+
+            apr_hash_set(conf->response_code_exprs,
+                    apr_pmemdup(cmd->pool, &index_number, sizeof(index_number)),
+                    sizeof(index_number), expr);
+
+        }
     }
 
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to))) {
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    }
-    else if (to) {
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    }
-    else {
-	p->apply_to = NULL;
-    }
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH) {
-        if (!strcmp(to, "**DIRECTORY**")) {
-	    to = "^^DIRECTORY^^";
-	}
-    }
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
-    }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to,
-	      cmd->path, alt);
     return NULL;
 }
 
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
-{
-    char *iconbak = ap_pstrdup(cmd->pool, icon);

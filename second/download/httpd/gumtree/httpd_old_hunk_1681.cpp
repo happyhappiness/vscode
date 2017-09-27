@@ -1,12 +1,13 @@
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
-#endif
-#ifdef SIGILL
-    if (sigaction(SIGILL, &sa, NULL) < 0)
-        ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
-#endif
+    }
+    else {
+        return DECLINED;
+    }
+    def_port = apr_uri_port_of_scheme("ftp");
 
-#else /* NO_USE_SIGACTION */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: canonicalising URL %s", url);
 
-    apr_signal(SIGSEGV, sig_coredump);
-#ifdef SIGBUS
-    apr_signal(SIGBUS, sig_coredump);
+    port = def_port;
+    err = ap_proxy_canon_netloc(p, &url, &user, &password, &host, &port);
+    if (err)
+        return HTTP_BAD_REQUEST;

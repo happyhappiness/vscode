@@ -1,1 +1,0 @@
-snprintf(_port,sizeof(port),"%d",port);

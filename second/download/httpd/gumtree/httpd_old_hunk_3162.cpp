@@ -1,22 +1,13 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+    struct conn_rec *conn = r->connection;
+    apr_bucket_brigade *bb;
+    SSLConnRec *sslconn;
+    apr_status_t rv;
+    SSL *ssl;
 
-    if (!child && run_as_service) {
-	service_cd();
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                  "upgrading connection to TLS");
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+    bb = apr_brigade_create(r->pool, conn->bucket_alloc);
+
+    rv = ap_fputstrs(conn->output_filters, bb, SWITCH_STATUS_LINE, CRLF,
+                     UPGRADE_HEADER, CRLF, CONNECTION_HEADER, CRLF, CRLF, NULL);

@@ -1,2 +1,1 @@
-ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-               "</a></pre>\n", NULL);
+fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");

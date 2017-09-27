@@ -1,1 +1,1 @@
-printf("First char = \\x%02x\n", re->first_char);
+printf("    %s", OP_names[code[1]]);

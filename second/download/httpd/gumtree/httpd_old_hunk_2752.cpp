@@ -1,9 +1,13 @@
-/* Automatically generated file - do not edit */
+    if (!ctx->argc) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
 
-#ifndef LINUX
-#define LINUX 2
-#endif
-#ifndef USE_HSREGEX
-#define USE_HSREGEX 
-#endif
--- apache_1.3.0/src/include/ap.h	1998-05-12 04:42:35.000000000 +0800
+    if (ctx->flags & SSI_FLAG_NO_EXEC) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
+                      "in %s", r->filename);
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+        return APR_SUCCESS;
+    }
+
+    while (1) {

@@ -8,7 +8,7 @@
     if (thread_limit > MAX_THREAD_LIMIT) {
        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
                     "WARNING: ThreadLimit of %d exceeds compile time limit "
-                    "of %d threads,", thread_limit, MAX_THREAD_LIMIT);
+                    "of %d servers,", thread_limit, MAX_THREAD_LIMIT);
        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
                     " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
        thread_limit = MAX_THREAD_LIMIT;
@@ -20,18 +20,4 @@
     }
     return NULL;
 }
-static const char *set_disable_acceptex(cmd_parms *cmd, void *dummy, char *arg) 
-{
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
-    if (use_acceptex) {
-        use_acceptex = 0;
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL, 
-                     "Disabled use of AcceptEx() WinSock2 API");
-    }
-    return NULL;
-}
 
-static const command_rec winnt_cmds[] = {

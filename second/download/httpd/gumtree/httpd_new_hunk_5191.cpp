@@ -1,14 +1,31 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+         * configuring.
+         */
+
+        /*
+         * Read the server certificate and key
+         */
+        if ((rv = ssl_init_ConfigureServer(s, p, ptemp, sc, pphrases))
+            != APR_SUCCESS) {
+            return rv;
+        }
     }
-    else {
-	mm = (caddr_t)-1;
+
+    if (pphrases->nelts > 0) {
+        memset(pphrases->elts, 0, pphrases->elt_size * pphrases->nelts);
+        pphrases->nelts = 0;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02560)
+                     "Init: Wiped out the queried pass phrases from memory");
     }
-++ apache_1.3.2/src/main/http_log.c	1998-09-22 01:29:45.000000000 +0800
+
+    /*
+     * Configuration consistency checks
+     */
+    if ((rv = ssl_init_CheckServers(base_server, ptemp)) != APR_SUCCESS) {
+        return rv;
+    }
+
+    /*
+     *  Announce mod_ssl and SSL library in HTTP Server field
+     *  as ``mod_ssl/X.X.X OpenSSL/X.X.X''
+     */
+    ssl_add_version_components(p, base_server);

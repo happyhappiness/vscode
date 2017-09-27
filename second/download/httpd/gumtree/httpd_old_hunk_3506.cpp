@@ -1,18 +1,12 @@
-    if (i == 530) {
-	ap_kill_timeout(r);
-	return ap_proxyerror(r, "Not logged in");
     }
-    if (i != 230 && i != 331) {
-	ap_kill_timeout(r);
-	return BAD_GATEWAY;
-    }
+    cache->per_dir_result = r->per_dir_config;
 
-    if (i == 331) {		/* send password */
-	if (password == NULL)
-	    return FORBIDDEN;
-	ap_bputs("PASS ", f);
-	ap_bwrite(f, password, passlen);
-	ap_bputs(CRLF, f);
-	ap_bflush(f);
-	Explain1("FTP: PASS %s", password);
-/* possible results 202, 230, 332, 421, 500, 501, 503, 530 */
+    return OK;
+}
+
+/*****************************************************************
+ *
+ * The sub_request mechanism.
+ *
+ * Fns to look up a relative URI from, e.g., a map file or SSI document.
+ * These do all access checks, etc., but don't actually run the transaction

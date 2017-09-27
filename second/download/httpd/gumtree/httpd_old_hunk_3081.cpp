@@ -1,17 +1,13 @@
+        }
+        if (!APR_BRIGADE_EMPTY(bb)) {
+            apr_off_t len;
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
-
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
-
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+            rv = apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, rv, r,
+                          "proxy: SSL cleanup brigade contained %"
+                          APR_OFF_T_FMT " bytes of data.", len);
+        }
+        apr_brigade_destroy(bb);
+    }
+    return APR_SUCCESS;
+}

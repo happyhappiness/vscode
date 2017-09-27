@@ -1,13 +1,14 @@
-    if (!method_restricted)
-	return OK;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<h1>Menu for ",
+                  ap_escape_html(r->pool, r->uri),
+                  "</h1>\n<hr />\n\n", NULL);
+    }
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
+    return;
 }
 
-module MODULE_VAR_EXPORT auth_module =
+static void menu_blank(request_rec *r, char *menu)
 {
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rputs("\n", r);

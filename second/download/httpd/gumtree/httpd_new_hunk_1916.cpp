@@ -1,12 +1,18 @@
+AP_IMPLEMENT_HOOK_RUN_FIRST(int,auth_checker,
+                            (request_rec *r), (r), DECLINED)
+AP_IMPLEMENT_HOOK_VOID(insert_filter, (request_rec *r), (r))
+AP_IMPLEMENT_HOOK_RUN_ALL(int, create_request,
+                          (request_rec *r), (r), OK, DECLINED)
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
+static int auth_internal_per_conf = 0;
+static int auth_internal_per_conf_hooks = 0;
+static int auth_internal_per_conf_providers = 0;
 
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
+
+static int decl_die(int status, const char *phase, request_rec *r)
+{
+    if (status == DECLINED) {
+        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                      "configuration error:  couldn't %s: %s", phase, r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************

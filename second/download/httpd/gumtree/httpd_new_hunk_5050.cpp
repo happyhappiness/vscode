@@ -1,22 +1,16 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) stopped connection before %s completed",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"(client %s) %s timed out",
-			current_conn->remote_ip,
-			timeout_name ? timeout_name : "request");
-	}
-    }
+     *
+     * A 304 response with contradictory headers is technically a
+     * different entity, to be safe, we remove the entity from the cache.
+     */
+    if (reason && r->status == HTTP_NOT_MODIFIED && cache->stale_handle) {
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02473) 
+                "cache: %s responded with an uncacheable 304, " 
+                "retrying the request. Reason: %s", 
+                r->unparsed_uri, reason);
+
+        /* we've got a cache conditional miss! tell anyone who cares */
+        cache_run_cache_status(cache->handle, r, r->headers_out, AP_CACHE_MISS,
+                apr_psprintf(r->pool,
+                        "conditional cache miss: 304 was uncacheable, entity removed: %s",
+                        reason));

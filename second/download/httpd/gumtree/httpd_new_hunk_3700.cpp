@@ -1,24 +1,12 @@
+                ctx->stream.avail_in = 0;
+            }
+        }
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
-    }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
+                b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                           NULL, f->c->bucket_alloc);

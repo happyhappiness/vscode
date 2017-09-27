@@ -1,13 +1,25 @@
+    idx->expires = expiry;
+    idx->data_pos = id_offset;
+    idx->data_used = total_len;
+    idx->id_len = id_len;
+    idx->removed = 0;
+    subcache->idx_used++;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00847)
+                 "insert happened at idx=%d, data=(%u:%u)", new_idx,
+                 id_offset, data_offset);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00848)
+                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
+                 "data_pos/data_used=%d/%d",
+                 subcache->idx_pos, subcache->idx_used,
+                 subcache->data_pos, subcache->data_used);
+    return 0;
+}
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+static int shmcb_subcache_retrieve(server_rec *s, SHMCBHeader *header,
+                                   SHMCBSubcache *subcache,
+                                   const unsigned char *id, unsigned int idlen,
+                                   unsigned char *dest, unsigned int *destlen)
+{
+    unsigned int pos;
+    unsigned int loop = 0;
+    apr_time_t now = apr_time_now();

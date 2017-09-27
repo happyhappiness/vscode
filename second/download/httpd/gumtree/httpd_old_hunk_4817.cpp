@@ -1,44 +1,35 @@
-        return errstatus;
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+    if (retained->sick_child_detected) {
+        if (active_thread_count > 0) {
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
+             */
+            retained->sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case.  give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(00483)
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
 
-    if (r->method_number == M_INVALID) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
-    }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
-
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-                    "File does not exist: %s", 
-		     r->path_info 
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-		         : r->filename);
-	return NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(__EMX__) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
-
-    if (f == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+    retained->max_daemons_limit = last_non_dead + 1;

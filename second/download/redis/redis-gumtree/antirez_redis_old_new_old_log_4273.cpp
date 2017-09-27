@@ -1,1 +1,0 @@
-fprintf(stderr, "Writing to socket: %s\n", strerror(errno));

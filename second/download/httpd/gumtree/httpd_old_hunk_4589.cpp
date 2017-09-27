@@ -1,13 +1,29 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+#ifdef H2_OPENSSL
+    myfeats.sha256 = 1;
+#endif
+#ifdef H2_NG2_INVALID_HEADER_CB
+    myfeats.inv_headers = 1;
+#endif
+    
+    apr_pool_userdata_get(&data, mod_h2_init_key, s->process->pool);
+    if ( data == NULL ) {
+        ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03089)
+                     "initializing post config dry run");
+        apr_pool_userdata_set((const void *)1, mod_h2_init_key,
+                              apr_pool_cleanup_null, s->process->pool);
+        return APR_SUCCESS;
     }
-#elif defined(__EMX__)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+    
+    ngh2 = nghttp2_version(0);
+    ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
+                 "mod_http2 (v%s, feats=%s%s%s, nghttp2 %s), initializing...",
+                 MOD_HTTP2_VERSION, 
+                 myfeats.change_prio? "CHPRIO"  : "", 
+                 myfeats.sha256?      "+SHA256" : "",
+                 myfeats.inv_headers? "+INVHD"  : "",
+                 ngh2?                ngh2->version_str : "unknown");
+    
+    switch (h2_conn_mpm_type()) {
+        case H2_MPM_SIMPLE:
+        case H2_MPM_MOTORZ:
+        case H2_MPM_NETWARE:

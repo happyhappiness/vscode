@@ -1,49 +1,13 @@
-	    return cond_status;
-	}
+    expiry += apr_time_now();
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    i2d_OCSP_RESPONSE(rsp, &p);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    rv = mc->stapling_cache->store(mc->stapling_cache_context, s,
+                                   cinf->idx, sizeof(cinf->idx),
+                                   expiry, resp_der, stored_len, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01929)
+                     "stapling_cache_response: OCSP response session store error!");
+        return FALSE;
+    }
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {

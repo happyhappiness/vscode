@@ -1,14 +1,17 @@
-         }
-         else {
-             /* no way to know what type of error occurred */
-             ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                           "default_handler: ap_pass_brigade returned %i",
-                           status);
--            return HTTP_INTERNAL_SERVER_ERROR;
-+            return AP_FILTER_ERROR;
-         }
+ static apr_status_t cleanup_tables(void *not_used)
+ {
+     ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                   "Digest: cleaning up shared memory");
+     fflush(stderr);
+ 
++    if (client_rmm) {
++        apr_rmm_destroy(client_rmm);
++        client_rmm = NULL;
++    }
++
+     if (client_shm) {
+         apr_shm_destroy(client_shm);
+         client_shm = NULL;
      }
-     else {              /* unusual method (not GET or POST) */
-         if (r->method_number == M_INVALID) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                           "Invalid method in request %s", r->the_request);
+ 
+     if (client_lock) {

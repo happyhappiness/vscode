@@ -1,24 +1,26 @@
-                                       proxy_server_conf *conf)
-{
-    apr_status_t rv;
+    b->type = &bucket_type_cgi;
+    b->length = (apr_size_t)(-1);
+    b->start = -1;
 
-    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: lock");
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    /* TODO: calculate the bytes transferred
-     * This will enable to elect the worker that has
-     * the lowest load.
-     * The bytes transferred depends on the protocol
-     * used, so each protocol handler should keep the
-     * track on that.
-     */
+    /* Create the pollset */
+    rv = apr_pollset_create(&data->pollset, 2, r->pool, 0);
+    AP_DEBUG_ASSERT(rv == APR_SUCCESS);
 
-    PROXY_THREAD_UNLOCK(balancer);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy_balancer_post_request for (%s)", balancer->name);
+    fd.desc_type = APR_POLL_FILE;
+    fd.reqevents = APR_POLLIN;
+    fd.p = r->pool;
+    fd.desc.f = out; /* script's stdout */
+    fd.client_data = (void *)1;
+    rv = apr_pollset_add(data->pollset, &fd);
+    AP_DEBUG_ASSERT(rv == APR_SUCCESS);
 
-    return OK;
+    fd.desc.f = err; /* script's stderr */
+    fd.client_data = (void *)2;
+    rv = apr_pollset_add(data->pollset, &fd);
+    AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+
+    data->r = r;
+    b->data = data;
+    return b;
 }
 

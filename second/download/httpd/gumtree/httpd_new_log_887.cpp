@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
-                         "SSL handshake failed: HTTP spoken on HTTPS port; "
-                         "trying to send HTML error page");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not send interim 101 Upgrade response");

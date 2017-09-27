@@ -1,1 +1,1 @@
-printf(" */\n\n/* End of chartables.c */\n");
+(isprint(re->req_char);

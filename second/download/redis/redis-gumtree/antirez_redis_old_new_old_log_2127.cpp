@@ -1,1 +1,0 @@
-sdscatprintf(sdsempty(),"Error from master: %s", buf);

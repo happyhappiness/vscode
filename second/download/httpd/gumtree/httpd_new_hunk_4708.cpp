@@ -1,30 +1,13 @@
-
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-	ap_cfg_closefile(f);
-
-	if (errmsg) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r, "%s: %s",
-                        filename, errmsg);
-	    ap_table_setn(r->notes, "error-notes", errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*result = dc;
+                                    sizeof(buffer)/sizeof(buffer[0]));
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                              H2_SSSN_MSG(session, "on_frame_rcv %s"), buffer);
+            }
+            break;
     }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    ap_table_setn(r->notes, "error-notes",
-			  "Server unable to read htaccess file, denying "
-			  "access to be safe");
-	    return HTTP_FORBIDDEN;
-	}
-    }
+    return (APR_SUCCESS == rv)? 0 : NGHTTP2_ERR_PROTO;
+}
 
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+static int h2_session_continue_data(h2_session *session) {
+    if (h2_mplx_has_master_events(session->mplx)) {
+        return 0;
+    }

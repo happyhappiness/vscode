@@ -1,1 +1,0 @@
-fprintf(stderr, "%s: Out of memory\n",msg);

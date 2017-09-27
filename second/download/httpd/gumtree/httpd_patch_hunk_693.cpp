@@ -1,130 +1,208 @@
-         }
+      * symbol name.
+      */
+     if (apr_dso_sym(&modsym, modhandle, modname) != APR_SUCCESS) {
+         char my_error[256];
  
-         break;
-     } while (1); /* work hard to find a match ;-) */
+ 	return apr_pstrcat(cmd->pool, "Can't locate API module structure `",
+-			  modname, "' in file ", szModuleFile, ": ", 
++                          modname, "' in file ", szModuleFile, ": ",
+ 			  apr_dso_error(modhandle, my_error, sizeof(my_error)),
+ 			  NULL);
+     }
+     modp = (module*) modsym;
+     modp->dynamic_load_handle = (apr_dso_handle_t *)modhandle;
+     modi->modp = modp;
  
-     /* no match at all, release all (wrongly) matched chars so far */
--    *release = ctx->ctx->parse_pos;
--    ctx->state = PARSE_PRE_HEAD;
-+    *release = intern->parse_pos;
-+    intern->state = PARSE_PRE_HEAD;
-     return 0;
+-    /* 
++    /*
+      * Make sure the found module structure is really a module structure
+-     * 
++     *
+      */
+     if (modp->magic != MODULE_MAGIC_COOKIE) {
+-        return apr_psprintf(cmd->pool, "API module structure '%s' in file %s "
+-                            "is garbled - expected signature %08lx but saw "
+-                            "%08lx - perhaps this is not an Apache module DSO, "
+-                            "or was compiled for a different Apache version?",
+-                            modname, szModuleFile, 
+-                            MODULE_MAGIC_COOKIE, modp->magic);
++        return apr_pstrcat(cmd->pool, "API module structure `", modname,
++                          "' in file ", szModuleFile, " is garbled -"
++                          " perhaps this is not an Apache module DSO?", NULL);
+     }
+ 
+-    /* 
++    /*
+      * Add this module to the Apache core structures
+      */
+-    ap_add_loaded_module(modp, cmd->pool);
++    error = ap_add_loaded_module(modp, cmd->pool);
++    if (error) {
++        return error;
++    }
+ 
+-    /* 
++    /*
+      * Register a cleanup in the config apr_pool_t (normally pconf). When
+      * we do a restart (or shutdown) this cleanup will cause the
+      * shared object to be unloaded.
+      */
+     apr_pool_cleanup_register(cmd->pool, modi, unload_module, apr_pool_cleanup_null);
+ 
+-    /* 
++    /*
+      * Finally we need to run the configuration process for the module
+      */
+     ap_single_module_configure(cmd->pool, cmd->server, modp);
+ 
+     return NULL;
  }
  
- /*
-  * returns the position after the directive
+-/* 
++/*
+  * This implements the LoadFile directive and loads an arbitrary
+  * shared object file into the adress space of the server process.
   */
--static apr_size_t find_directive(ssi_ctx_t *ctx, const char *data,
-+static apr_size_t find_directive(include_ctx_t *ctx, const char *data,
-                                  apr_size_t len, char ***store,
-                                  apr_size_t **store_len)
+ 
+ static const char *load_file(cmd_parms *cmd, void *dummy, const char *filename)
  {
-+    struct ssi_internal_ctx *intern = ctx->intern;
-     const char *p = data;
-     const char *ep = data + len;
-     apr_size_t pos;
+     apr_dso_handle_t *handle;
+     const char *file;
  
--    switch (ctx->state) {
-+    switch (intern->state) {
-     case PARSE_DIRECTIVE:
-         while (p < ep && !apr_isspace(*p)) {
-             /* we have to consider the case of missing space between directive
-              * and end_seq (be somewhat lenient), e.g. <!--#printenv-->
-              */
--            if (*p == *ctx->ctx->end_seq) {
--                ctx->state = PARSE_DIRECTIVE_TAIL;
--                ctx->ctx->parse_pos = 1;
-+            if (*p == *intern->end_seq) {
-+                intern->state = PARSE_DIRECTIVE_TAIL;
-+                intern->parse_pos = 1;
-                 ++p;
-                 return (p - data);
-             }
-             ++p;
-         }
+     file = ap_server_root_relative(cmd->pool, filename);
+-    
++
+     if (!file) {
+-        return apr_pstrcat(cmd->pool, "Invalid LoadFile path ", 
++        return apr_pstrcat(cmd->pool, "Invalid LoadFile path ",
+                            filename, NULL);
+     }
  
-         if (p < ep) { /* found delimiter whitespace */
--            ctx->state = PARSE_DIRECTIVE_POSTNAME;
--            *store = &ctx->directive;
--            *store_len = &ctx->ctx->directive_length;
-+            intern->state = PARSE_DIRECTIVE_POSTNAME;
-+            *store = &intern->directive;
-+            *store_len = &intern->directive_len;
-         }
+     if (apr_dso_load(&handle, file, cmd->pool) != APR_SUCCESS) {
+         char my_error[256];
  
-         break;
+-	return apr_pstrcat(cmd->pool, "Cannot load ", filename, 
+-			  " into server: ", 
++        return apr_pstrcat(cmd->pool, "Cannot load ", filename,
++                          " into server: ",
+ 			  apr_dso_error(handle, my_error, sizeof(my_error)),
+ 			  NULL);
+     }
+-    
++
+     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+ 		 "loaded file %s", filename);
  
-     case PARSE_DIRECTIVE_TAIL:
--        pos = ctx->ctx->parse_pos;
-+        pos = intern->parse_pos;
+     return NULL;
+ }
  
--        while (p < ep && pos < ctx->end_seq_len &&
--               *p == ctx->ctx->end_seq[pos]) {
-+        while (p < ep && pos < intern->end_seq_len &&
-+               *p == intern->end_seq[pos]) {
-             ++p;
-             ++pos;
-         }
++static module *ap_find_loaded_module_symbol(server_rec *s, const char *modname)
++{
++    so_server_conf *sconf;
++    ap_module_symbol_t *modi;
++    ap_module_symbol_t *modie;
++    int i;
++
++    sconf = (so_server_conf *)ap_get_module_config(s->module_config,
++                                                   &so_module);
++    modie = (ap_module_symbol_t *)sconf->loaded_modules->elts;
++
++    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
++        modi = &modie[i];
++        if (modi->name != NULL && strcmp(modi->name, modname) == 0) {
++            return modi->modp;
++        }
++    }
++    return NULL;
++}
++
++static void dump_loaded_modules(apr_pool_t *p, server_rec *s)
++{
++    ap_module_symbol_t *modie;
++    ap_module_symbol_t *modi;
++    so_server_conf *sconf;
++    int i;
++    apr_file_t *out = NULL;
++
++    if (!ap_exists_config_define("DUMP_MODULES")) {
++        return;
++    }
++
++    apr_file_open_stderr(&out, p);
++
++    apr_file_printf(out, "Loaded Modules:\n");
++
++    sconf = (so_server_conf *)ap_get_module_config(s->module_config,
++                                                   &so_module);
++    for (i = 0; ; i++) {
++        modi = &ap_prelinked_module_symbols[i];
++        if (modi->name != NULL) {
++            apr_file_printf(out, " %s (static)\n", modi->name);
++        }
++        else {
++            break;
++        }
++    }
++
++    modie = (ap_module_symbol_t *)sconf->loaded_modules->elts;
++    for (i = 0; i < sconf->loaded_modules->nelts; i++) {
++        modi = &modie[i];
++        if (modi->name != NULL) {
++            apr_file_printf(out, " %s (shared)\n", modi->name);
++        }
++    }
++}
++
+ #else /* not NO_DLOPEN */
  
-         /* full match, we're done */
--        if (pos == ctx->end_seq_len) {
--            ctx->state = PARSE_DIRECTIVE_POSTTAIL;
--            *store = &ctx->directive;
--            *store_len = &ctx->ctx->directive_length;
-+        if (pos == intern->end_seq_len) {
-+            intern->state = PARSE_DIRECTIVE_POSTTAIL;
-+            *store = &intern->directive;
-+            *store_len = &intern->directive_len;
-             break;
-         }
+ static const char *load_file(cmd_parms *cmd, void *dummy, const char *filename)
+ {
+-    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, 
++    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
+                  "WARNING: LoadFile not supported on this platform");
+     return NULL;
+ }
  
-         /* partial match, the buffer is too small to match fully */
-         if (p == ep) {
--            ctx->ctx->parse_pos = pos;
-+            intern->parse_pos = pos;
-             break;
-         }
+-static const char *load_module(cmd_parms *cmd, void *dummy, 
++static const char *load_module(cmd_parms *cmd, void *dummy,
+ 	                       const char *modname, const char *filename)
+ {
+-    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, 
++    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
+                  "WARNING: LoadModule not supported on this platform");
+     return NULL;
+ }
  
-         /* no match. continue normal parsing */
--        ctx->state = PARSE_DIRECTIVE;
-+        intern->state = PARSE_DIRECTIVE;
-         return 0;
+ #endif /* NO_DLOPEN */
  
-     case PARSE_DIRECTIVE_POSTTAIL:
--        ctx->state = PARSE_EXECUTE;
--        ctx->ctx->directive_length -= ctx->end_seq_len;
-+        intern->state = PARSE_EXECUTE;
-+        intern->directive_len -= intern->end_seq_len;
-         /* continue immediately with the next state */
++static void register_hooks(apr_pool_t *p)
++{
++#ifndef NO_DLOPEN
++    APR_REGISTER_OPTIONAL_FN(ap_find_loaded_module_symbol);
++    ap_hook_test_config(dump_loaded_modules, NULL, NULL, APR_HOOK_MIDDLE);
++#endif
++}
++
+ static const command_rec so_cmds[] = {
+     AP_INIT_TAKE2("LoadModule", load_module, NULL, RSRC_CONF | EXEC_ON_READ,
+       "a module name and the name of a shared object file to load it from"),
+     AP_INIT_ITERATE("LoadFile", load_file, NULL, RSRC_CONF  | EXEC_ON_READ,
+       "shared object file or library to load into the server at runtime"),
+     { NULL }
+ };
  
-     case PARSE_DIRECTIVE_POSTNAME:
--        if (PARSE_DIRECTIVE_POSTNAME == ctx->state) {
--            ctx->state = PARSE_PRE_ARG;
-+        if (PARSE_DIRECTIVE_POSTNAME == intern->state) {
-+            intern->state = PARSE_PRE_ARG;
-         }
-         ctx->argc = 0;
--        ctx->argv = NULL;
-+        intern->argv = NULL;
- 
--        if (!ctx->ctx->directive_length) {
--            ctx->error = 1;
--            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
--                          "name in parsed document %s", ctx->r->filename);
-+        if (!intern->directive_len) {
-+            intern->error = 1;
-+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
-+                          "directive name in parsed document %s",
-+                          intern->r->filename);
-         }
-         else {
--            char *sp = ctx->directive;
--            char *sep = ctx->directive + ctx->ctx->directive_length;
-+            char *sp = intern->directive;
-+            char *sep = intern->directive + intern->directive_len;
- 
-             /* normalize directive name */
-             for (; sp < sep; ++sp) {
-                 *sp = apr_tolower(*sp);
-             }
-         }
+ module AP_MODULE_DECLARE_DATA so_module = {
+    STANDARD20_MODULE_STUFF,
+-   NULL,			    /* create per-dir config */
+-   NULL,			    /* merge per-dir config */
+-   so_sconf_create,		/* server config */
+-   NULL,			    /* merge server config */
+-   so_cmds,			    /* command apr_table_t */
+-   NULL				    /* register hooks */
++   NULL,                 /* create per-dir config */
++   NULL,                 /* merge per-dir config */
++   so_sconf_create,      /* server config */
++   NULL,                 /* merge server config */
++   so_cmds,              /* command apr_table_t */
++   register_hooks        /* register hooks */
+ };

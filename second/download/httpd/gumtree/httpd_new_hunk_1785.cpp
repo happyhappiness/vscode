@@ -1,14 +1,70 @@
-                        "Parent: Unable to create child stdin pipe.");
-        apr_pool_destroy(ptemp);
-        return -1;
+                                  Christmas and Halloween
+                                  because DEC 25 = OCT 31.''
+                                             -- Unknown     */
+
+#include "ssl_private.h"
+
+int ssl_mutex_init(server_rec *s, apr_pool_t *p)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+
+    /* A mutex is only needed if a session cache is configured, and
+     * the provider used is not internally multi-process/thread
+     * safe. */
+    if (!mc->sesscache
+        || (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) == 0) {
+        return TRUE;
     }
 
-    /* httpd-2.0/2.2 specific to work around apr_proc_create bugs */
-    /* set "NUL" as sysout for the child */
-    if (((rv = apr_file_open(&child_out, "NUL", APR_WRITE | APR_READ, APR_OS_DEFAULT,p)) 
-            != APR_SUCCESS) ||
-        ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
-            != APR_SUCCESS)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stdout");
+    if (mc->pMutex) {
+        return TRUE;
     }
+
+    if ((rv = ap_global_mutex_create(&mc->pMutex, NULL, SSL_CACHE_MUTEX_TYPE,
+                                     NULL, s, s->process->pool, 0))
+            != APR_SUCCESS) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+int ssl_mutex_reinit(server_rec *s, apr_pool_t *p)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+    const char *lockfile;
+
+    if (mc->pMutex == NULL || !mc->sesscache
+        || (mc->sesscache->flags & AP_SOCACHE_FLAG_NOTMPSAFE) == 0) {
+        return TRUE;
+    }
+
+    lockfile = apr_global_mutex_lockfile(mc->pMutex);
+    if ((rv = apr_global_mutex_child_init(&mc->pMutex,
+                                          lockfile,
+                                          p)) != APR_SUCCESS) {
+        if (lockfile)
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_CACHE_MUTEX_TYPE, lockfile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit %s mutex", SSL_CACHE_MUTEX_TYPE);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+int ssl_mutex_on(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+
+    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to acquire SSL session cache lock");
+        return FALSE;
+    }
+    return TRUE;

@@ -1,1 +1,0 @@
-malloc_cprintf(write_cb, cbopaque, "Arenas: %u\n", uv);

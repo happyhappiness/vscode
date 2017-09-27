@@ -1,21 +1,13 @@
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy gc: unlink(%s)", filename);
-	}
-	else
-#endif
-	{
-	    sub_long61(&curbytes, ROUNDUP2BLOCKS(fent->len));
-	    if (cmp_long61(&curbytes, &cachesize) < 0)
-		break;
-	}
-    }
+    do {
+        apr_int32_t n;
+        const apr_pollfd_t *pollresults;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (%d deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space), i);
-    ap_unblock_alarms();
-}
+        n = concurrency;
+        do {
+            status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        } while (APR_STATUS_IS_EINTR(status));
+        if (status != APR_SUCCESS)
+            apr_err("apr_poll", status);
 
-static int sub_garbage_coll(request_rec *r, array_header *files,
-			  const char *cachebasedir, const char *cachesubdir)
-{
+        if (!n) {
+            err("\nServer timed out\n\n");

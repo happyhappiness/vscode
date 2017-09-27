@@ -1,22 +1,18 @@
-	}
-    }
-    if (!found) {
-	printf("Adding user %s\n", user);
-	add_password(user, tfp);
-    }
-/*
-* make a copy from the tmp file to the actual file
-*/  
-        rewind(f);
-        rewind(tfp);
-        while ( fgets(command,MAX_STRING_LEN,tfp) != NULL)
-        {
-                fputs(command,f);
-        } 
+                             apr_atomic_read32(&connection_count),
+                             apr_atomic_read32(&clogged_count),
+                             *write_completion_q->total,
+                             *keepalive_q->total,
+                             apr_atomic_read32(&lingering_count),
+                             apr_atomic_read32(&suspended_count));
+                if (dying) {
+                    ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                                 "%u/%u workers shutdown",
+                                 apr_atomic_read32(&threads_shutdown),
+                                 threads_per_child);
+                }
+                apr_thread_mutex_unlock(timeout_mutex);
+            }
+        }
 
-    fclose(f);
-    fclose(tfp);
-    unlink(tn);
-    exit(0);
-}
-++ apache_1.3.1/src/support/logresolve.c	1998-07-13 19:32:58.000000000 +0800
+        apr_thread_mutex_lock(g_timer_skiplist_mtx);
+        te = apr_skiplist_peek(timer_skiplist);

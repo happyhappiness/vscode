@@ -1,22 +1,15 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
+        pfd.desc.s = lr->sd;
+        pfd.reqevents = APR_POLLIN;
+        pfd.client_data = lr;
+
+        status = apr_pollset_add(pollset, &pfd);
+        if (status != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf, APLOGNO(00157)
+                         "Couldn't add listener to pollset; check system or user limits");
+            clean_child_exit(APEXIT_CHILDSICK);
+        }
+
+        lr->accept_func = ap_unixd_accept;
     }
-#endif
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
-
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+    mpm_state = AP_MPMQ_RUNNING;

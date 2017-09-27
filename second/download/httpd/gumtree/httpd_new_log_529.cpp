@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: TRACE with request body is not allowed");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "proxy: server %s returned Transfer-Encoding and Content-Length",
+                             p_conn->name);

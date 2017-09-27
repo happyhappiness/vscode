@@ -1,19 +1,32 @@
-     const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
- 
-     ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                          "Into ajp_marshal_into_msgb");
- 
-     if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
--        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
--               "ajp_marshal_into_msgb - No such method %s",
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-+               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
-                r->method);
--        return AJP_EBAD_METHOD;
-+        method = SC_M_JK_STORED;
+                     "ajp_marshal_into_msgb: "
+                     "Error appending attribute %s=%s",
+                     key, val);
+             return AJP_EOVERFLOW;
+         }
      }
- 
-     is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
- 
-     if (r->headers_in && apr_table_elts(r->headers_in)) {
-         const apr_array_header_t *t = apr_table_elts(r->headers_in);
++    /* Forward the local ip address information, which was forgotten
++     * from the builtin data of the AJP 13 protocol.
++     * Since the servlet spec allows to retrieve it via getLocalAddr(),
++     * we provide the address to the Tomcat connector as a request
++     * attribute. Modern Tomcat versions know how to retrieve
++     * the local address from this attribute.
++     */
++    {
++        const char *key = SC_A_REQ_LOCAL_ADDR;
++        char *val = r->connection->local_ip;
++        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
++            ajp_msg_append_string(msg, key)   ||
++            ajp_msg_append_string(msg, val)) {
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
++                    "ajp_marshal_into_msgb: "
++                    "Error appending attribute %s=%s",
++                    key, val);
++            return AJP_EOVERFLOW;
++        }
++    }
+     /* Use the environment vars prefixed with AJP_
+      * and pass it to the header striping that prefix.
+      */
+     for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+         if (!strncmp(elts[i].key, "AJP_", 4)) {
+             if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||

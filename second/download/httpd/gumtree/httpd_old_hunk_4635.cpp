@@ -1,13 +1,13 @@
-#define STANDALONE_MAIN standalone_main
+             * handshake to proceed. */
+            sslconn->reneg_state = RENEG_ALLOW;
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+            SSL_renegotiate(ssl);
+            SSL_do_handshake(ssl);
 
-#ifdef __EMX__
-    printf("%s \n", ap_get_server_version());
-#endif
+            if (SSL_get_state(ssl) != SSL_ST_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02225)
+                              "Re-negotiation request failed");
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, r->server);
 
-    ap_standalone = 1;
-
-    is_graceful = 0;
+                r->connection->keepalive = AP_CONN_CLOSE;
+                return HTTP_FORBIDDEN;

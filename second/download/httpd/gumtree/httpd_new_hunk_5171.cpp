@@ -1,40 +1,18 @@
-	    parms[0] = '\0';
+
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                HUGE_STRING_LEN);
+
+        if (status != APR_SUCCESS) {
+            conn_rec *c = r->connection;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02610)
+                          "read request body failed to %pI (%s)"
+                          " from %s (%s)", p_conn->addr,
+                          p_conn->hostname ? p_conn->hostname: "",
+                          c->client_ip, c->remote_host ? c->remote_host: "");
+            return HTTP_BAD_REQUEST;
+        }
     }
 
-/* try to set up PASV data connection first */
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
-    }
-
-    ap_bputs("PASV" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: PASV command issued");
-/* possible results: 227, 421, 500, 501, 502, 530 */
-    /* 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2). */
-    /* 421 Service not available, closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    /* 501 Syntax error in parameters or arguments. */
-    /* 502 Command not implemented. */
-    /* 530 Not logged in. */
-    i = ap_bgets(pasv, sizeof(pasv), f);
-    if (i == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    if (bytes_spooled || force_cl) {
+        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));

@@ -1,46 +1,58 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-	}
-
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
-
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
-
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+    int top = lua_gettop(L);
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01484) "Lua Stack Dump: [%s]", msg);
+    for (i = 1; i <= top; i++) {
+        int t = lua_type(L, i);
+        switch (t) {
+        case LUA_TSTRING:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  '%s'", i, lua_tostring(L, i));
+                break;
+            }
+        case LUA_TUSERDATA:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  userdata",
+                              i);
+                break;
+            }
+        case LUA_TLIGHTUSERDATA:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  lightuserdata", i);
+                break;
+            }
+        case LUA_TNIL:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  NIL", i);
+                break;
+            }
+        case LUA_TNONE:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  None", i);
+                break;
+            }
+        case LUA_TBOOLEAN:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  %s", i, lua_toboolean(L,
+                                                          i) ? "true" :
+                              "false");
+                break;
+            }
+        case LUA_TNUMBER:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  %g", i, lua_tonumber(L, i));
+                break;
+            }
+        case LUA_TTABLE:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  <table>", i);
+                break;
+            }
+        case LUA_TFUNCTION:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  <function>", i);
+                break;
+            }
+        default:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  unknown: -[%s]-", i, lua_typename(L, i));
+                break;
+            }
+        }
     }
-
-/* set request */
-    len = decodeenc(path);
+}

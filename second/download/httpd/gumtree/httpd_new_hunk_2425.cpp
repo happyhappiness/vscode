@@ -1,14 +1,39 @@
+    apr_status_t rv;
+    const char *key;
+    authn_cache_dircfg *dcfg;
+    unsigned char val[MAX_VAL_LEN];
+    unsigned int vallen = MAX_VAL_LEN - 1;
+    dcfg = ap_get_module_config(r->per_dir_config, &authn_socache_module);
+    if (!configured || !dcfg->providers) {
+        return AUTH_USER_NOT_FOUND;
+    }
+    key = construct_key(r, dcfg->context, user, realm);
+    rv = socache_provider->retrieve(socache_instance, r->server,
+                                    (unsigned char*)key, strlen(key),
+                                    val, &vallen, r->pool);
+
+    if (APR_STATUS_IS_NOTFOUND(rv)) {
+        /* not found - just return */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01687)
+                      "Authn cache: no credentials found for %s", user);
+        return AUTH_USER_NOT_FOUND;
+    }
+    else if (rv == APR_SUCCESS) {
+        /* OK, we got a value */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01688)
+                      "Authn cache: found credentials for %s", user);
+    }
+    else {
+        /* error: give up and pass the buck */
+        /* FIXME: getting this for NOTFOUND - prolly a bug in mod_socache */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01689)
+                      "Error accessing authentication cache");
+        return AUTH_USER_NOT_FOUND;
+    }
+    *rethash = apr_pstrmemdup(r->pool, (char *)val, vallen);
+
+    return AUTH_USER_FOUND;
+}
+
+static const authn_provider authn_cache_provider =
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

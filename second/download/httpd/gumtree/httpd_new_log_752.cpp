@@ -1,1 +1,1 @@
-ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);
+ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);

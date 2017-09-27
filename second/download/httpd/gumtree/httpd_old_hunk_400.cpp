@@ -1,20 +1,24 @@
-/* ------------------------------------------------------- */
-
-/* display copyright information */
-static void copyright(void)
-{
-    if (!use_html) {
-	printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.121.2.8 $> apache-2.0");
-	printf("Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-	printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");
-	printf("\n");
+	totalbread += r;
     }
-    else {
-	printf("<p>\n");
-	printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.8 $");
-	printf(" Copyright (c) 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-	printf(" Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/<br>\n");
-	printf("</p>\n<p>\n");
-    }
-}
 
+    if (c->keepalive && (c->bread >= c->length)) {
+	/* finished a keep-alive connection */
+	good++;
+	doneka++;
+	/* save out time */
+	if (good == 1) {
+	    /* first time here */
+	    doclen = c->bread;
+	}
+	else if (c->bread != doclen) {
+	    bad++;
+	    err_length++;
+	}
+	if (done < requests) {
+	    struct data s;
+	    if (done && heartbeatres && !(done % heartbeatres)) {
+		fprintf(stderr, "Completed %ld requests\n", done);
+		fflush(stderr);
+	    }
+	    c->done = apr_time_now();
+	    s.read = c->read;

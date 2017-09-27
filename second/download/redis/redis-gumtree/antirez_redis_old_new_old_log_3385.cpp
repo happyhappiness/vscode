@@ -1,1 +1,0 @@
-printf("Tot bytes received: %d\n", c->totreceived);

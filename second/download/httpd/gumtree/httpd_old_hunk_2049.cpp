@@ -1,16 +1,18 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
+/*
+ * Build the ajp header message and send it
+ */
+apr_status_t ajp_send_header(apr_socket_t *sock,
+                             request_rec *r,
+                             apr_uri_t *uri)
+{
+    ajp_msg_t *msg;
+    apr_status_t rc;
+
+    rc = ajp_msg_create(r->pool, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_send_header: ajp_msg_create failed");
+        return rc;
     }
 
-    /* perform sub-request for the file name without the suffix */

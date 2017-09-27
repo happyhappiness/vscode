@@ -1,16 +1,14 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
+                              apr_pool_t *ptemp,
+                              SSLSrvConfigRec *sc)
+{
+    /* Initialize the server if SSL is enabled or optional.
+     */
+    if ((sc->enabled == SSL_ENABLED_TRUE) || (sc->enabled == SSL_ENABLED_OPTIONAL)) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01914)
+                     "Configuring server %s for SSL protocol", sc->vhost_id);
+        ssl_init_server_ctx(s, p, ptemp, sc);
+    }
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    if (sc->proxy_enabled) {
+        ssl_init_proxy_ctx(s, p, ptemp, sc);
+    }

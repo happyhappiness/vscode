@@ -1,13 +1,31 @@
-    if (!method_restricted)
-	return OK;
+            apr_bucket_delete(e);
+        }
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
+        apr_brigade_length(input_brigade, 1, &bytes);
 
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
+        if (bytes_spooled + bytes > MAX_MEM_SPOOL) {
+            /* can't spool any more in memory; write latest brigade to disk */
+            if (tmpfile == NULL) {
+                const char *temp_dir;
+                char *template;
 
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+                status = apr_temp_dir_get(&temp_dir, p);
+                if (status != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                                 "proxy: search for temporary directory failed");
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+                apr_filepath_merge(&template, temp_dir,
+                                   "modproxy.tmp.XXXXXX",
+                                   APR_FILEPATH_NATIVE, p);
+                status = apr_file_mktemp(&tmpfile, template, 0, p);
+                if (status != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                                 "proxy: creation of temporary file in directory %s failed",
+                                 temp_dir);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+            }
+            for (e = APR_BRIGADE_FIRST(input_brigade);
+                 e != APR_BRIGADE_SENTINEL(input_brigade);
+                 e = APR_BUCKET_NEXT(e)) {

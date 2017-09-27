@@ -1,39 +1,16 @@
-     sc->proxy->pkp->cert_path = arg;
+     /*
+      * Let the user know when we're successful.
+      */
+     if (nPassPhraseDialog > 0) {
+         sc = mySrvConfig(s);
+         if (writetty) {
+-            apr_file_printf(writetty, "\n");
+-            apr_file_printf(writetty, "Ok: Pass Phrase Dialog successful.\n");
++            apr_file_printf(writetty, "\n"
++                            "OK: Pass Phrase Dialog successful.\n");
+         }
+     }
  
-     return NULL;
- }
- 
- 
--const char *ssl_cmd_SSLUserName(cmd_parms *cmd, void *dcfg, 
-+const char *ssl_cmd_SSLUserName(cmd_parms *cmd, void *dcfg,
- 				const char *arg)
- {
-     SSLDirConfigRec *dc = (SSLDirConfigRec *)dcfg;
-     dc->szUserName = arg;
-     return NULL;
- }
-+
-+void ssl_hook_ConfigTest(apr_pool_t *pconf, server_rec *s)
-+{
-+    if (!ap_exists_config_define("DUMP_CERTS")) {
-+        return;
-+    }
-+
-+    /* Dump the filenames of all configured server certificates to
-+     * stdout. */
-+    while (s) {
-+        SSLSrvConfigRec *sc = mySrvConfig(s);
-+
-+        if (sc && sc->server && sc->server->pks) {
-+            modssl_pk_server_t *const pks = sc->server->pks;
-+            int i;
-+
-+            for (i = 0; (i < SSL_AIDX_MAX) && pks->cert_files[i]; i++) {
-+                printf("%s\n", pks->cert_files[i]);
-+            }
-+        }
-+
-+        s = s->next;
-+    }
-+
-+}
+     /*
+      * Wipe out the used memory from the
+      * pass phrase array and then deallocate it

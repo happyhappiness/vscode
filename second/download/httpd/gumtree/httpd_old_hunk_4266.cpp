@@ -1,38 +1,45 @@
-		char buff[24] = "                       ";
-		t2 = ap_escape_html(scratch, t);
-		buff[23 - len] = '\0';
-		t2 = ap_pstrcat(scratch, t2, "</A>", buff, NULL);
-	    }
-	    anchor = ap_pstrcat(scratch, "<A HREF=\"",
-			ap_escape_html(scratch, ap_os_escape_path(scratch, t, 0)),
-			     "\">", NULL);
-	}
+        h2_mplx_abort(session->mplx);
+    }
+}
 
-	if (autoindex_opts & FANCY_INDEXING) {
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs(anchor, r);
-	    if ((ar[x]->icon) || d->default_icon) {
-		ap_rvputs(r, "<IMG SRC=\"",
-		       ap_escape_html(scratch, ar[x]->icon ?
-				   ar[x]->icon : d->default_icon),
-		       "\" ALT=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
-		       "]\"", NULL);
-		if (d->icon_width && d->icon_height) {
-		    ap_rprintf
-			(
-			    r,
-			    " HEIGHT=\"%d\" WIDTH=\"%d\"",
-			    d->icon_height,
-			    d->icon_width
-			);
-		}
-		ap_rputs(">", r);
-	    }
-	    if (autoindex_opts & ICONS_ARE_LINKS)
-		ap_rputs("</A>", r);
+static const int MAX_WAIT_MICROS = 200 * 1000;
 
-	    ap_rvputs(r, " ", anchor, t2, NULL);
-	    if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
-		if (ar[x]->lm != -1) {
-		    char time_str[MAX_STRING_LEN];
-		    struct tm *ts = localtime(&ar[x]->lm);
+static void update_child_status(h2_session *session, int status, const char *msg)
+{
+    /* Assume that we also change code/msg when something really happened and
+     * avoid updating the scoreboard in between */
+    if (session->last_status_code != status 
+        || session->last_status_msg != msg) {
+        apr_snprintf(session->status, sizeof(session->status),
+                     "%s, streams: %d/%d/%d/%d/%d (open/recv/resp/push/rst)", 
+                     msg? msg : "-",
+                     (int)h2_ihash_count(session->streams), 
+                     (int)session->remote.emitted_count,
+                     (int)session->responses_submitted,
+                     (int)session->pushes_submitted,
+                     (int)session->pushes_reset + session->streams_reset);
+        ap_update_child_status_descr(session->c->sbh, status, session->status);
+    }
+}
+
+apr_status_t h2_session_process(h2_session *session, int async)
+{
+    apr_status_t status = APR_SUCCESS;
+    conn_rec *c = session->c;
+    int rv, have_written, have_read, mpm_state, no_streams;
+
+    ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_session(%ld): process start, async=%d", session->id, async);
+                  
+    if (c->cs) {
+        c->cs->state = CONN_STATE_WRITE_COMPLETION;
+    }
+    
+    while (1) {
+        have_read = have_written = 0;
+
+        if (!ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
+            if (mpm_state == AP_MPMQ_STOPPING) {
+                dispatch_event(session, H2_SESSION_EV_MPM_STOPPING, 0, NULL);
+                break;
+            }

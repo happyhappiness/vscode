@@ -1,13 +1,14 @@
-    ap_bvputs(f, "Host: ", desthost, NULL);
-    if (destportstr != NULL && destport != DEFAULT_HTTP_PORT)
-	ap_bvputs(f, ":", destportstr, CRLF, NULL);
-    else
-	ap_bputs(CRLF, f);
+    const char *t;
 
-    reqhdrs_arr = table_elts(r->headers_in);
-    reqhdrs = (table_entry *) reqhdrs_arr->elts;
-    for (i = 0; i < reqhdrs_arr->nelts; i++) {
-	if (reqhdrs[i].key == NULL || reqhdrs[i].val == NULL
-	/* Clear out headers not to send */
-	    || !strcasecmp(reqhdrs[i].key, "Host")	/* Already sent */
-	    ||!strcasecmp(reqhdrs[i].key, "Proxy-Authorization"))
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
+        return DECLINED;
+
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, APLOGNO(00572) "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!auth_line) {
+        ap_note_auth_failure(r);
+        return HTTP_UNAUTHORIZED;

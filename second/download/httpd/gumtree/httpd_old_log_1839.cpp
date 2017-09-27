@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "charset_source: %s charset_default: %s",
-                      dc && dc->charset_source ? dc->charset_source : "(none)",
-                      dc && dc->charset_default ? dc->charset_default : "(none)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered premature end-of-stream while inflating");

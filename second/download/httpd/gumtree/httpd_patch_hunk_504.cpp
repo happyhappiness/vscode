@@ -1,23 +1,29 @@
-  * 20020903.6 (2.0.49-dev) add insert_error_filter hook
-  * 20020903.7 (2.0.49-dev) added XHTML Doctypes
-  * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
-  *                         ap_finalize_sub_req_protocol on Win32 and NetWare
-  * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
-  *                         calling ap_setup_prelinked_modules
-+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
-+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
-  */
+             * close(sd2) here should be okay, as CGI channel
+             * is already dup()ed by apr_procattr_child_{in,out}_set()
+             * above.
+             */
+             close(sd2);
  
- #define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
- 
- #ifndef MODULE_MAGIC_NUMBER_MAJOR
- #define MODULE_MAGIC_NUMBER_MAJOR 20020903
- #endif
--#define MODULE_MAGIC_NUMBER_MINOR 9                     /* 0...n */
-+#define MODULE_MAGIC_NUMBER_MINOR 11                    /* 0...n */
- 
- /**
-  * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
-  * specified value.
-  * <pre>
-  * Useful for testing for features.
+-            rc = ap_os_create_privileged_process(r, procnew, argv0, argv, 
+-                                                 (const char * const *)env, 
+-                                                 procattr, ptrans);
+-
++            if (memcmp(&empty_ugid, &cgid_req.ugid, sizeof(empty_ugid))) {
++                /* We have a valid identity, and can be sure that 
++                 * cgid_suexec_id_doer will return a valid ugid 
++                 */
++                rc = ap_os_create_privileged_process(r, procnew, argv0, argv,
++                                                     (const char * const *)env,
++                                                     procattr, ptrans);
++            } else {
++                rc = apr_proc_create(procnew, argv0, argv, 
++                                     (const char * const *)env, 
++                                     procattr, ptrans);
++            }
++                
+             if (rc != APR_SUCCESS) {
+                 /* Bad things happened. Everyone should have cleaned up.
+                  * ap_log_rerror() won't work because the header table used by
+                  * ap_log_rerror() hasn't been replicated in the phony r
+                  */
+                 ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,

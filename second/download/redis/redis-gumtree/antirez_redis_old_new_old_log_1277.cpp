@@ -1,1 +1,0 @@
-printf(". - *            0.01 0.125 0.5  milliseconds\n");

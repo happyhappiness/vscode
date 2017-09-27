@@ -1,1 +1,0 @@
-ci = sdscatprintf(ci," %.40s ",node->slaveof->name);

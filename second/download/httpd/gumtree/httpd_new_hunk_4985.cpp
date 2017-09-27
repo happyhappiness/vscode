@@ -1,14 +1,56 @@
-	&& (!r->header_only || (d->content_md5 & 1))) {
-	/* we need to protect ourselves in case we die while we've got the
- 	 * file mmapped */
-	mm = mmap(NULL, r->finfo.st_size, PROT_READ, MAP_PRIVATE,
-		  fileno(f), 0);
-	if (mm == (caddr_t)-1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_CRIT, r,
-			 "default_handler: mmap failed: %s", r->filename);
-	}
+    int result;
+    int nargs = 0;
+
+    spec = create_vm_spec(&pool, r, cfg, server_cfg, prov_spec->file_name,
+                          NULL, 0, prov_spec->function_name, "authz provider");
+
+    L = ap_lua_get_lua_state(pool, spec, r);
+    if (L == NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02314)
+                      "Unable to compile VM for authz provider %s", prov_spec->name);
+        return AUTHZ_GENERAL_ERROR;
     }
-    else {
-	mm = (caddr_t)-1;
+    lua_getglobal(L, prov_spec->function_name);
+    if (!lua_isfunction(L, -1)) {
+        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
+                      "Unable to find function %s in %s",
+                      prov_spec->function_name, prov_spec->file_name);
+        ap_lua_release_state(L, spec, r);
+        return AUTHZ_GENERAL_ERROR;
     }
-++ apache_1.3.2/src/main/http_log.c	1998-09-22 01:29:45.000000000 +0800
+    ap_lua_run_lua_request(L, r);
+    if (prov_spec->args) {
+        int i;
+        if (!lua_checkstack(L, prov_spec->args->nelts)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02315)
+                          "Error: authz provider %s: too many arguments", prov_spec->name);
+            ap_lua_release_state(L, spec, r);
+            return AUTHZ_GENERAL_ERROR;
+        }
+        for (i = 0; i < prov_spec->args->nelts; i++) {
+            const char *arg = APR_ARRAY_IDX(prov_spec->args, i, const char *);
+            lua_pushstring(L, arg);
+        }
+        nargs = prov_spec->args->nelts;
+    }
+    if (lua_pcall(L, 1 + nargs, 1, 0)) {
+        const char *err = lua_tostring(L, -1);
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02316)
+                      "Error executing authz provider %s: %s", prov_spec->name, err);
+        ap_lua_release_state(L, spec, r);
+        return AUTHZ_GENERAL_ERROR;
+    }
+    if (!lua_isnumber(L, -1)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02317)
+                      "Error: authz provider %s did not return integer", prov_spec->name);
+        ap_lua_release_state(L, spec, r);
+        return AUTHZ_GENERAL_ERROR;
+    }
+    result = lua_tointeger(L, -1);
+    ap_lua_release_state(L, spec, r);
+    switch (result) {
+        case AUTHZ_DENIED:
+        case AUTHZ_GRANTED:
+        case AUTHZ_NEUTRAL:
+        case AUTHZ_GENERAL_ERROR:
+        case AUTHZ_DENIED_NO_USER:

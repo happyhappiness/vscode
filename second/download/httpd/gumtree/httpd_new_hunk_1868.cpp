@@ -1,30 +1,27 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
+    /* Build the env array */
+    for (envc = 0; _environ[envc]; ++envc) {
+        ;
     }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent));
-    curbytes.upper = curbytes.lower = 0L;
+    env = apr_palloc(ptemp, (envc + 2) * sizeof (char*));  
+    memcpy(env, _environ, envc * sizeof (char*));
+    apr_snprintf(pidbuf, sizeof(pidbuf), "AP_PARENT_PID=%i", parent_pid);
+    env[envc] = pidbuf;
+    env[envc + 1] = NULL;
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (cmp_long61(&curbytes, &cachesize) < 0L) {
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-			 "proxy GC: Cache is %ld%% full (nothing deleted)",
-			 (long)(((curbytes.upper<<20)|(curbytes.lower>>10))*100/conf->space));
-	ap_unblock_alarms();
-	return;
+    rv = apr_proc_create(&new_child, cmd, args, env, attr, ptemp);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Failed to create the child process.");
+        apr_pool_destroy(ptemp);
+        CloseHandle(hExitEvent);
+        CloseHandle(waitlist[waitlist_ready]);
+        CloseHandle(new_child.hproc);
+        return -1;
     }
 
-    /* sort the files we found by expiration date */
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent), gcdiff);
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Parent: Created child process %d", new_child.pid);
 
-    for (i = 0; i < files->nelts; i++) {
-	fent = &((struct gc_ent *) files->elts)[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    if (send_handles_to_child(ptemp, waitlist[waitlist_ready], hExitEvent,
+                              start_mutex, ap_scoreboard_shm,
+                              new_child.hproc, new_child.in)) {

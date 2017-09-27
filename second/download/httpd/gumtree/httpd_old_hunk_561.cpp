@@ -1,13 +1,13 @@
-        }
-#endif
-        APR_BRIGADE_INSERT_TAIL(bb, e);
-        e = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, e);
-
-        return ap_pass_brigade(r->output_filters, bb);
-    }
-    else {              /* unusual method (not GET or POST) */
-        if (r->method_number == M_INVALID) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Invalid method in request %s", r->the_request);
-            return HTTP_NOT_IMPLEMENTED;
+                /* if this is the last brigade, cleanup the
+                 * backend connection first to prevent the
+                 * backend server from hanging around waiting
+                 * for a slow client to eat these bytes
+                 */
+                ap_flush_conn(data);
+                apr_socket_close(data_sock);
+                data_sock = NULL;
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: FTP: data connection closed");
+                /* signal that we must leave */
+                finish = TRUE;
+            }

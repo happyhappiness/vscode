@@ -1,28 +1,28 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
+    apr_dbd_prepared_t *statement;
 
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
+    if (!session_dbd_prepare_fn || !session_dbd_acquire_fn) {
+        session_dbd_prepare_fn = APR_RETRIEVE_OPTIONAL_FN(ap_dbd_prepare);
+        session_dbd_acquire_fn = APR_RETRIEVE_OPTIONAL_FN(ap_dbd_acquire);
+        if (!session_dbd_prepare_fn || !session_dbd_acquire_fn) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                          "You must load mod_dbd to enable AuthDBD functions");
+            return APR_EGENERAL;
+        }
     }
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+    dbd = session_dbd_acquire_fn(r);
+    if (!dbd) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "failed to acquire database connection");
+        return APR_EGENERAL;
+    }
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    statement = apr_hash_get(dbd->prepared, query, APR_HASH_KEY_STRING);
+    if (!statement) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                      "failed to find the prepared statement called '%s'", query);
+        return APR_EGENERAL;
+    }
+
+    *dbdp = dbd;
+    *statementp = statement;

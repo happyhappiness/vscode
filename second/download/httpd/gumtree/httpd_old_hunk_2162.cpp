@@ -1,13 +1,12 @@
-	}
-	if ((timefd = creat(filename, 0666)) == -1) {
-	    if (errno != EEXIST)
-		ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			     "proxy: creat(%s)", filename);
-	    else
-		lastcheck = abs(garbage_now);	/* someone else got in there */
-	    ap_unblock_alarms();
-	    return;
-	}
-	close(timefd);
+
+        apr_rfc822_date(datestr, mod_time);
+        apr_table_setn(r->headers_out, "Last-Modified", datestr);
     }
-    else {
+}
+
+AP_IMPLEMENT_HOOK_RUN_ALL(int,post_read_request,
+                          (request_rec *r), (r), OK, DECLINED)
+AP_IMPLEMENT_HOOK_RUN_ALL(int,log_transaction,
+                          (request_rec *r), (r), OK, DECLINED)
+AP_IMPLEMENT_HOOK_RUN_FIRST(const char *,http_scheme,
+                            (const request_rec *r), (r), NULL)

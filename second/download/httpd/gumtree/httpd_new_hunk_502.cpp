@@ -1,14 +1,12 @@
-#endif
-    
-    apr_signal(SIGINT, (void (*)(int)) interrupted);
-    if (argc == 5) {
-        if (strcmp(argv[1], "-c"))
-            usage();
-        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
-                           APR_OS_DEFAULT, cntxt);
-        if (rv != APR_SUCCESS) {
-            char errmsg[120];
+        return DECLINED;
 
-            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+    is_included = !strcmp(r->protocol, "INCLUDED");
+
+    p = r->main ? r->main->pool : r->pool;
+
+    argv0 = apr_filename_of_pathname(r->filename);
+    nph = !(strncmp(argv0, "nph-", 4));
+    conf = ap_get_module_config(r->server->module_config, &cgi_module);
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r))
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0,

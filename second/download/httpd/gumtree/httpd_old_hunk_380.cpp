@@ -1,20 +1,12 @@
-     * working.  (IMHO what they really fix is a bug in the users of the code
-     * - failing to program correctly for shadow passwords).  We need,
-     * therefore, to provide a password. This password can be matched by
-     * adding the string "xxj31ZMTZzkVA" as the password in the user file.
-     * This is just the crypted variant of the word "password" ;-)
-     */
-    apr_snprintf(buf1, sizeof(buf1), "%s:password", clientdn);
-    ssl_util_uuencode(buf2, buf1, FALSE);
-
-    apr_snprintf(buf1, sizeof(buf1), "Basic %s", buf2);
-    apr_table_set(r->headers_in, "Authorization", buf1);
-
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "Faking HTTP Basic Auth header: \"Authorization: %s\"", buf1);
-
-    return DECLINED;
+    util_ald_destroy_cache(node->search_cache);
+    util_ald_destroy_cache(node->compare_cache);
+    util_ald_destroy_cache(node->dn_compare_cache);
+    util_ald_free(cache, node);
 }
 
-/* authorization phase */
-int ssl_hook_Auth(request_rec *r)
+/* ------------------------------------------------------------------ */
+
+/* Cache functions for search nodes */
+unsigned long util_ldap_search_node_hash(void *n)
+{
+    util_search_node_t *node = (util_search_node_t *)n;

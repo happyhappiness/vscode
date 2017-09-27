@@ -1,13 +1,13 @@
-#define STANDALONE_MAIN standalone_main
+                                          mctx->auth.ca_cert_file,
+                                          mctx->auth.ca_cert_path);
+        if (sk_X509_NAME_num(ca_list) <= 0) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01896)
+                    "Unable to determine list of acceptable "
+                    "CA certificates for client authentication");
+            ssl_die(s);
+        }
 
-static void standalone_main(int argc, char **argv)
-{
-    int remaining_children_to_start;
+        SSL_CTX_set_client_CA_list(ctx, ca_list);
+    }
 
-#ifdef OS2
-    printf("%s \n", ap_get_server_version());
-#endif
-
-    ap_standalone = 1;
-
-    is_graceful = 0;
+    /*

@@ -1,37 +1,16 @@
+     /* If the object is not already marked for cleanup, remove
+      * it from the cache and mark it for cleanup. Remember,
+      * an object marked for cleanup is by design not in the
+      * hash table.
+      */
+     if (!obj->cleanup) {
+-        mem_cache_object_t *mobj = (mem_cache_object_t *) obj->vobj;
+         cache_remove(sconf->cache_cache, obj);
+-        sconf->object_cnt--;
+-        sconf->cache_size -= mobj->m_len;
+         obj->cleanup = 1;
+         ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
+     }
  
- static const char *util_ldap_set_cert_auth(cmd_parms *cmd, void *dummy, const char *file)
- {
-     util_ldap_state_t *st = 
-         (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
- 						  &ldap_module);
-+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-+    if (err != NULL) {
-+        return err;
-+    }
- 
-     ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                       "LDAP: SSL trusted certificate authority file - %s", 
-                        file);
- 
--    st->cert_auth_file = apr_pstrdup(cmd->pool, file);
-+    st->cert_auth_file = ap_server_root_relative(cmd->pool, file);
- 
-     return(NULL);
- }
- 
- 
- const char *util_ldap_set_cert_type(cmd_parms *cmd, void *dummy, const char *Type)
- {
-     util_ldap_state_t *st = 
-     (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
-                                               &ldap_module);
-+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-+    if (err != NULL) {
-+        return err;
-+    }
- 
-     ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
-                       "LDAP: SSL trusted certificate authority file type - %s", 
-                        Type);
- 
-     if (0 == strcmp("DER_FILE", Type))
+     if (sconf->lock) {
+         apr_thread_mutex_unlock(sconf->lock);

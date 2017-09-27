@@ -1,13 +1,13 @@
-    if (r->assbackwards && r->header_only) {
-        /*
-         * Client asked for headers only with HTTP/0.9, which doesn't send
-         * headers!  Have to dink things even to make sure the error message
-         * comes through...
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                    "client sent illegal HTTP/0.9 request: %s", r->uri);
-        r->header_only = 0;
-        ap_die(BAD_REQUEST, r);
-        return;
-    }
-
+                return DECLINED;
+            }
+        }
+        buffer_len = sobj->buffer_len;
+        rc = conf->provider->socache_provider->retrieve(
+                conf->provider->socache_instance, r->server,
+                (unsigned char *) nkey, len, sobj->buffer,
+                &buffer_len, r->pool);
+        if (socache_mutex) {
+            apr_status_t status = apr_global_mutex_unlock(socache_mutex);
+            if (status != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02356)
+                        "could not release lock, ignoring: %s", obj->key);

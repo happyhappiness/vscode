@@ -1,0 +1,1 @@
+s(r, "<th", (d->style_sheet != NULL) ? " class=\"indexcolname\">" : ">", NULL);

@@ -1,20 +1,30 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
-        }
-        return 0;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    /* If there is no group file - then we are not
+     * configured. So decline.
+     */
+    if (!(conf->groupfile)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
+    }
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    status = groups_for_user(r->pool, user, conf->groupfile,
+                                &grpstatus);
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                        "Could not open group file: %s",
+                        conf->groupfile);
+        return AUTHZ_DENIED;
+    }
+
+    if (apr_table_elts(grpstatus)->nelts == 0) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Authorization of user %s to access %s failed, reason: "
+                      "user doesn't appear in group file (%s).",
+                      r->user, r->uri, conf->groupfile);
+        return AUTHZ_DENIED;
+    }
+

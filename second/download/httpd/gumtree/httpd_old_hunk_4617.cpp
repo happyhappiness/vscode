@@ -1,21 +1,17 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
-
-    /* At some point, we may want to offer back-compatibility for
-     * loading modules that are for older versions of Apache. For now,
-     * though, we don't.
-     */
-
-    if (m->version != MODULE_MAGIC_NUMBER) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the author for the correct version.\n");
-	exit(1);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02450) "declining URL %s", url);
+        return DECLINED;
     }
 
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+    upgrade = apr_table_get(r->headers_in, "Upgrade");
+    if (!upgrade || strcasecmp(upgrade, "WebSocket") != 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
+                      "declining URL %s  (not WebSocket)", url);
+        return DECLINED;
+    }
+
+    uri = apr_palloc(p, sizeof(*uri));
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02451) "serving URL %s", url);
+
+    /* create space for state information */

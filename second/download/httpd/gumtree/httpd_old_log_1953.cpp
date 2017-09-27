@@ -1,2 +1,2 @@
-printf("                        %.2f kb/s total\n",
-               (float) ((totalread + totalposted) / timetaken / 1024));
+ap_rvputs(r, "<pre>          <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);

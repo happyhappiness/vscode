@@ -1,26 +1,13 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    ts->child_num_arg = child_num_arg;
+    ts->threadattr = thread_attr;
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
+    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
+                           ts, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "apr_thread_create: unable to create worker thread");
+        /* let the parent decide how bad this really is */
+        clean_child_exit(APEXIT_CHILDSICK);
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+    mpm_state = AP_MPMQ_RUNNING;

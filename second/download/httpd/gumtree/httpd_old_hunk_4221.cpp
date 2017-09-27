@@ -1,13 +1,24 @@
+                 */
+                thisinfo.filetype = APR_NOFILE;
+                break;
+            }
+            else if (APR_STATUS_IS_EACCES(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
+                              "access to %s denied because search "
+                              "permissions are missing on a component "
+                              "of the path", r->uri);
+                return r->status = HTTP_FORBIDDEN;
+            }
+            else if ((rv != APR_SUCCESS && rv != APR_INCOMPLETE)
+                     || !(thisinfo.valid & APR_FINFO_TYPE)) {
+                /* If we hit ENOTDIR, we must have over-optimized, deny
+                 * rather than assume not found.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
+                              "access to %s failed", r->uri);
+                return r->status = HTTP_FORBIDDEN;
+            }
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************
+            /* Fix up the path now if we have a name, and they don't agree
+             */
+            if ((thisinfo.valid & APR_FINFO_NAME)

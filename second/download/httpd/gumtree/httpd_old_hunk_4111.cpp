@@ -1,24 +1,12 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
-{
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+    /* Step 3: Read records from the back end server and handle them. */
+    rv = dispatch(conn, conf, r, temp_pool, request_id,
+                  &err, &bad_request, &has_responded);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
+                      "Error dispatching request to %s: %s%s%s",
+                      server_portstr,
+                      err ? "(" : "",
+                      err ? err : "",
+                      err ? ")" : "");

@@ -1,14 +1,14 @@
-                 printf("Unknown APACHE2 command %s\n", &szcommandLine[iCommandLen]);
-             printf("Usage: APACHE2 [command] [-p <instance ID>]\n");
-             printf("Commands:\n");
-             printf("\tDIRECTIVES - Show directives\n");
-             printf("\tHELP       - Display this help information\n");
-             printf("\tMODULES    - Show a list of the loaded modules\n");
--            printf("\tRESTART    - Reread the configurtion file and restart Apache\n");
-+            printf("\tRESTART    - Reread the configuration file and restart Apache\n");
-             printf("\tSETTINGS   - Show current thread status\n");
-             printf("\tSHUTDOWN   - Shutdown Apache\n");
-             printf("\tVERSION    - Display the server version information\n");
+         if (apr_fnmatch_test(path)) {
+             fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                     "%s\n", ap_server_argv0, fname);
+             exit(1);
          }
  
-         /*  Tell NetWare we handled the command */
+-        if (!ap_is_rdirectory(p, path)){ 
++        if (!ap_is_directory(p, path)){ 
+             fprintf(stderr, "%s: Include directory '%s' not found",
+                     ap_server_argv0, path);
+             exit(1);
+         }
+ 
+         if (!apr_fnmatch_test(pattern)) {

@@ -1,31 +1,15 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
+    if (!apr_is_empty_array(balancer->errstatuses)) {
+        int i;
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+                break;
+            }
         }
-    }
-
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800

@@ -1,13 +1,22 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    /* In APR-util - unclear what 'timeout' is, as it was not implemented */
+    rv = apr_memcache_set(ctx->mc, buf, (char*)ucaData, nData, 0, 0);
+
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "scache_mc: error setting key '%s' "
+                     "with %d bytes of data", buf, nData);
+        return rv;
+    }
+
+    return APR_SUCCESS;
+}
+
+static apr_status_t socache_mc_retrieve(ap_socache_instance_t *ctx, server_rec *s, 
+                                        const unsigned char *id, unsigned int idlen,
+                                        unsigned char *dest, unsigned int *destlen,
+                                        apr_pool_t *p)
+{
+    apr_size_t data_len;
+    char buf[MC_KEY_LEN], *data;

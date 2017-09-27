@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"The RDB file contains module data I can't load: no matching module '%s'", name);

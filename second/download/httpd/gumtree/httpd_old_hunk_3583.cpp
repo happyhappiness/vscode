@@ -1,13 +1,13 @@
-	return ap_proxyerror(r, err);	/* give up */
+    if (cache->control_in.no_cache) {
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
+        if (!conf->ignorecachecontrol) {
+            return 0;
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                    "Incoming request is asking for an uncached version of "
+                    "%s, but we have been configured to ignore it and serve "
+                    "cached content anyway", r->unparsed_uri);
+        }
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {

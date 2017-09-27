@@ -1,25 +1,14 @@
-     */
-    cookie_table = apr_table_make(r->pool, 2);
-    apr_table_do(set_cookie_doo_doo, cookie_table, r->err_headers_out, "Set-Cookie", NULL);
+void ssl_io_filter_init(conn_rec *c, SSL *ssl)
+{
+    ssl_filter_ctx_t *filter_ctx;
 
-    while (1) {
+    filter_ctx = apr_palloc(c->pool, sizeof(ssl_filter_ctx_t));
 
-        int rv = (*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data);
-        if (rv == 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
-                          "Premature end of script headers: %s",
-                          apr_filepath_name_get(r->filename));
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-        else if (rv == -1) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
-                          "Script timed out before returning headers: %s",
-                          apr_filepath_name_get(r->filename));
-            return HTTP_GATEWAY_TIME_OUT;
-        }
+    filter_ctx->config          = myConnConfig(c);
 
-        /* Delete terminal (CR?)LF */
+    filter_ctx->nobuffer        = 0;
+    filter_ctx->pOutputFilter   = ap_add_output_filter(ssl_io_filter,
+                                                   filter_ctx, NULL, c);
 
-        p = strlen(w);
-             /* Indeed, the host's '\n':
-                '\012' for UNIX; '\015' for MacOS; '\025' for OS/390
+    filter_ctx->pbioWrite       = BIO_new(&bio_filter_out_method);
+    filter_ctx->pbioWrite->ptr  = (void *)bio_filter_out_ctx_new(filter_ctx, c);

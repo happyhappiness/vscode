@@ -1,24 +1,23 @@
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
+            /* ??? */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
+                         "post_config: mpm type unknown");
+            break;
     }
-
-    ap_threads_per_child = atoi(arg);
-    if (ap_threads_per_child > HARD_SERVER_LIMIT) {
-        fprintf(stderr, "WARNING: ThreadsPerChild of %d exceeds compile time limit "
-                "of %d threads,\n", ap_threads_per_child, HARD_SERVER_LIMIT);
-        fprintf(stderr, " lowering ThreadsPerChild to %d.  To increase, please "
-                "see the\n", HARD_SERVER_LIMIT);
-        fprintf(stderr, " HARD_SERVER_LIMIT define in src/include/httpd.h.\n");
-        ap_threads_per_child = HARD_SERVER_LIMIT;
-    } 
-    else if (ap_threads_per_child < 1) {
-	fprintf(stderr, "WARNING: Require ThreadsPerChild > 0, setting to 1\n");
-	ap_threads_per_child = 1;
+    
+    if (!h2_mpm_supported() && !mpm_warned) {
+        mpm_warned = 1;
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(10034)
+                     "The mpm module (%s) is not supported by mod_http2. The mpm determines "
+                     "how things are processed in your server. HTTP/2 has more demands in "
+                     "this regard and the currently selected mpm will just not do. "
+                     "This is an advisory warning. Your server will continue to work, but "
+                     "the HTTP/2 protocol will be inactive.", 
+                     h2_conn_mpm_name());
     }
-
-    return NULL;
-}
-
-static const char *set_excess_requests(cmd_parms *cmd, void *dummy, char *arg) 
-{
+    
+    status = h2_h2_init(p, s);
+    if (status == APR_SUCCESS) {
+        status = h2_switch_init(p, s);
+    }
+    if (status == APR_SUCCESS) {
+        status = h2_task_init(p, s);

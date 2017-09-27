@@ -1,23 +1,16 @@
- 
- static apr_status_t ef_close_file(void *vfile)
- {
-     return apr_file_close(vfile);
- }
- 
-+static void child_errfn(apr_pool_t *p, apr_status_t err, const char *desc)
-+{
-+    request_rec *r;
-+    void *vr;
-+
-+    apr_pool_userdata_get(&vr, ERRFN_USERDATA_KEY, p);
-+    r = vr;
-+    
-+    ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, "%s", desc);
-+}
-+
- /* init_ext_filter_process: get the external filter process going
-  * This is per-filter-instance (i.e., per-request) initialization.
-  */
- static apr_status_t init_ext_filter_process(ap_filter_t *f)
- {
-     ef_ctx_t *ctx = f->ctx;
+                                   "require dn: authorisation successful", getpid());
+                     return OK;
+                 }
+                 default: {
+                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                   "[%d] auth_ldap authorise: "
+-                                  "require dn: LDAP error [%s][%s]",
+-                                  getpid(), ldc->reason, ldap_err2string(result));
++                                  "require dn \"%s\": LDAP error [%s][%s]",
++                                  getpid(), t, ldc->reason, ldap_err2string(result));
+                 }
+             }
+         }
+         else if (strcmp(w, "group") == 0) {
+             struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+             int i;

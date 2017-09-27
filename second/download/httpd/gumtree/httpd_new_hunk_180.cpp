@@ -1,13 +1,15 @@
-    if (rr->status != HTTP_OK) {
-	ap_destroy_sub_req(rr);
-	return DECLINED;
-    }
-    ap_destroy_sub_req(rr);
+        }
+        else {
+            t2 = t;
+        }
 
-    retcode = apr_file_open(&f, metafilename, APR_READ, APR_OS_DEFAULT, r->pool);
-    if (retcode != APR_SUCCESS) {
-	if (APR_STATUS_IS_ENOENT(retcode)) {
-	    return DECLINED;
-	}
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-	      "meta file permissions deny server access: %s", metafilename);
+        if (autoindex_opts & TABLE_INDEXING) {
+            ap_rputs("<tr>", r);
+            if (!(autoindex_opts & SUPPRESS_ICON)) {
+                ap_rputs("<td valign=\"top\">", r);
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rvputs(r, "<a href=\"", anchor, "\">", NULL);
+                }
+                if ((ar[x]->icon) || d->default_icon) {
+                    ap_rvputs(r, "<img src=\"",
+                              ap_escape_html(scratch,

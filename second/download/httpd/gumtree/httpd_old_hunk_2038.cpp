@@ -1,31 +1,46 @@
-	    p->next = head;
-	    head = p;
-	    num_ent++;
-	}
-    }
-    if (num_ent > 0) {
-	ar = (struct ent **) ap_palloc(r->pool, num_ent * sizeof(struct ent *));
-	p = head;
-	x = 0;
-	while (p) {
-	    ar[x++] = p;
-	    p = p->next;
-	}
+     * In addition, we make HTTP/1.1 age calculations and write them away
+     * too.
+     */
 
-	qsort((void *) ar, num_ent, sizeof(struct ent *),
-	          (int (*)(const void *, const void *)) dsortf);
+    /* Read the date. Generate one if one is not supplied */
+    dates = apr_table_get(r->err_headers_out, "Date");
+    if (dates != NULL) {
+        date_in_errhdr = 1;
     }
-    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts, keyid,
-		       direction);
-    ap_pclosedir(r->pool, d);
-
-    if ((tmp = find_readme(autoindex_conf, r))) {
-	if (!insert_readme(name, tmp, "",
-                      ((autoindex_opts & FANCY_INDEXING) ? HRULE : NO_HRULE),
-                      END_MATTER, r)) {
-	    ap_rputs(ap_psignature("<HR>\n", r), r);
-	}
+    else {
+        dates = apr_table_get(r->headers_out, "Date");
     }
-    ap_rputs("</BODY></HTML>\n", r);
+    if (dates != NULL) {
+        info->date = apr_date_parse_http(dates);
+    }
+    else {
+        info->date = APR_DATE_BAD;
+    }
 
-    ap_kill_timeout(r);
+    now = apr_time_now();
+    if (info->date == APR_DATE_BAD) {  /* No, or bad date */
+        char *dates;
+        /* no date header (or bad header)! */
+        /* add one; N.B. use the time _now_ rather than when we were checking
+         * the cache
+         */
+        if (date_in_errhdr == 1) {
+            apr_table_unset(r->err_headers_out, "Date");
+        }
+        date = now;
+        dates = apr_pcalloc(r->pool, MAX_STRING_LEN);
+        apr_rfc822_date(dates, now);
+        apr_table_set(r->headers_out, "Date", dates);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "cache: Added date header");
+        info->date = date;
+    }
+    else {
+        date = info->date;
+    }
+
+    /* set response_time for HTTP/1.1 age calculations */
+    info->response_time = now;
+
+    /* get the request time */
+    info->request_time = r->request_time;

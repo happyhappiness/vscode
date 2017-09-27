@@ -1,1 +1,0 @@
-snprintf(peerid,peerid_len,"%s:0",server.unixsocket);

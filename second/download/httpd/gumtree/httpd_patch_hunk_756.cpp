@@ -1,16 +1,14 @@
-     const char *fname = ap_server_root_relative(p, conf->magicfile);
+         if (ok < 0) {
+             cp = apr_psprintf(r->pool,
+                               "Failed to execute "
+                               "SSL requirement expression: %s",
+                               ssl_expr_get_error());
  
-     if (!fname) {
- 	ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
- 		     MODNAME ": Invalid magic file path %s", conf->magicfile);
- 	return -1;
--    }        
--    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED, 
-+    }
-+    if ((result = apr_file_open(&f, fname, APR_READ | APR_BUFFERED,
-                                 APR_OS_DEFAULT, p) != APR_SUCCESS)) {
- 	ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
- 		     MODNAME ": can't read magic file %s", fname);
- 	return -1;
-     }
+-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
++            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                           "access to %s failed, reason: %s",
+                           r->filename, cp);
+ 
+             /* remember forbidden access for strict require option */
+             apr_table_setn(r->notes, "ssl-access-forbidden", "1");
  

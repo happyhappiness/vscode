@@ -1,31 +1,13 @@
-
-    /* Pass one --- direct matches */
-
-    for (handp = handlers; handp->hr.content_type; ++handp) {
-	if (handler_len == handp->len
-	    && !strncmp(handler, handp->hr.content_type, handler_len)) {
-            result = (*handp->hr.handler) (r);
-
-            if (result != DECLINED)
-                return result;
-        }
+    case LEDATE:
+        apr_ctime(time_str, apr_time_from_sec(*(time_t *)&p->l));
+        pp = time_str;
+        (void) magic_rsl_printf(r, m->desc, pp);
+        return;
+    default:
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01537)
+                    MODNAME ": invalid m->type (%d) in mprint().",
+                    m->type);
+        return;
     }
 
-    if (result == NOT_IMPLEMENTED && r->handler) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, r->server,
-            "handler \"%s\" not found for: %s", r->handler, r->filename);
-    }
-
-    /* Pass two --- wildcard matches */
-
-    for (handp = wildhandlers; handp->hr.content_type; ++handp) {
-	if (handler_len >= handp->len
-	    && !strncmp(handler, handp->hr.content_type, handp->len)) {
-             result = (*handp->hr.handler) (r);
-
-             if (result != DECLINED)
-                 return result;
-         }
-    }
-
-++ apache_1.3.1/src/main/http_core.c	1998-07-13 19:32:39.000000000 +0800
+    v = signextend(r->server, m, v) & m->mask;

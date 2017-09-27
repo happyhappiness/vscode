@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "GetModuleFileName failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                      "Response header name '%s' contains invalid "
+                      "characters, aborting request",
+                      name);

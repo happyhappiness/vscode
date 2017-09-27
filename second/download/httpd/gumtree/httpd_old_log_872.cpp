@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "Unable to set session id context to `%s'", vhost_md5);
+ap_log_error(APLOG_MARK, APLOG_INFO, inctx->rc, c->base_server,
+                                "SSL input filter read failed.");

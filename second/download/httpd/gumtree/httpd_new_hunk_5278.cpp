@@ -1,31 +1,13 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
-
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
+                      "Unable to compile VM for authz provider %s", prov_spec->name);
+        return AUTHZ_GENERAL_ERROR;
     }
-#elif defined(MAP_TMPFILE)
-    {
-	char mfile[] = "/tmp/apache_shmem_XXXX";
-	int fd = mkstemp(mfile);
-	if (fd == -1) {
-	    perror("open");
-	    fprintf(stderr, "httpd: Could not open %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-		PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (m == (caddr_t) - 1) {
-	    perror("mmap");
-	    fprintf(stderr, "httpd: Could not mmap %s\n", mfile);
-	    exit(APEXIT_INIT);
-	}
-	close(fd);
-	unlink(mfile);
+    lua_getglobal(L, prov_spec->function_name);
+    if (!lua_isfunction(L, -1)) {
+        ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
+                      "Unable to find entry function '%s' in %s (not a valid function)",
+                      prov_spec->function_name, prov_spec->file_name);
+        ap_lua_release_state(L, spec, r);
+        return AUTHZ_GENERAL_ERROR;
     }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+    ap_lua_run_lua_request(L, r);
+    if (prov_spec->args) {

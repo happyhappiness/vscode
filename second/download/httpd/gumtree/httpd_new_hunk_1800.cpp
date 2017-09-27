@@ -1,26 +1,25 @@
+             */
+            ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
+                         "apr_socket_accept: giving up.");
+            return APR_EGENERAL;
+#endif /*ENETDOWN*/
 
-#endif /* USE_SSL */
+        default:
+            /* If the socket has been closed in ap_close_listeners()
+             * by the restart/stop action, we may get EBADF.
+             * Do not print an error in this case.
+             */
+            if (!lr->active) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, status, ap_server_conf,
+                             "apr_socket_accept failed for inactive listener");
+                return status;
+            }
+            ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_socket_accept: (client socket)");
+            return APR_EGENERAL;
+    }
+    return status;
+}
 
-static void write_request(struct connection * c)
-{
-    do {
-        apr_time_t tnow;
-        apr_size_t l = c->rwrite;
-        apr_status_t e = APR_SUCCESS; /* prevent gcc warning */
 
-        tnow = lasttime = apr_time_now();
-
-        /*
-         * First time round ?
-         */
-        if (c->rwrite == 0) {
-            apr_socket_timeout_set(c->aprsock, 0);
-            c->connect = tnow;
-            c->rwrote = 0;
-            c->rwrite = reqlen;
-            if (posting)
-                c->rwrite += postlen;
-        }
-        else if (tnow > c->connect + aprtimeout) {
-            printf("Send request timed out!\n");
-            close_connection(c);
+#ifdef _OSD_POSIX

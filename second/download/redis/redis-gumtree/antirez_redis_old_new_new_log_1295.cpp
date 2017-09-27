@@ -1,1 +1,0 @@
-ERROR("Unknown RDB format version: %d", dump_version);

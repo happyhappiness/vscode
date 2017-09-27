@@ -1,37 +1,14 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return HTTP_NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return HTTP_BAD_GATEWAY;
-	}
-
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
-    }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return HTTP_BAD_GATEWAY;
-
-    r->status = 200;
-    r->status_line = "200 OK";
-
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    c->hdrs = resp_hdrs;
-
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    apr_sha1_ctx_t sha1;
+    char           *encoded;
+    int encoded_len;
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    key = apr_table_get(r->headers_in, "Sec-WebSocket-Key");
+    if (key != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03011) 
+                      "Websocket: Got websocket key: %s", key);
+        key = apr_pstrcat(r->pool, key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 
+                NULL);
+        apr_sha1_init(&sha1);
+        apr_sha1_update(&sha1, key, strlen(key));
+        apr_sha1_final(digest, &sha1);
+        encoded_len = apr_base64_encode_len(APR_SHA1_DIGESTSIZE);

@@ -1,17 +1,30 @@
-		return;
-#if MIME_MAGIC_DEBUG
-	    prevm = 0;
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": magic_init 1 test");
-	    for (m = conf->magic; m; m = m->next) {
-		if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-		    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-		    ap_isprint(((unsigned long) m) & 255)) {
-		    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-				MODNAME ": magic_init 1: POINTER CLOBBERED! "
-				"m=\"%c%c%c%c\" line=%d",
-				(((unsigned long) m) >> 24) & 255,
-				(((unsigned long) m) >> 16) & 255,
-				(((unsigned long) m) >> 8) & 255,
-++ apache_1.3.1/src/modules/standard/mod_negotiation.c	1998-07-09 01:47:18.000000000 +0800
+        apr_time_t cutoff = 0;
+
+        /* Stop listening */
+        ap_close_listeners();
+
+        /* kill off the idle ones */
+        ap_mpm_pod_killpg(pod, retained->max_daemons_limit);
+
+        /* Send SIGUSR1 to the active children */
+        active_children = 0;
+        for (index = 0; index < ap_daemons_limit; ++index) {
+            if (ap_scoreboard_image->servers[index][0].status != SERVER_DEAD) {
+                /* Ask each child to close its listeners. */
+                ap_mpm_safe_kill(MPM_CHILD_PID(index), AP_SIG_GRACEFUL);
+                active_children++;
+            }
+        }
+
+        /* Allow each child which actually finished to exit */
+        ap_relieve_child_processes(prefork_note_child_killed);
+
+        /* cleanup pid file */
+        ap_remove_pid(pconf, ap_pid_fname);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00170)
+           "caught " AP_SIG_GRACEFUL_STOP_STRING ", shutting down gracefully");
+
+        if (ap_graceful_shutdown_timeout) {
+            cutoff = apr_time_now() +
+                     apr_time_from_sec(ap_graceful_shutdown_timeout);
+        }

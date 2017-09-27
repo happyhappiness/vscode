@@ -1,13 +1,32 @@
- * which we now just hand out on demand....
- */
+                /* Probably a mod_disk_cache cache area has been (re)mounted
+                 * read-only, or that there is a permissions problem.
+                 */
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                     "cache: attempt to remove url from cache unsuccessful.");
+            }
+        }
 
-RSA *ssl_callback_TmpRSA(SSL *ssl, int export, int keylen)
-{
-    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
-    SSLModConfigRec *mc = myModConfig(c->base_server);
-    int idx;
+        return ap_pass_brigade(f->next, bb);
+    }
 
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                  "handing out temporary %d bit RSA key", keylen);
+    if(rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                     "cache: store_headers failed");
+        ap_remove_output_filter(f);
 
-    /* doesn't matter if export flag is on,
+        return ap_pass_brigade(f->next, in);
+    }
+
+    rv = cache->provider->store_body(cache->handle, r, in);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                     "cache: store_body failed");
+        ap_remove_output_filter(f);
+    }
+
+    return ap_pass_brigade(f->next, in);
+}
+
+/*
+ * CACHE_REMOVE_URL filter
+ * ---------------

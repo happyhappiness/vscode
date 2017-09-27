@@ -1,1 +1,0 @@
-sizes = sdscatprintf(sizes,"dictentry:%d ", (int)sizeof(dictEntry));

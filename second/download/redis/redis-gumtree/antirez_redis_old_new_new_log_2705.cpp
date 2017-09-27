@@ -1,1 +1,0 @@
-redisAssert(rdbSaveObject(&payload,o));

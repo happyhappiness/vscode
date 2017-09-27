@@ -1,24 +1,16 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+                                             const void *parsed_require_line)
 {
-    char *cp = header;
+    const char *t, *w;
+    const char *remotehost = NULL;
+    int remotehost_is_ip;
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
+    remotehost = ap_get_remote_host(r->connection,
+                                    r->per_dir_config,
+                                    REMOTE_DOUBLE_REV,
+                                    &remotehost_is_ip);
+
+    if ((remotehost == NULL) || remotehost_is_ip) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01753)
+                      "access check of '%s' to %s failed, reason: unable to get the "
+                      "remote host name", require_line, r->uri);
     }
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

@@ -1,14 +1,45 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+    return mpm_module;
+}
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+apr_status_t h2_conn_setup(h2_ctx *ctx, conn_rec *c, request_rec *r)
+{
+    h2_session *session;
+    
+    if (!workers) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02911) 
+                      "workers not initialized");
+        return APR_EGENERAL;
+    }
+    
+    if (r) {
+        session = h2_session_rcreate(r, ctx, workers);
+    }
+    else {
+        session = h2_session_create(c, ctx, workers);
+    }
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    h2_ctx_session_set(ctx, session);
+    
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_conn_run(struct h2_ctx *ctx, conn_rec *c)
+{
+    apr_status_t status;
+    int mpm_state = 0;
+    
+    do {
+        if (c->cs) {
+            c->cs->sense = CONN_SENSE_DEFAULT;
+        }
+        status = h2_session_process(h2_ctx_session_get(ctx), async_mpm);
+        
+        if (APR_STATUS_IS_EOF(status)) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
+                          "h2_session(%ld): process, closing conn", c->id);
+            c->keepalive = AP_CONN_CLOSE;
+        }
+        else {
+            c->keepalive = AP_CONN_KEEPALIVE;
+        }
+        

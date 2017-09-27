@@ -1,13 +1,17 @@
-	return ap_proxyerror(r, err);	/* give up */
+                }
+                break;
+                
+            case H2_SESSION_ST_WAIT:
+                if (session->wait_us <= 0) {
+                    session->wait_us = 10;
+                    if (h2_conn_io_flush(&session->io) != APR_SUCCESS) {
+                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+                        break;
+                    }
+                }
+                else {
+                    /* repeating, increase timer for graceful backoff */
+                    session->wait_us = H2MIN(session->wait_us*2, MAX_WAIT_MICROS);
+                }
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+                if (trace) {

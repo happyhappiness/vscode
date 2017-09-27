@@ -1,14 +1,19 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
+            }
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+            /* move to next continuation record */
+            m = m->next;
+        }
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01535)
+                    MODNAME ": matched after %d rules", rule_counter);
+#endif
+        return 1;  /* all through */
+    }
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01536)
+                MODNAME ": failed after %d rules", rule_counter);
+#endif
+    return 0;  /* no match at all */
+}
+
+static void mprint(request_rec *r, union VALUETYPE *p, struct magic *m)

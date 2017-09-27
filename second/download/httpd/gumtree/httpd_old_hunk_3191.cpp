@@ -1,35 +1,43 @@
-	if (rc == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (rc == 550) {
-	    ap_kill_timeout(r);
-	    return NOT_FOUND;
-	}
-	if (rc != 250) {
-	    ap_kill_timeout(r);
-	    return BAD_GATEWAY;
-	}
 
-	ap_bputs("LIST -lag" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: LIST -lag");
-	rc = ftp_getrc(f);
-	Explain1("FTP: returned status %d", rc);
-	if (rc == -1)
-	    return ap_proxyerror(r, "Error sending to remote server");
+    lockfile = apr_global_mutex_lockfile(mc->pMutex);
+    if ((rv = apr_global_mutex_child_init(&mc->pMutex,
+                                          lockfile,
+                                          p)) != APR_SUCCESS) {
+        if (lockfile)
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_CACHE_MUTEX_TYPE, lockfile);
+        else
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit %s mutex", SSL_CACHE_MUTEX_TYPE);
+        return FALSE;
     }
-    ap_kill_timeout(r);
-    if (rc != 125 && rc != 150 && rc != 226 && rc != 250)
-	return BAD_GATEWAY;
+    return TRUE;
+}
 
-    r->status = 200;
-    r->status_line = "200 OK";
+int ssl_mutex_on(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
 
-    resp_hdrs = ap_make_array(p, 2, sizeof(struct hdr_entry));
-    if (parms[0] == 'd')
-	ap_proxy_add_header(resp_hdrs, "Content-Type", "text/html", HDR_REP);
-    else {
-	if (r->content_type != NULL) {
-	    ap_proxy_add_header(resp_hdrs, "Content-Type", r->content_type,
-			     HDR_REP);
+    if ((rv = apr_global_mutex_lock(mc->pMutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to acquire SSL session cache lock");
+        return FALSE;
+    }
+    return TRUE;
+}
+
+int ssl_mutex_off(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+
+    if ((rv = apr_global_mutex_unlock(mc->pMutex)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to release SSL session cache lock");
+        return FALSE;
+    }
+    return TRUE;
+}
+

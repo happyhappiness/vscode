@@ -1,13 +1,22 @@
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
+    /* get the method and mimetype from the notes */
+    get_notes_auth(r, NULL, NULL, &sent_method, &sent_mimetype);
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
+    if (r->kept_body && sent_method && sent_mimetype) {
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+          "internal redirect to method '%s' and body mimetype '%s' for the "
+                      "uri: %s", sent_method, sent_mimetype, r->uri);
+
+        rr = ap_sub_req_method_uri(sent_method, r->uri, r, r->output_filters);
+        r->status = ap_run_sub_req(rr);
+
     }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+        "internal redirect requested but one or all of method, mimetype or "
+                      "body are NULL: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* return the underlying error, or OK on success */

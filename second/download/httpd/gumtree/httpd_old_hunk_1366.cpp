@@ -1,13 +1,13 @@
-    if ((ret = try_alias_list(r, serverconf->redirects, 1, &status)) != NULL) {
-        if (ap_is_HTTP_REDIRECT(status)) {
-            char *orig_target = ret;
-            if (ret[0] == '/') {
-
-                ret = ap_construct_url(r->pool, ret, r);
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                              "incomplete redirection target of '%s' for "
-                              "URI '%s' modified to '%s'",
-                              orig_target, r->uri, ret);
-            }
-            if (!ap_is_url(ret)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+        }
+        ap_rputs("<hr />\n", r);
+        if (wsel && bsel) {
+            ap_rputs("<h3>Edit worker settings for ", r);
+            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
+            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
+            ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
+            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
+            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
+            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
+            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
+            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),

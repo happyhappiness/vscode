@@ -1,44 +1,44 @@
-        return errstatus;
+struct check_header_ctx {
+    request_rec *r;
+    int strict;
+};
+
+/* check a single header, to be used with apr_table_do() */
+static int check_header(void *arg, const char *name, const char *val)
+{
+    struct check_header_ctx *ctx = arg;
+    const char *test;
+
+    if (name[0] == '\0') {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02428)
+                      "Empty response header name, aborting request");
+        return 0;
     }
 
-    r->allowed |= (1 << M_GET) | (1 << M_OPTIONS);
+    if (ctx->strict) { 
+        test = ap_scan_http_token(name);
+    }
+    else {
+        test = ap_scan_vchar_obstext(name);
+    }
+    if (*test) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02429)
+                      "Response header name '%s' contains invalid "
+                      "characters, aborting request",
+                      name);
+        return 0;
+    }
 
-    if (r->method_number == M_INVALID) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		    "Invalid method in request %s", r->the_request);
-	return NOT_IMPLEMENTED;
+    test = ap_scan_http_field_content(val);
+    if (*test) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
+                      "Response header '%s' value of '%s' contains invalid "
+                      "characters, aborting request",
+                      name, val);
+        return 0;
     }
-    if (r->method_number == M_OPTIONS) {
-        return ap_send_http_options(r);
-    }
-    if (r->method_number == M_PUT) {
-        return METHOD_NOT_ALLOWED;
-    }
+    return 1;
+}
 
-    if (r->finfo.st_mode == 0 || (r->path_info && *r->path_info)) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r->server, 
-                    "File does not exist: %s", 
-		     r->path_info 
-		         ? ap_pstrcat(r->pool, r->filename, r->path_info, NULL)
-		         : r->filename);
-	return NOT_FOUND;
-    }
-    if (r->method_number != M_GET) {
-        return METHOD_NOT_ALLOWED;
-    }
-	
-#if defined(__EMX__) || defined(WIN32)
-    /* Need binary mode for OS/2 */
-    f = ap_pfopen(r->pool, r->filename, "rb");
-#else
-    f = ap_pfopen(r->pool, r->filename, "r");
-#endif
-
-    if (f == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "file permissions deny server access: %s", r->filename);
-        return FORBIDDEN;
-    }
-	
-    ap_update_mtime(r, r->finfo.st_mtime);
-    ap_set_last_modified(r);
+/**
+ * Check headers for HTTP conformance

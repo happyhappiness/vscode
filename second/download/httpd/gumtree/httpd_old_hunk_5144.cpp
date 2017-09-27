@@ -1,13 +1,19 @@
-            if (!res) {
-                res = file_walk(rnew);
-            }
-        }
-        else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew->server,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r, APLOGNO(00706)
+                "Cannot read header file %s", dobj->hdrs.file);
+        apr_file_close(dobj->hdrs.fd);
+        return DECLINED;
+    }
+
+    apr_file_close(dobj->hdrs.fd);
+
+    /* Is this a cached HEAD request? */
+    if (dobj->disk_info.header_only && !r->header_only) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00707)
+                "HEAD request cached, non-HEAD requested, ignoring: %s",
+                dobj->hdrs.file);
+        return DECLINED;
+    }
+
+    /* Open the data file */
+    if (dobj->disk_info.has_body) {
+        flags = APR_READ | APR_BINARY;

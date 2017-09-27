@@ -1,13 +1,25 @@
+            *result = ap_daemons_limit;
+            break;
+        case AP_MPMQ_MPM_STATE:
+            *result = mpm_state;
+            break;
+        case AP_MPMQ_GENERATION:
+            *result = my_generation;
+            break;
+        default:
+            *rv = APR_ENOTIMPL;
+            break;
+    }
+    return OK;
+}
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+static apr_status_t worker_note_child_killed(int childnum)
+{
+    ap_scoreboard_image->parent[childnum].pid = 0;
+    return APR_SUCCESS;
+}
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+static const char *worker_get_name(void)
+{
+    return "worker";
+}

@@ -1,17 +1,24 @@
+            if (!strcmp(v, w)) {
+                return AUTHZ_GRANTED;
+            }
+        }
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
+    return AUTHZ_DENIED;
+}
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+APR_OPTIONAL_FN_TYPE(authz_owner_get_file_group) *authz_owner_get_file_group;
+
+static authz_status dbmfilegroup_check_authorization(request_rec *r,
+                                              const char *require_args)
+{
+    authz_dbm_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                      &authz_dbm_module);
+    char *user = r->user;
+    const char *realm = ap_auth_name(r);
+    const char *filegroup = NULL;

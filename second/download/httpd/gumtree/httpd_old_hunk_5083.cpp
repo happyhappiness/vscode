@@ -1,22 +1,50 @@
-			 "setrlimit(RLIMIT_VMEM): failed to set memory "
-			 "usage limit");
-	}
+        }
+        if (AP_SLOTMEM_IS_CLEARINUSE(slotmem)) {
+            slotmem_clearinuse(slotmem);
+        }
+        nbytes = (slotmem->desc.size * slotmem->desc.num) +
+                 (slotmem->desc.num * sizeof(char)) + AP_UNSIGNEDINT_OFFSET;
+        /* XXX: Error handling */
+        apr_file_write_full(fp, slotmem->persist, nbytes, NULL);
+        apr_file_close(fp);
     }
-#endif
+}
 
-#ifdef __EMX__
-    {
-	/* Additions by Alec Kloss, to allow exec'ing of scripts under OS/2 */
-	int is_script;
-	char interpreter[2048];	/* hope it's enough for the interpreter path */
-	FILE *program;
+/* should be apr_status_t really */
+static void restore_slotmem(void *ptr, const char *name, apr_size_t size,
+                            apr_pool_t *pool)
+{
+    const char *storename;
+    apr_file_t *fp;
+    apr_size_t nbytes = size;
+    apr_status_t rv;
 
-	program = fopen(r->filename, "rt");
-	if (!program) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server, "fopen(%s) failed",
-			 r->filename);
-	    return (pid);
-	}
-	fgets(interpreter, sizeof(interpreter), program);
-	fclose(program);
-	if (!strncmp(interpreter, "#!", 2)) {
+    storename = slotmem_filename(pool, name, 1);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02335)
+                 "restoring %s", storename);
+
+    if (storename) {
+        rv = apr_file_open(&fp, storename, APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                           pool);
+        if (rv == APR_SUCCESS) {
+            apr_finfo_t fi;
+            if (apr_file_info_get(&fi, APR_FINFO_SIZE, fp) == APR_SUCCESS) {
+                if (fi.size == nbytes) {
+                    apr_file_read(fp, ptr, &nbytes);
+                }
+                else {
+                    apr_file_close(fp);
+                    apr_file_remove(storename, pool);
+                    return;
+                }
+            }
+            apr_file_close(fp);
+        }
+    }
+}
+
+static apr_status_t cleanup_slotmem(void *param)
+{
+    ap_slotmem_instance_t **mem = param;
+

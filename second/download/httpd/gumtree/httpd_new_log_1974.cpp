@@ -1,1 +1,0 @@
-fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");

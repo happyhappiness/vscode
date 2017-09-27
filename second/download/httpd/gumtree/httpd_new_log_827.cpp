@@ -1,1 +1,13 @@
-ap_rputs("Ok", r);
+ap_rputs("<hr /><table>\n"
+             "<tr><th>SSes</th><td>Sticky session name</td></tr>\n"
+             "<tr><th>Timeout</th><td>Balancer Timeout</td></tr>\n"
+             "<tr><th>Sch</th><td>Connection scheme</td></tr>\n"
+             "<tr><th>Host</th><td>Backend Hostname</td></tr>\n"
+             "<tr><th>Stat</th><td>Worker status</td></tr>\n"
+             "<tr><th>Route</th><td>Session Route</td></tr>\n"
+             "<tr><th>Redir</th><td>Session Route Redirection</td></tr>\n"
+             "<tr><th>F</th><td>Load Balancer Factor in %</td></tr>\n"
+             "<tr><th>Acc</th><td>Number of requests</td></tr>\n"
+             "<tr><th>Wr</th><td>Number of bytes transferred</td></tr>\n"
+             "<tr><th>Rd</th><td>Number of bytes read</td></tr>\n"
+             "</table>", r);

@@ -1,1 +1,0 @@
-serverLog(REDIS_NOTICE,"Background saving started by pid %d",childpid);

@@ -1,20 +1,28 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+            cleanup_thread(child_handles, &threads_created, watch_thread);
         }
-        return 0;
     }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        if (score_idx) {
+            ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
+        }
+    }
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
 
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
+    apr_thread_mutex_destroy(child_lock);
+    apr_thread_mutex_destroy(qlock);
+    CloseHandle(qwait_event);
 
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    apr_pool_destroy(pchild);

@@ -1,15 +1,13 @@
-	     * Kill child processes, tell them to call child_exit, etc...
-	     */
-	    if (ap_killpg(pgrp, SIGTERM) < 0) {
-		ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "killpg SIGTERM");
-	    }
-	    reclaim_child_processes(1);		/* Start with SIGTERM */
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-			"httpd: caught SIGTERM, shutting down");
+        if (mctx->crl_check_mode == SSL_CRLCHECK_LEAF ||
+            mctx->crl_check_mode == SSL_CRLCHECK_CHAIN) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01899)
+                         "Host %s: CRL checking has been enabled, but "
+                         "neither %sCARevocationFile nor %sCARevocationPath "
+                         "is configured", mctx->sc->vhost_id, cfgp, cfgp);
+            ssl_die();
+        }
+        return;
+    }
 
-	    clean_parent_exit(0);
-	}
-
-	/* we've been told to restart */
-	signal(SIGHUP, SIG_IGN);
-	signal(SIGUSR1, SIG_IGN);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01900)
+                 "Configuring certificate revocation facility");

@@ -1,42 +1,51 @@
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to create child stdin pipe.");
-         apr_pool_destroy(ptemp);
-         return -1;
      }
  
--    /* Open a null handle to soak info from the child */
--    if (((rv = apr_file_open(&child_out, "NUL", APR_READ | APR_WRITE,
--                             APR_OS_DEFAULT, ptemp)) != APR_SUCCESS)
--        || ((rv = apr_procattr_child_out_set(attr, child_out, NULL))
--                != APR_SUCCESS)) {
--        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
--                        "Parent: Unable to connect child stdout to NUL.");
--        apr_pool_destroy(ptemp);
--        return -1;
--    }
--
--    /* Connect the child's initial stderr to our main server error log
--     * or share our own stderr handle.
--     */
--    if (ap_server_conf->error_log) {
--        child_err = ap_server_conf->error_log;
--    }
--    else {
--        rv = apr_file_open_stderr(&child_err, ptemp);
--    }
--    if (rv == APR_SUCCESS) {
--        if ((rv = apr_procattr_child_err_set(attr, child_err, NULL))
--                != APR_SUCCESS) {
--            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
--                            "Parent: Unable to connect child stderr.");
--            apr_pool_destroy(ptemp);
--            return -1;
+     /* are we connecting directly, or via a proxy? */
+     if (proxyname) {
+         connectname = proxyname;
+         connectport = proxyport;
+-        err = apr_sockaddr_info_get(&connect_addr, proxyname, APR_UNSPEC, proxyport, 0, p);
++        err = apr_sockaddr_info_get(&connect_addr, proxyname, APR_UNSPEC,
++                                    proxyport, 0, p);
+     }
+     else {
+         connectname = uri.hostname;
+         connectport = uri.port;
+         connect_addr = uri_addr;
+     }
+-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+-         "proxy: CONNECT: connecting to remote proxy %s on port %d", connectname, connectport);
+- 
++    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
++                 "proxy: CONNECT: connecting to remote proxy %s on port %d",
++                 connectname, connectport);
++
+     /* check if ProxyBlock directive on this host */
+     if (OK != ap_proxy_checkproxyblock(r, conf, uri_addr)) {
+         return ap_proxyerror(r, HTTP_FORBIDDEN,
+                              "Connect to remote machine blocked");
+     }
+ 
+     /* Check if it is an allowed port */
+-    if (conf->allowed_connect_ports->nelts == 0) {
+-    /* Default setting if not overridden by AllowCONNECT */
+-        switch (uri.port) {
+-            case APR_URI_HTTPS_DEFAULT_PORT:
+-            case APR_URI_SNEWS_DEFAULT_PORT:
+-                break;
+-            default:
+-                /* XXX can we call ap_proxyerror() here to get a nice log message? */
+-                return HTTP_FORBIDDEN;
 -        }
--    }
--
-     /* Create the child_ready_event */
-     waitlist[waitlist_ready] = CreateEvent(NULL, TRUE, FALSE, NULL);
-     if (!waitlist[waitlist_ready]) {
-         ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                      "Parent: Could not create ready event for child process");
-         apr_pool_destroy (ptemp);
+-    } else if(!allowed_port(conf, uri.port)) {
+-        /* XXX can we call ap_proxyerror() here to get a nice log message? */
+-        return HTTP_FORBIDDEN;
++    if(!allowed_port(c_conf, uri.port)) {
++              return ap_proxyerror(r, HTTP_FORBIDDEN,
++                                   "Connect to remote machine blocked");
+     }
+ 
+     /*
+      * Step Two: Make the Connection
+      *
+      * We have determined who to connect to. Now make the connection.

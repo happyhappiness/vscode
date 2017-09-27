@@ -1,0 +1,1 @@
+ap_rputs("<tr><td>Timeout:</td><td><input name='b_tmo' id='b_tmo' type=text ", r);

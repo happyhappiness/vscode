@@ -1,26 +1,26 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+    return 1;
+}
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800
+apr_array_header_t *h2_push_collect(apr_pool_t *p, const h2_request *req, 
+                                    const h2_response *res)
+{
+    /* Collect push candidates from the request/response pair.
+     * 
+     * One source for pushes are "rel=preload" link headers
+     * in the response.
+     * 
+     * TODO: This may be extended in the future by hooks or callbacks
+     * where other modules can provide push information directly.
+     */
+    if (res->headers) {
+        link_ctx ctx;
+        
+        memset(&ctx, 0, sizeof(ctx));
+        ctx.req = req;
+        ctx.pool = p;
+    
+        apr_table_do(head_iter, &ctx, res->headers, NULL);
+        return ctx.pushes;
+    }
+    return NULL;
+}

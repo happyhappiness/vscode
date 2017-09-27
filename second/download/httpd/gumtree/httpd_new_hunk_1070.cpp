@@ -1,18 +1,57 @@
-
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
-    apr_pool_create(&cntxt, NULL);
-
-#ifdef NOT_ASCII
-    status = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
-    if (status) {
-	fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", status);
-	exit(1);
+            break;
+        }
+        result = ajp_parse_type(r, conn->data);
     }
-    status = apr_xlate_open(&from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", cntxt);
-    if (status) {
-	fprintf(stderr, "apr_xlate_open(from ASCII)->%d\n", status);
-	exit(1);
+    apr_brigade_destroy(input_brigade);
+
+    /*
+     * Clear output_brigade to remove possible buckets that remained there
+     * after an error.
+     */
+    apr_brigade_cleanup(output_brigade);
+
+    if (status != APR_SUCCESS) {
+        /* We had a failure: Close connection to backend */
+        conn->close++;
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: send body failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);
+        /*
+         * If we already send data, signal a broken backend connection
+         * upwards in the chain.
+         */
+        if (data_sent) {
+            ap_proxy_backend_broke(r, output_brigade);
+            /* Return DONE to avoid error messages being added to the stream */
+            rv = DONE;
+        } else
+            rv = HTTP_SERVICE_UNAVAILABLE;
     }
-    status = apr_base64init_ebcdic(to_ascii, from_ascii);
-    if (status) {
+
+    /*
+     * Ensure that we sent an EOS bucket thru the filter chain, if we already
+     * have sent some data. Maybe ap_proxy_backend_broke was called and added
+     * one to the brigade already (no longer making it empty). So we should
+     * not do this in this case.
+     */
+    if (data_sent && !r->eos_sent && APR_BRIGADE_EMPTY(output_brigade)) {
+        e = apr_bucket_eos_create(r->connection->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+    }
+
+    /* If we have added something to the brigade above, sent it */
+    if (!APR_BRIGADE_EMPTY(output_brigade))
+        ap_pass_brigade(r->output_filters, output_brigade);
+
+    apr_brigade_destroy(output_brigade);
+
+    if (rv)
+        return rv;
+
+    /* Nice we have answer to send to the client */
+    if (result == CMD_AJP13_END_RESPONSE && isok) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

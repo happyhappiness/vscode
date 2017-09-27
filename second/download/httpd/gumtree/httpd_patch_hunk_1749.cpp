@@ -1,54 +1,40 @@
- 
-     authn_dbd_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                 &authn_dbd_module);
-     ap_dbd_t *dbd = authn_dbd_acquire_fn(r);
-     if (dbd == NULL) {
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
--                      "Error looking up %s in database", user);
-+                      "Failed to acquire database connection to look up "
-+                      "user '%s'", user);
-         return AUTH_GENERAL_ERROR;
-     }
- 
-     if (conf->user == NULL) {
--        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserPWQuery has been specified.");
-+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-+                      "No AuthDBDUserPWQuery has been specified");
-         return AUTH_GENERAL_ERROR;
-     }
- 
-     statement = apr_hash_get(dbd->prepared, conf->user, APR_HASH_KEY_STRING);
-     if (statement == NULL) {
--        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserPWQuery, key '%s'.", conf->user);
-+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-+                      "A prepared statement could not be found for "
-+                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
-         return AUTH_GENERAL_ERROR;
-     }
-     if (apr_dbd_pvselect(dbd->driver, r->pool, dbd->handle, &res, statement,
-                               0, user, NULL) != 0) {
-         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
--                      "Error looking up %s in database", user);
-+                      "Query execution error looking up '%s' "
-+                      "in database", user);
-         return AUTH_GENERAL_ERROR;
-     }
-     for (rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1);
-          rv != -1;
-          rv = apr_dbd_get_row(dbd->driver, r->pool, res, &row, -1)) {
-         if (rv != 0) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
--                      "Error looking up %s in database", user);
-+                          "Error retrieving results while looking up '%s' "
-+                          "in database", user);
-             return AUTH_GENERAL_ERROR;
+                               "SSL Proxy: Peer certificate is expired");
+                 if (cert) {
+                     X509_free(cert);
+                 }
+                 /* ensure that the SSL structures etc are freed, etc: */
+                 ssl_filter_io_shutdown(filter_ctx, c, 1);
+-                apr_table_set(c->notes, "SSL_connect_rv", "err");
+                 return HTTP_BAD_GATEWAY;
+             }
+             X509_free(cert);
          }
-         if (dbd_password == NULL) {
--            dbd_password = apr_dbd_get_entry(dbd->driver, row, 0);
--
- #if APU_MAJOR_VERSION > 1 || (APU_MAJOR_VERSION == 1 && APU_MINOR_VERSION >= 3)
-             /* add the rest of the columns to the environment */
-             int i = 1;
-             const char *name;
-             for (name = apr_dbd_get_name(dbd->driver, res, i);
-                  name != NULL;
+-        if ((sc->proxy_ssl_check_peer_cn == SSL_ENABLED_TRUE)
+-            && hostname_note) {
++        if ((sc->proxy_ssl_check_peer_cn != SSL_ENABLED_FALSE)
++            && ((hostname_note =
++                 apr_table_get(c->notes, "proxy-request-hostname")) != NULL)) {
+             const char *hostname;
+ 
+             hostname = ssl_var_lookup(NULL, server, c, NULL,
+                                       "SSL_CLIENT_S_DN_CN");
+             apr_table_unset(c->notes, "proxy-request-hostname");
+             if (strcasecmp(hostname, hostname_note)) {
+                 ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                               "SSL Proxy: Peer certificate CN mismatch:"
+                               " Certificate CN: %s Requested hostname: %s",
+                               hostname, hostname_note);
+                 /* ensure that the SSL structures etc are freed, etc: */
+                 ssl_filter_io_shutdown(filter_ctx, c, 1);
+-                apr_table_set(c->notes, "SSL_connect_rv", "err");
+                 return HTTP_BAD_GATEWAY;
+             }
+         }
+ 
+-        apr_table_set(c->notes, "SSL_connect_rv", "ok");
+         return APR_SUCCESS;
+     }
+ 
+     if ((n = SSL_accept(filter_ctx->pssl)) <= 0) {
+         bio_filter_in_ctx_t *inctx = (bio_filter_in_ctx_t *)
+                                      (filter_ctx->pbioRead->ptr);

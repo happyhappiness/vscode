@@ -1,13 +1,24 @@
+    SSLModConfigRec *mc = myModConfig(s);
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.')
-	return 0;
+#ifdef HAVE_FIPS
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i)
-	continue;
+    if (FIPS_mode() && bits < 1024) {
+        mc->pTmpKeys[idx] = NULL;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Skipping generating temporary "
+                     "%d bit DH parameters in FIPS mode", bits);
+        return OK;
+    }
 
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_domainname()\n");
-	/* @@@@ handle optional port */
+#endif
+
+    if (!(mc->pTmpKeys[idx] =
+          ssl_dh_GetTmpParam(bits)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit DH parameters", bits);
+        return !OK;
+    }
+
+    return OK;

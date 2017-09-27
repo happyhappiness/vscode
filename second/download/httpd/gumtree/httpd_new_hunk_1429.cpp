@@ -1,13 +1,13 @@
-    SSLModConfigRec *mc = myModConfig(s);
-
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
-        return OK;
-    }
-
-#endif
+                        if (ap_pass_brigade(r->output_filters,
+                                            output_brigade) != APR_SUCCESS) {
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                          "proxy: error processing body.%s",
+                                          r->connection->aborted ?
+                                          " Client aborted connection." : "");
+                            client_failed = 1;
+                        }
+                        data_sent = 1;
+                        apr_brigade_cleanup(output_brigade);
+                    }
+                }
+            }

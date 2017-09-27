@@ -1,1 +1,2 @@
-printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);

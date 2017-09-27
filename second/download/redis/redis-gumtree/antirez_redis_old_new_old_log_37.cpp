@@ -1,1 +1,0 @@
-printf("Insert: %f\n", (double)(ustime()-start)/1000000);

@@ -1,13 +1,25 @@
-
-        if (rv != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_INFO, rv, c,
-                          "core_output_filter: writing data to the network");
-
-            if (more)
-                apr_brigade_destroy(more);
-
-            /* No need to check for SUCCESS, we did that above. */
-            if (!APR_STATUS_IS_EAGAIN(rv)) {
-                c->aborted = 1;
-                return APR_ECONNABORTED;
+                 */
+                ++err_count;
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                continue;
             }
+            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
+                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
+                ++err_count;
+                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
+                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: Unknown. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+                    err_count = 0;
+                }
+                closesocket(context->accept_socket);
+                context->accept_socket = INVALID_SOCKET;

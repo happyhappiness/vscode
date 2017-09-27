@@ -1,13 +1,21 @@
-    case HSE_REQ_REFRESH_ISAPI_ACL:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ISAPI: ServerSupportFunction "
-                          "HSE_REQ_REFRESH_ISAPI_ACL "
-                          "is not supported: %s", r->filename);
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
+ *                         ap_finalize_sub_req_protocol on Win32 and NetWare
+ * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
+ *                         calling ap_setup_prelinked_modules
+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+ * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
+ * 20020903.13 (2.0.62-dev) Add *ftp_directory_charset to proxy_dir_conf
+ */
 
-    case HSE_REQ_IS_KEEP_CONN:
-        *((int *)buf_data) = (r->connection->keepalive == AP_CONN_KEEPALIVE);
-        return 1;
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 13                    /* 0...n */
+
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

@@ -1,1 +1,0 @@
-luaL_argerror(L, 1, "option 's' has no fixed size");

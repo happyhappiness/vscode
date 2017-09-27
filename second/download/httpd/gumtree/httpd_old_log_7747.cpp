@@ -1,0 +1,1 @@
+apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);

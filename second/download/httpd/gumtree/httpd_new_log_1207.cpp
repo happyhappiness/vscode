@@ -1,0 +1,1 @@
+fprintf(stderr, "    -h              Display usage information (this message)\n");

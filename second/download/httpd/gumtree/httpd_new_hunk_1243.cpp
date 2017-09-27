@@ -1,22 +1,13 @@
-                    posting = 1;
-                }
-                else if (postdata) {
-                    exit(r);
-                }
-                break;
-            case 'u':
-                if (posting != 0)
-                    err("Cannot mix PUT and HEAD\n");
-                if (0 == (r = open_postfile(optarg))) {
-                    posting = 2;
-                }
-                else if (postdata) {
-                    exit(r);
-                }
-                break;
-            case 'r':
-                recverrok = 1;
-                break;
-            case 'v':
-                verbosity = atoi(optarg);
-                break;
+    else {
+        /* no last slash, buh?! */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "internal error in mod_cern_meta: %s", r->filename);
+        /* should really barf, but hey, let's be friends... */
+        return DECLINED;
+    }
+
+    metafilename = apr_pstrcat(r->pool, scrap_book, "/",
+               dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
+               "/", real_file,
+         dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
+               NULL);

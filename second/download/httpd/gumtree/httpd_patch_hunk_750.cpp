@@ -1,27 +1,33 @@
- 	real_file++;
- 	*last_slash = '\0';
      }
      else {
- 	/* no last slash, buh?! */
- 	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
--		    "internal error in mod_cern_meta: %s", r->filename);
-+            "internal error in mod_cern_meta: %s", r->filename);
- 	/* should really barf, but hey, let's be friends... */
- 	return DECLINED;
-     };
+         /* Split a line into the passed-in brigade. */
+         rv = apr_brigade_split_line(bb, ctx->bb, mode, bytes);
  
-     metafilename = apr_pstrcat(r->pool, scrap_book, "/",
--			   dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
--			   "/", real_file,
--		 dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
--			   NULL);
-+               dconf->metadir ? dconf->metadir : DEFAULT_METADIR,
-+               "/", real_file,
-+         dconf->metasuffix ? dconf->metasuffix : DEFAULT_METASUFFIX,
-+               NULL);
+         if (rv) {
+-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
++            ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                           "could not split line from buffered SSL brigade");
+             ap_remove_input_filter(f);
+             return rv;
+         }
+     }
  
-     /* It sucks to require this subrequest to complete, because this
-      * means people must leave their meta files accessible to the world.
-      * A better solution might be a "safe open" feature of pfopen to avoid
-      * pipes, symlinks, and crap like that.
-      *
+     if (APR_BRIGADE_EMPTY(ctx->bb)) {
+         apr_bucket *e = APR_BRIGADE_LAST(bb);
+-        
++
+         /* Ensure that the brigade is terminated by an EOS if the
+          * buffered request body has been entirely consumed. */
+         if (e == APR_BRIGADE_SENTINEL(bb) || !APR_BUCKET_IS_EOS(e)) {
+             e = apr_bucket_eos_create(f->c->bucket_alloc);
+             APR_BRIGADE_INSERT_TAIL(bb, e);
+         }
+ 
+-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
++        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                       "buffered SSL brigade now exhausted; removing filter");
+         ap_remove_input_filter(f);
+     }
+ 
+     return APR_SUCCESS;
+ }

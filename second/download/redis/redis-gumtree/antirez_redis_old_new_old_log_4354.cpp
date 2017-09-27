@@ -1,1 +1,0 @@
-redisLog(REDIS_WARNING,"Aborting on short write while writing to the append-only file: %s",strerror(errno));

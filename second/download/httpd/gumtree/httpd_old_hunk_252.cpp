@@ -1,13 +1,19 @@
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", lockname);
-        return rc;
-    }
+    return TRUE;
+}
 
-#if APR_USE_SYSVSEM_SERIALIZE
-    rc = unixd_set_global_mutex_perms(rewrite_mapr_lock_acquire);
-    if (rc != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
-                     "mod_rewrite: Parent could not set permissions "
-                     "on RewriteLock; check User and Group directives");
-        return rc;
+int ssl_mutex_reinit(server_rec *s, apr_pool_t *p)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+
+    if (mc->nMutexMode == SSL_MUTEXMODE_NONE)
+        return TRUE;
+
+    if (apr_global_mutex_child_init(&mc->pMutex,
+                                    mc->szMutexFile, p) != APR_SUCCESS)
+        return FALSE;
+    return TRUE;
+}
+
+int ssl_mutex_on(server_rec *s)
+{
+    SSLModConfigRec *mc = myModConfig(s);

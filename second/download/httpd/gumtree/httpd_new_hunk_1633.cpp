@@ -1,17 +1,32 @@
-        return AJP_EBAD_SIGNATURE;
+ */
+
+static apr_status_t rewritelock_create(server_rec *s, apr_pool_t *p)
+{
+    apr_status_t rc;
+
+    /* create the lockfile */
+    /* XXX See if there are any rewrite map programs before creating
+     * the mutex.
+     */
+    rc = ap_global_mutex_create(&rewrite_mapr_lock_acquire, NULL,
+                                rewritemap_mutex_type, NULL, s, p, 0);
+    if (rc != APR_SUCCESS) {
+        return rc;
     }
 
-    msglen  = ((head[2] & 0xff) << 8);
-    msglen += (head[3] & 0xFF);
+    return APR_SUCCESS;
+}
 
-    if (msglen > msg->max_size) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                     "ajp_check_msg_header() incoming message is "
-                     "too big %" APR_SIZE_T_FMT ", max is %" APR_SIZE_T_FMT,
-                     msglen, msg->max_size);
-        return AJP_ETOBIG;
+static apr_status_t rewritelock_remove(void *data)
+{
+    /* destroy the rewritelock */
+    if (rewrite_mapr_lock_acquire) {
+        apr_global_mutex_destroy(rewrite_mapr_lock_acquire);
+        rewrite_mapr_lock_acquire = NULL;
     }
+    return(0);
+}
 
-    msg->len = msglen + AJP_HEADER_LEN;
-    msg->pos = AJP_HEADER_LEN;
-    *len     = msglen;
+
+/*
+ * +-------------------------------------------------------+

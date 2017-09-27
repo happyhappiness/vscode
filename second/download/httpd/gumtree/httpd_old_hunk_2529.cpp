@@ -1,17 +1,48 @@
+             * the correct decisions.
+             */
+            r->headers_in = cache->stale_headers;
+        }
+    }
 
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, server_conf,
-		    "%s configured -- resuming normal operations",
-		    ap_get_server_version());
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, server_conf,
-		    "Server built: %s", ap_get_server_built());
-	restart_pending = shutdown_pending = 0;
+    /* no cache handle, create a new entity only for non-HEAD requests */
+    if (!cache->handle && !r->header_only) {
+        rv = cache_create_entity(r, size);
+        info = apr_pcalloc(r->pool, sizeof(cache_info));
+        /* We only set info->status upon the initial creation. */
+        info->status = r->status;
+    }
 
-	while (!restart_pending && !shutdown_pending) {
-	    int child_slot;
-	    int status;
-	    int pid = wait_or_timeout(&status);
+    if (rv != OK) {
+        /* Caching layer declined the opportunity to cache the response */
+        ap_remove_output_filter(f);
+        ap_cache_remove_lock(conf, r, cache->handle ?
+                (char *)cache->handle->cache_obj->key : NULL, NULL);
+        return ap_pass_brigade(f->next, in);
+    }
 
-	    /* XXX: if it takes longer than 1 second for all our children
-	     * to start up and get into IDLE state then we may spawn an
-	     * extra child
-	     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Caching url: %s", r->unparsed_uri);
+
+    /* We are actually caching this response. So it does not
+     * make sense to remove this entity any more.
+     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Removing CACHE_REMOVE_URL filter.");
+    ap_remove_output_filter(cache->remove_url_filter);
+
+    /*
+     * We now want to update the cache file header information with
+     * the new date, last modified, expire and content length and write
+     * it away to our cache file. First, we determine these values from
+     * the response, using heuristics if appropriate.
+     *
+     * In addition, we make HTTP/1.1 age calculations and write them away
+     * too.
+     */
+
+    /* Read the date. Generate one if one is not supplied */
+    dates = apr_table_get(r->err_headers_out, "Date");
+    if (dates == NULL) {
+        dates = apr_table_get(r->headers_out, "Date");
+    }
+    if (dates != NULL) {

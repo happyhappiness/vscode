@@ -1,40 +1,22 @@
-	    parms[0] = '\0';
+    /* note that stderr may still need to be replaced with something
+     * because it points to the old error log, or back to the tty
+     * of the submitter.
+     * XXX: This is BS - /dev/null is non-portable
+     *      errno-as-apr_status_t is also non-portable
+     */
+
+#ifdef WIN32
+#define NULL_DEVICE "nul"
+#else
+#define NULL_DEVICE "/dev/null"
+#endif
+
+    if (replace_stderr && freopen(NULL_DEVICE, "w", stderr) == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main, APLOGNO(00093)
+                     "unable to replace stderr with %s", NULL_DEVICE);
     }
 
-/* try to set up PASV data connection first */
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			 "setsockopt(SO_RCVBUF): Failed to set ProxyReceiveBufferSize, using default");
-	}
-    }
-
-    ap_bputs("PASV" CRLF, f);
-    ap_bflush(f);
-    Explain0("FTP: PASV command issued");
-/* possible results: 227, 421, 500, 501, 502, 530 */
-    /* 227 Entering Passive Mode (h1,h2,h3,h4,p1,p2). */
-    /* 421 Service not available, closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    /* 501 Syntax error in parameters or arguments. */
-    /* 502 Command not implemented. */
-    /* 530 Not logged in. */
-    i = ap_bgets(pasv, sizeof(pasv), f);
-    if (i == -1) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, r,
-		     "PASV: control connection is toast");
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    for (virt = s_main->next; virt; virt = virt->next) {
+        if (virt->error_fname) {
+            for (q=s_main; q != virt; q = q->next) {
+                if (q->error_fname != NULL

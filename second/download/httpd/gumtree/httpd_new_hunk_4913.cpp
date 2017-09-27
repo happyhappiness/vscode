@@ -1,22 +1,13 @@
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
-
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-++ apache_1.3.2/src/modules/example/mod_example.c	1998-08-31 21:50:04.000000000 +0800
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00425)
+                         "Parent: ResetEvent(restart_event) failed.");
+        }
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00426)
+                         "Parent: SetEvent for child process event %pp failed.",
+                         event_handles[CHILD_HANDLE]);
+        }
+        /* Don't wait to verify that the child process really exits,
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);

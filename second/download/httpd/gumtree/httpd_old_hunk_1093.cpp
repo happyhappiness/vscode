@@ -1,13 +1,6 @@
-	if (bar != NULL)
-	    printf("%s %s\n", hoststring, bar + 1);
-	else
-	    puts(hoststring);
-    }
-
-#if defined(WIN32) || defined(NETWARE)
-     WSACleanup();
-#endif
-
-    if (statfile != NULL) {
-	FILE *fp;
-	fp = fopen(statfile, "w");
+    e = ap_bucket_error_create(HTTP_BAD_GATEWAY, NULL, c->pool,
+                               c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(brigade, e);
+    e = apr_bucket_eos_create(c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(brigade, e);
+}

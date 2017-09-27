@@ -1,0 +1,4 @@
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                                 ap_server_conf, APLOGNO(02644)
+                                 "Child: Event handle #%d (%pp) is invalid",
+                                 i, child_events[i]);

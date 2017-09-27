@@ -1,14 +1,20 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
-    }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+            cgid_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
+                        SSI_EXPAND_DROP_NAME);
+
+            rv = include_cgi(ctx, f, bb, parsed_string);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01273) "invalid CGI ref "
+                              "\"%s\" in %s", tag_val, file);
+                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                break;
+            }
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01274) "unknown parameter "
+                          "\"%s\" to tag exec in %s", tag, file);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+            break;
+        }
+    }
+

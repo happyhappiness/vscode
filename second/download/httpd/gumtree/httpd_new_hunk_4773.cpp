@@ -1,13 +1,13 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
+#endif
+        )
+    {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01892)
+                "Illegal attempt to re-initialise SSL for server "
+                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        ssl_die(s);
     }
-#elif defined(OS2)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+}
+
+#ifndef OPENSSL_NO_TLSEXT
+static void ssl_init_ctx_tls_extensions(server_rec *s,
+                                        apr_pool_t *p,

@@ -1,12 +1,13 @@
-    {
-	unsigned len = SCOREBOARD_SIZE;
 
-	m = mmap((caddr_t) 0xC0000000, &len,
-		 PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, NOFD, 0);
+    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
+                                 SC_MANAGER_CONNECT);
+    if (!schSCManager) {
+        rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(00369)  "Failed to open the Windows service "
+                     "manager, perhaps you forgot to log in as Adminstrator?");
+        return (rv);
     }
-#else
-    m = mmap((caddr_t) 0, SCOREBOARD_SIZE,
-	     PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-#endif
-    if (m == (caddr_t) - 1) {
-	perror("mmap");
+
+#if APR_HAS_UNICODE_FS
+    IF_WIN_OS_IS_UNICODE

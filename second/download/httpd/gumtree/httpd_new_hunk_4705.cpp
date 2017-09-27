@@ -1,18 +1,30 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
 
-	info.hPipeInputRead   = GetStdHandle(STD_INPUT_HANDLE);
-	info.hPipeOutputWrite = GetStdHandle(STD_OUTPUT_HANDLE);
-	info.hPipeErrorWrite  = GetStdHandle(STD_ERROR_HANDLE);
+apr_status_t h2_mplx_dispatch_master_events(h2_mplx *m, 
+                                            stream_ev_callback *on_resume, 
+                                            void *on_ctx)
+{
+    h2_stream *stream;
+    int n, id;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
+                  "h2_mplx(%ld): dispatch events", m->id);        
+    apr_atomic_set32(&m->event_pending, 0);
 
-	pid = (*func) (data, &info);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    /* update input windows for streams */
+    h2_ihash_iter(m->streams, report_consumption_iter, m);    
+    purge_streams(m, 1);
+    
+    n = h2_ififo_count(m->readyq);
+    while (n > 0 
+           && (h2_ififo_try_pull(m->readyq, &id) == APR_SUCCESS)) {
+        --n;
+        stream = h2_ihash_get(m->streams, id);
+        if (stream) {
+            on_resume(on_ctx, stream);
+        }
+    }
+    
+    return APR_SUCCESS;
+}
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
-++ apache_1.3.2/src/main/buff.c	1998-09-05 00:47:46.000000000 +0800
+apr_status_t h2_mplx_keep_active(h2_mplx *m, h2_stream *stream)

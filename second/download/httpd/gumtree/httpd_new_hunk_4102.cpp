@@ -1,14 +1,13 @@
+
+    return APR_SUCCESS;
+}
+
+static APR_INLINE int ajp_log_overflow(ajp_msg_t *msg, const char *context)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+    ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(03229)
+                 "%s(): BufferOverflowException %" APR_SIZE_T_FMT
+                 " %" APR_SIZE_T_FMT,
+                 context, msg->pos, msg->len);
+    return AJP_EOVERFLOW;
+}
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,

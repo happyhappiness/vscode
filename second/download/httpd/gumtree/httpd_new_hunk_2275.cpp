@@ -1,16 +1,38 @@
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (ap_isprint((((unsigned long) m) >> 24) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 16) & 255) &&
-	    ap_isprint((((unsigned long) m) >> 8) & 255) &&
-	    ap_isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
+    }
+
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
+    }
+
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_SEARCH); /* _comparedn is a searche */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
+    }
+
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
+
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+

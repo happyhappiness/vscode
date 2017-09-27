@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"Can't bind socket: %s",strerror(errno));

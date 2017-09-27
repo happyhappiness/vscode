@@ -1,18 +1,12 @@
-	exit(0);
-    }
-    else if (argc != 3)
-	usage();
+        nghttp2_option_del(option);
+        nghttp2_session_callbacks_del(cbs);
 
-    tn = tmpnam(NULL);
-    if (!(tfp = fopen(tn, "w"))) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03362)
+                      "setup session for %s", p_conn->hostname);
     }
+    return p_conn->data;
+}
 
-    if (!(f = fopen(argv[1], "r"))) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[2]);
+static apr_status_t session_start(h2_proxy_session *session) 
+{
+    nghttp2_settings_entry settings[2];

@@ -1,46 +1,66 @@
-     globdat.ssStatus.dwCurrentState = SERVICE_START_PENDING;
-     globdat.ssStatus.dwCheckPoint = 1;
  
-     /* ###: utf-ize */
-     if (!(globdat.hServiceStatus = RegisterServiceCtrlHandler(argv[0], service_nt_ctrl)))
-     {
--        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), 
-+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
-                      NULL, "Failure registering service handler");
-         return;
+ apr_status_t ap_init_ebcdic(apr_pool_t *pool)
+ {
+     apr_status_t rv;
+     char buf[80];
+ 
+-    rv = apr_xlate_open(&ap_hdrs_to_ascii, "ISO8859-1", APR_DEFAULT_CHARSET, pool);
+-    if (rv) {
+-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+-                     "apr_xlate_open() failed");
+-        return rv;
+-    }
+-
+-    rv = apr_xlate_open(&ap_hdrs_from_ascii, APR_DEFAULT_CHARSET, "ISO8859-1", pool);
+-    if (rv) {
+-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+-                     "apr_xlate_open() failed");
+-        return rv;
+-    }
+-
+-    rv = apr_xlate_open(&ap_locale_to_ascii, "ISO8859-1", APR_LOCALE_CHARSET, pool);
++    rv = apr_xlate_open(&ap_hdrs_to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, pool);
+     if (rv) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                      "apr_xlate_open() failed");
+         return rv;
      }
  
-     /* Report status, no errors, and buy 3 more seconds */
-     ReportStatusToSCMgr(SERVICE_START_PENDING, NO_ERROR, 30000);
- 
--    /* We need to append all the command arguments passed via StartService() 
-+    /* We need to append all the command arguments passed via StartService()
-      * to our running service... which just got here via the SCM...
-      * but we hvae no interest in argv[0] for the mpm_new_argv list.
-      */
--    if (argc > 1) 
-+    if (argc > 1)
-     {
-         char **cmb_data;
- 
-         mpm_new_argv->nalloc = mpm_new_argv->nelts + argc - 1;
-         cmb_data = malloc(mpm_new_argv->nalloc * sizeof(const char *));
- 
-         /* mpm_new_argv remains first (of lower significance) */
--        memcpy (cmb_data, mpm_new_argv->elts, 
-+        memcpy (cmb_data, mpm_new_argv->elts,
-                 mpm_new_argv->elt_size * mpm_new_argv->nelts);
--        
-+
-         /* Service args follow from StartService() invocation */
--        memcpy (cmb_data + mpm_new_argv->nelts, argv + 1, 
-+        memcpy (cmb_data + mpm_new_argv->nelts, argv + 1,
-                 mpm_new_argv->elt_size * (argc - 1));
--        
-+
-         /* The replacement arg list is complete */
-         mpm_new_argv->elts = (char *)cmb_data;
-         mpm_new_argv->nelts = mpm_new_argv->nalloc;
+-    rv = apr_xlate_open(&ap_locale_from_ascii, APR_LOCALE_CHARSET, "ISO8859-1", pool);
++    rv = apr_xlate_open(&ap_hdrs_from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", pool);
+     if (rv) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                      "apr_xlate_open() failed");
+         return rv;
      }
  
-     /* Let the main thread continue now... but hang on to the
+     rv = apr_MD5InitEBCDIC(ap_hdrs_to_ascii);
+     if (rv) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                      "apr_MD5InitEBCDIC() failed");
+         return rv;
+     }
+-    
++
+     rv = apr_base64init_ebcdic(ap_hdrs_to_ascii, ap_hdrs_from_ascii);
+     if (rv) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                      "apr_base64init_ebcdic() failed");
+         return rv;
+     }
+-    
++
+     rv = apr_SHA1InitEBCDIC(ap_hdrs_to_ascii);
+     if (rv) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                      "apr_SHA1InitEBCDIC() failed");
+         return rv;
+     }
+-    
++
+     return APR_SUCCESS;
+ }
+ 
+ void ap_xlate_proto_to_ascii(char *buffer, apr_size_t len)
+ {
+     apr_size_t inbytes_left, outbytes_left;

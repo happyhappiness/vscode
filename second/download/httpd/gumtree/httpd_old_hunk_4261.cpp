@@ -1,14 +1,18 @@
-#include "http_main.h"
-#include "http_request.h"
+            return 1;
+        default:
+            return 0;
+    }
+}
 
-static int asis_handler(request_rec *r)
+static void transit(h2_session *session, const char *action, h2_session_state nstate)
 {
-    FILE *f;
-    char *location;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03078)
+                  "h2_session(%ld): transit [%s] -- %s --> [%s]", session->id,
+                  state_name(session->state), action, state_name(nstate));
+    session->state = nstate;
+}
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+static void h2_session_ev_init(h2_session *session, int arg, const char *msg)
+{
+    switch (session->state) {
+        case H2_SESSION_ST_INIT:

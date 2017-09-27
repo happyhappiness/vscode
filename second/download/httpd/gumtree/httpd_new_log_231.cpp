@@ -1,2 +1,5 @@
-ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
+apr_file_printf(stderr_log,
+                    "(%d)%s: %s\n",
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+                    description);

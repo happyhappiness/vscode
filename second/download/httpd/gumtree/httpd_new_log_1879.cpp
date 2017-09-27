@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                             "undefined proxy interim response policy");
+ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">", ar[x]->desc, NULL);

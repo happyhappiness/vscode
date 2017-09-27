@@ -1,15 +1,13 @@
-		errstr[len-1] = ' ';
-	    }
-	}
+            return AUTHZ_GRANTED;
+        }
+        else { 
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01719)
+                              "auth_ldap authorize: require group \"%s\": "
+                              "didn't match with attr %s [%s][%d - %s]",
+                              t, ldc->reason, ent[i].name, result, 
+                              ldap_err2string(result));
+        }
     }
-#endif
-
-    va_start(args, fmt);
-    len += ap_vsnprintf(errstr + len, sizeof(errstr) - len, fmt, args);
-    va_end(args);
-
-    /* NULL if we are logging to syslog */
-    if (logf) {
-	fputs(errstr, logf);
-	fputc('\n', logf);
-	fflush(logf);
+    
+    for (i = 0; i < sec->groupattr->nelts; i++) {
+        /* nested groups need searches and compares, so grab a new handle */

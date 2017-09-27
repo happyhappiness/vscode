@@ -1,127 +1,17 @@
- 
-     return st;
- }
- 
- static apr_status_t util_ldap_cleanup_module(void *data)
- {
-+#if APR_HAS_LDAP_SSL && APR_HAS_NOVELL_LDAPSDK
-     server_rec *s = data;
--
-     util_ldap_state_t *st = (util_ldap_state_t *)ap_get_module_config(
--                                          s->module_config, &ldap_module);
-+        s->module_config, &ldap_module);
-+    
-+    if (st->ssl_support)
-+        ldapssl_client_deinit();
- 
--    #if APR_HAS_LDAP_SSL
--        #if APR_HAS_NOVELL_LDAPSDK
--            if (st->ssl_support)
--                ldapssl_client_deinit();
--        #endif
--    #endif
--   
--    return(APR_SUCCESS);
-+#endif
-+    return APR_SUCCESS;
- }
- 
- static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog, 
-                                  apr_pool_t *ptemp, server_rec *s)
- {
-     int rc = LDAP_SUCCESS;
-     apr_status_t result;
-     char buf[MAX_STRING_LEN];
-+    server_rec *s_vhost;
-+    util_ldap_state_t *st_vhost;
- 
-     util_ldap_state_t *st =
-         (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
- 
-+    void *data;
-+    const char *userdata_key = "util_ldap_init";
-+
-+    /* util_ldap_post_config() will be called twice. Don't bother
-+     * going through all of the initialization on the first call
-+     * because it will just be thrown away.*/
-+    apr_pool_userdata_get(&data, userdata_key, s->process->pool);
-+    if (!data) {
-+        apr_pool_userdata_set((const void *)1, userdata_key,
-+                               apr_pool_cleanup_null, s->process->pool);
-+
- #if APR_HAS_SHARED_MEMORY
--    server_rec *s_vhost;
--    util_ldap_state_t *st_vhost;
--    
--    /* initializing cache if file is here and we already don't have shm addr*/
--    if (st->cache_file && !st->cache_shm) {
-+        /* If the cache file already exists then delete it.  Otherwise we are
-+         * going to run into problems creating the shared memory. */
-+        if (st->cache_file) {
-+            char *lck_file = apr_pstrcat (st->pool, st->cache_file, ".lck", NULL);
-+            apr_file_remove(st->cache_file, ptemp);
-+            apr_file_remove(lck_file, ptemp);
-+        }
-+#endif
-+        return OK;
-+    }
-+
-+#if APR_HAS_SHARED_MEMORY
-+    /* initializing cache if shared memory size is not zero and we already don't have shm address */
-+    if (!st->cache_shm && st->cache_bytes > 0) {
- #endif
-         result = util_ldap_cache_init(p, st);
--        apr_strerror(result, buf, sizeof(buf));
--        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s,
--                     "LDAP cache init: %s", buf);
-+        if (result != APR_SUCCESS) {
-+            apr_strerror(result, buf, sizeof(buf));
-+            ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-+                         "LDAP cache: error while creating a shared memory segment: %s", buf);
-+        }
-+
- 
- #if APR_HAS_SHARED_MEMORY
-+        if (st->cache_file) {
-+            st->lock_file = apr_pstrcat (st->pool, st->cache_file, ".lck", NULL);
-+        }
-+        else
-+#endif
-+            st->lock_file = ap_server_root_relative(st->pool, tmpnam(NULL));
-+
-+        result = apr_global_mutex_create(&st->util_ldap_cache_lock, st->lock_file, APR_LOCK_DEFAULT, st->pool);
-+        if (result != APR_SUCCESS) {
-+            return result;
-+        }
-+
-         /* merge config in all vhost */
-         s_vhost = s->next;
-         while (s_vhost) {
--            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
--                         "LDAP merging Shared Cache conf: shm=0x%x rmm=0x%x for VHOST: %s",
--                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
--
-             st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
-+
-+#if APR_HAS_SHARED_MEMORY
-             st_vhost->cache_shm = st->cache_shm;
-             st_vhost->cache_rmm = st->cache_rmm;
-             st_vhost->cache_file = st->cache_file;
-+            ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, result, s, 
-+                         "LDAP merging Shared Cache conf: shm=0x%pp rmm=0x%pp for VHOST: %s",
-+                         st->cache_shm, st->cache_rmm, s_vhost->server_hostname);
-+#endif
-+            st_vhost->lock_file = st->lock_file;
-             s_vhost = s_vhost->next;
-         }
-+#if APR_HAS_SHARED_MEMORY
+                      "Child %d: Child process is exiting", my_pid);        
+         return 1;
      }
-     else {
--        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "LDAP cache: LDAPSharedCacheSize is zero, disabling shared memory cache");
-     }
- #endif
-     
-     /* log the LDAP SDK used 
-      */
-     #if APR_HAS_NETSCAPE_LDAPSDK 
+     else 
+     {
+         /* A real-honest to goodness parent */
++        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
++                     "%s configured -- resuming normal operations",
++                     ap_get_server_version());
++        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
++                     "Server built: %s", ap_get_server_built());
+ 
+         restart = master_main(ap_server_conf, shutdown_event, restart_event);
+ 
+         if (!restart) 
+         {
+             /* Shutting down. Clean up... */

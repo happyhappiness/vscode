@@ -1,14 +1,56 @@
+static const char *util_ldap_set_chase_referrals(cmd_parms *cmd,
+                                                 void *config,
+                                                 int mode)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    const char *t;
-    char *key, *value;
+    util_ldap_config_t *dc =  config;
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01311)
+                      "LDAP: Setting referral chasing %s",
+                      (mode == AP_LDAP_CHASEREFERRALS_ON) ? "ON" : "OFF");
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    dc->ChaseReferrals = mode;
+
+    return(NULL);
+}
+
+static const char *util_ldap_set_debug_level(cmd_parms *cmd,
+                                             void *config,
+                                             const char *arg) {
+#ifdef AP_LDAP_OPT_DEBUG
+    util_ldap_state_t *st =
+        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config,
+                                                  &ldap_module);
+#endif
+
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+#ifndef AP_LDAP_OPT_DEBUG
+    return "This directive is not supported with the currently linked LDAP library";
+#else
+    st->debug_level = atoi(arg);
+    return NULL;
+#endif
+}
+
+static const char *util_ldap_set_referral_hop_limit(cmd_parms *cmd,
+                                                    void *config,
+                                                    const char *hop_limit)
+{
+    util_ldap_config_t *dc =  config;
+
+    dc->ReferralHopLimit = atol(hop_limit);
+
+    if (dc->ReferralHopLimit <= 0) {
+        return "LDAPReferralHopLimit must be greater than zero (Use 'LDAPReferrals Off' to disable referral chasing)";
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01312)
+                 "LDAP: Limit chased referrals to maximum of %d hops.",
+                 dc->ReferralHopLimit);
+
+    return NULL;
+}
+

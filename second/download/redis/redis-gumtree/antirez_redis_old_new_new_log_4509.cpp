@@ -1,1 +1,0 @@
-addReplySds(c,sdscatprintf(sdsempty(),"*%d\r\n",c->argc-1));

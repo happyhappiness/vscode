@@ -1,1 +1,1 @@
-fprintf(f, "%3d", *tables++);
+fprintf(stderr, "dftables: one filename argument is required\n");

@@ -1,1 +1,0 @@
-addReplyErrorFormat(c,"Unknown PFDEBUG subcommand '%s'", cmd);

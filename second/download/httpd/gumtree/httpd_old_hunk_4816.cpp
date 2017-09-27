@@ -1,13 +1,17 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
+        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00479)
+                     "Couldn't initialize signal thread");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
+
+    if (ap_max_requests_per_child) {
+        requests_this_child = ap_max_requests_per_child;
     }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+    else {
+        /* coding a value of zero means infinity */
+        requests_this_child = INT_MAX;
+    }
+
+    /* Setup worker threads */
+
+    /* clear the storage; we may not create all our threads immediately,
+     * and we want a 0 entry to indicate a thread which was not created

@@ -1,12 +1,12 @@
-    else
-    {
-       ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
     }
-    
-    return(OK);
-}
+    ap_max_daemons_limit = last_non_dead + 1;
 
-static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
-{
-    apr_status_t sts;
+    if (idle_thread_count > max_spare_threads) {
+        /* Kill off one child */
+        ap_mpm_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;

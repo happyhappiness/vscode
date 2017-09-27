@@ -1,16 +1,20 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
-
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
+        ap_log_error(APLOG_MARK, APLOG_ALERT | level_flags, 0,
+                     (startup ? NULL : s),
+                     "no listening sockets available, shutting down");
+        return DONE;
     }
 
-    /* perform sub-request for the file name without the suffix */
+    if (!one_process) {
+        if ((rv = ap_mpm_podx_open(pconf, &pod))) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
+                         (startup ? NULL : s),
+                         "could not open pipe-of-death");
+            return DONE;
+        }
+    }
+    return OK;
+}
+
+static int worker_pre_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp)
+{

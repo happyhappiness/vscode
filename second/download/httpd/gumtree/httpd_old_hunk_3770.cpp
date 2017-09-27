@@ -1,26 +1,14 @@
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"malformed header in meta file: %s", r->filename);
-	    return SERVER_ERROR;
-	}
+                apr_thread_mutex_lock(timeout_mutex);
+                ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                             "connections: %u (clogged: %u write-completion: %d "
+                             "keep-alive: %d lingering: %d suspended: %u)",
+                             apr_atomic_read32(&connection_count),
+                             apr_atomic_read32(&clogged_count),
+                             write_completion_q.count,
+                             keepalive_q.count,
+                             apr_atomic_read32(&lingering_count),
+                             apr_atomic_read32(&suspended_count));
+                apr_thread_mutex_unlock(timeout_mutex);
+            }
+        }
 
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	else if (!strcasecmp(w, "Status")) {
-	    sscanf(l, "%d", &r->status);
-	    r->status_line = ap_pstrdup(r->pool, l);
-	}
-	else {
--- apache_1.3.0/src/modules/standard/mod_cgi.c	1998-05-29 06:09:56.000000000 +0800

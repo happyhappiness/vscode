@@ -1,41 +1,22 @@
-	    return cond_status;
-	}
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                          APLOGNO(02928) "nghttp2_option_new: %s", 
+                          nghttp2_strerror(rv));
+            h2_session_destroy(session);
+            return NULL;
+        }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+        nghttp2_option_set_peer_max_concurrent_streams(options, 
+                                                       (uint32_t)session->max_stream_count);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1 + MALFORMED_HEADER_LENGTH_TO_SHOW];
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer)
-		/* Soak up all the script output --- may save an outright kill */
-		while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data))
-		    continue;
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && isspace(*l))
-	    ++l;
-
-	if (!strcasecmp(w, "Content-type")) {
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && isspace(*endp))
-		*endp-- = '\0';
-
-	    r->content_type = ap_pstrdup(r->pool, l);
-	    ap_str_tolower(r->content_type);
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+        /* We need to handle window updates ourself, otherwise we
+         * get flooded by nghttp2. */
+        nghttp2_option_set_no_auto_window_update(options, 1);
+        
+        rv = nghttp2_session_server_new2(&session->ngh2, callbacks,
+                                         session, options);
+        nghttp2_session_callbacks_del(callbacks);
+        nghttp2_option_del(options);
+        
+        if (rv != 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                          APLOGNO(02929) "nghttp2_session_server_new: %s",

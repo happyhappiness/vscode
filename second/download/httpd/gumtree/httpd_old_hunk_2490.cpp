@@ -1,14 +1,13 @@
-#include "http_main.h"
-#include "http_request.h"
+        return 1;
+    }
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+    case HSE_REQ_GET_SSPI_INFO:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+    case HSE_APPEND_LOG_PARAMETER:
+        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field

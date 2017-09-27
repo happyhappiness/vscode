@@ -1,49 +1,57 @@
-	    return cond_status;
-	}
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    /*
+     * keep the set-by-proxy server and date headers, otherwise
+     * generate a new server header / date header
+     */
+    if (r->proxyreq != PROXYREQ_NONE) {
+        proxy_date = apr_table_get(r->headers_out, "Date");
+        if (!proxy_date) {
+            /*
+             * proxy_date needs to be const. So use date for the creation of
+             * our own Date header and pass it over to proxy_date later to
+             * avoid a compiler warning.
+             */
+            date = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+            ap_recent_rfc822_date(date, r->request_time);
+        }
+        server = apr_table_get(r->headers_out, "Server");
+    }
+    else {
+        date = apr_palloc(r->pool, APR_RFC822_DATE_LEN);
+        ap_recent_rfc822_date(date, r->request_time);
+    }
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    form_header_field(&h, "Date", proxy_date ? proxy_date : date );
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    if (!server && *us)
+        server = us;
+    if (server)
+        form_header_field(&h, "Server", server);
 
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+    if (APLOGrtrace3(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "Response sent with status %d%s",
+		      r->status,
+		      APLOGrtrace4(r) ? ", headers:" : "");
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+        /*
+         * Date and Server are less interesting, use TRACE5 for them while
+         * using TRACE4 for the other headers.
+         */
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Date",
+                      proxy_date ? proxy_date : date );
+        if (server)
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Server",
+                          server);
+    }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
+    /* unset so we don't send them again */
+    apr_table_unset(r->headers_out, "Date");        /* Avoid bogosity */
+    if (server) {
+        apr_table_unset(r->headers_out, "Server");
+    }
+}
 
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+AP_DECLARE(void) ap_basic_http_header(request_rec *r, apr_bucket_brigade *bb)
+{

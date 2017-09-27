@@ -1,40 +1,52 @@
-	return;
+    if ((dc->nOptions & SSL_OPT_FAKEBASICAUTH) == 0 && dc->szUserName) {
+        char *val = ssl_var_lookup(r->pool, r->server, r->connection,
+                                   r, (char *)dc->szUserName);
+        if (val && val[0])
+            r->user = val;
+        else
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Failed to set r->user to '%s'", dc->szUserName);
     }
-    else
-	inside = 1;
-    (void) ap_release_mutex(garbage_mutex);
 
-    help_proxy_garbage_coll(r);
+    /*
+     * Check SSLRequire boolean expressions
+     */
+    requires = dc->aRequirement;
+    ssl_requires = (ssl_require_t *)requires->elts;
 
-    (void) ap_acquire_mutex(garbage_mutex);
-    inside = 0;
-    (void) ap_release_mutex(garbage_mutex);
-}
+    for (i = 0; i < requires->nelts; i++) {
+        ssl_require_t *req = &ssl_requires[i];
+        ok = ssl_expr_exec(r, req->mpExpr);
 
+        if (ok < 0) {
+            cp = apr_psprintf(r->pool,
+                              "Failed to execute "
+                              "SSL requirement expression: %s",
+                              ssl_expr_get_error());
 
-static void help_proxy_garbage_coll(request_rec *r)
-{
-    const char *cachedir;
-    void *sconf = r->server->module_config;
-    proxy_server_conf *pconf =
-    (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-    const struct cache_conf *conf = &pconf->cache;
-    array_header *files;
-    struct stat buf;
-    struct gc_ent *fent, **elts;
-    int i, timefd;
-    static time_t lastcheck = BAD_DATE;		/* static data!!! */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "access to %s failed, reason: %s",
+                          r->filename, cp);
 
-    cachedir = conf->root;
-    cachesize = conf->space;
-    every = conf->gcinterval;
+            /* remember forbidden access for strict require option */
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
 
-    if (cachedir == NULL || every == -1)
-	return;
-    garbage_now = time(NULL);
-    if (garbage_now != -1 && lastcheck != BAD_DATE && garbage_now < lastcheck + every)
-	return;
+            return HTTP_FORBIDDEN;
+        }
 
-    ap_block_alarms();		/* avoid SIGALRM on big cache cleanup */
+        if (ok != 1) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Access to %s denied for %s "
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->connection->remote_ip);
 
-    filename = ap_palloc(r->pool, strlen(cachedir) + HASH_LEN + 2);
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled");
+
+            /* remember forbidden access for strict require option */
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");

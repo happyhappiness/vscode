@@ -1,3 +1,2 @@
-apr_file_printf(errfile, "\n%s: The file %s does not appear "
-                                         "to be a valid htpasswd file.\n",
-                                argv[0], pwfilename);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: mod_dbd not compatible with apr in get_driver");

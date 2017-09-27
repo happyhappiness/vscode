@@ -1,12 +1,20 @@
+         * that the client replies to a Hello Request). But because we insist
+         * on a reply (anything else is an error for us) we have to go to the
+         * ACCEPT state manually. Using SSL_set_accept_state() doesn't work
+         * here because it resets too much of the connection.  So we set the
+         * state explicitly and continue the handshake manually.
+         */
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "Requesting connection re-negotiation");
 
-    *url = apr_pstrcat(r->pool, worker->name, path, NULL);
+        if (renegotiate_quick) {
+            STACK_OF(X509) *cert_stack;
 
-    return OK;
-}
+            /* perform just a manual re-verification of the peer */
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Performing quick renegotiation: "
+                         "just re-verifying the peer");
 
-static int proxy_balancer_pre_request(proxy_worker **worker,
-                                      proxy_balancer **balancer,
-                                      request_rec *r,
-                                      proxy_server_conf *conf, char **url)
-{
-    int access_status;
+            cert_stack = (STACK_OF(X509) *)SSL_get_peer_cert_chain(ssl);
+
+            cert = SSL_get_peer_certificate(ssl);

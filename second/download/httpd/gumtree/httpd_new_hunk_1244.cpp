@@ -1,18 +1,13 @@
-}
-
-/*
- * usage info
- */
-#define NL APR_EOL_STR
-static void usage(const char *error)
-{
-    if (error) {
-    	apr_file_printf(errfile, "%s error: %s\n", shortname, error);
+        if (APR_STATUS_IS_ENOENT(retcode)) {
+            return DECLINED;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "meta file permissions deny server access: %s", metafilename);
+        return HTTP_FORBIDDEN;
     }
-	apr_file_printf(errfile,
-    "%s -- program for cleaning the disk cache."                             NL
-    "Usage: %s [-Dvtrn] -pPATH -lLIMIT"                                      NL
-    "       %s [-nti] -dINTERVAL -pPATH -lLIMIT"                             NL
-                                                                             NL
-    "Options:"                                                               NL
-    "  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."     NL
+
+    /* read the headers in */
+    rv = scan_meta_file(r, f);
+    apr_file_close(f);
+
+    return rv;

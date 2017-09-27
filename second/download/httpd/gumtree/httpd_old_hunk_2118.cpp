@@ -1,13 +1,15 @@
-    rr->content_type = CGI_MAGIC_TYPE;
 
-    /* Run it. */
+            dobj->tfd = NULL;
 
-    rr_status = ap_run_sub_req(rr);
-    if (is_HTTP_REDIRECT(rr_status)) {
-        char *location = ap_table_get(rr->headers_out, "Location");
-        location = ap_escape_html(rr->pool, location);
-        ap_rvputs(r, "<A HREF=\"", location, "\">", location, "</A>", NULL);
-    }
+            rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile,
+                                  r->pool);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                    "disk_cache: rename tempfile to varyfile failed: %s -> %s",
+                    dobj->tempfile, dobj->hdrsfile);
+                return rv;
+            }
 
-    ap_destroy_sub_req(rr);
-#ifndef WIN32
+            dobj->tempfile = apr_pstrcat(r->pool, conf->cache_root, AP_TEMPFILE, NULL);
+            tmp = regen_key(r->pool, r->headers_in, varray, dobj->name);
+            dobj->prefix = dobj->hdrsfile;

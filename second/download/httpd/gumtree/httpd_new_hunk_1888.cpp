@@ -1,30 +1,17 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+                /* E[NM]FILE, ENOMEM, etc */
+                resource_shortage = 1;
+                signal_threads(ST_GRACEFUL);
+            }
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                != APR_SUCCESS) {
 
-    return DECLINED;
-++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
+                if (listener_may_exit) {
+                    break;
+                }
+                accept_mutex_error("unlock", rv, process_slot);
+            }
+            if (csd != NULL) {
+                rv = ap_queue_push(worker_queue, csd, ptrans);
+                if (rv) {
+                    /* trash the connection; we couldn't queue the connected
+                     * socket to a worker

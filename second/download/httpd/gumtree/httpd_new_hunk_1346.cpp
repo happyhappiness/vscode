@@ -1,13 +1,20 @@
-        if (ResetEvent(restart_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: ResetEvent(restart_event) failed.");
-        }
-        if (SetEvent(child_exit_event) == 0) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: SetEvent for child process %pp failed.",
-                         event_handles[CHILD_HANDLE]);
-        }
-        /* Don't wait to verify that the child process really exits,
-         * just move on with the restart.
-         */
-        CloseHandle(event_handles[CHILD_HANDLE]);
+
+int ssl_callback_proxy_cert(SSL *ssl, MODSSL_CLIENT_CERT_CB_ARG_TYPE **x509, EVP_PKEY **pkey)
+{
+    conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s = mySrvFromConn(c);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    X509_NAME *ca_name, *issuer, *ca_issuer;
+    X509_INFO *info;
+    X509 *ca_cert;
+    STACK_OF(X509_NAME) *ca_list;
+    STACK_OF(X509_INFO) *certs = sc->proxy->pkp->certs;
+    STACK_OF(X509) *ca_certs;
+    STACK_OF(X509) **ca_cert_chains;
+    int i, j, k;
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 SSLPROXY_CERT_CB_LOG_FMT "entered",
+                 sc->vhost_id);
+
+    if (!certs || (sk_X509_INFO_num(certs) <= 0)) {

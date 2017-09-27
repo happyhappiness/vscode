@@ -1,14 +1,42 @@
-    {
-	if (!ap_pool_is_ancestor(ap_find_pool(key), t->a.pool)) {
-	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
-	    abort();
-	}
-	if (!ap_pool_is_ancestor(ap_find_pool(val), t->a.pool)) {
-	    fprintf(stderr, "table_set: val not in ancestor pool of t\n");
-	    abort();
-	}
+     * our pool, which is probably not what we want.  Error checking isn't
+     * necessary now, but in case that changes in the future ...
+     */
+    rv = apr_dbd_get_driver(rec->pool, cfg->name, &rec->driver);
+    if (rv != APR_SUCCESS) {
+        if (APR_STATUS_IS_ENOTIMPL(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00625)
+                         "driver for %s not available", cfg->name);
+        }
+        else if (APR_STATUS_IS_EDSOOPEN(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00626)
+                         "can't find driver for %s", cfg->name);
+        }
+        else if (APR_STATUS_IS_ESYMNOTFOUND(rv)) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00627)
+                         "driver for %s is invalid or corrupted",
+                         cfg->name);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00628)
+                         "mod_dbd not compatible with APR in get_driver");
+        }
+        apr_pool_destroy(rec->pool);
+        return rv;
     }
-#endif
 
-    for (i = 0; i < t->a.nelts; ) {
-++ apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+    rv = apr_dbd_open_ex(rec->driver, rec->pool, cfg->params, &rec->handle, &err);
+    if (rv != APR_SUCCESS) {
+        switch (rv) {
+        case APR_EGENERAL:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00629)
+                         "Can't connect to %s: %s", cfg->name, err);
+            break;
+        default:
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server, APLOGNO(00630)
+                         "mod_dbd not compatible with APR in open");
+            break;
+        }
+
+        apr_pool_destroy(rec->pool);
+        return rv;
+    }

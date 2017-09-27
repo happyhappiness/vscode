@@ -1,21 +1,18 @@
-            return rv;
+        if (!schSCManager) {
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                         "Failed to open the NT Service Manager");
+            return;
         }
-    }
 
-    apr_file_close(dobj->hfd); /* flush and close */
+        /* ###: utf-ize */
+        schService = OpenService(schSCManager, mpm_service_name,
+                                 SERVICE_INTERROGATE | SERVICE_QUERY_STATUS |
+                                 SERVICE_USER_DEFINED_CONTROL |
+                                 SERVICE_START | SERVICE_STOP);
 
-    /* Remove old file with the same name. If remove fails, then
-     * perhaps we need to create the directory tree where we are
-     * about to write the new headers file.
-     */
-    rv = apr_file_remove(dobj->hdrsfile, r->pool);
-    if (rv != APR_SUCCESS) {
-        mkdir_structure(conf, dobj->hdrsfile, r->pool);
-    }
-
-    rv = safe_file_rename(conf, dobj->tempfile, dobj->hdrsfile, r->pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-                     "disk_cache: rename tempfile to hdrsfile failed: %s -> %s",
-                     dobj->tempfile, dobj->hdrsfile);
-        apr_file_remove(dobj->tempfile, r->pool);
+        if (schService == NULL) {
+            /* Could not open the service */
+            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                         "Failed to open the %s Service", mpm_display_name);
+            CloseServiceHandle(schSCManager);
+            return;

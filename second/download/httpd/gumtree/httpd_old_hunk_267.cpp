@@ -1,13 +1,13 @@
-                    max_clients, ap_daemons_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " and would exceed the ServerLimit value of %d.",
-                    server_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " Automatically lowering MaxClients to %d.  To increase,",
-                    server_limit);
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " please see the ServerLimit directive.");
-       ap_daemons_limit = server_limit;
-    } 
-    else if (ap_daemons_limit < 1) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+    if (temp_error_log) {
+        ap_replace_stderr_log(process->pool, temp_error_log);
+    }
+    server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed\n");
+        destroy_and_exit_process(process, 1);
+    }
+
+    ap_process_config_tree(server_conf, ap_conftree, process->pconf, ptemp);
+    ap_fixup_virtual_hosts(pconf, server_conf);
+    ap_fini_vhost_config(pconf, server_conf);

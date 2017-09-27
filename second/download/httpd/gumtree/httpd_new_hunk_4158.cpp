@@ -1,25 +1,49 @@
-	return ap_proxyerror(r, err);	/* give up */
+        DosFreeMem(parent_info);
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return HTTP_INTERNAL_SERVER_ERROR;
+        /* Do the work */
+        ap_mpm_child_main(pconf);
+
+        /* Outta here */
+        return DONE;
     }
+    else {
+        /* Parent process */
+        int rc;
+        is_parent_process = TRUE;
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-#endif
+        if (ap_setup_listeners(ap_server_conf) < 1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00200)
+                         "no listening sockets available, shutting down");
+            return !OK;
+        }
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
-++ apache_1.3.1/src/modules/proxy/proxy_ftp.c	1998-07-10 03:45:56.000000000 +0800
+        ap_log_pid(pconf, ap_pid_fname);
+
+        rc = master_main();
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+
+        if (rc != OK) {
+            ap_remove_pid(pconf, ap_pid_fname);
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
+                         "caught %s, shutting down",
+                         (rc == DONE) ? "SIGTERM" : "error");
+            return rc;
+        }
+    }  /* Parent process */
+
+    return OK; /* Restart */
+}
+
+
+
+/* Main processing of the parent process
+ * returns TRUE if restarting
+ */
+static int master_main()
+{
+    server_rec *s = ap_server_conf;
+    ap_listen_rec *lr;
+    parent_info_t *parent_info;
+    char *listener_shm_name;
+    int listener_num, num_listeners, slot;

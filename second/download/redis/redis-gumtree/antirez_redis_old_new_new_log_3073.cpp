@@ -1,1 +1,0 @@
-snprintf(buf,sizeof(buf),"%s/%02x/%02x",server.ds_path,j,i);

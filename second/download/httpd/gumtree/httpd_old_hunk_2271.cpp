@@ -1,13 +1,19 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
+    /* Check that we have a userid to start with */
+    if (!r->user) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);
+        return AUTHZ_DENIED;
+    }
 
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+

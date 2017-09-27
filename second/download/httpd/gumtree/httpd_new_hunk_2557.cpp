@@ -1,13 +1,27 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
+        apr_shm_remove(ctx->data_file, p);
+
+        rv = apr_shm_create(&ctx->shm, ctx->shm_size, ctx->data_file, p);
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00819)
+                     "Could not allocate shared memory segment for shmcb "
+                     "socache");
+        return rv;
+    }
+
+    shm_segment = apr_shm_baseaddr_get(ctx->shm);
+    shm_segsize = apr_shm_size_get(ctx->shm);
+    if (shm_segsize < (5 * sizeof(SHMCBHeader))) {
+        /* the segment is ridiculously small, bail out */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00820)
+                     "shared memory segment too small");
+        return APR_ENOSPC;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00821)
+                 "shmcb_init allocated %" APR_SIZE_T_FMT
+                 " bytes of shared memory",
+                 shm_segsize);
+    /* Discount the header */
+    shm_segsize -= sizeof(SHMCBHeader);
+    /* Select index size based on average object size hints, if given. */

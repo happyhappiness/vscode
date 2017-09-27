@@ -1,15 +1,17 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
-
-        r->read_chunked = 1;
+                                   really an href */
     }
-    else if (lenp) {
-        char *pos = lenp;
+    if (!strcasecmp(menu, "formatted")) {
+        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "semiformatted")) {
+        ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);
+    }
+    if (!strcasecmp(menu, "unformatted")) {
+        ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+    }
+    return;
+}
 
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+static void menu_footer(request_rec *r)

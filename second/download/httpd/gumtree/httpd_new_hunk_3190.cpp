@@ -1,46 +1,141 @@
-	clen = sizeof(struct sockaddr_in);
-	if (getsockname(sock, (struct sockaddr *) &server, &clen) < 0) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error getting socket address");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
+        ERR_error_string_n(e, err, sizeof err);
+        annotation = ssl_log_annotation(err);
 
-	dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (dsock == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error creating socket");
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
+        ap_log_error(file, line, APLOG_MODULE_INDEX, level, 0, s,
+                     "SSL Library Error: %s%s%s%s%s%s",
+                     /* %s */
+                     err,
+                     /* %s%s%s */
+                     data ? " (" : "", data ? data : "", data ? ")" : "",
+                     /* %s%s */
+                     annotation ? " -- " : "",
+                     annotation ? annotation : "");
 
-	if (setsockopt(dsock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		       sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error setting reuseaddr option");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-#endif /*_OSD_POSIX*/
-	}
+        /* Pop the error off the stack: */
+        ERR_get_error();
+    }
+}
 
-	if (bind(dsock, (struct sockaddr *) &server,
-		 sizeof(struct sockaddr_in)) == -1) {
-	    char buff[22];
+static void ssl_log_cert_error(const char *file, int line, int level,
+                               apr_status_t rv, const server_rec *s,
+                               const conn_rec *c, const request_rec *r,
+                               apr_pool_t *p, X509 *cert, const char *format,
+                               va_list ap)
+{
+    char buf[HUGE_STRING_LEN];
+    int msglen, n;
+    char *name;
 
-	    ap_snprintf(buff, sizeof(buff), "%s:%d", inet_ntoa(server.sin_addr), server.sin_port);
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: error binding to ftp data socket %s", buff);
-	    ap_bclose(f);
-	    ap_pclosesocket(p, dsock);
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-	listen(dsock, 2);	/* only need a short queue */
+    apr_vsnprintf(buf, sizeof buf, format, ap);
+
+    msglen = strlen(buf);
+
+    if (cert) {
+        BIO *bio = BIO_new(BIO_s_mem());
+
+        if (bio) {
+            /*
+             * Limit the maximum length of the subject and issuer DN strings
+             * in the log message. 300 characters should always be sufficient
+             * for holding both the timestamp, module name, pid etc. stuff
+             * at the beginning of the line and the trailing information about
+             * serial, notbefore and notafter.
+             */
+            int maxdnlen = (HUGE_STRING_LEN - msglen - 300) / 2;
+
+            BIO_puts(bio, " [subject: ");
+            name = SSL_X509_NAME_to_string(p, X509_get_subject_name(cert),
+                                           maxdnlen);
+            if (!strIsEmpty(name)) {
+                BIO_puts(bio, name);
+            } else {
+                BIO_puts(bio, "-empty-");
+            }
+
+            BIO_puts(bio, " / issuer: ");
+            name = SSL_X509_NAME_to_string(p, X509_get_issuer_name(cert),
+                                           maxdnlen);
+            if (!strIsEmpty(name)) {
+                BIO_puts(bio, name);
+            } else {
+                BIO_puts(bio, "-empty-");
+            }
+
+            BIO_puts(bio, " / serial: ");
+            if (i2a_ASN1_INTEGER(bio, X509_get_serialNumber(cert)) == -1)
+                BIO_puts(bio, "(ERROR)");
+
+            BIO_puts(bio, " / notbefore: ");
+            ASN1_TIME_print(bio, X509_get_notBefore(cert));
+
+            BIO_puts(bio, " / notafter: ");
+            ASN1_TIME_print(bio, X509_get_notAfter(cert));
+
+            BIO_puts(bio, "]");
+
+            n = BIO_read(bio, buf + msglen, sizeof buf - msglen - 1);
+            if (n > 0)
+               buf[msglen + n] = '\0';
+
+            BIO_free(bio);
+        }
+    }
+    else {
+        apr_snprintf(buf + msglen, sizeof buf - msglen,
+                     " [certificate: -not available-]");
     }
 
-/* set request */
-    len = decodeenc(path);
+    if (r) {
+        ap_log_rerror(file, line, APLOG_MODULE_INDEX, level, rv, r, "%s", buf);
+    }
+    else if (c) {
+        ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c, "%s", buf);
+    }
+    else if (s) {
+        ap_log_error(file, line, APLOG_MODULE_INDEX, level, rv, s, "%s", buf);
+    }
+
+}
+
+/*
+ * Wrappers for ap_log_error/ap_log_cerror/ap_log_rerror which log additional
+ * details of the X509 cert. For ssl_log_xerror, a pool needs to be passed in
+ * as well (for temporary allocation of the cert's subject/issuer name strings,
+ * in the other cases we use the connection and request pool, respectively).
+ */
+void ssl_log_xerror(const char *file, int line, int level, apr_status_t rv,
+                    apr_pool_t *ptemp, server_rec *s, X509 *cert,
+                    const char *fmt, ...)
+{
+    if (APLOG_IS_LEVEL(s,level)) {
+       va_list ap;
+       va_start(ap, fmt);
+       ssl_log_cert_error(file, line, level, rv, s, NULL, NULL, ptemp,
+                          cert, fmt, ap);
+       va_end(ap);
+    }
+}
+
+void ssl_log_cxerror(const char *file, int line, int level, apr_status_t rv,
+                     conn_rec *c, X509 *cert, const char *fmt, ...)
+{
+    if (APLOG_IS_LEVEL(mySrvFromConn(c),level)) {
+       va_list ap;
+       va_start(ap, fmt);
+       ssl_log_cert_error(file, line, level, rv, NULL, c, NULL, c->pool,
+                          cert, fmt, ap);
+       va_end(ap);
+    }
+}
+
+void ssl_log_rxerror(const char *file, int line, int level, apr_status_t rv,
+                     request_rec *r, X509 *cert, const char *fmt, ...)
+{
+    if (APLOG_R_IS_LEVEL(r,level)) {
+       va_list ap;
+       va_start(ap, fmt);
+       ssl_log_cert_error(file, line, level, rv, NULL, NULL, r, r->pool,
+                          cert, fmt, ap);
+       va_end(ap);
+    }
+}

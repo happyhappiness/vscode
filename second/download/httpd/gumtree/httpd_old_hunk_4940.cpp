@@ -1,12 +1,13 @@
-	ap_log_error(APLOG_MARK,APLOG_ERR|APLOG_NOERRNO, server_conf,
- 	    "forcing termination of child #%d (handle %d)", i, process_handles[i]);
-	TerminateProcess((HANDLE) process_handles[i], 1);
-    }
-    service_set_status(SERVICE_STOPPED);
+        nWrite = strlen(status->errbuf);
 
-    if (pparent) {
-	ap_destroy_pool(pparent);
+        if (apr_file_trunc(status->current.fd, 0) != APR_SUCCESS) {
+            fprintf(stderr, "Error truncating the file %s\n", status->current.name);
+            exit(2);
+        }
+        if (apr_file_write(status->current.fd, status->errbuf, &nWrite) != APR_SUCCESS) {
+            fprintf(stderr, "Error writing to the file %s\n", status->current.name);
+            exit(2);
+        }
     }
 
-    ap_destroy_mutex(start_mutex);
-    return (0);
+    status->nMessCount = 0;

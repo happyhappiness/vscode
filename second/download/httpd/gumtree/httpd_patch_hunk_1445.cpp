@@ -1,15 +1,14 @@
-         APR_BRIGADE_INSERT_TAIL(bb, e);
+         }
+         else {
+             /* no way to know what type of error occurred */
+             ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                           "default_handler: ap_pass_brigade returned %i",
+                           status);
+-            return HTTP_INTERNAL_SERVER_ERROR;
++            return AP_FILTER_ERROR;
+         }
      }
-     apr_brigade_length(bb, 0, &transferred);
-     if (transferred != -1)
-         conn->worker->s->transferred += transferred;
-     status = ap_pass_brigade(origin->output_filters, bb);
-+    /* Cleanup the brigade now to avoid buckets lifetime
-+     * issues in case of error returned below. */
-+    apr_brigade_cleanup(bb);
-     if (status != APR_SUCCESS) {
-         ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                      "proxy: pass request body failed to %pI (%s)",
-                      conn->addr, conn->hostname);
-         if (origin->aborted) {
-             const char *ssl_note;
+     else {              /* unusual method (not GET or POST) */
+         if (r->method_number == M_INVALID) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                           "Invalid method in request %s", r->the_request);

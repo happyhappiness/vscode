@@ -1,1 +1,0 @@
-(saveconf) clusterSaveConfigOrDie(1);

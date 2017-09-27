@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+    apr_interval_time_t org;
+    apr_byte_t result;
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Into ajp_handle_cping_cpong");
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    rc = ajp_msg_create(r->pool, AJP_HEADER_SZ_LEN+1, &msg);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: ajp_msg_create failed");
+        return rc;
+    }
+

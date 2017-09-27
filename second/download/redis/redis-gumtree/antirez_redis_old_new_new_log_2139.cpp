@@ -1,2 +1,0 @@
-notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",
-                    dstkey,c->db->id);

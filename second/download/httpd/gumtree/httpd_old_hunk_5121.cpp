@@ -1,22 +1,15 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s client stopped connection before %s completed",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s timed out for %s",
-			timeout_name ? timeout_name : "request",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-	}
-    }
+            SANE("the total time", meantot, mediantot, sdtot);
+        }
+        else {
+            printf("              min   avg   max\n");
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
+            printf("Connect:    " CONF_FMT_STRING, mincon, meancon, maxcon);
+            printf("Processing: " CONF_FMT_STRING, mintot - mincon,
+                                                   meantot - meancon,
+                                                   maxtot - maxcon);
+            printf("Total:      " CONF_FMT_STRING, mintot, meantot, maxtot);
+#undef CONF_FMT_STRING
+        }
 
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+
+        /* Sorted on total connect times */

@@ -1,13 +1,18 @@
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: failed to accept data connection");
-	    ap_pclosesocket(p, dsock);
-	    ap_bclose(f);
-	    ap_kill_timeout(r);
-	    ap_proxy_cache_error(c);
-	    return HTTP_BAD_GATEWAY;
-	}
-	ap_note_cleanups_for_socket(p, csd);
-	data = ap_bcreate(p, B_RDWR | B_SOCKET);
-	ap_bpushfd(data, csd, -1);
-	ap_kill_timeout(r);
+    if (readbytes > ctx->remaining) {
+        readbytes = ctx->remaining;
     }
+
+    /* send part of the kept_body */
+    if ((rv = apr_brigade_partition(kept_body, ctx->offset, &ec)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01414)
+                      "apr_brigade_partition() failed on kept_body at %" APR_OFF_T_FMT, ctx->offset);
+        return rv;
+    }
+    if ((rv = apr_brigade_partition(kept_body, ctx->offset + readbytes, &e2)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01415)
+                      "apr_brigade_partition() failed on kept_body at %" APR_OFF_T_FMT, ctx->offset + readbytes);
+        return rv;
+    }
+
+    do {
+        apr_bucket *foo;

@@ -1,1 +1,0 @@
-addReplyError(c,"DB index is out of range");

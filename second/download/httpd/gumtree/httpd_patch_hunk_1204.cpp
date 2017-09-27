@@ -1,24 +1,23 @@
-      */
-     if (s->loglevel >= APLOG_DEBUG) {
-         X509 *cert  = X509_STORE_CTX_get_current_cert(ctx);
-         char *sname = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
-         char *iname = X509_NAME_oneline(X509_get_issuer_name(cert),  NULL, 0);
- 
--        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
--                     "Certificate Verification: "
--                     "depth: %d, subject: %s, issuer: %s",
--                     errdepth,
--                     sname ? sname : "-unknown-",
--                     iname ? iname : "-unknown-");
-+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
-+                      "Certificate Verification: "
-+                      "depth: %d, subject: %s, issuer: %s",
-+                      errdepth,
-+                      sname ? sname : "-unknown-",
-+                      iname ? iname : "-unknown-");
- 
-         if (sname) {
-             modssl_free(sname);
+                          "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
+                          h->cache_obj->key, dobj->file_size, conf->minfs);
+             /* Remove the intermediate cache file and return non-APR_SUCCESS */
+             file_cache_errorcleanup(dobj, r);
+             return APR_EGENERAL;
          }
++        if (cl_header) {
++            apr_int64_t cl = apr_atoi64(cl_header);
++            if ((errno == 0) && (dobj->file_size != cl)) {
++                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
++                             "disk_cache: URL %s didn't receive complete response, not caching",
++                             h->cache_obj->key);
++                /* Remove the intermediate cache file and return non-APR_SUCCESS */
++                file_cache_errorcleanup(dobj, r);
++                return APR_EGENERAL;
++            }
++        }
  
-         if (iname) {
+         /* All checks were fine. Move tempfile to final destination */
+         /* Link to the perm file, and close the descriptor */
+         file_cache_el_final(dobj, r);
+         ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                      "disk_cache: Body for URL %s cached.",  dobj->name);

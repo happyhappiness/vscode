@@ -1,21 +1,23 @@
-{
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
-
-    /* At some point, we may want to offer back-compatibility for
-     * loading modules that are for older versions of Apache. For now,
-     * though, we don't.
-     */
-
-    if (m->version != MODULE_MAGIC_NUMBER) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the author for the correct version.\n");
-	exit(1);
-    }
-
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+        case NGHTTP2_HEADERS:
+            /* This can be HEADERS for a new stream, defining the request,
+             * or HEADER may come after DATA at the end of a stream as in
+             * trailers */
+            stream = h2_session_stream_get(session, frame->hd.stream_id);
+            if (stream) {
+                h2_stream_recv_frame(stream, NGHTTP2_HEADERS, frame->hd.flags);
+            }
+            break;
+        case NGHTTP2_DATA:
+            stream = h2_session_stream_get(session, frame->hd.stream_id);
+            if (stream) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,  
+                              H2_STRM_LOG(APLOGNO(02923), stream, 
+                              "DATA, len=%ld, flags=%d"), 
+                              (long)frame->hd.length, frame->hd.flags);
+                h2_stream_recv_frame(stream, NGHTTP2_DATA, frame->hd.flags);
+            }
+            break;
+        case NGHTTP2_PRIORITY:
+            session->reprioritize = 1;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_stream(%ld-%d): PRIORITY frame "

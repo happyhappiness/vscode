@@ -1,1 +1,1 @@
-ap_rputs("</D:multistatus>" DEBUG_CR, r);
+ap_rputs("<hr /></pre>\n", r);

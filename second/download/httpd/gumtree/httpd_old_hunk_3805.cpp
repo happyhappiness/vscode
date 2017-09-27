@@ -1,22 +1,39 @@
-	case 'l':
-	    ap_show_modules();
-	    exit(0);
-	case 'X':
-	    ++one_process;	/* Weird debugging mode. */
-	    break;
-	case '?':
-	    usage(argv[0]);
-	}
-    }
+                }
+            }
+        }
 
-    if (!child && run_as_service) {
-	service_cd();
+        connected    = 1;
     }
+    /*
+     * Put the entire worker to error state if
+     * the PROXY_WORKER_IGNORE_ERRORS flag is not set.
+     * Altrough some connections may be alive
+     * no further connections to the worker could be made
+     */
+    if (!connected && PROXY_WORKER_IS_USABLE(worker) &&
+        !(worker->s->status & PROXY_WORKER_IGNORE_ERRORS)) {
+        worker->s->error_time = apr_time_now();
+        worker->s->status |= PROXY_WORKER_IN_ERROR;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00959)
+            "ap_proxy_connect_backend disabling worker for (%s) for %"
+            APR_TIME_T_FMT "s",
+            worker->s->hostname, apr_time_sec(worker->s->retry));
+    }
+    else {
+        if (worker->s->retries) {
+            /*
+             * A worker came back. So here is where we need to
+             * either reset all params to initial conditions or
+             * apply some sort of aging
+             */
+        }
+        worker->s->error_time = 0;
+        worker->s->retries = 0;
+    }
+    return connected ? OK : DECLINED;
+}
 
-    server_conf = ap_read_config(pconf, ptrans, ap_server_confname);
-    if (!child) {
-	ap_log_pid(pconf, ap_pid_fname);
-    }
-    ap_set_version();
-    ap_init_modules(pconf, server_conf);
-    ap_suexec_enabled = init_suexec();
+static apr_status_t connection_shutdown(void *theconn)
+{
+    proxy_conn_rec *conn = (proxy_conn_rec *)theconn;
+    conn_rec *c = conn->connection;

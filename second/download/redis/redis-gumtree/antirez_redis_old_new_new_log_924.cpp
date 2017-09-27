@@ -1,1 +1,0 @@
-serverLog(LL_WARNING, "RDB version >= 5 but no room for checksum.");

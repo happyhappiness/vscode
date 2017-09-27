@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "Child %d: Encountered too many errors accepting client connections. "
+                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
+                                 "Try using the Win32DisableAcceptEx directive.", my_pid);

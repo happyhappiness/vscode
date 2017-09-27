@@ -1,13 +1,13 @@
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: ajp_msg_get_byte failed");
-        return rc;
-    }
-    if (result != CMD_AJP13_SEND_BODY_CHUNK) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_parse_data: wrong type %02x expecting 0x03", result);
-        return AJP_EBAD_HEADER;
-    }
-    rc = ajp_msg_get_uint16(msg, len);
-    if (rc != APR_SUCCESS) {
-        return rc;
-    }
+            X509_REVOKED *revoked =
+                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
+
+            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
+
+            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
+                if (s->loglevel >= APLOG_DEBUG) {
+                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
+                    long serial = ASN1_INTEGER_get(sn);
+
+                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                                 "Certificate with serial %ld (0x%lX) "
+                                 "revoked per CRL from issuer %s",

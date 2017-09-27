@@ -1,13 +1,20 @@
+    return from_h1->response;
+}
 
-    /* Host names must not start with a '.' */
-    if (addr[0] == '.')
-	return 0;
-
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; ap_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i);
-
-#if 0
-    if (addr[i] == ':') {
-	fprintf(stderr, "@@@@ handle optional port in proxy_is_hostname()\n");
-	/* @@@@ handle optional port */
-    }
+static apr_status_t make_h2_headers(h2_from_h1 *from_h1, request_rec *r)
+{
+    from_h1->response = h2_response_create(from_h1->stream_id, 0,
+                                           from_h1->http_status, 
+                                           from_h1->hlines,
+                                           r->notes,
+                                           from_h1->pool);
+    from_h1->content_length = from_h1->response->content_length;
+    from_h1->chunked = r->chunked;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, APLOGNO(03197)
+                  "h2_from_h1(%d): converted headers, content-length: %d"
+                  ", chunked=%d",
+                  from_h1->stream_id, (int)from_h1->content_length, 
+                  (int)from_h1->chunked);
+    
+    set_state(from_h1, ((from_h1->chunked || from_h1->content_length > 0)?

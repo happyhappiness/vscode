@@ -1,57 +1,16 @@
-    if ((result = apr_file_read(fd, (char *) buf, &nbytes)) != APR_SUCCESS) {
-	ap_log_rerror(APLOG_MARK, APLOG_ERR, result, r,
-		    MODNAME ": read failed: %s", r->filename);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
+    * is for the algorithm to operate on the best available precision
+    * regardless of who runs it.  Since the above calculation may
+    * result in significant variance at 1e-12, rounding would be bogus.
+    */
 
-    if (nbytes == 0) {
-        return DECLINED;
-    }
-    else {
-	buf[nbytes++] = '\0';	/* null-terminate it */
-        result = tryit(r, buf, nbytes, 1);
-	if (result != OK) {
-            return result;
-        }
-    }
-
-    (void) apr_file_close(fd);
-    (void) magic_rsl_putchar(r, '\n');
-
-    return OK;
-}
-
-
-static int tryit(request_rec *r, unsigned char *buf, apr_size_t nb,
-                 int checkzmagic)
-{
-    /*
-     * Try compression stuff
-     */
-	if (checkzmagic == 1) {  
-			if (zmagic(r, buf, nb) == 1)
-			return OK;
-	}
-
-    /*
-     * try tests in /etc/magic (or surrogate magic file)
-     */
-    if (softmagic(r, buf, nb) == 1)
-	return OK;
-
-    /*
-     * try known keywords, check for ascii-ness too.
-     */
-    if (ascmagic(r, buf, nb) == 1)
-	return OK;
-
-    /*
-     * abandon hope, all ye who remain here
-     */
-    return DECLINED;
-}
-
-#define    EATAB {while (apr_isspace(*l))  ++l;}
-
-/*
- * apprentice - load configuration from the magic file r
+#ifdef NEG_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+           "Variant: file=%s type=%s lang=%s sourceq=%1.3f "
+           "mimeq=%1.3f langq=%1.3f charq=%1.3f encq=%1.3f "
+           "q=%1.5f definite=%d",
+            (variant->file_name ? variant->file_name : ""),
+            (variant->mime_type ? variant->mime_type : ""),
+            (variant->content_languages
+             ? apr_array_pstrcat(neg->pool, variant->content_languages, ',')
+             : ""),
+            variant->source_quality,

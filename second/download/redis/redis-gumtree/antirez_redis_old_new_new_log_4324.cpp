@@ -1,1 +1,0 @@
-addReplyDouble(c,*score);

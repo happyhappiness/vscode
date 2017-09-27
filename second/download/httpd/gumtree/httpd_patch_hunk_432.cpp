@@ -1,28 +1,36 @@
-                          "LDAP: SSL support unavailable" );
-     }
-     
-     return(OK);
+     else
+         st->cert_file_type = LDAP_CA_TYPE_UNKNOWN;
+ 
+     return(NULL);
  }
  
-+static void util_ldap_child_init(apr_pool_t *p, server_rec *s)
++static const char *util_ldap_set_connection_timeout(cmd_parms *cmd, void *dummy, const char *ttl)
 +{
-+    apr_status_t sts;
-+    util_ldap_state_t *st =
-+        (util_ldap_state_t *)ap_get_module_config(s->module_config, &ldap_module);
++    util_ldap_state_t *st = 
++        (util_ldap_state_t *)ap_get_module_config(cmd->server->module_config, 
++						  &ldap_module);
++    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
 +
-+    sts = apr_global_mutex_child_init(&st->util_ldap_cache_lock, st->lock_file, p);
-+    if (sts != APR_SUCCESS) {
-+        ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");
-+        return;
++    if (err != NULL) {
++        return err;
 +    }
-+    else {
-+        ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
-+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());
-+    }
++
++#ifdef LDAP_OPT_NETWORK_TIMEOUT
++    st->connectionTimeout = atol(ttl);
++
++    ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
++                      "[%d] ldap connection: Setting connection timeout to %ld seconds.", 
++                      getpid(), st->connectionTimeout);
++#else
++    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server,
++                     "LDAP: Connection timout option not supported by the LDAP SDK in use." );
++#endif
++
++    return NULL;
 +}
  
- command_rec util_ldap_cmds[] = {
-     AP_INIT_TAKE1("LDAPSharedCacheSize", util_ldap_set_cache_bytes, NULL, RSRC_CONF,
-                   "Sets the size of the shared memory cache in bytes. "
-                   "Zero means disable the shared memory cache. Defaults to 100KB."),
+ void *util_ldap_create_config(apr_pool_t *p, server_rec *s)
+ {
+     util_ldap_state_t *st = 
+         (util_ldap_state_t *)apr_pcalloc(p, sizeof(util_ldap_state_t));
  

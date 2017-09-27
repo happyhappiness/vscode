@@ -1,13 +1,18 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-length:", 15)) {
+                char *errp;
+                apr_off_t number;
+
+                if (apr_strtoff(&number, body, &errp, 10)
+                    || *errp || number < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Parse error in type map, Content-Length: "
+                                  "'%s' in %s is invalid.",
+                                  body, r->filename);
+                    break;
+                }
+                mime_info.bytes = number;
+                has_content = 1;
+            }
+            else if (!strncmp(buffer, "content-language:", 17)) {

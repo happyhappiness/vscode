@@ -1,12 +1,13 @@
-}
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
+#if EXAMPLE_LOG_EACH
+static void example_log_each(apr_pool_t *p, server_rec *s, const char *note)
 {
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
-
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (s != NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "mod_example_hooks: %s", note);
+    } else {
+        apr_file_t *out = NULL;
+        apr_file_open_stderr(&out, p);
+        apr_file_printf(out, "mod_example_hooks traced in non-loggable "
+                        "context: %s\n", note);
+    }
+}

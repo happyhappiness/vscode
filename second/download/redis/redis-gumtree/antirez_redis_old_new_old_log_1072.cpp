@@ -1,1 +1,0 @@
-g(REDIS_NOTICE, "supervised by systemd, will signal readyness");

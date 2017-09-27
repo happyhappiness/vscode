@@ -1,1 +1,0 @@
-addReplyError(c,"string exceeds maximum allowed size (512MB)");

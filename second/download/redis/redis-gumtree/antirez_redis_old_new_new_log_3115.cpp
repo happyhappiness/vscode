@@ -1,1 +1,0 @@
-anetSetError(err, "setsockopt SO_SNDBUF: %s", strerror(errno));

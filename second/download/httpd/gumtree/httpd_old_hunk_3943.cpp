@@ -1,16 +1,14 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
+                                                         &authnz_ldap_module);
 
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
+    if (sec->secure)
+    {
+        if (!util_ldap_ssl_supported(s))
+        {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                     "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
+            return(!OK);
+        }
     }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
+    */
 
-    /* perform sub-request for the file name without the suffix */
+    /* make sure that mod_ldap (util_ldap) is loaded */

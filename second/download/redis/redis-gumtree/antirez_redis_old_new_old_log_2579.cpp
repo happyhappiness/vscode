@@ -1,1 +1,0 @@
-redisLog(REDIS_WARNING, "Failed rewriting the append only file: %s", strerror(errno));

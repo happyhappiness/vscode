@@ -1,19 +1,25 @@
-     for (i = 0; i < conf->balancers->nelts; i++) {
-         ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
-         ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
-         ap_rputs("\n\n<table border=\"0\"><tr>"
-                  "<th>SSes</th><th>Timeout</th><th>Method</th>"
-                  "</tr>\n<tr>", r);
--        ap_rvputs(r, "<td>", balancer->sticky, NULL);
-+        if (balancer->sticky) {
-+            ap_rvputs(r, "<td>", balancer->sticky, NULL);
-+        }
-+        else {
-+            ap_rputs("<td> - ", r);
-+        }
-         ap_rprintf(r, "</td><td>%" APR_TIME_T_FMT "</td>",
-                    apr_time_sec(balancer->timeout));
-         ap_rprintf(r, "<td>%s</td>\n",
-                    balancer->lbmethod->name);
-         ap_rputs("</table>\n", r);
-         ap_rputs("\n\n<table border=\"0\"><tr>"
+     if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
+                           ssl_callback_ServerNameIndication) ||
+         !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                      "Unable to initialize TLS servername extension "
+                      "callback (incompatible OpenSSL version?)");
+-        ssl_log_ssl_error(APLOG_MARK, APLOG_ERR, s);
++        ssl_log_ssl_error(SSLLOG_MARK, APLOG_ERR, s);
+         ssl_die();
+     }
++
++#ifdef HAVE_OCSP_STAPLING
++    /*
++     * OCSP Stapling support, status_request extension
++     */
++    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
++        modssl_init_stapling(s, p, ptemp, mctx);
++    }
++#endif
+ }
+ #endif
+ 
+ static void ssl_init_ctx_protocol(server_rec *s,
+                                   apr_pool_t *p,
+                                   apr_pool_t *ptemp,

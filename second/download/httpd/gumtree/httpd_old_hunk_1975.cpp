@@ -1,16 +1,22 @@
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-		MODNAME ": revision_suffix checking %s", r->filename);
-#endif /* MIME_MAGIC_DEBUG */
-
-    /* check for recognized revision suffix */
-    suffix_pos = strlen(r->filename) - 1;
-    if (!isdigit(r->filename[suffix_pos])) {
-	return 0;
-    }
-    while (suffix_pos >= 0 && isdigit(r->filename[suffix_pos]))
-	suffix_pos--;
-    if (suffix_pos < 0 || r->filename[suffix_pos] != '@') {
-	return 0;
-    }
-
-    /* perform sub-request for the file name without the suffix */
+        char *obuf;
+        if (apr_bucket_read(b, &buf, &nbytes, APR_BLOCK_READ) == APR_SUCCESS) {
+            if (nbytes) {
+                obuf = malloc(nbytes+1);    /* use pool? */
+                memcpy(obuf, buf, nbytes);
+                obuf[nbytes] = '\0';
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+                     "mod_dumpio:  %s (%s-%s): %s",
+                     f->frec->name,
+                     (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                     b->type->name,
+                     obuf);
+                free(obuf);
+            }
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
+                 "mod_dumpio:  %s (%s-%s): %s",
+                 f->frec->name,
+                 (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                 b->type->name,
+                 "error reading data");
+        }

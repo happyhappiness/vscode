@@ -1,22 +1,14 @@
-	    else {
-		grpname = gr->gr_name;
-	    }
-	}
-	else {
-	    if ((pw = getpwuid(r->server->server_uid)) == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			     "getpwuid: invalid userid %ld",
-			     (long) r->server->server_uid);
-		return (pid);
-	    }
-	    execuser = ap_pstrdup(r->pool, pw->pw_name);
 
-	    if ((gr = getgrgid(r->server->server_gid)) == NULL) {
-		ap_log_rerror(APLOG_MARK, APLOG_ERR, r,
-			     "getgrgid: invalid groupid %ld",
-			     (long) r->server->server_gid);
-		return (pid);
-	    }
-	    grpname = gr->gr_name;
-	}
-++ apache_1.3.2/src/modules/example/mod_example.c	1998-08-31 21:50:04.000000000 +0800
+    rv = apr_dir_open(&dirp, dir, pool);
+    if (APR_STATUS_IS_ENOENT(rv)) {
+        return rv;
+    }
+    if (rv != APR_SUCCESS) {
+        apr_file_printf(errfile, "Could not open directory %s: %pm" APR_EOL_STR,
+                dir, &rv);
+        return rv;
+    }
+
+    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
+            == APR_SUCCESS) {
+        if (dirent.filetype == APR_DIR) {

@@ -1,1 +1,0 @@
-SHIFT_ERROR(offset, "Could not read time");

@@ -1,1 +1,0 @@
-printf("%s\n", reply->str);

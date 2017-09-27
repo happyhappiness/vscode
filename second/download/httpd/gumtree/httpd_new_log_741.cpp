@@ -1,1 +1,1 @@
-ap_rputs(" -D NO_WRITEV\n", r);
+ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);

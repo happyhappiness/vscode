@@ -1,13 +1,13 @@
-                        ap_rputs("</td><td>I", r);
-                        break;
-                    default:
-                        ap_rputs("</td><td>?", r);
-                        break;
-                    }
-                    
-                    ap_rprintf(r,
-                               "\n</td>"
-#ifdef HAVE_TIMES
-                               "<td>%.2f</td>"
-#endif
-                               "<td>%ld</td><td>%ld",
+
+    have_rsa = ssl_server_import_cert(s, mctx, rsa_id, SSL_AIDX_RSA);
+    have_dsa = ssl_server_import_cert(s, mctx, dsa_id, SSL_AIDX_DSA);
+
+    if (!(have_rsa || have_dsa)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Oops, no RSA or DSA server certificate found?!");
+        ssl_die();
+    }
+
+    for (i = 0; i < SSL_AIDX_MAX; i++) {
+        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
+    }

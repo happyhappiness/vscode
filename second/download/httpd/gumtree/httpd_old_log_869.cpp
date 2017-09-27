@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                     "SSL Proxy requested for %s but not enabled "
-                     "[Hint: SSLProxyEngine]", sc->vhost_id);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to determine list of available "
+                    "CA certificates for client authentication");

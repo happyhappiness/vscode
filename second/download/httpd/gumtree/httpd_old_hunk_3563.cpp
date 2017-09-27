@@ -1,18 +1,23 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+            argv0);
+    fprintf(stderr,
+            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
+#endif
+    fprintf(stderr,
+            "to httpd.conf. The generated name will be /some/where.nnnn "
+            "where nnnn is the\nsystem time at which the log nominally "
+            "starts (N.B. if using a rotation time,\nthe time will always "
+            "be a multiple of the rotation time, so you can synchronize\n"
+            "cron scripts with it). At the end of each rotation time or "
+            "when the file size\nis reached a new log is started. If the "
+            "-t option is specified, the specified\nfile will be truncated "
+            "instead of rotated, and is useful where tail is used to\n"
+            "process logs in real time.  If the -L option is specified, "
+            "a hard link will be\nmade from the current log file to the "
+            "specified filename.\n");
+    exit(1);
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, char **pw)
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    char *t;
-
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
-
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+/*
+ * Get the unix time with timezone corrections
+ * given in the config struct.

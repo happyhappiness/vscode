@@ -1,13 +1,23 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
+            if (newfname && r->args && *r->args) {
+                char *qs = strrchr(newfname, '?');
+                if (qs && !strcmp(qs+1, r->args)) {
+                    *qs = '\0';
+                }
+            }
+        }
+
+        if (newfname) {
+            newfname = ap_strchr(newfname, '/');
+            r->filename = newfname;
+        }
     }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
-    }
-    
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+
+    /* XXX are there any FastCGI specific env vars we need to send? */
+
+    /* Give admins final option to fine-tune env vars */
+    fix_cgivars(r, dconf);
+
+    /* XXX mod_cgi/mod_cgid use ap_create_environment here, which fills in

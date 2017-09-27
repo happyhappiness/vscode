@@ -1,13 +1,22 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    /* get the destination URI */
+    dest = apr_table_get(r->headers_in, "Destination");
+    if (dest == NULL) {
+        /* This supplies additional information for the default message. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request is missing a Destination header.");
+        return HTTP_BAD_REQUEST;
+    }
+
+    lookup = dav_lookup_uri(dest, r, 0 /* must_be_absolute */);
+    if (lookup.rnew == NULL) {
+        if (lookup.err.status == HTTP_BAD_REQUEST) {
+            /* This supplies additional information for the default message. */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "%s", lookup.err.desc);
+            return HTTP_BAD_REQUEST;
+        }
+        else if (lookup.err.status == HTTP_BAD_GATEWAY) {
+            /* ### Bindings protocol draft 02 says to return 507
+             * ### (Cross Server Binding Forbidden); Apache already defines 507

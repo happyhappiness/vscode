@@ -1,14 +1,19 @@
-    const char *err = ap_check_cmd_context(cmd,
-                                           NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) {
-        return err;
-    }
-
-    /* TODO: ap_configtestonly && ap_docrootcheck && */
-    /* XXX Shouldn't this be relative to ServerRoot ??? */
-    if (apr_filepath_merge((char**)&conf->ap_document_root, NULL, arg,
-                           APR_FILEPATH_TRUENAME, cmd->pool) != APR_SUCCESS
-        || !ap_is_directory(cmd->pool, arg)) {
-        if (cmd->server->is_virtual) {
-            ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
-                          cmd->pool,
+		    "spawning %d children, there are %d idle, and "
+		    "%d total children", idle_spawn_rate,
+		    idle_count, total_non_dead);
+	    }
+	    for (i = 0; i < free_length; ++i) {
+#ifdef TPF
+        if (make_child(ap_server_conf, free_slots[i]) == -1) {
+            if(free_length == 1) {
+                shutdown_pending = 1;
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, ap_server_conf,
+                "No active child processes: shutting down");
+            }
+        }
+#else
+		make_child(ap_server_conf, free_slots[i]);
+#endif /* TPF */
+	    }
+	    /* the next time around we want to spawn twice as many if this
+	     * wasn't good enough, but not if we've just done a graceful

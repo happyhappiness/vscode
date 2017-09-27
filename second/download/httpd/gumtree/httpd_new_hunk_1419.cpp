@@ -1,13 +1,14 @@
-        }
-        ap_rputs("<hr />\n", r);
-        if (wsel && bsel) {
-            ap_rputs("<h3>Edit worker settings for ", r);
-            ap_rvputs(r, wsel->name, "</h3>\n", NULL);
-            ap_rvputs(r, "<form method=\"GET\" action=\"", NULL);
-            ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);
-            ap_rputs("<table><tr><td>Load factor:</td><td><input name=\"lf\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbfactor);
-            ap_rputs("<tr><td>LB Set:</td><td><input name=\"ls\" type=text ", r);
-            ap_rprintf(r, "value=\"%d\"></td></tr>\n", wsel->s->lbset);
-            ap_rputs("<tr><td>Route:</td><td><input name=\"wr\" type=text ", r);
-            ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                r->status = HTTP_REQUEST_TIME_OUT;
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
+                              "Failed to read request header line %s", field);
+                r->status = HTTP_BAD_REQUEST;
+            }
+
+            /* ap_rgetline returns APR_ENOSPC if it fills up the buffer before
+             * finding the end-of-line.  This is only going to happen if it
+             * exceeds the configured limit for a field size.

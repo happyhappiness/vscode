@@ -1,13 +1,13 @@
-		    /* else nothing needs be done because
-		     * then the backslash is escaped and
-		     * we just strip to a single one
-		     */
-		}
-		/* blast trailing whitespace */
-		while (i > 0 && ap_isspace(buf[i - 1]))
-		    --i;
-		buf[i] = '\0';
-#ifdef DEBUG_CFG_LINES
-		ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-		return 0;
+    if (tmp.filetype != APR_REG) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(02105)
+                     "not a regular file, skipping %s", fspec);
+        return NULL;
+    }
+
+    /* Load the extension as cached (with null request_rec) */
+    rv = isapi_lookup(cmd->pool, cmd->server, NULL, fspec, &isa);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, cmd->server, APLOGNO(02106)
+                     "unable to cache, skipping %s", fspec);
+        return NULL;
+    }

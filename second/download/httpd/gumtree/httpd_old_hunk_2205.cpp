@@ -1,25 +1,32 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
+            && (service_to_start_success != APR_SUCCESS)) {
+        ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL,
+                     "%s: Unable to start the service manager.",
+                     service_name);
+        exit(APEXIT_INIT);
     }
-    return;
-}
+    else if (!one_process && !ap_my_generation) {
+        /* Open a null handle to soak stdout in this process.
+         * We need to emulate apr_proc_detach, unix performs this
+         * same check in the pre_config hook (although it is
+         * arguably premature).  Services already fixed this.
+         */
+        apr_file_t *nullfile;
+        apr_status_t rv;
+        apr_pool_t *pproc = apr_pool_parent_get(pconf);
 
-static void rewritelock_open(server_rec *s, pool *p)
-{
-    rewrite_server_conf *conf;
+        if ((rv = apr_file_open(&nullfile, "NUL",
+                                APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                                pproc)) == APR_SUCCESS) {
+            apr_file_t *nullstdout;
+            if (apr_file_open_stdout(&nullstdout, pproc)
+                    == APR_SUCCESS)
+                apr_file_dup2(nullstdout, nullfile, pproc);
+            apr_file_close(nullfile);
+        }
+    }
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
+    /* Win9x: disable AcceptEx */
+    if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+        use_acceptex = 0;
+    }
 
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,

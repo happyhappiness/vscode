@@ -1,14 +1,65 @@
-#include "http_main.h"
-#include "http_request.h"
+ * untrusted data.
+ */
+#if __STDC_VERSION__ >= 199901L
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_cerror(...) ap_log_cerror__(__VA_ARGS__)
+#define ap_log_cerror__(file, line, mi, level, status, c, ...)              \
+    do { if (APLOG_C_MODULE_IS_LEVEL(c, mi, level))                         \
+             ap_log_cerror_(file, line, mi, level, status, c, __VA_ARGS__); \
+    } while(0)
+#else
+#define ap_log_cerror ap_log_cerror_
+#endif
+AP_DECLARE(void) ap_log_cerror_(const char *file, int line, int module_level,
+                                int level, apr_status_t status,
+                                const conn_rec *c, const char *fmt, ...)
+			    __attribute__((format(printf,7,8)));
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    const char *location;
+/**
+ * ap_log_cserror() - log messages which are related to a particular
+ * connection and to a vhost other than c->base_server.  This uses a
+ * printf-like format to log messages to the error_log.
+ * @param file The file in which this function is called
+ * @param line The line number on which this function is called
+ * @param level The level of this error message
+ * @param module_index The module_index of the module generating this message
+ * @param status The status code from the previous command
+ * @param c The connection which we are logging for
+ * @param s The server which we are logging for
+ * @param fmt The format string
+ * @param ... The arguments to use to fill out fmt.
+ * @note Use APLOG_MARK to fill out file and line
+ * @note If a request_rec is available, use that with ap_log_rerror()
+ * in preference to calling this function. This function is mainly useful for
+ * modules like mod_ssl to use before the request_rec is created.
+ * @warning It is VERY IMPORTANT that you not include any raw data from 
+ * the network, such as the request-URI or request header fields, within 
+ * the format string.  Doing so makes the server vulnerable to a 
+ * denial-of-service attack and other messy behavior.  Instead, use a 
+ * simple format string like "%s", followed by the string containing the 
+ * untrusted data.
+ */
+#if __STDC_VERSION__ >= 199901L
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_cserror(...) ap_log_cserror__(__VA_ARGS__)
+#define ap_log_cserror__(file, line, mi, level, status, c, s, ...)  \
+    do { if (APLOG_CS_MODULE_IS_LEVEL(c, s, mi, level))             \
+             ap_log_cserror_(file, line, mi, level, status, c, s,   \
+                             __VA_ARGS__);                          \
+    } while(0)
+#else
+#define ap_log_cserror ap_log_cserror_
+#endif
+AP_DECLARE(void) ap_log_cserror_(const char *file, int line, int module_level,
+                                 int level, apr_status_t status,
+                                 const conn_rec *c, const server_rec *s,
+                                 const char *fmt, ...)
+                             __attribute__((format(printf,8,9)));
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-++ apache_1.3.1/src/modules/standard/mod_auth_anon.c	1998-07-04 06:08:49.000000000 +0800
+/**
+ * Convert stderr to the error log
+ * @param s The current server
+ */
+AP_DECLARE(void) ap_error_log2stderr(server_rec *s);
+
+/**

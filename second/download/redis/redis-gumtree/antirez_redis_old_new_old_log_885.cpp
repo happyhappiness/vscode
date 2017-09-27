@@ -1,1 +1,0 @@
-serverLog(REDIS_VERBOSE,"Accepted connection to %s", server.unixsocket);

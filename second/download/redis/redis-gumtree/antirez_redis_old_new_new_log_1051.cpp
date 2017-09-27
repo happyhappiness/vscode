@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"There is a child saving an .rdb. Killing it!");

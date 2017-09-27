@@ -1,13 +1,28 @@
-    core_server_config *conf = ap_get_module_config(sconf, &core_module);
-  
-    if (r->proxyreq) {
-        return HTTP_FORBIDDEN;
+                                        HUGE_STRING_LEN);
+        if (APLOGctrace1(f->c)) {
+            char buffer[1024];
+            apr_size_t len = sizeof(buffer)-1;
+            apr_brigade_flatten(bb, buffer, &len);
+            buffer[len] = 0;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                          "h2_slave_in(%s): getline: %s",
+                          task->id, buffer);
+        }
     }
-    if ((r->uri[0] != '/') && strcmp(r->uri, "*")) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Invalid URI in request %s", r->the_request);
-	return BAD_REQUEST;
+    else {
+        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
+         * to support it. Seems to work. */
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
+                      APLOGNO(03472) 
+                      "h2_slave_in(%s), unsupported READ mode %d", 
+                      task->id, mode);
+        status = APR_ENOTIMPL;
     }
     
-    if (r->server->path 
-	&& !strncmp(r->uri, r->server->path, r->server->pathlen)
+    if (APLOGctrace1(f->c)) {
+        apr_brigade_length(bb, 0, &bblen);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_slave_in(%s): %ld data bytes", task->id, (long)bblen);
+    }
+    return status;
+}

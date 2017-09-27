@@ -1,42 +1,59 @@
-	ap_destroy_sub_req(pa_req);
+                    new_pollfd.reqevents = APR_POLLIN;
+                    new_pollfd.desc.s = c->aprsock;
+                    new_pollfd.client_data = c;
+                    apr_pollset_add(readbits, &new_pollfd);
+                }
+        }
+    }
+
+    if (heartbeatres)
+        fprintf(stderr, "Finished %ld requests\n", done);
+    else
+        printf("..done\n");
+
+    if (use_html)
+        output_html_results();
+    else
+        output_results();
+}
+
+/* ------------------------------------------------------- */
+
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1.146 $> apache-2.0");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Copyright 2006 The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
+    }
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.146 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Copyright 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
     }
 }
 
-
-static int scan_script_header_err_core(request_rec *r, char *buffer,
-		 int (*getsfunc) (char *, int, void *), void *getsfunc_data)
+/* display usage information */
+static void usage(const char *progname)
 {
-    char x[MAX_STRING_LEN];
-    char *w, *l;
-    int p;
-    int cgi_status = HTTP_OK;
-
-    if (buffer)
-	*buffer = '\0';
-    w = buffer ? buffer : x;
-
-    ap_hard_timeout("read script header", r);
-
-    while (1) {
-
-	if ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data) == 0) {
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Premature end of script headers: %s", r->filename);
-	    return SERVER_ERROR;
-	}
-
-	/* Delete terminal (CR?)LF */
-
-	p = strlen(w);
-	if (p > 0 && w[p - 1] == '\n') {
-	    if (p > 1 && w[p - 2] == '\015')
-		w[p - 2] = '\0';
-	    else
-		w[p - 1] = '\0';
-	}
-
-	/*
-	 * If we've finished reading the headers, check to make sure any
-	 * HTTP/1.1 conditions are met.  If so, we're done; normal processing
-	 * will handle the script's output.  If not, just return the error.
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST\n");
+    fprintf(stderr, "    -T content-type Content-type header for POSTing\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");

@@ -1,13 +1,16 @@
     }
 
-    if (conf->nonce_lifetime > 0) {
-        if (dt > conf->nonce_lifetime) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0,r,
-                          "Digest: user %s: nonce expired (%.2f seconds old "
-                          "- max lifetime %.2f) - sending new nonce",
-                          r->user, (double)apr_time_sec(dt),
-                          (double)apr_time_sec(conf->nonce_lifetime));
-            note_digest_auth_failure(r, conf, resp, 1);
-            return HTTP_UNAUTHORIZED;
+    if (sbuf && *sbuf)
+        apr_file_printf(f, "%s\n", sbuf);
+
+    first = 1;
+    for (e = APR_BRIGADE_FIRST(bb);
+         e != APR_BRIGADE_SENTINEL(bb);
+         e = APR_BUCKET_NEXT(e))
+    {
+        if (APR_BUCKET_IS_EOS(e)) {
+            break;
         }
-    }
+        rv = apr_bucket_read(e, &buf, &len, APR_BLOCK_READ);
+        if (rv != APR_SUCCESS || (len == 0)) {
+            break;

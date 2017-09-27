@@ -1,1 +1,0 @@
-lua_pushstring(lua, "redis.set_repl() requires two arguments.");

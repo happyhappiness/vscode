@@ -1,1 +1,0 @@
-printf(" -r <keyspacelen>   Use random keys for SET/GET/INCR\n");

@@ -1,13 +1,13 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
-    }
+    ap_listen_rec *lr;
+    parent_info_t *parent_info;
+    char *listener_shm_name;
+    int listener_num, num_listeners, slot;
+    ULONG rc;
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    printf("%s \n", ap_get_server_version());
+    set_signals();
+
+    if (ap_setup_listeners(ap_server_conf) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+                     "no listening sockets available, shutting down");
+        return FALSE;

@@ -1,17 +1,12 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
+                ap_lua_release_state(L, spec, r);
+                return HTTP_INTERNAL_SERVER_ERROR;
             }
-        }
+            rc = DECLINED;
+            if (lua_isnumber(L, -1)) {
+                rc = lua_tointeger(L, -1);
+            }
+            if (rc != DECLINED) {
+                ap_lua_release_state(L, spec, r);
+                return rc;
+            }
+            ap_lua_release_state(L, spec, r);

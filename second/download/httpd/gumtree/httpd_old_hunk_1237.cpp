@@ -1,14 +1,21 @@
-    printf("Write errors:           %d\n", epipe);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
-    if (posting > 0)
-        printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);
-    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
+            }
 
-    /* avoid divide by zero */
-    if (timetaken && done) {
-        printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (double) done / timetaken);
+            if (ap_some_auth_required(r)) {
+                if (((access_status = ap_run_check_user_id(r)) != 0)
+                    || !ap_auth_type(r)) {
+                    return decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  No user file?"
+                                  : "perform authentication. AuthType not set!",
+                                  r);
+                }
+
+                if (((access_status = ap_run_auth_checker(r)) != 0)
+                    || !ap_auth_type(r)) {
+                    return decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  No groups file?"
+                                  : "perform authentication. AuthType not set!",
+                                   r);
+                }
+            }
+            break;
+

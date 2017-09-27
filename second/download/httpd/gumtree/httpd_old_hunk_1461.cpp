@@ -1,12 +1,13 @@
-                    memcpy(ctx->validation_buffer, ctx->stream.next_in,
-                           ctx->validation_buffer_length);
-                break;
-            }
+}
 
-            if (zRC != Z_OK) {
-                return APR_EGENERAL;
-            }
-        }
+static int check_nonce(request_rec *r, digest_header_rec *resp,
+                       const digest_config_rec *conf)
+{
+    apr_time_t dt;
+    int len;
+    time_rec nonce_time;
+    char tmp, hash[NONCE_HASH_LEN+1];
 
-        apr_bucket_delete(e);
-    }
+    if (strlen(resp->nonce) != NONCE_LEN) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: invalid nonce %s received - length is not %d",

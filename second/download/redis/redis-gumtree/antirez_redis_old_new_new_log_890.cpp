@@ -1,1 +1,0 @@
-serverLog(LL_VERBOSE, "Reading from client: %s",strerror(errno));

@@ -1,82 +1,59 @@
+             * Calling ap_save_brigade with NULL as filter is OK, because
+             * bb brigade already has been created and does not need to get
+             * created by ap_save_brigade.
+             */
+            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
+            if (status != APR_SUCCESS) {
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
 
-#define BY_ENCODING &c_by_encoding
-#define BY_TYPE &c_by_type
-#define BY_PATH &c_by_path
+            header_brigade = NULL;
+        }
+        else {
+            bb = input_brigade;
+        }
 
-/*
- * Return true if the specified string refers to the parent directory (i.e.,
- * matches ".." or "../").  Hopefully this one call is significantly less
- * expensive than multiple strcmp() calls.
- */
-static ap_inline int is_parent(const char *name)
-{
-    /*
-     * Now, IFF the first two bytes are dots, and the third byte is either
-     * EOS (\0) or a slash followed by EOS, we have a match.
-     */
-    if (((name[0] == '.') && (name[1] == '.'))
-	&& ((name[2] == '\0')
-	    || ((name[2] == '/') && (name[3] == '\0')))) {
-        return 1;
+        /* Once we hit EOS, we are ready to flush. */
+        rv = pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
+        if (rv != OK) {
+            return rv ;
+        }
+
+        if (seen_eos) {
+            break;
+        }
+
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                HUGE_STRING_LEN);
+
+        if (status != APR_SUCCESS) {
+            return HTTP_BAD_REQUEST;
+        }
     }
-    return 0;
+
+    if (bytes_streamed != cl_val) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: client %s given Content-Length did not match"
+                     " number of body bytes read", r->connection->remote_ip);
+        return HTTP_BAD_REQUEST;
+    }
+
+    if (header_brigade) {
+        /* we never sent the header brigade since there was no request
+         * body; send it now with the flush flag
+         */
+        bb = header_brigade;
+        return(pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
+    }
+
+    return OK;
 }
 
-/*
- * This routine puts the standard HTML header at the top of the index page.
- * We include the DOCTYPE because we may be using features therefrom (i.e.,
- * HEIGHT and WIDTH attributes on the icons if we're FancyIndexing).
- */
-static void emit_preamble(request_rec *r, char *title)
-{
-    ap_rvputs(r, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n",
-	      "<HTML>\n <HEAD>\n  <TITLE>Index of ", title,
-	      "</TITLE>\n </HEAD>\n <BODY>\n", NULL);
-}
-
-static void push_item(array_header *arr, char *type, char *to, char *path,
-		      char *data)
-{
-    struct item *p = (struct item *) ap_push_array(arr);
-
-    if (!to) {
-	to = "";
-    }
-    if (!path) {
-	path = "";
-    }
-
-    p->type = type;
-    p->data = data ? ap_pstrdup(arr->pool, data) : NULL;
-    p->apply_path = ap_pstrcat(arr->pool, path, "*", NULL);
-
-    if ((type == BY_PATH) && (!ap_is_matchexp(to))) {
-	p->apply_to = ap_pstrcat(arr->pool, "*", to, NULL);
-    }
-    else if (to) {
-	p->apply_to = ap_pstrdup(arr->pool, to);
-    }
-    else {
-	p->apply_to = NULL;
-    }
-}
-
-static const char *add_alt(cmd_parms *cmd, void *d, char *alt, char *to)
-{
-    if (cmd->info == BY_PATH) {
-        if (!strcmp(to, "**DIRECTORY**")) {
-	    to = "^^DIRECTORY^^";
-	}
-    }
-    if (cmd->info == BY_ENCODING) {
-	ap_str_tolower(to);
-    }
-
-    push_item(((autoindex_config_rec *) d)->alt_list, cmd->info, to,
-	      cmd->path, alt);
-    return NULL;
-}
-
-static const char *add_icon(cmd_parms *cmd, void *d, char *icon, char *to)
-{
-    char *iconbak = ap_pstrdup(cmd->pool, icon);
+static int spool_reqbody_cl(apr_pool_t *p,
+                                     request_rec *r,
+                                     proxy_conn_rec *p_conn,
+                                     conn_rec *origin,
+                                     apr_bucket_brigade *header_brigade,
+                                     apr_bucket_brigade *input_brigade,
+                                     int force_cl)

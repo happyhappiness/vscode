@@ -1,15 +1,16 @@
-         if (rv != APR_SUCCESS) {
-             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                           "can't open translation %s->%s",
-                           dc->charset_default, dc->charset_source);
-             return HTTP_INTERNAL_SERVER_ERROR;
-         }
-+        if (apr_xlate_sb_get(input_ctx->xlate, &input_ctx->is_sb) != APR_SUCCESS) {
-+            input_ctx->is_sb = 0;
-+        }
+     else {
+         if (*scheme == 'h')
+             proxy_function = "HTTP";
+         else
+             proxy_function = "FTP";
      }
+-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+-             "proxy: HTTP: serving URL %s", url);
++    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
++                 "proxy: HTTP: serving URL %s", url);
  
-     return DECLINED;
- }
  
- static int configured_in_list(request_rec *r, const char *filter_name,
+     /* create space for state information */
+     if ((status = ap_proxy_acquire_connection(proxy_function, &backend,
+                                               worker, r->server)) != OK)
+         goto cleanup;

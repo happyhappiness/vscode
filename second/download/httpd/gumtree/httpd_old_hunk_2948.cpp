@@ -1,13 +1,20 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
+ * @param smsg      source AJP message
+ * @param dmsg      destination AJP message
+ * @return          APR_SUCCESS or error
+ */
+apr_status_t ajp_msg_copy(ajp_msg_t *smsg, ajp_msg_t *dmsg)
+{
+    if (dmsg == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination msg is null");
+        return AJP_EINVAL;
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    if (smsg->len > smsg->max_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_msg_copy(): destination buffer too "
+                     "small %" APR_SIZE_T_FMT ", max size is %" APR_SIZE_T_FMT,
+                     smsg->len, smsg->max_size);
+        return  AJP_ETOSMALL;
+    }
+

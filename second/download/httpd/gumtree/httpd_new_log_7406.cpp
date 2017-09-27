@@ -1,0 +1,1 @@
+fprintf(stderr, "Error: %s\n", htdbm->ctx.errstr);

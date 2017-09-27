@@ -1,1 +1,0 @@
-rewriteConfigYesNoOption(state,"active-rehashing",server.activerehashing,REDIS_DEFAULT_ACTIVE_REHASHING);

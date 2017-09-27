@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "%s: Alert: %s:%s:%s",
+                         SSL_LIBRARY_NAME, str,
+                         SSL_alert_type_string_long(rc),
+                         SSL_alert_desc_string_long(rc));

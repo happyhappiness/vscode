@@ -1,1 +1,0 @@
-serverLog(LL_WARNING,"Sentinel ID is %s", sentinel.myid);

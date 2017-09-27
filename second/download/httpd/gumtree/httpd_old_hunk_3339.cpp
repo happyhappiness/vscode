@@ -1,28 +1,33 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
+    else {
+        /* Parent process */
+        char restart;
+        is_parent_process = TRUE;
 
-    sub_garbage_coll(r, files, cachedir, "/");
+        if (ap_setup_listeners(ap_server_conf) < 1) {
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+                         "no listening sockets available, shutting down");
+            return 1;
+        }
 
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
-    }
+        ap_log_pid(pconf, ap_pid_fname);
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
+        restart = master_main();
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
 
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+        if (!restart) {
+            const char *pidfile = ap_server_root_relative(pconf, ap_pid_fname);
+
+            if (pidfile != NULL && remove(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%d)",
+                             pidfile, getpid());
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught SIGTERM, shutting down");
+            return 1;
+        }
+    }  /* Parent process */
+
+    return 0; /* Restart */

@@ -1,0 +1,1 @@
+fprintf(output, "    - No address: %d\n", errors[NO_ADDRESS]);

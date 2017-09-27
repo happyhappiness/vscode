@@ -1,14 +1,13 @@
-    int is_idle = 0;
 
-    free(ti);
+#ifdef NO_LINGCLOSE
+    printf(" -D NO_LINGCLOSE\n");
+#endif
 
-    ap_update_child_status_from_indexes(process_slot, thread_slot, SERVER_STARTING, NULL);
+#if APR_HAVE_IPV6
+    printf(" -D APR_HAVE_IPV6\n");
+#endif
 
-    bucket_alloc = apr_bucket_alloc_create(apr_thread_pool_get(thd));
+#if APR_USE_FLOCK_SERIALIZE
+    printf(" -D APR_USE_FLOCK_SERIALIZE\n");
+#endif
 
-    while (!workers_may_exit) {
-        if (!is_idle) {
-            rv = ap_queue_info_set_idle(worker_queue_info, last_ptrans);
-            last_ptrans = NULL;
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,

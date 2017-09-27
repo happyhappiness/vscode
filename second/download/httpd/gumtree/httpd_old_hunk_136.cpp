@@ -1,12 +1,20 @@
-        }
-    }
+ * set to ASCII, then send it.
+ * @param r   the current request
+ * @param ... the strings to write, followed by a NULL pointer
+ */
+int ap_rvputs_proto_in_ascii(request_rec *r, ...);
 
-    return s;
+#ifdef __cplusplus
 }
+#endif
 
-static const char *set_secure_listener(cmd_parms *cmd, void *dummy, 
-                                       const char *ips, const char* key, 
-                                       const char* mutual)
-{
-    NWSSLSrvConfigRec* sc = get_nwssl_cfg(cmd->server);
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+#else   /* APR_CHARSET_EBCDIC */
+
+#define ap_xlate_proto_to_ascii(x,y)          /* NOOP */
+#define ap_xlate_proto_from_ascii(x,y)        /* NOOP */
+
+#define ap_rvputs_proto_in_ascii  ap_rvputs
+
+#endif  /* APR_CHARSET_EBCDIC */
+    
+#endif  /* !APACHE_UTIL_EBCDIC_H */

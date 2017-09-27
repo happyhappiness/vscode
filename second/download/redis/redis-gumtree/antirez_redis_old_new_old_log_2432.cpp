@@ -1,2 +1,0 @@
-addReplyError(c,
-                "command not allowed when used memory > 'maxmemory'");

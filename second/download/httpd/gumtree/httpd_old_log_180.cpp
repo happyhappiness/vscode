@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                      "couldn't set child process attributes: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0,
+		     cmd->server, "[%d] auth_ldap parse url: not requesting secure LDAP", getpid());

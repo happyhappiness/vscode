@@ -1,1 +1,0 @@
-fprintf(stderr,"Transfer finished with success.\n");

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "invalid CGI ref \"%s\" in %s",
-                                      tag_val, file);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                             "couldn't create child process: %d: %s", rc, 
+                             apr_filename_of_pathname(r->filename));

@@ -1,0 +1,1 @@
+printf("Server MPM:     %s\n", ap_show_mpm());

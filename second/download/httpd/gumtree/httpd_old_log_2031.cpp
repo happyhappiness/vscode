@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Client requested a 'session-resume' but "
-                     "we have no such session.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: canonicalising URL %s", url);

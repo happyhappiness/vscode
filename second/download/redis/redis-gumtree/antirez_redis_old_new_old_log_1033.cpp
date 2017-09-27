@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"SIGTERM received but errors trying to shut down the server, check the logs for more information");

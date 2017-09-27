@@ -1,12 +1,17 @@
-            /* We need to copy the output headers and treat them as input
-             * headers as well.  BUT, we need to do this before we remove
-             * TE, so that they are preserved accordingly for
-             * ap_http_filter to know where to end.
-             */
-            rp->headers_in = apr_table_copy(r->pool, r->headers_out);
+            X509_REVOKED *revoked =
+                sk_X509_REVOKED_value(X509_CRL_get_REVOKED(crl), i);
 
-            apr_table_unset(r->headers_out,"Transfer-Encoding");
+            ASN1_INTEGER *sn = X509_REVOKED_get_serialNumber(revoked);
 
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: start body send");
+            if (!ASN1_INTEGER_cmp(sn, X509_get_serialNumber(cert))) {
+                if (s->loglevel >= APLOG_INFO) {
+                    char *cp = X509_NAME_oneline(issuer, NULL, 0);
+                    long serial = ASN1_INTEGER_get(sn);
+
+                    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                                 "Certificate with serial %ld (0x%lX) "
+                                 "revoked per CRL from issuer %s",
+                                 serial, serial, cp);
+                    modssl_free(cp);
+                }
 

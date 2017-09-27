@@ -1,9 +1,0 @@
---- /dev/null
-+++ /dev/null
-@@ -214,5 +200,5 @@
-     }
- 
-     fclose(fp);
--    exit(0);
-+    return 0;
- 

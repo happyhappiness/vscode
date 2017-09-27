@@ -1,19 +1,18 @@
-         ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
-                      "unable to replace stderr with error_log");
-     }
-     return rc;
- }
- 
-+static void log_child_errfn(apr_pool_t *pool, apr_status_t err,
-+                            const char *description)
-+{
-+    ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL,
-+                 "%s", description);
-+}
+                     if (d->icon_width) {
+                         ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                     }
+                     if (d->icon_height) {
+                         ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                     }
+-                    ap_rputs(" />", r);
 +
- static int log_child(apr_pool_t *p, const char *progname,
-                      apr_file_t **fpin)
- {
-     /* Child process code for 'ErrorLog "|..."';
-      * may want a common framework for this, since I expect it will
-      * be common for other foo-loggers to want this sort of thing...
++                    if (autoindex_opts & EMIT_XHTML) {
++                        ap_rputs(" /", r);
++                    }
++                    ap_rputs(">", r);
+                 }
+                 else {
+                     ap_rputs("     ", r);
+                 }
+                 if (autoindex_opts & ICONS_ARE_LINKS) {
+                     ap_rputs("</a> ", r);

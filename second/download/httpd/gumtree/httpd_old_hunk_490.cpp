@@ -1,14 +1,13 @@
-                                            &arr_parms, NULL,
-                                            arr_elts_getstr, arr_elts_close);
-
-    errmsg = ap_build_config(&parms, p, ptemp, conftree);
-    if (errmsg) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Syntax error in -C/-c directive:" APR_EOL_STR "%s",
-                     errmsg);
-        exit(1);
+        return rv;
     }
 
-    ap_cfg_closefile(parms.config_file);
-}
+    /* TerminateExtension() is an optional interface */
+    rv = apr_dso_sym((void**)&isa->TerminateExtension, isa->handle,
+                     "TerminateExtension");
+    SetLastError(0);
 
+    /* Run GetExtensionVersion() */
+    if (!(isa->GetExtensionVersion)(isa->isapi_version)) {
+        apr_status_t rv = apr_get_os_error();
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: failed call to GetExtensionVersion() in %s", 

@@ -1,20 +1,16 @@
- * 20020903.6 (2.0.49-dev) add insert_error_filter hook
- * 20020903.7 (2.0.49-dev) added XHTML Doctypes
- * 20020903.8 (2.0.50-dev) export ap_set_sub_req_protocol and
- *                         ap_finalize_sub_req_protocol on Win32 and NetWare
- * 20020903.9 (2.0.51-dev) create pcommands and initialize arrays before
- *                         calling ap_setup_prelinked_modules
- */
+            * close(sd2) here should be okay, as CGI channel
+            * is already dup()ed by apr_procattr_child_{in,out}_set()
+            * above.
+            */
+            close(sd2);
 
-#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
+            rc = ap_os_create_privileged_process(r, procnew, argv0, argv, 
+                                                 (const char * const *)env, 
+                                                 procattr, ptrans);
 
-#ifndef MODULE_MAGIC_NUMBER_MAJOR
-#define MODULE_MAGIC_NUMBER_MAJOR 20020903
-#endif
-#define MODULE_MAGIC_NUMBER_MINOR 9                     /* 0...n */
-
-/**
- * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
- * specified value.
- * <pre>
- * Useful for testing for features.
+            if (rc != APR_SUCCESS) {
+                /* Bad things happened. Everyone should have cleaned up.
+                 * ap_log_rerror() won't work because the header table used by
+                 * ap_log_rerror() hasn't been replicated in the phony r
+                 */
+                ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,

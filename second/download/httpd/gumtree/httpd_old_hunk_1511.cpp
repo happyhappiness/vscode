@@ -1,12 +1,15 @@
-            }
-        }
     }
 
-    for (i = 0; i < ap_threads_per_child; i++) {
-        if (threads[i]) { /* if we ever created this thread */
-            rv = apr_thread_join(&thread_rv, threads[i]);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                             "apr_thread_join: unable to join worker "
-                             "thread %d",
-                             i);
+start_over:
+
+    /* There is a good AuthLDAPURL, right? */
+    if (sec->host) {
+        ldc = util_ldap_connection_find(r, sec->host, sec->port,
+                                       sec->binddn, sec->bindpw, sec->deref,
+                                       sec->secure);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no sec->host - weird...?", getpid());
+        return AUTH_GENERAL_ERROR;
+    }

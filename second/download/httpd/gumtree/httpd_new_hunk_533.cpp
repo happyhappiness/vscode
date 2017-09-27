@@ -1,31 +1,17 @@
-        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
-        status = apr_proc_create(procnew, pname, (const char * const *) args,
-                                 NULL, procattr, pl->p);
+            r->status_line = apr_pstrdup(p, &buffer[9]);
+            
+            /* read the headers. */
+            /* N.B. for HTTP/1.0 clients, we have to fold line-wrapped headers*/
+            /* Also, take care with headers with multiple occurences. */
 
-        if (status == APR_SUCCESS) {
-            pl->pid = procnew;
-            /* procnew->in was dup2'd from ap_piped_log_write_fd(pl);
-             * since the original fd is still valid, close the copy to
-             * avoid a leak. */
-            apr_file_close(procnew->in);
-            procnew->in = NULL;
-            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
-                                          ap_piped_log_write_fd(pl), pl->p);
-            close_handle_in_child(pl->p, ap_piped_log_read_fd(pl));
-        }
-        else {
-            char buf[120];
-            /* Something bad happened, give up and go away. */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "unable to start piped log program '%s': %s",
-                         pl->program, apr_strerror(status, buf, sizeof(buf)));
-        }
-    }
+            /* First, tuck away all already existing cookies */
+            save_table = apr_table_make(r->pool, 2);
+            apr_table_do(addit_dammit, save_table, r->headers_out,
+                         "Set-Cookie", NULL);
 
-    return status;
-}
-
-
-static void piped_log_maintenance(int reason, void *data, apr_wait_t status)
-{
-    piped_log *pl = data;
+            r->headers_out = ap_proxy_read_headers(r, rp, buffer,
+                                                   sizeof(buffer), origin);
+            if (r->headers_out == NULL) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d header "
+                             "returned by %s (%s)", major, minor, r->uri,

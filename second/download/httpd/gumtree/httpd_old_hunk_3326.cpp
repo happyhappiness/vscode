@@ -1,20 +1,40 @@
+         * children which will then bind to another CPU.
+         */
+        int status = bindprocessor(BINDPROCESS, (int) getpid(),
+                                   PROCESSOR_CLASS_ANY);
+        if (status != OK)
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
+                         ap_server_conf,
+                         "processor unbind failed");
 #endif
+        RAISE_SIGSTOP(MAKE_CHILD);
 
-    ap_soft_timeout("send body", r);
+        apr_signal(SIGTERM, just_die);
+        child_main(slot);
 
-    FD_ZERO(&fds);
-    while (!r->connection->aborted) {
-        if ((length > 0) && (total_bytes_sent + IOBUFSIZE) > length)
-            len = length - total_bytes_sent;
-        else
-            len = IOBUFSIZE;
+        clean_child_exit(0);
+    }
+    /* else */
+    if (ap_scoreboard_image->parent[slot].pid != 0) {
+        /* This new child process is squatting on the scoreboard
+         * entry owned by an exiting child process, which cannot
+         * exit until all active requests complete.
+         * Don't forget about this exiting child process, or we
+         * won't be able to kill it if it doesn't exit by the
+         * time the server is shut down.
+         */
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
+                     ap_scoreboard_image->parent[slot].pid,
+                     ap_scoreboard_image->parent[slot].quiescing ?
+                         " (quiescing)" : "");
+        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
+    }
+    ap_scoreboard_image->parent[slot].quiescing = 0;
+    ap_scoreboard_image->parent[slot].pid = pid;
+    return 0;
+}
 
-        do {
-            n = ap_bread(fb, buf, len);
-            if (n >= 0 || r->connection->aborted)
-                break;
-            if (n < 0 && errno != EAGAIN)
-                break;
-            /* we need to block, so flush the output first */
-            ap_bflush(r->connection->client);
-            if (r->connection->aborted)
+/* start up a bunch of children */
+static void startup_children(int number_to_start)
+{

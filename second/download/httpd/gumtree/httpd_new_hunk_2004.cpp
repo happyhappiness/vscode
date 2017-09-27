@@ -1,49 +1,33 @@
-	    return cond_status;
-	}
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: CONNECT: sending the CONNECT request to the remote proxy");
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+                  "CONNECT %s HTTP/1.0" CRLF, r->uri);
+        apr_socket_send(sock, buffer, &nbytes);
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+                  "Proxy-agent: %s" CRLF CRLF, ap_get_server_banner());
+        apr_socket_send(sock, buffer, &nbytes);
+    }
+    else {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: CONNECT: Returning 200 OK Status");
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+                  "HTTP/1.0 200 Connection Established" CRLF);
+        ap_xlate_proto_to_ascii(buffer, nbytes);
+        apr_socket_send(client_socket, buffer, &nbytes);
+        nbytes = apr_snprintf(buffer, sizeof(buffer),
+                  "Proxy-agent: %s" CRLF CRLF, ap_get_server_banner());
+        ap_xlate_proto_to_ascii(buffer, nbytes);
+        apr_socket_send(client_socket, buffer, &nbytes);
+#if 0
+        /* This is safer code, but it doesn't work yet.  I'm leaving it
+         * here so that I can fix it later.
+         */
+        r->status = HTTP_OK;
+        r->header_only = 1;
+        apr_table_set(r->headers_out, "Proxy-agent: %s", ap_get_server_banner());
+        ap_rflush(r);
+#endif
+    }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
-
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
-
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
-
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
-
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
-
-	    /* Nuke trailing whitespace */
-
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
-
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+         "proxy: CONNECT: setting up poll()");

@@ -1,14 +1,17 @@
+    EXCEPTIONREGISTRATIONRECORD reg_rec = { NULL, thread_exception_handler };
+    ap_sb_handle_t *sbh;
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
+    /* Trap exceptions in this thread so we don't take down the whole process */
+    DosSetExceptionHandler( &reg_rec );
+
+    rc = DosOpenQueue(&owner, &workq,
+                      apr_psprintf(pchild, "/queues/httpd/work.%d", getpid()));
+
+    if (rc) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
+                     "unable to open work queue, exiting");
+        ap_scoreboard_image->servers[child_slot][thread_slot].tid = 0;
     }
-    cache = c->fp;
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+    conn_id = ID_FROM_CHILD_THREAD(child_slot, thread_slot);
+    ap_update_child_status_from_indexes(child_slot, thread_slot, SERVER_READY,

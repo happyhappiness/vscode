@@ -1,1 +1,0 @@
-addReplyError(c,"GET option of SORT denied in Cluster mode.");

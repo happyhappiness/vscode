@@ -1,13 +1,13 @@
-
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
+                apr_file_printf(errfile, "Warning: Password truncated to 8 characters "
+                                "by CRYPT algorithm." NL);
+            }
+            free(truncpw);
+        }
+        break;
+#endif
     }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
+    memset(pw, '\0', strlen(pw));
 
-/*****************************************************************
+    /*
+     * Check to see if the buffer is large enough to hold the username,
+     * hash, and delimiters.

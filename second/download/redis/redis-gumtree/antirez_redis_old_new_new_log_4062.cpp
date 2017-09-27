@@ -1,1 +1,0 @@
-printf("Failed to truncate AOF\n");

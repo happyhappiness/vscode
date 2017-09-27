@@ -1,38 +1,13 @@
-    apr_status_t rv;
+    if (!opaque_cntr) {
+        return NULL;
+    }
 
-    fprintf(stderr,"Starting the %s service\n", mpm_display_name);
+    apr_global_mutex_lock(opaque_lock);
+    op = (*opaque_cntr)++;
+    apr_global_mutex_unlock(opaque_lock);
 
-    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT)
-    {
-        SC_HANDLE   schService;
-        SC_HANDLE   schSCManager;
-
-        schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
-                                     SC_MANAGER_CONNECT);
-        if (!schSCManager) {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "Failed to open the WinNT service manager");
-            return (rv);
-        }
-
-#if APR_HAS_UNICODE_FS
-        IF_WIN_OS_IS_UNICODE
-        {
-            schService = OpenServiceW(schSCManager, mpm_service_name_w,
-                                     SERVICE_START | SERVICE_QUERY_STATUS);
-        }
-#endif /* APR_HAS_UNICODE_FS */
-#if APR_HAS_ANSI_FS
-        ELSE_WIN_OS_IS_ANSI
-        {
-            schService = OpenService(schSCManager, mpm_service_name,
-                                     SERVICE_START | SERVICE_QUERY_STATUS);
-        }
-#endif
-        if (!schService) {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "%s: Failed to open the service.", mpm_display_name);
-            CloseServiceHandle(schSCManager);
-            return (rv);
+    if (!(entry = add_client(op, &new_entry, r->server))) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: failed to allocate client entry - ignoring "
+                      "client");
+        return NULL;

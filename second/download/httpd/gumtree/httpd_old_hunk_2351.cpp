@@ -1,12 +1,12 @@
-}
+    if (error) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL,
+                     "%s: %s", ap_server_argv0, error);
+        return NULL;
+    }
 
-#ifdef USE_PERL_SSI
-static int handle_perl(FILE *in, request_rec *r, const char *error)
-{
-    char tag[MAX_STRING_LEN];
-    char *tag_val;
-    SV *sub = Nullsv;
-    AV *av = newAV();
+    error = process_command_config(s, ap_server_post_read_config, conftree,
+                                   p, ptemp);
 
-    if (!(ap_allow_options(r) & OPT_INCLUDES)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    if (error) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);

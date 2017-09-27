@@ -1,27 +1,28 @@
-             rv = apr_get_os_error();
-             ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                          "Failed to open the WinNT service manager.");
-             return (rv);
-         }
+     entry  = client_list->table[bucket];
  
--        /* ###: utf-ize */
--        schService = OpenService(schSCManager, mpm_service_name, DELETE);
--
-+#if APR_HAS_UNICODE_FS
-+        IF_WIN_OS_IS_UNICODE
-+        {
-+            schService = OpenServiceW(schSCManager, mpm_service_name_w, DELETE);
-+        }
-+#endif /* APR_HAS_UNICODE_FS */
-+#if APR_HAS_ANSI_FS
-+        ELSE_WIN_OS_IS_ANSI
-+        {
-+            schService = OpenService(schSCManager, mpm_service_name, DELETE);
-+        }
-+#endif
-         if (!schService) {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                         "%s: OpenService failed", mpm_display_name);
-            return (rv);
+     apr_global_mutex_lock(client_lock);
+ 
+     /* try to allocate a new entry */
+ 
+-    entry = (client_entry *)apr_rmm_malloc(client_rmm, sizeof(client_entry));
++    entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+     if (!entry) {
+         long num_removed = gc();
+         ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                      "Digest: gc'd %ld client entries. Total new clients: "
+                      "%ld; Total removed clients: %ld; Total renewed clients: "
+                      "%ld", num_removed,
+                      client_list->num_created - client_list->num_renewed,
+                      client_list->num_removed, client_list->num_renewed);
+-        entry = (client_entry *)apr_rmm_malloc(client_rmm, sizeof(client_entry));
++        entry = apr_rmm_addr_get(client_rmm, apr_rmm_malloc(client_rmm, sizeof(client_entry)));
+         if (!entry) {
++            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
++                         "unable to allocate new auth_digest client");
++            apr_global_mutex_unlock(client_lock);
+             return NULL;       /* give up */
          }
+     }
+ 
+     /* now add the entry */
+ 

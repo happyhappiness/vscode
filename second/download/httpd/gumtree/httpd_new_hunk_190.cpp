@@ -1,20 +1,14 @@
-            }
+                                      conf->limit_nproc)) != APR_SUCCESS) ||
+#endif
+        ((rc = apr_procattr_cmdtype_set(procattr,
+                                        e_info->cmd_type)) != APR_SUCCESS) ||
 
-            /* Check the listen queue on all sockets for requests */
-            memcpy(&main_fds, &listenfds, sizeof(fd_set));
-            srv = select(listenmaxfd + 1, &main_fds, NULL, NULL, &tv);
-
-            if (srv <= 0) {
-                if (srv < 0) {
-                    ap_log_error(APLOG_MARK, APLOG_NOTICE, apr_get_netos_error(), ap_server_conf,
-                        "select() failed on listen socket");
-                    apr_thread_yield();
-                }
-                continue;
-            }
-
-            /* remember the last_lr we searched last time around so that
-            we don't end up starving any particular listening socket */
-            if (last_lr == NULL) {
-                lr = ap_listeners;
-            }
+        ((rc = apr_procattr_detach_set(procattr,
+                                        e_info->detached)) != APR_SUCCESS) ||
+        ((rc = apr_procattr_child_errfn_set(procattr, cgi_child_errfn)) != APR_SUCCESS)) {
+        /* Something bad happened, tell the world. */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                      "couldn't set child process attributes: %s", r->filename);
+    }
+    else {
+        procnew = apr_pcalloc(p, sizeof(*procnew));

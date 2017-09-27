@@ -1,17 +1,13 @@
-	/* TM - Added \015\012 to the end of TYPE I, otherwise it hangs the
-	   connection */
-	ap_bputs("TYPE I" CRLF, f);
-	ap_bflush(f);
-	Explain0("FTP: TYPE I");
-/* responses: 200, 421, 500, 501, 504, 530 */
-	i = ftp_getrc(f);
-	Explain1("FTP: returned status %d", i);
-	if (i == -1) {
-	    ap_kill_timeout(r);
-	    return ap_proxyerror(r, "Error sending to remote server");
-	}
-	if (i != 200 && i != 504) {
-	    ap_kill_timeout(r);
-	    return HTTP_BAD_GATEWAY;
-	}
-/* Allow not implemented */
+     */
+    while (APR_SUCCESS == rv && !APR_BRIGADE_EMPTY(in)) {
+
+        rv = cache->provider->store_body(cache->handle, f->r, in, cache->out);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(00765)
+                    "cache: Cache provider's store_body failed!");
+            ap_remove_output_filter(f);
+
+            /* give someone else the chance to cache the file */
+            cache_remove_lock(conf, cache, f->r, NULL);
+
+            /* give up trying to cache, just step out the way */

@@ -1,29 +1,13 @@
+            exit(APEXIT_CHILDINIT);
+        }
+        nsd = WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO,
+                        &WSAProtocolInfo, 0, 0);
+        if (nsd == INVALID_SOCKET) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Child %d: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);
+            exit(APEXIT_CHILDINIT);
+        }
 
-static int ssl_tmp_key_init_rsa(server_rec *s,
-                                int bits, int idx)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-
-    if (!(mc->pTmpKeys[idx] =
-          RSA_generate_key(bits, RSA_F4, NULL, NULL)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit RSA private key", bits);
-        return !OK;
-    }
-
-    return OK;
-}
-
-static int ssl_tmp_key_init_dh(server_rec *s,
-                               int bits, int idx)
-{
-    SSLModConfigRec *mc = myModConfig(s);
-
-    if (!(mc->pTmpKeys[idx] =
-          ssl_dh_GetTmpParam(bits)))
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit DH parameters", bits);
+        if (osver.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS) {
+            HANDLE hProcess = GetCurrentProcess();
+            HANDLE dup;

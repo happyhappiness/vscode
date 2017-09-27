@@ -1,13 +1,27 @@
+                }
+                break;
+            case CMD_AJP13_SEND_BODY_CHUNK:
+                /* AJP13_SEND_BODY_CHUNK: piece of data */
+                status = ajp_parse_data(r, conn->data, &size, &buff);
+                if (status == APR_SUCCESS) {
+                    e = apr_bucket_transient_create(buff, size,
+                                                    r->connection->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(output_brigade, e);
 
-    if ((stat(SUEXEC_BIN, &wrapper)) != 0)
-	return (ap_suexec_enabled);
-
-    if ((wrapper.st_mode & S_ISUID) && wrapper.st_uid == 0) {
-	ap_suexec_enabled = 1;
-	fprintf(stderr, "Configuring Apache for use with suexec wrapper.\n");
-    }
-#endif /* ndef WIN32 */
-    return (ap_suexec_enabled);
-}
-
-/*****************************************************************
+                    if ( (conn->worker->flush_packets == flush_on) ||
+                         ( (conn->worker->flush_packets == flush_auto) &&
+                           (apr_poll(conn_poll, 1, &conn_poll_fd,
+                                     conn->worker->flush_wait)
+                             == APR_TIMEUP) ) ) {
+                        e = apr_bucket_flush_create(r->connection->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(output_brigade, e);
+                    }
+                    apr_brigade_length(output_brigade, 0, &bb_len);
+                    if (bb_len != -1)
+                        conn->worker->s->read += bb_len;
+                    if (ap_pass_brigade(r->output_filters,
+                                        output_brigade) != APR_SUCCESS) {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body");
+                        isok = 0;
+                    }

@@ -1,14 +1,12 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+                /* Soak up all the script output - may save an outright kill */
+                while ((*getsfunc)(w, MAX_STRING_LEN - 1, getsfunc_data) > 0) {
+                    continue;
+                }
+            }
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = toupper(*cp);
-    }
+            ap_log_rerror(SCRIPT_LOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                          "malformed header from script '%s': Bad header: %.30s",
+                          apr_filepath_name_get(r->filename), w);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
--- apache_1.3.0/src/os/bs2000/ebcdic.c	1998-05-13 23:31:01.000000000 +0800

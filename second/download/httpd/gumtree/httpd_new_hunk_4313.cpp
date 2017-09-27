@@ -1,20 +1,13 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
         }
-        return 0;
     }
 
-    range = ap_getword(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        const char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+    if (cs->pub.state == CONN_STATE_WRITE_COMPLETION) {
+        ap_filter_t *output_filter = c->output_filters;
+        apr_status_t rv;
+        ap_update_child_status(sbh, SERVER_BUSY_WRITE, NULL);
+        while (output_filter->next != NULL) {
+            output_filter = output_filter->next;
+        }
+        rv = output_filter->frec->filter_func.out_func(output_filter, NULL);
+        if (rv != APR_SUCCESS) {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(00470)

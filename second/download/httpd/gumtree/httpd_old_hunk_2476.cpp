@@ -1,13 +1,20 @@
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &one,
-		   sizeof(one)) == -1) {
-#ifndef _OSD_POSIX /* BS2000 has this option "always on" */
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error setting reuseaddr option: setsockopt(SO_REUSEADDR)");
-	ap_pclosesocket(p, sock);
-	return SERVER_ERROR;
-#endif /*_OSD_POSIX*/
     }
 
-#ifdef SINIX_D_RESOLVER_BUG
-    {
-	struct in_addr *ip_addr = (struct in_addr *) *server_hp.h_addr_list;
+    if (fork_req) {
+       rv = apr_proc_fork(&proc, r->pool);
+        switch (rv) {
+        case APR_INPARENT:
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "parent waiting for child");
+            /* FIXME - does the child need to run synchronously?
+             * esp. if we enable mod_privileges with threaded MPMs?
+             * We do need at least to ensure r outlives the child.
+             */
+            rv = apr_proc_wait(&proc, &exitcode, &exitwhy, APR_WAIT);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "parent: child %s",
+                          (rv == APR_CHILD_DONE) ? "done" : "notdone");
+
+            /* The child has taken responsibility for reading all input
+             * and sending all output.  So we need to bow right out,
+             * and even abandon "normal" housekeeping.
+             */

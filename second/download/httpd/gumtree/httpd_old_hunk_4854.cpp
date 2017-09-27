@@ -1,17 +1,13 @@
-	    int cond_status = OK;
 
-	    ap_kill_timeout(r);
-	    if ((cgi_status == HTTP_OK) && (r->method_number == M_GET)) {
-		cond_status = ap_meets_conditions(r);
-	    }
-	    return cond_status;
-	}
+    iov[0].iov_base = (void*)&disk_info;
+    iov[0].iov_len = sizeof(disk_cache_info_t);
+    iov[1].iov_base = (void*)dobj->name;
+    iov[1].iov_len = disk_info.name_len;
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
-
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
-
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    rv = apr_file_writev(dobj->hdrs.tempfd, (const struct iovec *) &iov, 2, &amt);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(00726)
+                "could not write info to header file %s",
+                dobj->hdrs.tempfile);
+        apr_file_close(dobj->hdrs.tempfd);
+        apr_pool_destroy(dobj->hdrs.pool);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: mod_dbd not compatible with APR in get_driver");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

@@ -1,13 +1,14 @@
-     ap_register_input_filter(logio_filter_name, logio_in_filter, NULL,
-                              AP_FTYPE_NETWORK - 1);
-     ap_register_output_filter(logio_filter_name, logio_out_filter, NULL,
-                               AP_FTYPE_NETWORK - 1);
  
-     APR_REGISTER_OPTIONAL_FN(ap_logio_add_bytes_out);
-+    APR_REGISTER_OPTIONAL_FN(ap_logio_add_bytes_in);
- }
+         rv = ap_get_brigade(r->proto_input_filters, tempb, AP_MODE_READBYTES,
+                             APR_BLOCK_READ, 8192);
+         if (rv) {
+             ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                           "could not read request body for SSL buffer");
+-            return ap_map_http_request_error(rv, HTTP_INTERNAL_SERVER_ERROR);
++            return HTTP_INTERNAL_SERVER_ERROR;
+         }
  
- module AP_MODULE_DECLARE_DATA logio_module =
- {
-     STANDARD20_MODULE_STUFF,
-     NULL,                       /* create per-dir config */
+         /* Iterate through the returned brigade: setaside each bucket
+          * into the context's pool and move it into the brigade. */
+         for (e = APR_BRIGADE_FIRST(tempb);
+              e != APR_BRIGADE_SENTINEL(tempb) && !eos; e = next) {

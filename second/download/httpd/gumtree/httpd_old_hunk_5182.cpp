@@ -1,14 +1,28 @@
-	    hStdErr = dup(fileno(stderr));
-	    if(dup2(err_fds[1], fileno(stderr)))
-		ap_log_error(APLOG_MARK, APLOG_ERR, NULL, "dup2(stdin) failed");
-	    close(err_fds[1]);
-	}
+                      "session not loaded: %s", r->uri);
+        return rv;
+    }
 
-	pid = (*func) (data, NULL);
-        if (pid == -1) pid = 0;   /* map Win32 error code onto Unix default */
+    /* found a session that hasn't expired? */
+    now = apr_time_now();
+    if (!zz || (zz->expiry && zz->expiry < now)) {
 
-        if (!pid) {
-	    save_errno = errno;
-	    close(in_fds[1]);
-	    close(out_fds[0]);
--- apache_1.3.1/src/main/buff.c	1998-07-05 02:22:11.000000000 +0800
+        /* no luck, create a blank session */
+        zz = (session_rec *) apr_pcalloc(r->pool, sizeof(session_rec));
+        zz->pool = r->pool;
+        zz->entries = apr_table_make(zz->pool, 10);
+
+    }
+    else {
+        rv = ap_run_session_decode(r, zz);
+        if (OK != rv) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01817)
+                          "error while decoding the session, "
+                          "session not loaded: %s", r->uri);
+            return rv;
+        }
+    }
+
+    /* make sure the expiry and maxage are set, if present */
+    if (dconf->maxage) {
+        if (!zz->expiry) {
+            zz->expiry = now + dconf->maxage * APR_USEC_PER_SEC;

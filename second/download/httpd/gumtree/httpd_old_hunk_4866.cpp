@@ -1,26 +1,14 @@
+#ifdef HAVE_TIMES
+                               ws_record->times.tms_utime / tick,
+                               ws_record->times.tms_stime / tick,
+                               ws_record->times.tms_cutime / tick,
+                               ws_record->times.tms_cstime / tick,
+#endif
+                               (long)apr_time_sec(nowtime -
+                                                  ws_record->last_used),
+                               (long) req_time);
 
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-	ap_cfg_closefile(f);
-
-	if (errmsg) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r->server, "%s: %s",
-                        filename, errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*result = dc;
-    }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    return HTTP_FORBIDDEN;
-	}
-    }
-
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+                    format_byte_out(r, conn_bytes);
+                    ap_rputs("|", r);
+                    format_byte_out(r, my_bytes);
+                    ap_rputs("|", r);

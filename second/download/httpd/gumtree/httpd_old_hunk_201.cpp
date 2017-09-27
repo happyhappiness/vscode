@@ -1,22 +1,26 @@
-	apr_file_close(f);
-	exit(0);
+        rv = apr_file_open(&fd, fname, xfer_flags, xfer_perms, p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                            "could not open transfer log file %s.", fname);
+            return NULL;
+        }
+        apr_file_inherit_set(fd);
+        return fd;
     }
-    else if (argc != 4)
-	usage();
-
-    if (apr_file_mktemp(&tfp, tn, 0, cntxt) != APR_SUCCESS) {
-	fprintf(stderr, "Could not open temp file.\n");
-	exit(1);
-    }
-
-    if (apr_file_open(&f, argv[1], APR_READ, -1, cntxt) != APR_SUCCESS) {
-	fprintf(stderr,
-		"Could not open passwd file %s for reading.\n", argv[1]);
-	fprintf(stderr, "Use -c option to create new one.\n");
-	exit(1);
-    }
-    strcpy(user, argv[3]);
-    strcpy(realm, argv[2]);
-
-    found = 0;
-    while (!(get_line(line, MAX_STRING_LEN, f))) {
+}
+static void *ap_buffered_log_writer_init(apr_pool_t *p, server_rec *s, 
+                                        const char* name)
+{
+    buffered_log *b;
+    b = apr_palloc(p, sizeof(buffered_log));
+    b->handle = ap_default_log_writer_init(p, s, name);
+    b->outcnt = 0;
+    
+    if (b->handle)
+        return b;
+    else
+        return NULL;
+}
+static apr_status_t ap_buffered_log_writer(request_rec *r,
+                                           void *handle, 
+                                           const char **strs,

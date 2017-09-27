@@ -1,40 +1,19 @@
-                }
-                continue;
-            }
-            else if ((rv != APR_FROM_OS_ERROR(ERROR_IO_PENDING)) &&
-                     (rv != APR_FROM_OS_ERROR(WSA_IO_PENDING))) {
-                ++err_count;
-                if (err_count > MAX_ACCEPTEX_ERR_COUNT) {
-                    ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                                 "Child %d: Encountered too many errors accepting client connections. "
-                                 "Possible causes: Unknown. "
-                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
-                    err_count = 0;
-                }
-                closesocket(context->accept_socket);
-                context->accept_socket = INVALID_SOCKET;
-                continue;
-            }
-            err_count = 0;
+        requests_this_child = ap_max_requests_per_child;
+    }
+    else {
+        /* coding a value of zero means infinity */
+        requests_this_child = INT_MAX;
+    }
 
-            /* Wait for pending i/o.
-             * Wake up once per second to check for shutdown .
-             * XXX: We should be waiting on exit_event instead of polling
-             */
-            while (1) {
-                rv = WaitForSingleObject(context->Overlapped.hEvent, 1000);
-                if (rv == WAIT_OBJECT_0) {
-                    if (context->accept_socket == INVALID_SOCKET) {
-                        /* socket already closed */
-                        break;
-                    }
-                    if (!GetOverlappedResult((HANDLE)context->accept_socket,
-                                             &context->Overlapped,
-                                             &BytesRead, FALSE)) {
-                        ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                     apr_get_os_error(), ap_server_conf,
-                             "winnt_accept: Asynchronous AcceptEx failed.");
-                        closesocket(context->accept_socket);
-                        context->accept_socket = INVALID_SOCKET;
-                    }
-                    break;
+    /* Setup worker threads */
+
+    /* clear the storage; we may not create all our threads immediately,
+     * and we want a 0 entry to indicate a thread which was not created
+     */
+    threads = (apr_thread_t **)calloc(1,
+                                sizeof(apr_thread_t *) * ap_threads_per_child);
+    if (threads == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
+                     "malloc: out of memory");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }

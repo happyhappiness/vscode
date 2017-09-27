@@ -1,25 +1,25 @@
-	return ap_proxyerror(r, err);	/* give up */
+    apr_byte_t *head = msg->buf;
+    apr_size_t msglen;
 
-    sock = ap_psocket(r->pool, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		    "proxy: error creating socket");
-	return SERVER_ERROR;
+    if (!((head[0] == 0x41 && head[1] == 0x42) ||
+          (head[0] == 0x12 && head[1] == 0x34))) {
+
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_check_msg_header() got bad signature %02x%02x",
+                      head[0], head[1]);
+
+        return AJP_EBAD_SIGNATURE;
     }
 
-#ifndef WIN32
-    if (sock >= FD_SETSIZE) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_WARNING, NULL,
-	    "proxy_connect_handler: filedescriptor (%u) "
-	    "larger than FD_SETSIZE (%u) "
-	    "found, you probably need to rebuild Apache with a "
-	    "larger FD_SETSIZE", sock, FD_SETSIZE);
-	ap_pclosesocket(r->pool, sock);
-	return SERVER_ERROR;
-    }
-#endif
+    msglen  = ((head[2] & 0xff) << 8);
+    msglen += (head[3] & 0xFF);
 
-    j = 0;
-    while (server_hp.h_addr_list[j] != NULL) {
-	memcpy(&server.sin_addr, server_hp.h_addr_list[j],
--- apache_1.3.0/src/modules/proxy/proxy_ftp.c	1998-05-28 06:56:05.000000000 +0800
+    if (msglen > msg->max_size) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                     "ajp_check_msg_header() incoming message is "
+                     "too big %" APR_SIZE_T_FMT ", max is %" APR_SIZE_T_FMT,
+                     msglen, msg->max_size);
+        return AJP_ETOBIG;
+    }
+
+    msg->len = msglen + AJP_HEADER_LEN;

@@ -1,13 +1,24 @@
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "   -b   Use the password from the command line rather "
-                    "than prompting for it.\n");
-    fprintf(stderr, "   -c   Create a new database.\n");
-    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
-    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
-#endif
-    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
-    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
-    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
-    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+    }
+    apr_brigade_length(bb, 0, &transferred);
+    if (transferred != -1)
+        conn->worker->s->transferred += transferred;
+    status = ap_pass_brigade(origin->output_filters, bb);
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: pass request body failed to %pI (%s)",
+                     conn->addr, conn->hostname);
+        if (origin->aborted) { 
+            return APR_STATUS_IS_TIMEUP(status) ? HTTP_GATEWAY_TIME_OUT : HTTP_BAD_GATEWAY;
+        }
+        else { 
+            return HTTP_BAD_REQUEST; 
+        }
+    }
+    apr_brigade_cleanup(bb);
+    return OK;
+}
+
+#define MAX_MEM_SPOOL 16384
+
+static int stream_reqbody_chunked(apr_pool_t *p,

@@ -1,13 +1,39 @@
-#elif defined(NEXT) || defined(NEWSOS)
-    if (setpgrp(0, getpid()) == -1 || (pgrp = getpgrp(0)) == -1) {
-	perror("setpgrp");
-	fprintf(stderr, "httpd: setpgrp or getpgrp failed\n");
-	exit(1);
-    }
-#elif defined(__EMX__)
-    /* OS/2 don't support process group IDs */
-    pgrp = getpid();
-#elif defined(MPE)
-    /* MPE uses negative pid for process group */
-    pgrp = -getpid();
-#else
+#define MODSSL_ERROR_HTTP_ON_HTTPS (APR_OS_START_USERERR + 0)
+
+/* Custom apr_status_t error code, used when the proxy cannot
+ * establish an outgoing SSL connection. */
+#define MODSSL_ERROR_BAD_GATEWAY (APR_OS_START_USERERR + 1)
+
+static void ssl_io_filter_disable(SSLConnRec *sslconn, ap_filter_t *f)
+{
+    bio_filter_in_ctx_t *inctx = f->ctx;
+    SSL_free(inctx->ssl);
+    sslconn->ssl = NULL;
+    inctx->ssl = NULL;
+    inctx->filter_ctx->pssl = NULL;
+}
+
+static apr_status_t ssl_io_filter_error(ap_filter_t *f,
+                                        apr_bucket_brigade *bb,
+                                        apr_status_t status,
+                                        int is_init)
+{
+    SSLConnRec *sslconn = myConnConfig(f->c);
+    apr_bucket *bucket;
+    int send_eos = 1;
+
+    switch (status) {
+    case MODSSL_ERROR_HTTP_ON_HTTPS:
+            /* log the situation */
+            ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c, APLOGNO(01996)
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, sslconn->server);
+
+            ssl_io_filter_disable(sslconn, f);
+            f->c->keepalive = AP_CONN_CLOSE;
+            if (is_init) {
+                sslconn->non_ssl_request = NON_SSL_SEND_REQLINE;
+                return APR_EGENERAL;
+            }
+            sslconn->non_ssl_request = NON_SSL_SEND_HDR_SEP;

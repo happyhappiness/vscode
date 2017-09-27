@@ -1,74 +1,20 @@
-            APR_BRIGADE_INSERT_TAIL(ctx->bb, e);
-            continue;
+            if ( pidfile != NULL && unlink(pidfile) == 0)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
+                             pidfile, getpid());
+
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught " AP_SIG_GRACEFUL_STOP_STRING
+                         ", shutting down gracefully");
         }
 
-        /* read */
-        apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
-        if (!len) {
-            apr_bucket_delete(e);
-            continue;
-        }
-        if (len > APR_INT32_MAX) {
-            apr_bucket_split(e, APR_INT32_MAX);
-            apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        if (ap_graceful_shutdown_timeout) {
+            cutoff = apr_time_now() +
+                     apr_time_from_sec(ap_graceful_shutdown_timeout);
         }
 
-        /* first bucket contains zlib header */
-        if (ctx->header_len < sizeof(ctx->header)) {
-            apr_size_t rem;
-
-            rem = sizeof(ctx->header) - ctx->header_len;
-            if (len < rem) {
-                memcpy(ctx->header + ctx->header_len, data, len);
-                ctx->header_len += len;
-                apr_bucket_delete(e);
-                continue;
-            }
-            memcpy(ctx->header + ctx->header_len, data, rem);
-            ctx->header_len += rem;
-            {
-                int zlib_method;
-                zlib_method = ctx->header[2];
-                if (zlib_method != Z_DEFLATED) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "inflate: data not deflated!");
-                    ap_remove_output_filter(f);
-                    return ap_pass_brigade(f->next, bb);
-                }
-                if (ctx->header[0] != deflate_magic[0] ||
-                    ctx->header[1] != deflate_magic[1]) {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "inflate: bad header");
-                    return APR_EGENERAL ;
-                }
-                ctx->zlib_flags = ctx->header[3];
-                if ((ctx->zlib_flags & RESERVED)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "inflate: bad flags %02x",
-                                  ctx->zlib_flags);
-                    return APR_EGENERAL;
-                }
-            }
-            if (len == rem) {
-                apr_bucket_delete(e);
-                continue;
-            }
-            data += rem;
-            len -= rem;
-        }
-
-        if (ctx->zlib_flags) {
-            rv = consume_zlib_flags(ctx, &data, &len);
-            if (rv == APR_SUCCESS) {
-                ctx->zlib_flags = 0;
-            }
-            if (!len) {
-                apr_bucket_delete(e);
-                continue;
-            }
-        }
-
-        /* pass through zlib inflate. */
-        ctx->stream.next_in = (unsigned char *)data;
-        ctx->stream.avail_in = len;
-
+        /* Don't really exit until each child has finished */
+        shutdown_pending = 0;
+        do {
+            /* Pause for a second */

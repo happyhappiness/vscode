@@ -1,109 +1,56 @@
-static const char end_location_section[] = "</Location>";
-static const char end_locationmatch_section[] = "</LocationMatch>";
-static const char end_files_section[] = "</Files>";
-static const char end_filesmatch_section[] = "</FilesMatch>";
-static const char end_virtualhost_section[] = "</VirtualHost>";
-static const char end_ifmodule_section[] = "</IfModule>";
+    apr_signal(SIGPIPE, SIG_IGN);
+#endif /* SIGPIPE */
 
-
-API_EXPORT(const char *) ap_check_cmd_context(cmd_parms *cmd, unsigned forbidden)
-{
-    const char *gt = (cmd->cmd->name[0] == '<'
-		   && cmd->cmd->name[strlen(cmd->cmd->name)-1] != '>') ? ">" : "";
-
-    if ((forbidden & NOT_IN_VIRTUALHOST) && cmd->server->is_virtual)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <VirtualHost> section", NULL);
-
-    if ((forbidden & NOT_IN_LIMIT) && cmd->limited != -1)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Limit> section", NULL);
-
-    if ((forbidden & NOT_IN_DIR_LOC_FILE) == NOT_IN_DIR_LOC_FILE && cmd->path != NULL)
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <Directory/Location/Files> section", NULL);
-    
-    if (((forbidden & NOT_IN_DIRECTORY) && (cmd->end_token == end_directory_section
-	    || cmd->end_token == end_directorymatch_section)) ||
-	((forbidden & NOT_IN_LOCATION) && (cmd->end_token == end_location_section
-	    || cmd->end_token == end_locationmatch_section)) ||
-	((forbidden & NOT_IN_FILES) && (cmd->end_token == end_files_section
-	    || cmd->end_token == end_filesmatch_section)))
-	
-	return ap_pstrcat(cmd->pool, cmd->cmd->name, gt,
-		       " cannot occur within <", cmd->end_token+2,
-		       " section", NULL);
-
-    return NULL;
+#endif
 }
 
-static const char *set_access_name (cmd_parms *cmd, void *dummy, char *arg)
+/*****************************************************************
+ * Child process main loop.
+ */
+
+static int process_socket(apr_thread_t *thd, apr_pool_t * p, apr_socket_t * sock,
+                          conn_state_t * cs, int my_child_num,
+                          int my_thread_num)
 {
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
+    conn_rec *c;
+    listener_poll_type *pt;
+    long conn_id = ID_FROM_CHILD_THREAD(my_child_num, my_thread_num);
+    int rc;
+    ap_sb_handle_t *sbh;
 
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
+    ap_create_sb_handle(&sbh, p, my_child_num, my_thread_num);
 
-    conf->access_name = ap_pstrdup(cmd->pool, arg);
-    return NULL;
-}
+    if (cs == NULL) {           /* This is a new connection */
 
-static const char *set_document_root (cmd_parms *cmd, void *dummy, char *arg)
-{
-    void *sconf = cmd->server->module_config;
-    core_server_config *conf = ap_get_module_config (sconf, &core_module);
-  
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_DIR_LOC_FILE|NOT_IN_LIMIT);
-    if (err != NULL) return err;
+        cs = apr_pcalloc(p, sizeof(conn_state_t));
 
-    arg = ap_os_canonical_filename(cmd->pool, arg);
-    if (!ap_is_directory (arg)) {
-	if (cmd->server->is_virtual) {
-	    fprintf (stderr, "Warning: DocumentRoot [%s] does not exist\n", arg);
-	}
-	else {
-	    return "DocumentRoot must be a directory";
-	}
-    }
-    
-    conf->ap_document_root = arg;
-    return NULL;
-}
+        pt = apr_pcalloc(p, sizeof(*pt));
 
-static const char *set_error_document (cmd_parms *cmd, core_dir_config *conf,
-				char *line)
-{
-    int error_number, index_number, idx500;
-    char *w;
-                
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_LIMIT);
-    if (err != NULL) return err;
+        cs->bucket_alloc = apr_bucket_alloc_create(p);
+        c = ap_run_create_connection(p, ap_server_conf, sock,
+                                     conn_id, sbh, cs->bucket_alloc);
+        c->current_thread = thd;
+        cs->c = c;
+        c->cs = cs;
+        cs->p = p;
+        cs->pfd.desc_type = APR_POLL_SOCKET;
+        cs->pfd.reqevents = APR_POLLIN;
+        cs->pfd.desc.s = sock;
+        pt->type = PT_CSD;
+        pt->bypass_push = 1;
+        pt->baton = cs;
+        cs->pfd.client_data = pt;
+        APR_RING_ELEM_INIT(cs, timeout_list);
 
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-  
-    w = ap_getword_conf_nc (cmd->pool, &line);
-    error_number = atoi(w);
+        ap_update_vhost_given_ip(c);
 
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+        rc = ap_run_pre_connection(c, sock);
+        if (rc != OK && rc != DONE) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                         "process_socket: connection aborted");
+            c->aborted = 1;
+        }
 
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR)
-        index_number = idx500;
-    else if ((index_number = ap_index_of_response(error_number)) == idx500)
-        return ap_pstrcat(cmd->pool, "Unsupported HTTP response code ", w, NULL);
-                
-    /* Store it... */
-
-    if( conf->response_code_strings == NULL ) {
-	conf->response_code_strings = ap_pcalloc(cmd->pool,
-	    sizeof(*conf->response_code_strings) * RESPONSE_CODES );
-    }
-    conf->response_code_strings[index_number] = ap_pstrdup (cmd->pool, line);
-
-    return NULL;
-}
-
-/* access.conf commands...
- *
+        /**
+         * XXX If the platform does not have a usable way of bundling
+         * accept() with a socket readability check, like Win32,

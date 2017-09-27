@@ -1,13 +1,13 @@
-	return ap_proxyerror(r, err);	/* give up */
+    printf("%s \n", ap_get_server_description());
+    set_signals();
 
-    sock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating socket");
-	return SERVER_ERROR;
+    if (ap_setup_listeners(ap_server_conf) < 1) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00202)
+                     "no listening sockets available, shutting down");
+        return FALSE;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF,
-		       (const char *) &conf->recv_buffer_size, sizeof(int))
-	    == -1) {
+    /* Allocate a shared memory block for the array of listeners */
+    for (num_listeners = 0, lr = ap_listeners; lr; lr = lr->next) {
+        num_listeners++;
+    }

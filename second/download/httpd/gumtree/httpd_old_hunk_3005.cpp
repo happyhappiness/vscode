@@ -1,20 +1,19 @@
-            else
-                *tlength += 4 + strlen(r->boundary) + 4;
+    int i = 0;
+
+    memset(asc_line, 0, sizeof(asc_line));
+    memset(hex_line, 0, sizeof(hex_line));
+
+    while (posn < length) {
+        unsigned char c = fheader[posn]; 
+
+        if (i >= 20) {
+            i = 0;
+
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "HEADER: %s %s", asc_line, hex_line);
+
+            memset(asc_line, 0, sizeof(asc_line));
+            memset(hex_line, 0, sizeof(hex_line));
         }
-        return 0;
-    }
 
-    range = ap_getword_nc(r->pool, r_range, ',');
-    if (!parse_byterange(range, r->clength, &range_start, &range_end))
-        /* Skip this one */
-        return internal_byterange(realreq, tlength, r, r_range, offset,
-                                  length);
-
-    if (r->byterange > 1) {
-        char *ct = r->content_type ? r->content_type : ap_default_type(r);
-        char ts[MAX_STRING_LEN];
-
-        ap_snprintf(ts, sizeof(ts), "%ld-%ld/%ld", range_start, range_end,
-                    r->clength);
-        if (realreq)
-            ap_rvputs(r, "\015\012--", r->boundary, "\015\012Content-type: ",
+        if (isprint(c)) {

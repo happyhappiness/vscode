@@ -1,16 +1,14 @@
+                }
+                now = apr_time_sec(apr_time_now());
+                apr_pool_destroy(p);
+            }
+        break;
+        case AP_WATCHDOG_STATE_STOPPING:
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                         "Heartmonitor: stopping %s listener.",
+                         HM_WATHCHDOG_NAME);
 
-#if MIME_MAGIC_DEBUG
-    prevm = 0;
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-		MODNAME ": apprentice test");
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s,
-			MODNAME ": apprentice: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\" line=%d",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+            ctx->keep_running = 0;
+            if (ctx->sock) {
+                apr_socket_close(ctx->sock);
+                ctx->sock = NULL;

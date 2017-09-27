@@ -1,13 +1,61 @@
-        method_restricted = 1;
+        }
+    }
 
-        t = reqs[x].requirement;
-        w = ap_getword_white(r->pool, &t);
+/* artificially disable cache */
+/* l = NULL; */
 
-        if (strcmp(w, "ldap-user") == 0) {
-            required_ldap = 1;
-            if (req->dn == NULL || strlen(req->dn) == 0) {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
-                              "require user: user's DN has not been defined; failing authorisation",
-                              getpid());
-                return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
+    /* If no connection was found after the second search, we
+     * must create one.
+     */
+    if (!l) {
+        apr_pool_t *newpool;
+        if (apr_pool_create(&newpool, NULL) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                          "util_ldap: Failed to create memory pool");
+#if APR_HAS_THREADS
+            apr_thread_mutex_unlock(st->mutex);
+#endif
+            return NULL;
+        }
+ 
+        /*
+         * Add the new connection entry to the linked list. Note that we
+         * don't actually establish an LDAP connection yet; that happens
+         * the first time authentication is requested.
+         */
+
+        /* create the details of this connection in the new pool */
+        l = apr_pcalloc(newpool, sizeof(util_ldap_connection_t));
+        l->pool = newpool;
+        l->st = st;
+
+#if APR_HAS_THREADS
+        apr_thread_mutex_create(&l->lock, APR_THREAD_MUTEX_DEFAULT, l->pool);
+        apr_thread_mutex_lock(l->lock);
+#endif
+        l->bound = 0;
+        l->host = apr_pstrdup(l->pool, host);
+        l->port = port;
+        l->deref = deref;
+        util_ldap_strdup((char**)&(l->binddn), binddn);
+        util_ldap_strdup((char**)&(l->bindpw), bindpw);
+        l->ChaseReferrals = dc->ChaseReferrals;
+        l->ReferralHopLimit = dc->ReferralHopLimit;
+
+        /* The security mode after parsing the URL will always be either
+         * APR_LDAP_NONE (ldap://) or APR_LDAP_SSL (ldaps://).
+         * If the security setting is NONE, override it to the security
+         * setting optionally supplied by the admin using LDAPTrustedMode
+         */
+        l->secure = secureflag;
+
+        /* save away a copy of the client cert list that is presently valid */
+        l->client_certs = apr_array_copy_hdr(l->pool, dc->client_certs);
+
+        l->keep = 1;
+
+        if (p) {
+            p->next = l;
+        }
+        else {
+            st->connections = l;

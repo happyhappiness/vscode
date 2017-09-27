@@ -1,14 +1,13 @@
-    memset (&lcl_data, '\0', sizeof lcl_data);
+    struct group *ent;
 
-    /* BS2000 requires the user name to be in upper case for authentication */
-    ap_snprintf(lcl_data.username, sizeof lcl_data.username,
-		"%s", user_name);
-    for (cp = lcl_data.username; *cp; ++cp) {
-	*cp = ap_toupper(*cp);
+    if (name[0] == '#')
+        return (atoi(&name[1]));
+
+    if (!(ent = getgrnam(name))) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00544)
+                     "%s: bad group name %s", ap_server_argv0, name);
+        exit(1);
     }
 
-    if (bs2000_authfile == NULL) {
-	ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, server,
-		     "Use the 'BS2000AuthFile <passwdfile>' directive to specify "
-		     "an authorization file for User %s",
-++ apache_1.3.1/src/os/bs2000/ebcdic.c	1998-07-13 19:32:47.000000000 +0800
+    return (ent->gr_gid);
+}

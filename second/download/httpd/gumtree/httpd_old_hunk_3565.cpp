@@ -1,15 +1,13 @@
-            return (lenp) ? HTTP_BAD_REQUEST : HTTP_LENGTH_REQUIRED;
-        }
+    fprintf(stderr, "Rotation size interval:      %12d\n", config->sRotation);
+    fprintf(stderr, "Rotation time UTC offset:    %12d\n", config->utc_offset);
+    fprintf(stderr, "Rotation based on localtime: %12s\n", config->use_localtime ? "yes" : "no");
+    fprintf(stderr, "Rotation file date pattern:  %12s\n", config->use_strftime ? "yes" : "no");
+    fprintf(stderr, "Rotation file forced open:   %12s\n", config->force_open ? "yes" : "no");
+    fprintf(stderr, "Rotation verbose:            %12s\n", config->verbose ? "yes" : "no");
+    fprintf(stderr, "Rotation file name: %21s\n", config->szLogRoot);
+}
 
-        r->read_chunked = 1;
-    }
-    else if (lenp) {
-        char *pos = lenp;
-
-        while (isdigit(*pos) || isspace(*pos))
-            ++pos;
-        if (*pos != '\0') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                        "Invalid Content-Length %s", lenp);
-            return HTTP_BAD_REQUEST;
-        }
+/*
+ * Check whether we need to rotate.
+ * Possible reasons are:
+ * - No log file open (ROTATE_NEW)

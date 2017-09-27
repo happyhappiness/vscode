@@ -1,13 +1,12 @@
-    if (!method_restricted)
-	return OK;
+                }
+            }
+        }
+        else if (strcmp(w, "ldap-group") == 0) {
+            struct mod_auth_ldap_groupattr_entry_t *ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+            int i;
 
-    if (!(sec->auth_authoritative))
-	return DECLINED;
-
-    ap_note_basic_auth_failure(r);
-    return AUTH_REQUIRED;
-}
-
-module MODULE_VAR_EXPORT auth_module =
-{
--- apache_1.3.0/src/modules/standard/mod_auth_db.c	1998-04-11 20:00:44.000000000 +0800
+            if (sec->group_attrib_is_dn) {
+                if (req->dn == NULL || strlen(req->dn) == 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                                  "user's DN has not been defined; failing authorisation",

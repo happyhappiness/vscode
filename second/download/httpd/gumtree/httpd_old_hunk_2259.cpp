@@ -1,14 +1,24 @@
-#include "http_main.h"
-#include "http_request.h"
+ * untrusted data.
+ */
+#if __STDC_VERSION__ >= 199901L
+/* need additional step to expand APLOG_MARK first */
+#define ap_log_cerror(...) ap_log_cerror__(__VA_ARGS__)
+#define ap_log_cerror__(file, line, mi, level, status, c, ...)              \
+    do { if (APLOG_MODULE_IS_LEVEL(c->base_server, mi, level))              \
+             ap_log_cerror_(file, line, mi, level, status, c, __VA_ARGS__); \
+    } while(0)
+#else
+#define ap_log_cerror ap_log_cerror_
+#endif
+AP_DECLARE(void) ap_log_cerror_(const char *file, int line, int module_level,
+                                int level, apr_status_t status,
+                                const conn_rec *c, const char *fmt, ...)
+			    __attribute__((format(printf,7,8)));
 
-static int asis_handler(request_rec *r)
-{
-    FILE *f;
-    char *location;
+/**
+ * Convert stderr to the error log
+ * @param s The current server
+ */
+AP_DECLARE(void) ap_error_log2stderr(server_rec *s);
 
-    r->allowed |= (1 << M_GET);
-    if (r->method_number != M_GET)
-	return DECLINED;
-    if (r->finfo.st_mode == 0) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
--- apache_1.3.0/src/modules/standard/mod_auth_anon.c	1998-04-11 20:00:44.000000000 +0800
+/**

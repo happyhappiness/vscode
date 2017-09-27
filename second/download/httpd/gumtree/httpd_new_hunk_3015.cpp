@@ -1,49 +1,62 @@
-	    return cond_status;
-	}
+        return DECLINED;
+    }
 
-	/* if we see a bogus header don't ignore it. Shout and scream */
+    rv = get_socket_from_path(r->pool, url, &sock);
 
-	if (!(l = strchr(w, ':'))) {
-	    char malformed[(sizeof MALFORMED_MESSAGE) + 1
-			   + MALFORMED_HEADER_LENGTH_TO_SHOW];
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01152)
+                      "Failed to connect to '%s'", url);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	    strcpy(malformed, MALFORMED_MESSAGE);
-	    strncat(malformed, w, MALFORMED_HEADER_LENGTH_TO_SHOW);
+    {
+        int status;
+        const char *flush_method = worker->s->flusher ? worker->s->flusher : "flush";
 
-	    if (!buffer) {
-		/* Soak up all the script output - may save an outright kill */
-	        while ((*getsfunc) (w, MAX_STRING_LEN - 1, getsfunc_data)) {
-		    continue;
-		}
-	    }
+        proxy_fdpass_flush *flush = ap_lookup_provider(PROXY_FDPASS_FLUSHER,
+                                                       flush_method, "0");
 
-	    ap_kill_timeout(r);
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			 "%s: %s", malformed, r->filename);
-	    return SERVER_ERROR;
-	}
+        if (!flush) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01153)
+                          "Unable to find configured flush provider '%s'",
+                          flush_method);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-	*l++ = '\0';
-	while (*l && ap_isspace(*l)) {
-	    ++l;
-	}
+        status = flush->flusher(r);
+        if (status) {
+            return status;
+        }
+    }
 
-	if (!strcasecmp(w, "Content-type")) {
-	    char *tmp;
+    clientsock = ap_get_conn_socket(r->connection);
 
-	    /* Nuke trailing whitespace */
+    rv = send_socket(r->pool, sock, clientsock);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01154) "send_socket failed:");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
 
-	    char *endp = l + strlen(l) - 1;
-	    while (endp > l && ap_isspace(*endp)) {
-		*endp-- = '\0';
-	    }
+    {
+        apr_socket_t *dummy;
+        /* Create a dummy unconnected socket, and set it as the one we were
+         * connected to, so that when the core closes it, it doesn't close
+         * the tcp connection to the client.
+         */
+        rv = apr_socket_create(&dummy, APR_INET, SOCK_STREAM, APR_PROTO_TCP,
+                               r->connection->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01155)
+                          "failed to create dummy socket");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        ap_set_core_module_config(r->connection->conn_config, dummy);
+    }
 
-	    tmp = ap_pstrdup(r->pool, l);
-	    ap_content_type_tolower(tmp);
-	    r->content_type = tmp;
-	}
-	/*
-	 * If the script returned a specific status, that's what
-	 * we'll use - otherwise we assume 200 OK.
-	 */
-	else if (!strcasecmp(w, "Status")) {
+
+    return OK;
+}
+
+static int standard_flush(request_rec *r)
+{
+    int status;

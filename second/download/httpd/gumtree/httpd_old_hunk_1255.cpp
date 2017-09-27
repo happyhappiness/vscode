@@ -1,32 +1,12 @@
-                /* Probably a mod_disk_cache cache area has been (re)mounted
-                 * read-only, or that there is a permissions problem.
-                 */
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: attempt to remove url from cache unsuccessful.");
-            }
-        }
+                                                       &authn_file_module);
+    ap_configfile_t *f;
+    char l[MAX_STRING_LEN];
+    apr_status_t status;
+    char *file_password = NULL;
 
-        return ap_pass_brigade(f->next, bb);
-    }
+    status = ap_pcfg_openfile(&f, r->pool, conf->pwfile);
 
-    if(rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: store_headers failed");
-        ap_remove_output_filter(f);
-
-        return ap_pass_brigade(f->next, in);
-    }
-
-    rv = cache->provider->store_body(cache->handle, r, in);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: store_body failed");
-        ap_remove_output_filter(f);
-    }
-
-    return ap_pass_brigade(f->next, in);
-}
-
-/*
- * CACHE_REMOVE_URL filter
- * ---------------
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);
+        return AUTH_GENERAL_ERROR;

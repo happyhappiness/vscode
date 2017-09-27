@@ -1,13 +1,51 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return SERVER_ERROR;
     }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+
+    st = (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
+                                                   &ldap_module);
+
+    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
+     * returned. If LDAP_TIMEOUT is returned on the first try, maybe the
+     * connection was idle for a long time and has been dropped by a firewall.
+     * In this case close the connection immediately and try again.
+     *
+     * On Success or any other error, break out of the loop.
+     *
+     * NOTE: Looping is probably not a great idea. If the server isn't
+     * responding the chances it will respond after a few tries are poor.
+     * However, the original code looped and it only happens on
+     * the error condition.
+     */
+    for (failures=0; failures<10; failures++)
+    {
+        rc = uldap_simple_bind(ldc, (char *)ldc->binddn, (char *)ldc->bindpw,
+                               st->opTimeout);
+        if ((AP_LDAP_IS_SERVER_DOWN(rc) && failures == 5) ||
+            (rc == LDAP_TIMEOUT && failures == 0))
+        {
+            if (rc == LDAP_TIMEOUT && !new_connection) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "ldap_simple_bind() timed out on reused "
+                              "connection, dropped by firewall?");
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "attempt to re-init the connection");
+            uldap_connection_unbind( ldc );
+            rc = uldap_connection_init( r, ldc );
+            if (LDAP_SUCCESS != rc)
+            {
+                break;
+            }
+        }
+        else if (!AP_LDAP_IS_SERVER_DOWN(rc)) {
+            break;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "ldap_simple_bind() failed with server down "
+                      "(try %d)", failures + 1);
+    }
+
+    /* free the handle if there was an error
+    */
+    if (LDAP_SUCCESS != rc)
+    {

@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING, "Can't send notification to systemd");

@@ -1,1 +1,0 @@
-f("Regression test deleting next to last entries:\n");

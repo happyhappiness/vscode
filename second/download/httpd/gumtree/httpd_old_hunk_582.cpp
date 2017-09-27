@@ -1,13 +1,14 @@
-        apr_bucket *bucket;
 
-        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
-                            APR_BLOCK_READ, HUGE_STRING_LEN);
-       
-        if (rv != APR_SUCCESS) {
-            return rv;
+        /* cleanup */
+        if (cipher_list_old) {
+            sk_SSL_CIPHER_free(cipher_list_old);
         }
 
-        APR_BRIGADE_FOREACH(bucket, bb) {
-            const char *data;
-            apr_size_t len;
+        /* tracing */
+        if (renegotiate) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reconfigured cipher suite will force renegotiation");
+        }
+    }
 
+    /*

@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"Object raw string content: %s", repr);

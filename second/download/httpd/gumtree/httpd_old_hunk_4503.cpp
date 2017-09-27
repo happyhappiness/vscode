@@ -1,26 +1,15 @@
+     * Create a unique filename using our pid. This information is
+     * stashed in the global variable so the children inherit it.
+     */
+    client_shm_filename = ap_runtime_dir_relative(ctx, "authdigest_shm");
+    client_shm_filename = ap_append_pid(ctx, client_shm_filename, ".");
 
-	errmsg = ap_srm_command_loop(&parms, dc);
-
-	ap_cfg_closefile(f);
-
-	if (errmsg) {
-	    ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, r->server, "%s: %s",
-                        filename, errmsg);
-            return HTTP_INTERNAL_SERVER_ERROR;
-	}
-
-	*result = dc;
-    }
-    else {
-	if (errno == ENOENT || errno == ENOTDIR)
-	    dc = NULL;
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_CRIT, r->server,
-			"%s pcfg_openfile: unable to check htaccess file, ensure it is readable",
-			filename);
-	    return HTTP_FORBIDDEN;
-	}
-    }
-
-/* cache it */
-    new = ap_palloc(r->pool, sizeof(struct htaccess_result));
+    /* Now create that segment */
+    sts = apr_shm_create(&client_shm, shmem_size,
+                        client_shm_filename, ctx);
+    if (APR_SUCCESS != sts) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01762)
+                     "Failed to create shared memory segment on file %s",
+                     client_shm_filename);
+        log_error_and_cleanup("failed to initialize shm", sts, s);
+        return HTTP_INTERNAL_SERVER_ERROR;

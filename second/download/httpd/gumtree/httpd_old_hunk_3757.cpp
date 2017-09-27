@@ -1,52 +1,69 @@
-#endif
-
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-    ap_hard_timeout("proxy send body", r);
-
-    while (!con->aborted && f != NULL) {
-	n = ap_bread(f, buf, IOBUFSIZE);
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_sent += n;
-
-	if (f2 != NULL)
-	    if (ap_bwrite(f2, buf, n) != n)
-		f2 = ap_proxy_cache_error(c);
-
-	while (n && !con->aborted) {
-	    w = ap_bwrite(con->client, &buf[o], n);
-	    if (w <= 0) {
-		if (f2 != NULL) {
-		    ap_pclosef(c->req->pool, c->fp->fd);
-		    c->fp = NULL;
-		    f2 = NULL;
-		    con->aborted = 1;
-		    unlink(c->tempfile);
-		}
-		break;
-	    }
-	    ap_reset_timeout(r);	/* reset timeout after successful write */
-	    n -= w;
-	    o += w;
-	}
     }
-    if (!con->aborted)
-	ap_bflush(con->client);
 
-    ap_kill_timeout(r);
-    return total_bytes_sent;
+    expiry += apr_time_now();
+
+    i2d_OCSP_RESPONSE(rsp, &p);
+
+    rv = mc->stapling_cache->store(mc->stapling_cache_context, s,
+                                   cinf->idx, sizeof(cinf->idx),
+                                   expiry, resp_der, stored_len, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01929)
+                     "stapling_cache_response: OCSP response session store error!");
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+static BOOL stapling_get_cached_response(server_rec *s, OCSP_RESPONSE **prsp,
+                                         BOOL *pok, certinfo *cinf,
+                                         apr_pool_t *pool)
+{
+    SSLModConfigRec *mc = myModConfig(s);
+    apr_status_t rv;
+    OCSP_RESPONSE *rsp;
+    unsigned char resp_der[MAX_STAPLING_DER];
+    const unsigned char *p;
+    unsigned int resp_derlen = MAX_STAPLING_DER;
+
+    rv = mc->stapling_cache->retrieve(mc->stapling_cache_context, s,
+                                      cinf->idx, sizeof(cinf->idx),
+                                      resp_der, &resp_derlen, pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01930)
+                     "stapling_get_cached_response: cache miss");
+        return TRUE;
+    }
+    if (resp_derlen <= 1) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01931)
+                     "stapling_get_cached_response: response length invalid??");
+        return TRUE;
+    }
+    p = resp_der;
+    if (pok) {
+        if (*p)
+            *pok = TRUE;
+        else
+            *pok = FALSE;
+    }
+    p++;
+    resp_derlen--;
+    rsp = d2i_OCSP_RESPONSE(NULL, &p, resp_derlen);
+    if (!rsp) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01932)
+                     "stapling_get_cached_response: response parse error??");
+        return TRUE;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01933)
+                 "stapling_get_cached_response: cache hit");
+
+    *prsp = rsp;
+
+    return TRUE;
+}
+
+static int stapling_set_response(SSL *ssl, OCSP_RESPONSE *rsp)
+{
+    int rspderlen;
+    unsigned char *rspder = NULL;

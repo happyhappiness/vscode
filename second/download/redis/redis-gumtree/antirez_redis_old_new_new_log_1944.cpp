@@ -1,1 +1,0 @@
-printf("EXPIRED SLOW: %lld\n", server.stat_expiredkeys - totalex);

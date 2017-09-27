@@ -1,13 +1,13 @@
-        /*
-         * Do symlink checks first, because they are done with the
-         * permissions appropriate to the *parent* directory...
-         */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01669)
+                      "Could not open group file: %s",
+                      conf->groupfile);
+        return AUTHZ_DENIED;
+    }
 
-        if ((res = check_symlinks(test_dirname, core_dir->opts))) {
-            ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-                        "Symbolic link not allowed: %s", test_dirname);
-            return res;
-        }
-
-        /*
-         * Begin *this* level by looking for matching <Directory> sections
+    if (apr_is_empty_table(grpstatus)) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01670)
+                        "Authorization of user %s to access %s failed, reason: "
+                        "user doesn't appear in group file (%s).",
+                        r->user, r->uri, conf->groupfile);
+        return AUTHZ_DENIED;

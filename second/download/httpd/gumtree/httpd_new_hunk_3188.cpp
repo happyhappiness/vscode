@@ -1,13 +1,19 @@
-    dsock = ap_psocket(p, PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (dsock == -1) {
-	ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-		     "proxy: error creating PASV socket");
-	ap_bclose(f);
-	ap_kill_timeout(r);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
 
-    if (conf->recv_buffer_size) {
-	if (setsockopt(dsock, SOL_SOCKET, SO_RCVBUF,
-	       (const char *) &conf->recv_buffer_size, sizeof(int)) == -1) {
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
+    if (servername) {
+        conn_rec *c = (conn_rec *)SSL_get_app_data(ssl);
+        if (c) {
+            if (ap_vhost_iterate_given_conn(c, ssl_find_vhost,
+                                            (void *)servername)) {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02043)
+                              "SSL virtual host for servername %s found",
+                              servername);
+                return SSL_TLSEXT_ERR_OK;
+            }
+            else {
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02044)
+                              "No matching SSL virtual host for servername "
+                              "%s found (using default/first virtual host)",
+                              servername);
+                return SSL_TLSEXT_ERR_ALERT_WARNING;
+            }
+        }

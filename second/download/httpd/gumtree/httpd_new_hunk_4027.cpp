@@ -1,24 +1,21 @@
-
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+                            void *userp)
 {
-    char *cp = header;
-
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = ap_tolower(*cp);
+    h2_session *session = (h2_session *)userp;
+    apr_status_t status = APR_SUCCESS;
+    h2_stream *stream;
+    
+    if (APLOGcdebug(session->c)) {
+        char buffer[256];
+        
+        h2_util_frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03066)
+                      "h2_session(%ld): recv FRAME[%s], frames=%ld/%ld (r/s)",
+                      session->id, buffer, (long)session->frames_received,
+                     (long)session->frames_sent);
     }
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
-
-    do {
-        ++cp;
-    } while (*cp && ap_isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;
+    ++session->frames_received;
+    switch (frame->hd.type) {
+        case NGHTTP2_HEADERS:
+            /* This can be HEADERS for a new stream, defining the request,
+             * or HEADER may come after DATA at the end of a stream as in

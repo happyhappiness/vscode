@@ -1,19 +1,21 @@
-         * back end since they would in part be interpreted
-         * as another request!  If nothing is sent, then
-         * just send nothing.
-         *
-         * Prevents HTTP Response Splitting.
-         */
-        if (bytes_streamed > cl_val) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: read more bytes of request body than expected "
-                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
-                          bytes_streamed, cl_val);
-            return HTTP_INTERNAL_SERVER_ERROR;
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                    "Unable to determine list of acceptable "
+                    "CA certificates for client authentication");
+            ssl_die();
         }
 
-        if (header_brigade) {
-            /* we never sent the header brigade, so go ahead and
-             * take care of that now
-             */
-            bb = header_brigade;
+        SSL_CTX_set_client_CA_list(ctx, ca_list);
+    }
+
+    /*
+     * Give a warning when no CAs were configured but client authentication
+     * should take place. This cannot work.
+     */
+    if (mctx->auth.verify_mode == SSL_CVERIFY_REQUIRE) {
+        ca_list = SSL_CTX_get_client_CA_list(ctx);
+
+        if (sk_X509_NAME_num(ca_list) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "Init: Oops, you want to request client "
+                         "authentication, but no CAs are known for "
+                         "verification!?  [Hint: SSLCACertificate*]");

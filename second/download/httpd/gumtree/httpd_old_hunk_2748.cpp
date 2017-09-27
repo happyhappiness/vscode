@@ -1,25 +1,20 @@
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", conf->rewritelockfile);
-        exit(1);
-    }
-    return;
-}
-
-static void rewritelock_open(server_rec *s, pool *p)
+static apr_status_t cleanup_nonchild_process(request_rec *r, pid_t pid)
 {
-    rewrite_server_conf *conf;
+    kill(pid, SIGTERM); /* in case it isn't dead yet */
+    if (dead_yet(pid, apr_time_from_sec(3)) == APR_SUCCESS) {
+        return APR_SUCCESS;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL",
+                  pid);
+    kill(pid, SIGKILL);
+    if (dead_yet(pid, apr_time_from_sec(3)) == APR_SUCCESS) {
+        return APR_SUCCESS;
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL again",
+                  pid);
+    kill(pid, SIGKILL);
 
-    conf = ap_get_module_config(s->module_config, &rewrite_module);
-
-    /* only operate if a lockfile is used */
-    if (conf->rewritelockfile == NULL
-        || *(conf->rewritelockfile) == '\0')
-        return;
-
-    /* open the lockfile (once per child) to get a unique fd */
-    if ((conf->rewritelockfp = ap_popenf(p, conf->rewritelockfile,
-                                         O_WRONLY,
-                                         REWRITELOCK_MODE)) < 0) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, s,
+    return APR_EGENERAL;
+}

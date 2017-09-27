@@ -1,13 +1,13 @@
-            return 1;
-        }
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "ISAPI: ServerSupportFunction HSE_REQ_IO_COMPLETION "
-                      "is not supported: %s", r->filename);
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
-
-    case HSE_REQ_TRANSMIT_FILE:
     {
-        /* we do nothing with (tf->dwFlags & HSE_DISCONNECT_AFTER_SEND)
-         */
+	if (!apr_pool_is_ancestor(apr_pool_find(key), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+	if (!apr_pool_is_ancestor(apr_pool_find(val), t->a.pool)) {
+	    fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+	    abort();
+	}
+    }
+#endif
+
+    COMPUTE_KEY_CHECKSUM(key, checksum);

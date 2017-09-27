@@ -1,1 +1,0 @@
-addReplyErrorFormat(c,"Slot %d is already unassigned", slot);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
-                         "the listener thread didn't exit");
+ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %ld %s",
+                         e, err);

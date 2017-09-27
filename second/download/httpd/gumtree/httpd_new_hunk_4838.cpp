@@ -1,26 +1,46 @@
-     */
-    if (r->read_body == REQUEST_CHUNKED_PASS)
-        bufsiz -= 2;
-    if (bufsiz <= 0)
-        return -1;              /* Cannot read chunked with a small buffer */
+}
 
-    /* Check to see if we have already read too much request data.
-     * For efficiency reasons, we only check this at the top of each
-     * caller read pass, since the limit exists just to stop infinite
-     * length requests and nobody cares if it goes over by one buffer.
-     */
-    max_body = ap_get_limit_req_body(r);
-    if (max_body && (r->read_length > max_body)) {
-        ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r,
-            "Chunked request body is larger than the configured limit of %lu",
-            max_body);
-        r->connection->keepalive = -1;
-        return -1;
+/**
+ * Get the auth username and password from the main request
+ * notes table, if present.
+ */
+static void get_notes_auth(request_rec *r,
+                           const char **user, const char **pw,
+                           const char **method, const char **mimetype)
+{
+    const char *authname;
+    request_rec *m = r;
+
+    /* find the main request */
+    while (m->main) {
+        m = m->main;
+    }
+    /* find the first redirect */
+    while (m->prev) {
+        m = m->prev;
     }
 
-    if (r->remaining == 0) {    /* Start of new chunk */
+    /* have we isolated the user and pw before? */
+    authname = ap_auth_name(m);
+    if (user) {
+        *user = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-user", NULL));
+    }
+    if (pw) {
+        *pw = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-pw", NULL));
+    }
+    if (method) {
+        *method = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-method", NULL));
+    }
+    if (mimetype) {
+        *mimetype = (char *) apr_table_get(m->notes, apr_pstrcat(m->pool, authname, "-mimetype", NULL));
+    }
 
-        chunk_start = getline(buffer, bufsiz, r->connection->client, 0);
-        if ((chunk_start <= 0) || (chunk_start >= (bufsiz - 1))
-            || !isxdigit(*buffer)) {
-            r->connection->keepalive = -1;
+    /* set the user, even though the user is unauthenticated at this point */
+    if (user && *user) {
+        r->user = (char *) *user;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, r,
+                  "from notes: user: %s, pw: %s, method: %s, mimetype: %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  method ? *method : "<null>", mimetype ? *mimetype : "<null>");

@@ -1,17 +1,16 @@
-            else if (w < 0) {
-                if (r->connection->aborted)
-                    break;
-                else if (errno == EAGAIN)
-                    continue;
-                else {
-                    ap_log_error(APLOG_MARK, APLOG_INFO, r->server,
-                     "%s client stopped connection before send body completed",
-                                ap_get_remote_host(r->connection,
-                                                r->per_dir_config,
-                                                REMOTE_NAME));
-                    ap_bsetflag(r->connection->client, B_EOUT, 1);
-                    r->connection->aborted = 1;
-                    break;
-                }
-            }
-        }
+    ap_server_root = def_server_root;
+    if (temp_error_log) {
+        ap_replace_stderr_log(process->pool, temp_error_log);
+    }
+    ap_server_conf = ap_read_config(process, ptemp, confname, &ap_conftree);
+    if (!ap_server_conf) {
+        destroy_and_exit_process(process, 1);
+    }
+    apr_pool_cleanup_register(pconf, &ap_server_conf, ap_pool_cleanup_set_null,
+                              apr_pool_cleanup_null);
+    /* sort hooks here to make sure pre_config hooks are sorted properly */
+    apr_hook_sort_all();
+
+    if (ap_run_pre_config(pconf, plog, ptemp) != OK) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, APLOGNO(00013) "Pre-configuration failed");

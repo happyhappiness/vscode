@@ -1,41 +1,34 @@
- * field is still a time_t stamp.  By doing that, it is possible for a site to
- * have a "flag second" in which they stop all of their old-format servers,
- * wait one entire second, and then start all of their new-servers.  This
- * procedure will ensure that the new space of identifiers is completely unique
- * from the old space.  (Since the first four unencoded bytes always differ.)
- */
+    dir[4] = 0;
 
-static unsigned global_in_addr;
+    /* make the directories */
+    path = apr_pstrcat(r->pool, conf->lockpath, dir, NULL);
+    if (APR_SUCCESS != (status = apr_dir_make_recursive(path,
+            APR_UREAD|APR_UWRITE|APR_UEXECUTE, r->pool))) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "Could not create a cache lock directory: %s",
+                     path);
+        return status;
+    }
+    lockname = apr_pstrcat(r->pool, path, "/", lockname, NULL);
+    apr_pool_userdata_set(lockname, CACHE_LOCKNAME_KEY, NULL, r->pool);
 
-static APACHE_TLS unique_id_rec cur_unique_id;
-
-static void unique_id_global_init(server_rec *s, pool *p)
-{
-#ifndef MAXHOSTNAMELEN
-#define MAXHOSTNAMELEN 256
-#endif
-    char str[MAXHOSTNAMELEN + 1];
-    struct hostent *hent;
-#ifndef NO_GETTIMEOFDAY
-    struct timeval tv;
-#endif
-
-    /*
-     * First of all, verify some assumptions that have been made about the
-     * contents of unique_id_rec.  We do it this way because it isn't
-     * affected by trailing padding.
-     */
-    if (XtOffsetOf(unique_id_rec, counter) + sizeof(cur_unique_id.counter)
-        != 14) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ALERT, s,
-                    "mod_unique_id: sorry the size assumptions are wrong "
-                    "in mod_unique_id.c, please remove it from your server "
-                    "or fix the code!");
-        exit(1);
+    /* is an existing lock file too old? */
+    status = apr_stat(&finfo, lockname,
+                APR_FINFO_MTIME | APR_FINFO_NLINK, r->pool);
+    if (!(APR_STATUS_IS_ENOENT(status)) && APR_SUCCESS != status) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, APR_EEXIST, r->server,
+                     "Could not stat a cache lock file: %s",
+                     lockname);
+        return status;
+    }
+    if ((status == APR_SUCCESS) && (((now - finfo.mtime) > conf->lockmaxage)
+                                  || (now < finfo.mtime))) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
+                     "Cache lock file for '%s' too old, removing: %s",
+                     r->uri, lockname);
+        apr_file_remove(lockname, r->pool);
     }
 
-    /*
-     * Now get the global in_addr.  Note that it is not sufficient to use one
-     * of the addresses from the main_server, since those aren't as likely to
-     * be unique as the physical address of the machine
-     */
+    /* try obtain a lock on the file */
+    if (APR_SUCCESS == (status = apr_file_open(&lockfile, lockname,
+            APR_WRITE | APR_CREATE | APR_EXCL | APR_DELONCLOSE,

@@ -1,88 +1,87 @@
-	    if (!(autoindex_opts & SUPPRESS_SIZE)) {
-		ap_send_size(ar[x]->size, r);
-		ap_rputs("  ", r);
-	    }
-	    if (!(autoindex_opts & SUPPRESS_DESC)) {
-		if (ar[x]->desc) {
-		    ap_rputs(terminate_description(d, ar[x]->desc,
-						   autoindex_opts), r);
-		}
-	    }
-	}
-	else {
-	    ap_rvputs(r, "<LI> ", anchor, " ", t2, NULL);
-	}
-	ap_rputc('\n', r);
+         * is still ongoing. */
+        return h2_conn_pre_close(ctx, c);
     }
-    if (autoindex_opts & FANCY_INDEXING) {
-	ap_rputs("</PRE>", r);
-    }
-    else {
-	ap_rputs("</UL>", r);
+    return DECLINED;
+}
+
+static void check_push(request_rec *r, const char *tag)
+{
+    const h2_config *conf = h2_config_rget(r);
+    if (!r->expecting_100 
+        && conf && conf->push_list && conf->push_list->nelts > 0) {
+        int i, old_status;
+        const char *old_line;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                      "%s, early announcing %d resources for push",
+                      tag, conf->push_list->nelts);
+        for (i = 0; i < conf->push_list->nelts; ++i) {
+            h2_push_res *push = &APR_ARRAY_IDX(conf->push_list, i, h2_push_res);
+            apr_table_addn(r->headers_out, "Link", 
+                           apr_psprintf(r->pool, "<%s>; rel=preload%s", 
+                                        push->uri_ref, push->critical? "; critical" : ""));
+        }
+        old_status = r->status;
+        old_line = r->status_line;
+        r->status = 103;
+        r->status_line = "103 Early Hints";
+        ap_send_interim_response(r, 1);
+        r->status = old_status;
+        r->status_line = old_line;
     }
 }
 
-/*
- * Compare two file entries according to the sort criteria.  The return
- * is essentially a signum function value.
- */
-
-static int dsortf(struct ent **e1, struct ent **e2)
+static int h2_h2_post_read_req(request_rec *r)
 {
-    struct ent *c1;
-    struct ent *c2;
-    int result = 0;
+    /* slave connection? */
+    if (r->connection->master) {
+        h2_ctx *ctx = h2_ctx_rget(r);
+        struct h2_task *task = h2_ctx_get_task(ctx);
+        /* This hook will get called twice on internal redirects. Take care
+         * that we manipulate filters only once. */
+        if (task && !task->filters_set) {
+            ap_filter_t *f;
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, 
+                          "h2_task(%s): adding request filters", task->id);
 
-    /*
-     * First, see if either of the entries is for the parent directory.
-     * If so, that *always* sorts lower than anything else.
-     */
-    if (is_parent((*e1)->name)) {
-        return -1;
-    }
-    if (is_parent((*e2)->name)) {
-        return 1;
-    }
-    /*
-     * All of our comparisons will be of the c1 entry against the c2 one,
-     * so assign them appropriately to take care of the ordering.
-     */
-    if ((*e1)->ascending) {
-        c1 = *e1;
-        c2 = *e2;
-    }
-    else {
-        c1 = *e2;
-        c2 = *e1;
-    }
-    switch (c1->key) {
-    case K_LAST_MOD:
-	if (c1->lm > c2->lm) {
-            return 1;
+            /* setup the correct filters to process the request for h2 */
+            ap_add_input_filter("H2_REQUEST", task, r, r->connection);
+            
+            /* replace the core http filter that formats response headers
+             * in HTTP/1 with our own that collects status and headers */
+            ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+            ap_add_output_filter("H2_RESPONSE", task, r, r->connection);
+            
+            for (f = r->input_filters; f; f = f->next) {
+                if (!strcmp("H2_SLAVE_IN", f->frec->name)) {
+                    f->r = r;
+                    break;
+                }
+            }
+            ap_add_output_filter("H2_TRAILERS_OUT", task, r, r->connection);
+            task->filters_set = 1;
         }
-        else if (c1->lm < c2->lm) {
-            return -1;
-        }
-        break;
-    case K_SIZE:
-        if (c1->size > c2->size) {
-            return 1;
-        }
-        else if (c1->size < c2->size) {
-            return -1;
-        }
-        break;
-    case K_DESC:
-        result = strcmp(c1->desc ? c1->desc : "", c2->desc ? c2->desc : "");
-        if (result) {
-            return result;
-        }
-        break;
     }
-    return strcmp(c1->name, c2->name);
+    return DECLINED;
 }
 
-
-static int index_directory(request_rec *r, autoindex_config_rec * autoindex_conf)
+static int h2_h2_late_fixups(request_rec *r)
 {
-    char *title_name = ap_escape_html(r->pool, r->uri);
+    /* slave connection? */
+    if (r->connection->master) {
+        h2_ctx *ctx = h2_ctx_rget(r);
+        struct h2_task *task = h2_ctx_get_task(ctx);
+        if (task) {
+            /* check if we copy vs. setaside files in this location */
+            task->output.copy_files = h2_config_geti(h2_config_rget(r), 
+                                                     H2_CONF_COPY_FILES);
+            if (task->output.copy_files) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                              "h2_slave_out(%s): copy_files on", task->id);
+                h2_beam_on_file_beam(task->output.beam, h2_beam_no_files, NULL);
+            }
+            check_push(r, "late_fixup");
+        }
+    }
+    return DECLINED;
+}
+

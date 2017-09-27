@@ -1,17 +1,35 @@
+    while (*strend && apr_isspace(*strend))
+        ++strend;
+    *line = strend;
+    return res;
+}
 
-    if (i != DECLINED) {
-	ap_pclosesocket(p, dsock);
-	ap_bclose(f);
-	return i;
-    }
+AP_DECLARE(int) ap_cfg_closefile(ap_configfile_t *cfp)
+{
+#ifdef DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(00551)
+        "Done with config file %s", cfp->name);
+#endif
+    return (cfp->close == NULL) ? 0 : cfp->close(cfp->param);
+}
 
-    cache = c->fp;
+/* we can't use apr_file_* directly because of linking issues on Windows */
+static apr_status_t cfg_close(void *param)
+{
+    return apr_file_close(param);
+}
 
-    c->hdrs = resp_hdrs;
+static apr_status_t cfg_getch(char *ch, void *param)
+{
+    return apr_file_getc(ch, param);
+}
 
-    if (!pasvmode) {		/* wait for connection */
-	ap_hard_timeout("proxy ftp data connect", r);
-	clen = sizeof(struct sockaddr_in);
-	do
-	    csd = accept(dsock, (struct sockaddr *) &server, &clen);
-	while (csd == -1 && errno == EINTR);
+static apr_status_t cfg_getstr(void *buf, apr_size_t bufsiz, void *param)
+{
+    return apr_file_gets(buf, bufsiz, param);
+}
+
+/* Open a ap_configfile_t as FILE, return open ap_configfile_t struct pointer */
+AP_DECLARE(apr_status_t) ap_pcfg_openfile(ap_configfile_t **ret_cfg,
+                                          apr_pool_t *p, const char *name)
+{

@@ -1,13 +1,24 @@
-    SSLModConfigRec *mc = myModConfig(s);
+                                                APR_BLOCK_READ,
+                                                maxsize - AJP_HEADER_SZ);
+                        if (status != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
+                                         r->server,
+                                         "ap_get_brigade failed");
+                            output_failed = 1;
+                            break;
+                        }
+                        bufsiz = maxsize;
+                        status = apr_brigade_flatten(input_brigade, buff,
+                                                     &bufsiz);
+                        apr_brigade_cleanup(input_brigade);
+                        if (status != APR_SUCCESS) {
+                            ap_log_error(APLOG_MARK, APLOG_DEBUG, status,
+                                         r->server,
+                                         "apr_brigade_flatten failed");
+                            output_failed = 1;
+                            break;
+                        }
+                    }
 
-#ifdef HAVE_FIPS
-
-    if (FIPS_mode() && bits < 1024) {
-        mc->pTmpKeys[idx] = NULL;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
-        return OK;
-    }
-
-#endif
+                    ajp_msg_reset(msg);
+                    /* will go in ajp_send_data_msg */

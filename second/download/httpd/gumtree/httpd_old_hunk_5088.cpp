@@ -1,13 +1,20 @@
-	struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
+static void ssl_init_ctx_cipher_suite(server_rec *s,
+                                      apr_pool_t *p,
+                                      apr_pool_t *ptemp,
+                                      modssl_ctx_t *mctx)
+{
+    SSL_CTX *ctx = mctx->ssl_ctx;
+    const char *suite = mctx->auth.cipher_suite;
 
-	for (direct_connect = ii = 0; ii < conf->dirconn->nelts && !direct_connect; ii++) {
-	    direct_connect = list[ii].matcher(&list[ii], r);
-	}
-#if DEBUGGING
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, r->server,
-		     (direct_connect) ? "NoProxy for %s" : "UseProxy for %s",
-		     r->uri);
-#endif
+    /*
+     *  Configure SSL Cipher Suite
+     */
+    if (!suite) {
+        return;
     }
 
-/* firstly, try a proxy, unless a NoProxy directive is active */
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Configuring permitted SSL ciphers [%s]",
+                 suite);
+
+    if (!SSL_CTX_set_cipher_list(ctx, suite)) {

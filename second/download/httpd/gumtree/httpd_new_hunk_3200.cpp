@@ -1,30 +1,26 @@
-	}
-    }
-    if (
-    /* username is OK */
-	   (res == OK)
-    /* password been filled out ? */
-	   && ((!sec->auth_anon_mustemail) || strlen(sent_pw))
-    /* does the password look like an email address ? */
-	   && ((!sec->auth_anon_verifyemail)
-	       || ((strpbrk("@", sent_pw) != NULL)
-		   && (strpbrk(".", sent_pw) != NULL)))) {
-	if (sec->auth_anon_logemail && ap_is_initial_req(r)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r->server,
-			"Anonymous: Passwd <%s> Accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	}
-	return OK;
-    }
-    else {
-	if (sec->auth_anon_authoritative) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-			"Anonymous: Authoritative, Passwd <%s> not accepted",
-			sent_pw ? sent_pw : "\'none\'");
-	    return AUTH_REQUIRED;
-	}
-	/* Drop out the bottom to return DECLINED */
-    }
+          || sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+        char *prompt;
+        int i;
 
-    return DECLINED;
-++ apache_1.3.1/src/modules/standard/mod_auth.c	1998-07-10 14:33:24.000000000 +0800
+        if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+            if (!readtty) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01965)
+                             "Init: Creating pass phrase dialog pipe child "
+                             "'%s'", sc->server->pphrase_dialog_path);
+                if (ssl_pipe_child_create(p, sc->server->pphrase_dialog_path)
+                        != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01966)
+                                 "Init: Failed to create pass phrase pipe '%s'",
+                                 sc->server->pphrase_dialog_path);
+                    PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                    memset(buf, 0, (unsigned int)bufsize);
+                    return (-1);
+                }
+            }
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01967)
+                         "Init: Requesting pass phrase via piped dialog");
+        }
+        else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+#ifdef WIN32
+            PEMerr(PEM_F_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+            memset(buf, 0, (unsigned int)bufsize);

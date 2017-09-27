@@ -1,1 +1,0 @@
-lua_error(L);

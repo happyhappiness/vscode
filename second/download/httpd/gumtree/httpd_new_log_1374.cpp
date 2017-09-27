@@ -1,0 +1,1 @@
+apr_file_printf(errfile, "%s error: %s\n", shortname, error);

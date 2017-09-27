@@ -1,28 +1,13 @@
-	    return;
-	}
-	if (utime(filename, NULL) == -1)
-	    ap_log_error(APLOG_MARK, APLOG_ERR, r->server,
-			 "proxy: utimes(%s)", filename);
-    }
-    files = ap_make_array(r->pool, 100, sizeof(struct gc_ent *));
-    curblocks = 0;
-    curbytes = 0;
-
-    sub_garbage_coll(r, files, cachedir, "/");
-
-    if (curblocks < cachesize || curblocks + curbytes <= cachesize) {
-	ap_unblock_alarms();
-	return;
+            conn_rec *c = r->connection;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02610)
+                          "read request body failed to %pI (%s)"
+                          " from %s (%s)", p_conn->addr,
+                          p_conn->hostname ? p_conn->hostname: "",
+                          c->client_ip, c->remote_host ? c->remote_host: "");
+            return HTTP_BAD_REQUEST;
+        }
     }
 
-    qsort(files->elts, files->nelts, sizeof(struct gc_ent *), gcdiff);
-
-    elts = (struct gc_ent **) files->elts;
-    for (i = 0; i < files->nelts; i++) {
-	fent = elts[i];
-	sprintf(filename, "%s%s", cachedir, fent->file);
-	Explain3("GC Unlinking %s (expiry %ld, garbage_now %ld)", filename, fent->expire, garbage_now);
-#if TESTING
-	fprintf(stderr, "Would unlink %s\n", filename);
-#else
-	if (unlink(filename) == -1) {
+    if (bytes_spooled || force_cl) {
+        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));
+    }

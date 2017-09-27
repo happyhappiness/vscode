@@ -1,13 +1,12 @@
-{
-    const char *auth_line = ap_table_get(r->headers_in,
-                                    r->proxyreq ? "Proxy-Authorization"
-                                    : "Authorization");
-    int l;
-    int s, vk = 0, vv = 0;
-    char *t, *key, *value;
+#ifndef NO_PROTOCOL
+    int ranges = 1;
+    mod_filter_ctx *ctx = apr_pcalloc(r->pool, sizeof(mod_filter_ctx));
+    ap_set_module_config(r->request_config, &filter_module, ctx);
+#endif
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest"))
-	return DECLINED;
-
-    if (!ap_auth_name(r)) {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
+    for (p = cfg->chain; p; p = p->next) {
+        filter = apr_hash_get(cfg->live_filters, p->fname, APR_HASH_KEY_STRING);
+        if (filter == NULL) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unknown filter %s not added", p->fname);
+            continue;

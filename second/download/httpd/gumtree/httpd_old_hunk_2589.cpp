@@ -1,24 +1,21 @@
+}
 
-static char *lcase_header_name_return_body(char *header, request_rec *r)
+#else /* not NO_DLOPEN */
+
+static const char *load_file(cmd_parms *cmd, void *dummy, const char *filename)
 {
-    char *cp = header;
+    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
+                 "WARNING: LoadFile not supported on this platform");
+    return NULL;
+}
 
-    for ( ; *cp && *cp != ':' ; ++cp) {
-        *cp = tolower(*cp);
-    }
+static const char *load_module(cmd_parms *cmd, void *dummy,
+                               const char *modname, const char *filename)
+{
+    ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
+                 "WARNING: LoadModule not supported on this platform");
+    return NULL;
+}
 
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no ':': %s", r->filename);
-        return NULL;
-    }
+#endif /* NO_DLOPEN */
 
-    do {
-        ++cp;
-    } while (*cp && isspace(*cp));
-
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-                    "Syntax error in type map --- no header body: %s",
-                    r->filename);
-        return NULL;

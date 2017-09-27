@@ -1,0 +1,1 @@
+h2_ihash_remove(m->shold, stream->id);

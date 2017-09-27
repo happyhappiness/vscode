@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, ptr->loglevel, 0, c->base_server, "mod_dumpio: %s", f->frec->name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);

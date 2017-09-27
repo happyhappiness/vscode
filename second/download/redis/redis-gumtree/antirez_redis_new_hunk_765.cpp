@@ -1,7 +1,0 @@
-
-            if (ftruncate(server.aof_fd, server.aof_current_size) == -1) {
-                if (can_log) {
-                    serverLog(LL_WARNING, "Could not remove short write "
-                             "from the append-only file.  Redis may refuse "
-                             "to load the AOF the next time it starts.  "
-                             "ftruncate: %s", strerror(errno));

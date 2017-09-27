@@ -1,1 +1,0 @@
-addReplyError(c,"Invalid slot");

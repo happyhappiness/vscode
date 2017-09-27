@@ -1,1 +1,0 @@
-(status != C_OK;

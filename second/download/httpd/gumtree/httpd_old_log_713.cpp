@@ -1,1 +1,1 @@
-ap_rputs("&gt;", r);
+ap_rputs("</dl><hr />", r);

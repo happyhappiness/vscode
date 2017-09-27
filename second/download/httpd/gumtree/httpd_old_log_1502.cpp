@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
+apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default." NL);

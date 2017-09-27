@@ -1,1 +1,0 @@
-snprintf(seldb,sizeof(seldb),"%d",dictid);

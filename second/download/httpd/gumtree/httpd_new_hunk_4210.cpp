@@ -1,10 +1,13 @@
-/*
- *  conf.h -- backward compatibility header for ap_config.h
- */
+        }
+    }
 
-#ifdef __GNUC__
-#warning "This header is obsolete, use ap_config.h instead"
-#endif
+    r->useragent_addr = req->useragent_addr;
+    r->useragent_ip = req->useragent_ip;
 
-#include "ap_config.h"
-++ apache_1.3.1/src/include/fnmatch.h	1998-07-13 19:32:35.000000000 +0800
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  req->proxy_ips
+                      ? "Using %s as client's IP by proxies %s"
+                      : "Using %s as client's IP by internal proxies",
+                  req->useragent_ip, req->proxy_ips);
+    return OK;
+}

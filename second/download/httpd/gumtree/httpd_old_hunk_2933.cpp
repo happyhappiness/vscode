@@ -1,29 +1,29 @@
-	}
+     */
+    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+        if (!strncmp(elts[i].key, "AJP_", 4)) {
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+                ajp_msg_append_string(msg, elts[i].key + 4)   ||
+                ajp_msg_append_string(msg, elts[i].val)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                        "ajp_marshal_into_msgb: "
+                        "Error appending attribute %s=%s",
+                        elts[i].key, elts[i].val);
+                return AJP_EOVERFLOW;
+            }
+        }
+    }
 
-	/* Compress the line, reducing all blanks and tabs to one space.
-	 * Leading and trailing white space is eliminated completely
-	 */
-	src = dst = buf;
-	while (isspace(*src))
-	    ++src;
-	while (*src != '\0')
-	{
-	    /* Copy words */
-	    while (!isspace(*dst = *src) && *src != '\0') {
-		++src;
-		++dst;
-	    }
-	    if (*src == '\0') break;
-	    *dst++ = ' ';
-	    while (isspace(*src))
-		++src;
-	}
-	*dst = '\0';
-	/* blast trailing whitespace */
-	while (--dst >= buf && isspace(*dst))
-	    *dst = '\0';
+    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_marshal_into_msgb: "
+               "Error appending the message end");
+        return AJP_EOVERFLOW;
+    }
 
-#ifdef DEBUG_CFG_LINES
-	ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, NULL, "Read config: %s", buf);
-#endif
-	return 0;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+            "ajp_marshal_into_msgb: Done");
+    return APR_SUCCESS;
+}
+
+/*
+AJPV13_RESPONSE/AJPV14_RESPONSE:=

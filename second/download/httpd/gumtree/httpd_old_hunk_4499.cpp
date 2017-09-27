@@ -1,16 +1,20 @@
-#define APLOG_MARK	__FILE__,__LINE__
+/* ------------------------------------------------------- */
 
-void ap_open_logs (server_rec *, pool *p);
-API_EXPORT(void) ap_log_error(const char *file, int line, int level,
-			     const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,5,6)));
-API_EXPORT(void) ap_error_log2stderr (server_rec *);     
+/* display copyright information */
+static void copyright(void)
+{
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1748469 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
+    }
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1748469 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
+    }
+}
 
-void ap_log_pid (pool *p, char *fname);
-API_EXPORT(void) ap_log_error_old(const char *err, server_rec *s);
-API_EXPORT(void) ap_log_unixerr(const char *routine, const char *file,
-			     const char *msg, server_rec *s);
-API_EXPORT(void) ap_log_printf(const server_rec *s, const char *fmt, ...)
-			    __attribute__((format(printf,2,3)));
-API_EXPORT(void) ap_log_reason(const char *reason, const char *fname,
--- apache_1.3.1/src/include/http_protocol.h	1998-07-02 05:19:51.000000000 +0800

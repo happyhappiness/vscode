@@ -1,22 +1,13 @@
-    else
-	dirconf = current_conn->server->lookup_defaults;
-    if (!current_conn->keptalive) {
-	if (sig == SIGPIPE) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s client stopped connection before %s completed",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME),
-			timeout_name ? timeout_name : "request");
-	}
-	else {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO,
-			current_conn->server,
-			"%s timed out for %s",
-			timeout_name ? timeout_name : "request",
-			ap_get_remote_host(current_conn, dirconf, REMOTE_NAME));
-	}
+         */
+        *rv = nghttp2_submit_window_update(session->ngh2, NGHTTP2_FLAG_NONE,
+                                           0, NGHTTP2_MAX_WINDOW_SIZE - win_size);
+        if (*rv != 0) {
+            status = APR_EGENERAL;
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
+                          nghttp2_strerror(*rv));        
+        }
     }
-
-    if (timeout_req) {
-	/* Someone has asked for this transaction to just be aborted
-	 * if it times out...
+    
+    return status;
+}

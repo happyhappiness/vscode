@@ -1,14 +1,58 @@
-	    r->filename = ap_pstrcat(r->pool, r->filename, "/", NULL);
-	}
-	return index_directory(r, d);
+                /* slot is still in use - back of the bus
+                 */
+                free_slots[free_length] = i;
+            }
+            ++free_length;
+        }
+        /* XXX if (!ps->quiescing)     is probably more reliable  GLA */
+        if (!any_dying_threads) {
+            last_non_dead = i;
+            ++total_non_dead;
+        }
     }
-    else {
-	ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, r->server,
-		     "Directory index forbidden by rule: %s", r->filename);
-	return HTTP_FORBIDDEN;
+
+    if (sick_child_detected) {
+        if (active_thread_count > 0) {
+            /* some child processes appear to be working.  don't kill the
+             * whole server.
+             */
+            sick_child_detected = 0;
+        }
+        else {
+            /* looks like a basket case.  give up.
+             */
+            shutdown_pending = 1;
+            child_fatal = 1;
+            ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf,
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
     }
-}
 
+    max_daemons_limit = last_non_dead + 1;
 
-static const handler_rec autoindex_handlers[] =
-++ apache_1.3.1/src/modules/standard/mod_cern_meta.c	1998-07-09 01:47:14.000000000 +0800
+    if (idle_thread_count > max_spare_threads) {
+        /* Kill off one child */
+        ap_worker_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;
+    }
+    else if (idle_thread_count < min_spare_threads) {
+        /* terminate the free list */
+        if (free_length == 0) { /* scoreboard is full, can't fork */
+
+            if (active_thread_count >= ap_daemons_limit * threads_per_child) { 
+                /* no threads are "inactive" - starting, stopping, etc. */
+                /* have we reached MaxClients, or just getting close? */
+                if (0 == idle_thread_count) {
+                    static int reported = 0;
+                    if (!reported) {
+                        /* only report this condition once */
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     ap_server_conf,
+                                     "server reached MaxClients setting, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
+                    }

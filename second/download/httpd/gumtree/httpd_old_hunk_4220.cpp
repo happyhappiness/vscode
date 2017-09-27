@@ -1,12 +1,12 @@
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABORT)");
-#endif
-#ifdef SIGABRT
-	if (sigaction(SIGABRT, &sa, NULL) < 0)
-	    ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGABRT)");
-#endif
-	sa.sa_flags = 0;
+             */
+            log_level = APLOG_DEBUG;
+        }
+
+        ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf, APLOGNO(00056)
+                     "connect to listener on %pI", lp->bind_addr);
     }
-    sa.sa_handler = sig_term;
-    if (sigaction(SIGTERM, &sa, NULL) < 0)
-	ap_log_error(APLOG_MARK, APLOG_WARNING, server_conf, "sigaction(SIGTERM)");
-#ifdef SIGINT
+
+    /* Create the request string. We include a User-Agent so that
+     * adminstrators can track down the cause of the odd-looking
+     * requests in their logs.
+     */

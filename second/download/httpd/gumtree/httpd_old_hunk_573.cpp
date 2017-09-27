@@ -1,37 +1,20 @@
+ *                         calling ap_setup_prelinked_modules
+ * 20020903.10 (2.0.55-dev) add ap_log_cerror()
+ * 20020903.11 (2.0.55-dev) added trace_enable to core_server_config
+ * 20020903.12 (2.0.56-dev) added ap_get_server_revision / ap_version_t
+ * 20020903.13 (2.0.62-dev) Add *ftp_directory_charset to proxy_dir_conf
+ * 20020903.14 (2.0.64-dev) added ap_vhost_iterate_given_conn
+ */
 
-    case HSE_REQ_MAP_URL_TO_PATH:
-    {
-        /* Map a URL to a filename */
-        char *file = (char *)buf_data;
-        apr_uint32_t len;
-        subreq = ap_sub_req_lookup_uri(apr_pstrndup(r->pool, file, *buf_size),
-                                       r, NULL);
+#define MODULE_MAGIC_COOKIE 0x41503230UL /* "AP20" */
 
-        len = apr_cpystrn(file, subreq->filename, *buf_size) - file;
+#ifndef MODULE_MAGIC_NUMBER_MAJOR
+#define MODULE_MAGIC_NUMBER_MAJOR 20020903
+#endif
+#define MODULE_MAGIC_NUMBER_MINOR 14                    /* 0...n */
 
-
-        /* IIS puts a trailing slash on directories, Apache doesn't */
-        if (subreq->finfo.filetype == APR_DIR) {
-            if (len < *buf_size - 1) {
-                file[len++] = '\\';
-                file[len] = '\0';
-            }
-        }
-        *buf_size = len;
-        return 1;
-    }
-
-    case HSE_REQ_GET_SSPI_INFO:
-        if (cid->dconf.log_unsupported)
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                           "is not supported: %s", r->filename);
-        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
-        return 0;
-        
-    case HSE_APPEND_LOG_PARAMETER:
-        /* Log buf_data, of buf_size bytes, in the URI Query (cs-uri-query) field
-         */
-        apr_table_set(r->notes, "isapi-parameter", (char*) buf_data);
-        if (cid->dconf.log_to_query) {
-            if (r->args)
+/**
+ * Determine if the server's current MODULE_MAGIC_NUMBER is at least a
+ * specified value.
+ * <pre>
+ * Useful for testing for features.

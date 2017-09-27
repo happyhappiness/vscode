@@ -1,16 +1,13 @@
+}
+
+static apr_status_t initialize_secret(server_rec *s)
 {
-    /* This could be called from an AddModule httpd.conf command,
-     * after the file has been linked and the module structure within it
-     * teased out...
-     */
+    apr_status_t status;
 
-    if (m->version != MODULE_MAGIC_NUMBER_MAJOR) {
-	fprintf(stderr, "httpd: module \"%s\" is not compatible with this "
-		"version of Apache.\n", m->name);
-	fprintf(stderr, "Please contact the vendor for the correct version.\n");
-	exit(1);
-    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01757)
+                 "generating secret for digest authentication ...");
 
-    if (m->next == NULL) {
-	m->next = top_module;
-	top_module = m;
+#if APR_HAS_RANDOM
+    status = apr_generate_random_bytes(secret, sizeof(secret));
+#else
+#error APR random number support is missing; you probably need to install the truerand library.

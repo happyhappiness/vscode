@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "mod_rewrite: maximum number of internal redirects "
-                      "reached. Assuming configuration error. Use "
-                      "'RewriteOptions MaxRedirects' to increase the limit "
-                      "if neccessary.");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
+                     "could not find the UTF-8 charset in the file %s.", 
+                     charset_confname);

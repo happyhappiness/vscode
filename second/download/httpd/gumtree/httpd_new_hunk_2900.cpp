@@ -1,13 +1,13 @@
-    char *origs = s, *origp = p;
-    char *pmax = p + plen - 1;
-    register int c;
-    register int val;
-
-    while ((c = *s++) != '\0') {
-	if (ap_isspace((unsigned char) c))
-	    break;
-	if (p >= pmax) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_ERR, serv,
-			MODNAME ": string too long: %s", origs);
-	    break;
-	}
+                m->in.type = SHORT;
+                break;
+            case 'b':
+                m->in.type = BYTE;
+                break;
+            default:
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv, APLOGNO(01522)
+                        MODNAME ": indirect offset type %c invalid", *l);
+                break;
+            }
+            l++;
+        }
+        s = l;

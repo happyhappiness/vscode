@@ -1,13 +1,13 @@
-            if (!res) {
-                res = file_walk(rnew);
+            an = ssl_util_algotypestr(at);
+            if (algoCert & at) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02242)
+                             "Init: Multiple %s server certificates not "
+                             "allowed", an);
+                ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+                ssl_die(s);
             }
-        }
-        else {
-            if ((res = check_symlinks(rnew->filename, ap_allow_options(rnew)))) {
-                ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, rnew,
-                            "Symbolic link not allowed: %s", rnew->filename);
-                rnew->status = res;
-                return rnew;
-            }
-            /*
-             * do a file_walk, if it doesn't change the per_dir_config then
+            algoCert |= at;
+
+            /* Determine the hash key used for this (vhost, algo-type)
+             * pair used to index both the mc->tPrivateKey and
+             * mc->tPublicCert tables: */

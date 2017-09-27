@@ -1,18 +1,33 @@
-    ap_table_setn(r->err_headers_out,
-	    r->proxyreq ? "Proxy-Authenticate" : "WWW-Authenticate",
-	    ap_psprintf(r->pool, "Digest realm=\"%s\", nonce=\"%lu\"",
-		ap_auth_name(r), r->request_time));
+                     (long)session->frames_sent);
+    }
+    ++session->frames_sent;
+    return 0;
 }
 
-API_EXPORT(int) ap_get_basic_auth_pw(request_rec *r, const char **pw)
+#ifdef H2_NG2_INVALID_HEADER_CB
+static int on_invalid_header_cb(nghttp2_session *ngh2, 
+                                const nghttp2_frame *frame, 
+                                const uint8_t *name, size_t namelen, 
+                                const uint8_t *value, size_t valuelen, 
+                                uint8_t flags, void *user_data)
 {
-    const char *auth_line = ap_table_get(r->headers_in,
-                                      r->proxyreq ? "Proxy-Authorization"
-                                                  : "Authorization");
-    const char *t;
+    h2_session *session = user_data;
+    if (APLOGcdebug(session->c)) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
+                      "h2_session(%ld-%d): denying stream with invalid header "
+                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
+                      apr_pstrndup(session->pool, (const char *)name, namelen),
+                      apr_pstrndup(session->pool, (const char *)value, valuelen));
+    }
+    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                     frame->hd.stream_id, 
+                                     NGHTTP2_PROTOCOL_ERROR);
+}
+#endif
 
-    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Basic"))
-        return DECLINED;
+#define NGH2_SET_CALLBACK(callbacks, name, fn)\
+nghttp2_session_callbacks_set_##name##_callback(callbacks, fn)
 
-    if (!ap_auth_name(r)) {
-        ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR,
+static apr_status_t init_callbacks(conn_rec *c, nghttp2_session_callbacks **pcb)
+{
+    int rv = nghttp2_session_callbacks_new(pcb);

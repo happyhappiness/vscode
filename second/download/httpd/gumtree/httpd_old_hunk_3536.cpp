@@ -1,16 +1,15 @@
-		(conf->magic && conf->magic->next) ? "set" : "NULL",
-		conf->last ? "set" : "NULL");
-#endif
 
-#if MIME_MAGIC_DEBUG
-    for (m = conf->magic; m; m = m->next) {
-	if (isprint((((unsigned long) m) >> 24) & 255) &&
-	    isprint((((unsigned long) m) >> 16) & 255) &&
-	    isprint((((unsigned long) m) >> 8) & 255) &&
-	    isprint(((unsigned long) m) & 255)) {
-	    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, r->server,
-			MODNAME ": match: POINTER CLOBBERED! "
-			"m=\"%c%c%c%c\"",
-			(((unsigned long) m) >> 24) & 255,
-			(((unsigned long) m) >> 16) & 255,
-			(((unsigned long) m) >> 8) & 255,
+
+AP_DECLARE_NONSTD(const char *)ap_set_name_virtual_host(cmd_parms *cmd,
+                                                        void *dummy,
+                                                        const char *arg)
+{
+    /* use whatever port the main server has at this point */
+    return get_addresses(cmd->pool, arg, &name_vhost_list_tail,
+                         cmd->server->port);
+}
+
+
+/* hash table statistics, keep this in here for the beta period so
+ * we can find out if the hash function is ok
+ */

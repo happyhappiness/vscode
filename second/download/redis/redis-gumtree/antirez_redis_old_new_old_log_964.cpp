@@ -1,1 +1,0 @@
-serverLog(REDIS_WARNING,"SYNC failed. BGSAVE child returned an error");

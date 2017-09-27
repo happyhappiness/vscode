@@ -1,15 +1,12 @@
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
-    }
 
-    for (;;) {
-        nRead = sizeof(buf);
-        if (apr_file_read(f_stdin, buf, &nRead) != APR_SUCCESS)
-            exit(3);
-        if (tRotation) {
-            now = (int)(apr_time_now() / APR_USEC_PER_SEC) + utc_offset;
-            if (nLogFD != NULL && now >= tLogEnd) {
-                nLogFDprev = nLogFD;
-                nLogFD = NULL;
-            }
+        result = apr_global_mutex_create(&st->util_ldap_cache_lock, st->lock_file, APR_LOCK_DEFAULT, st->pool);
+        if (result != APR_SUCCESS) {
+            return result;
         }
+
+        /* merge config in all vhost */
+        s_vhost = s->next;
+        while (s_vhost) {
+            st_vhost = (util_ldap_state_t *)ap_get_module_config(s_vhost->module_config, &ldap_module);
+
+#if APR_HAS_SHARED_MEMORY

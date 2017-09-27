@@ -1,108 +1,96 @@
-#endif
-
-    /* Since we are reading from one buffer and writing to another,
-     * it is unsafe to do a soft_timeout here, at least until the proxy
-     * has its own timeout handler which can set both buffers to EOUT.
-     */
-
-    ap_kill_timeout(r);
-
-#ifdef WIN32
-    /* works fine under win32, so leave it */
-    ap_hard_timeout("proxy send body", r);
-    alt_to = 0;
-#else
-    /* CHECKME! Since hard_timeout won't work in unix on sends with partial
-     * cache completion, we have to alternate between hard_timeout
-     * for reads, and soft_timeout for send.  This is because we need
-     * to get a return from ap_bwrite to be able to continue caching.
-     * BUT, if we *can't* continue anyway, just use hard_timeout.
-     */
-
-    if (c) {
-        if (c->len <= 0 || c->cache_completion == 1) {
-            ap_hard_timeout("proxy send body", r);
-            alt_to = 0;
-        }
-    } else {
-        ap_hard_timeout("proxy send body", r);
-        alt_to = 0;
+                                        io->output->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(io->output, b);
     }
-#endif
-
-    while (ok && f != NULL) {
-        if (alt_to)
-            ap_hard_timeout("proxy send body", r);
-
-	n = ap_bread(f, buf, IOBUFSIZE);
-
-        if (alt_to)
-            ap_kill_timeout(r);
-        else
-            ap_reset_timeout(r);
-
-	if (n == -1) {		/* input error */
-	    if (f2 != NULL)
-		f2 = ap_proxy_cache_error(c);
-	    break;
-	}
-	if (n == 0)
-	    break;		/* EOF */
-	o = 0;
-	total_bytes_rcv += n;
-
-        if (f2 != NULL) {
-            if (ap_bwrite(f2, &buf[0], n) != n) {
-		f2 = ap_proxy_cache_error(c);
-            } else {
-                c->written += n;
-            }
-        }
-
-	while (n && !con->aborted) {
-            if (alt_to)
-                ap_soft_timeout("proxy send body", r);
-
-	    w = ap_bwrite(con->client, &buf[o], n);
-
-            if (alt_to)
-                ap_kill_timeout(r);
-            else
-                ap_reset_timeout(r);
-
-	    if (w <= 0) {
-		if (f2 != NULL) {
-                    /* when a send failure occurs, we need to decide
-                     * whether to continue loading and caching the
-                     * document, or to abort the whole thing
-                     */
-                    ok = (c->len > 0) &&
-                         (c->cache_completion > 0) &&
-                         (c->len * c->cache_completion < total_bytes_rcv);
-
-                    if (! ok) {
-                        ap_pclosef(c->req->pool, c->fp->fd);
-                        c->fp = NULL;
-                        f2 = NULL;
-                        unlink(c->tempfile);
-                    }
-		}
-                con->aborted = 1;
-		break;
-	    }
-	    n -= w;
-	    o += w;
-	}
-    }
-
-    if (!con->aborted)
-	ap_bflush(con->client);
-
-    ap_kill_timeout(r);
-    return total_bytes_rcv;
+    return APR_SUCCESS;
 }
 
-/*
- * Read a header from the array, returning the first entry
- */
-struct hdr_entry *
+apr_status_t h2_conn_io_writeb(h2_conn_io *io, apr_bucket *b)
+{
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    return APR_SUCCESS;
+}
+
+static apr_status_t h2_conn_io_flush_int(h2_conn_io *io, int flush, int eoc)
+{
+    pass_out_ctx ctx;
+    apr_bucket *b;
+    
+    if (io->buflen == 0 && APR_BRIGADE_EMPTY(io->output)) {
+        return APR_SUCCESS;
+    }
+        
+    if (io->buflen > 0) {
+        /* something in the buffer, put it in the output brigade */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
+                      "h2_conn_io: flush, flushing %ld bytes", 
+                      (long)io->buflen);
+        bucketeer_buffer(io);
+    }
+    
+    if (flush) {
+        b = apr_bucket_flush_create(io->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(io->output, b);
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c, "h2_conn_io: flush");
+    io->buflen = 0;
+    ctx.c = io->c;
+    ctx.io = eoc? NULL : io;
+    
+    return pass_out(io->output, &ctx);
+    /* no more access after this, as we might have flushed an EOC bucket
+     * that de-allocated us all. */
+}
+
+apr_status_t h2_conn_io_flush(h2_conn_io *io)
+{
+    return h2_conn_io_flush_int(io, 1, 0);
+}
+
+apr_status_t h2_conn_io_consider_pass(h2_conn_io *io)
+{
+    apr_off_t len = 0;
+    
+    if (!APR_BRIGADE_EMPTY(io->output)) {
+        len = h2_brigade_mem_size(io->output);
+    }
+    len += io->buflen;
+    if (len >= WRITE_BUFFER_SIZE) {
+        return h2_conn_io_flush_int(io, 1, 0);
+    }
+    return APR_SUCCESS;
+}
+
+apr_status_t h2_conn_io_write_eoc(h2_conn_io *io, h2_session *session)
+{
+    apr_bucket *b = h2_bucket_eoc_create(io->c->bucket_alloc, session);
+    APR_BRIGADE_INSERT_TAIL(io->output, b);
+    return h2_conn_io_flush_int(io, 0, 1);
+}
+
+apr_status_t h2_conn_io_write(h2_conn_io *io, 
+                              const char *buf, size_t length)
+{
+    apr_status_t status = APR_SUCCESS;
+    pass_out_ctx ctx;
+    
+    ctx.c = io->c;
+    ctx.io = io;
+    if (io->bufsize > 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
+                      "h2_conn_io: buffering %ld bytes", (long)length);
+                      
+        if (!APR_BRIGADE_EMPTY(io->output)) {
+            status = h2_conn_io_flush_int(io, 0, 0);
+        }
+        
+        while (length > 0 && (status == APR_SUCCESS)) {
+            apr_size_t avail = io->bufsize - io->buflen;
+            if (avail <= 0) {
+                status = h2_conn_io_flush_int(io, 0, 0);
+            }
+            else if (length > avail) {
+                memcpy(io->buffer + io->buflen, buf, avail);
+                io->buflen += avail;
+                length -= avail;
+                buf += avail;
