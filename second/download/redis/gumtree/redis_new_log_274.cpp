@@ -1,0 +1,1 @@
+printf("# average sizes per key type.  You can use -i 0.1 to sleep 0.1 sec\n");

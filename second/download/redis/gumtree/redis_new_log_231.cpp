@@ -1,0 +1,1 @@
+luaPushError(lua, "This Redis command is not allowed from scripts");

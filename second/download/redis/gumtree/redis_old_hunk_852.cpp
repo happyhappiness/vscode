@@ -1,0 +1,14 @@
+    for(i=0;i<keys->elements;i++) {
+        if(redisGetReply(context, (void**)&reply)!=REDIS_OK) {
+            fprintf(stderr, "Error getting type for key '%s' (%d: %s)\n",
+                keys->element[i]->str, context->err, context->errstr);
+            exit(1);
+        } else if(reply->type != REDIS_REPLY_STATUS) {
+            fprintf(stderr, "Invalid reply type (%d) for TYPE on key '%s'!\n",
+                reply->type, keys->element[i]->str);
+            exit(1);
+        }
+
+        types[i] = toIntType(keys->element[i]->str, reply->str);
+        freeReplyObject(reply);
+    }

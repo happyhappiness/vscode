@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Failed trying to load the MASTER synchronization DB from disk");

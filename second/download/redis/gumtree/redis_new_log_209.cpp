@@ -1,0 +1,1 @@
+fprintf(stderr,"I/O error during LRU test\n");

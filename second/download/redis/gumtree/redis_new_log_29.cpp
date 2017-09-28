@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"daemonize",server.daemonize,0);

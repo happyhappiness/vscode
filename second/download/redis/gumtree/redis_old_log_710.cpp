@@ -1,0 +1,1 @@
+luaPushError(lua, "Invalid debug level.");

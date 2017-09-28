@@ -1,0 +1,1 @@
+luaL_error(L, "wrong number of arguments");

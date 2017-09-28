@@ -1,0 +1,1 @@
+printf("ERROR: Merged length not 8, but: %u\n", ziplistLen(zl2));

@@ -1,0 +1,1 @@
+notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"expire",key,c->db->id);

@@ -1,0 +1,13 @@
+        NULL, REDIS_DEFAULT_AOF_FSYNC);
+    rewriteConfigYesNoOption(state,"no-appendfsync-on-rewrite",server.aof_no_fsync_on_rewrite,REDIS_DEFAULT_AOF_NO_FSYNC_ON_REWRITE);
+    rewriteConfigNumericalOption(state,"auto-aof-rewrite-percentage",server.aof_rewrite_perc,REDIS_AOF_REWRITE_PERC);
+    rewriteConfigBytesOption(state,"auto-aof-rewrite-min-size",server.aof_rewrite_min_size,REDIS_AOF_REWRITE_MIN_SIZE);
+    rewriteConfigNumericalOption(state,"lua-time-limit",server.lua_time_limit,REDIS_LUA_TIME_LIMIT);
+    rewriteConfigNumericalOption(state,"slowlog-log-slower-than",server.slowlog_log_slower_than,REDIS_SLOWLOG_LOG_SLOWER_THAN);
+    rewriteConfigNumericalOption(state,"latency-monitor-threshold",server.latency_monitor_threshold,REDIS_DEFAULT_LATENCY_MONITOR_THRESHOLD);
+    rewriteConfigNumericalOption(state,"slowlog-max-len",server.slowlog_max_len,REDIS_SLOWLOG_MAX_LEN);
+    rewriteConfigNotifykeyspaceeventsOption(state);
+    rewriteConfigNumericalOption(state,"hash-max-ziplist-entries",server.hash_max_ziplist_entries,REDIS_HASH_MAX_ZIPLIST_ENTRIES);
+    rewriteConfigNumericalOption(state,"hash-max-ziplist-value",server.hash_max_ziplist_value,REDIS_HASH_MAX_ZIPLIST_VALUE);
+    rewriteConfigNumericalOption(state,"list-max-ziplist-entries",server.list_max_ziplist_entries,REDIS_LIST_MAX_ZIPLIST_ENTRIES);
+    rewriteConfigNumericalOption(state,"list-max-ziplist-value",server.list_max_ziplist_value,REDIS_LIST_MAX_ZIPLIST_VALUE);

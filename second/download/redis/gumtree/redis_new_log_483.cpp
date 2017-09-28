@@ -1,0 +1,1 @@
+sizes = sdscatprintf(sizes,"bits:%d ",(sizeof(void*) == 8)?64:32);

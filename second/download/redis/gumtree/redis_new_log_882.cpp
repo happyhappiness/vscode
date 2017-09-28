@@ -1,0 +1,1 @@
+addReplyError(c, "Error purging dirty pages");

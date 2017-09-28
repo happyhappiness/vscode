@@ -1,0 +1,1 @@
+rewriteConfigYesNoOption(state,"stop-writes-on-bgsave-error",server.stop_writes_on_bgsave_err,REDIS_DEFAULT_STOP_WRITES_ON_BGSAVE_ERROR);

@@ -1,0 +1,1 @@
+addReplyError(c, "unknown georadius search type");

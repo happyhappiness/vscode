@@ -1,0 +1,1 @@
+addReplyError(c, "Only HELLO messages are accepted by Sentinel instances.");

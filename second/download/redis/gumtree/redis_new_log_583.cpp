@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE,"DB saved on disk");

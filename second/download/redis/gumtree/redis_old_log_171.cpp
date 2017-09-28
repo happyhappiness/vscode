@@ -1,0 +1,1 @@
+luaL_error(l, "Too many nested data structures");

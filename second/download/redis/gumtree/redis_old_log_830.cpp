@@ -1,0 +1,1 @@
+__redisReaderSetError(r,REDIS_ERR_OOM,"Out of memory");

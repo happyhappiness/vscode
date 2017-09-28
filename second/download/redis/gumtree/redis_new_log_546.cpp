@@ -1,0 +1,1 @@
+serverLogRaw(level|LL_RAW,buf);

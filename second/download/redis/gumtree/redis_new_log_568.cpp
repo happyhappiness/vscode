@@ -1,0 +1,1 @@
+serverLog(LL_VERBOSE,"Accepted %s:%d", cip, cport);

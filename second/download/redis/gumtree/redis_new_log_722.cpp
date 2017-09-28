@@ -1,0 +1,1 @@
+addReplyError(c,"Fork() failed: can't run EVAL in debugging mode.");

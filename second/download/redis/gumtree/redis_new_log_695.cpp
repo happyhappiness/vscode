@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"MASTER timeout: no data nor PING received...");

@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Unable to AUTH to MASTER: %s",err);

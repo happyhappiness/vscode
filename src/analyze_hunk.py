@@ -45,7 +45,6 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
 
             # log loc in new hunk, new loc and new log
             new_loc = gumtree.get_new_loc()
-            new_hunk_log_loc = new_loc + 1 - new_hunk_loc
             new_log = gumtree.get_new_log()
             # if map
             if new_loc != -1:
@@ -53,6 +52,7 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
                 if new_loc in new_log_loc:
                     new_log_loc.remove(new_loc)
                 new_loc = new_hunk_loc + new_loc - 1
+            new_hunk_log_loc = new_loc + 1 - new_hunk_loc
             # whether this old log is edited
             curr_action_type = action_type + gumtree.is_old_log_edited()
 

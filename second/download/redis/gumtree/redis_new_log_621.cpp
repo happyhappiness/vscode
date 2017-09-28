@@ -1,0 +1,1 @@
+serverLog(LL_DEBUG, "[PSYNC] Backlog history len is zero");

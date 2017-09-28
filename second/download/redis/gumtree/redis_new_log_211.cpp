@@ -1,0 +1,1 @@
+luaPushError(lua,recursion_warning);

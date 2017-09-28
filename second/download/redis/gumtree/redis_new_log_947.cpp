@@ -1,0 +1,1 @@
+rdbCheckError("%s",msg);
