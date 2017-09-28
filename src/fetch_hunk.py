@@ -257,7 +257,7 @@ def create_version_diff():
 main function
 """
 if __name__ == "__main__":
-    create_version_diff()
+    # create_version_diff()
     fetch_version_diff()
 
 

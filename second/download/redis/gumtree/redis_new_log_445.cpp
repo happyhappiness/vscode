@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Taking over the master (user request).");

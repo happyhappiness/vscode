@@ -1,0 +1,1 @@
+fprintf(stderr, "Couldn't determine DBSIZE!\n");

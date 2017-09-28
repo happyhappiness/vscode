@@ -1,0 +1,4 @@
+l += snprintf(buf+l,bufsize-l,
+            "   %s%ld: %ld (%.02f%%)\n",
+            (i == DICT_STATS_VECTLEN-1)?">= ":"",
+            i, clvector[i], ((float)clvector[i]/ht->size)*100);

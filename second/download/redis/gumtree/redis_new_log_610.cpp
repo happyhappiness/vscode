@@ -1,0 +1,1 @@
+fprintf(stderr,"Options --ldb and --ldb-sync-mode require --eval.\n");

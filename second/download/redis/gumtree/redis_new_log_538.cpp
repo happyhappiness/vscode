@@ -1,0 +1,1 @@
+serverLogRaw(LL_WARNING|LL_RAW, infostring);

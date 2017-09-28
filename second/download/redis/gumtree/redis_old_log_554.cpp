@@ -1,0 +1,1 @@
+printf(" different slots: %ld\n", slots);

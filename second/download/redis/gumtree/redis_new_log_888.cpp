@@ -1,0 +1,1 @@
+ERROR("Expected prefix '%c', got: '%c'",prefix,buf[0]);

@@ -1,0 +1,1 @@
+addReplyError(c,"Use SCRIPT DEBUG yes/sync/no");

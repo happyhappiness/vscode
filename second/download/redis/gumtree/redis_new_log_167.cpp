@@ -1,0 +1,1 @@
+luaL_error(l, "Infinity, NaN, and/or hexadecimal numbers are not supported.");

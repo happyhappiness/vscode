@@ -1,0 +1,1 @@
+addReplyError(c,"Number of keys can't be negative");

@@ -1,0 +1,1 @@
+dotPath = sdsnew(path);

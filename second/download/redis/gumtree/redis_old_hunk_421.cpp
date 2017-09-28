@@ -1,0 +1,13 @@
+    int fd;
+
+    server.cluster->todo_before_sleep &= ~CLUSTER_TODO_SAVE_CONFIG;
+
+    /* Get the nodes description and concatenate our "vars" directive to
+     * save currentEpoch and lastVoteEpoch. */
+    ci = clusterGenNodesDescription(REDIS_NODE_HANDSHAKE);
+    ci = sdscatprintf(ci,"vars currentEpoch %llu lastVoteEpoch %llu\n",
+        (unsigned long long) server.cluster->currentEpoch,
+        (unsigned long long) server.cluster->lastVoteEpoch);
+    content_size = sdslen(ci);
+
+    if ((fd = open(server.cluster_configfile,O_WRONLY|O_CREAT,0644))

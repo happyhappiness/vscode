@@ -1,0 +1,1 @@
+addReplyError(c,"SYNC is invalid with pending input");

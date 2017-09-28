@@ -1,0 +1,1 @@
+printf("\033[48;5;%dm%c", (int)color, samples[j].character);

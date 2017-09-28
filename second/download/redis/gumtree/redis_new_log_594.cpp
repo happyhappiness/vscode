@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Wrong RDB checksum. Aborting now.");

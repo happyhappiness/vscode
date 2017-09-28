@@ -1,0 +1,1 @@
+notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);

@@ -1,0 +1,1 @@
+sds log = sdscatprintf(sdsempty(),"<debug> line %d: ", ldb.currentline);

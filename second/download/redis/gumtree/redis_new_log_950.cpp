@@ -1,0 +1,1 @@
+printf("Error from server: %s\n", r->str);

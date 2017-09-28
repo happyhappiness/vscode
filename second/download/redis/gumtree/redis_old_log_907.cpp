@@ -1,0 +1,1 @@
+serverLog(LL_NOTICE, "MASTER <-> SLAVE sync: Loading DB in memory");

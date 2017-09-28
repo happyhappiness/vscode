@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"client->argc = %d", c->argc);

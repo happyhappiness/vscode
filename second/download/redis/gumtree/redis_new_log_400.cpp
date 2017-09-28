@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Discarding UPDATE message about myself.");

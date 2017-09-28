@@ -1,0 +1,1 @@
+serverLogFromHandler(LL_WARNING,"Sorry: no support for backtrace().");

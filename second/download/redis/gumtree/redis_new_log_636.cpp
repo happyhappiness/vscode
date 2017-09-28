@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"BGSAVE for replication failed");

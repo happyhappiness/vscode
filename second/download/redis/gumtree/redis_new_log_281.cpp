@@ -1,0 +1,1 @@
+printf("Sampled %llu keys in the keyspace!\n", sampled);

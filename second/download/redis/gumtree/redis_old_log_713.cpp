@@ -1,0 +1,1 @@
+addReplySds(c,sdscatprintf(sdsempty(),"-%s\r\n",err));

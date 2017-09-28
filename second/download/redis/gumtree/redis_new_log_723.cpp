@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Redis forked for debugging eval");

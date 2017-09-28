@@ -1,0 +1,1 @@
+addReplyError(c,"BY option of SORT denied in Cluster mode.");

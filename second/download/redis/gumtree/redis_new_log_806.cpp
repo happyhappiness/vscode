@@ -1,0 +1,1 @@
+notifyKeyspaceEvent(NOTIFY_ZSET,"zrem",key,c->db->id);

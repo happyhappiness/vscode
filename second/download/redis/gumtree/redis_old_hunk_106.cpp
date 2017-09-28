@@ -1,0 +1,34 @@
+
+    if ((zobj = lookupKeyWriteOrReply(c,key,shared.czero)) == NULL ||
+        checkType(c,zobj,REDIS_ZSET)) return;
+
+    if (zobj->encoding == REDIS_ENCODING_ZIPLIST) {
+        zobj->ptr = zzlDeleteRangeByScore(zobj->ptr,range,&deleted);
+        if (zzlLength(zobj->ptr) == 0) dbDelete(c->db,key);
+    } else if (zobj->encoding == REDIS_ENCODING_SKIPLIST) {
+        zset *zs = zobj->ptr;
+        deleted = zslDeleteRangeByScore(zs->zsl,range,zs->dict);
+        if (htNeedsResize(zs->dict)) dictResize(zs->dict);
+        if (dictSize(zs->dict) == 0) dbDelete(c->db,key);
+    } else {
+        redisPanic("Unknown sorted set encoding");
+    }
+
+    if (deleted) signalModifiedKey(c->db,key);
+    server.dirty += deleted;
+    addReplyLongLong(c,deleted);
+}
+
+void zremrangebyrankCommand(redisClient *c) {
+    robj *key = c->argv[1];
+    robj *zobj;
+    long start;
+    long end;
+    int llen;
+    unsigned long deleted;
+
+    if ((getLongFromObjectOrReply(c, c->argv[2], &start, NULL) != REDIS_OK) ||
+        (getLongFromObjectOrReply(c, c->argv[3], &end, NULL) != REDIS_OK)) return;
+
+    if ((zobj = lookupKeyWriteOrReply(c,key,shared.czero)) == NULL ||
+        checkType(c,zobj,REDIS_ZSET)) return;

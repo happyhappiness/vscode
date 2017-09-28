@@ -1,0 +1,1 @@
+printf(" max chain length: %ld\n", maxchainlen);

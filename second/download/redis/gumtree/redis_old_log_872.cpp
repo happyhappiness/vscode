@@ -1,0 +1,1 @@
+serverLog(LL_WARNING,"Guru Meditation: %s #%s:%d",msg,file,line);
