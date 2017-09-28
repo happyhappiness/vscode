@@ -111,7 +111,7 @@ def cluster_edition():
 @ involve cluster by feature and edition
 """
 def cluster(z3_api):
-    cluster_feature(z3_api)
+    # cluster_feature(z3_api)
     cluster_edition()
 
 """
