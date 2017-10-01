@@ -11,7 +11,7 @@ do
     echo "now processing ${CODE_DIR}"
     cd ${CODE_DIR}
     `make clean`
-    # `./configure --enable-modules="all"` #--with-apr=/usr/local/apr/bin/apr-1-config --with-apr-util=/usr/local/apr-util/bin/apu-1-config`
+    # `./configure --enable-modules="all"` #--with-apr=/usr/local/apr/bin/apr-1-config --with-apr-util=/usr/local/apr-util/bin/apu-1-config
     `bear make V=1` # redis
     `${SMARTLOG_DIR}/script/extract_command_11.pl compile_commands.json`
     `./build_ir.sh`
