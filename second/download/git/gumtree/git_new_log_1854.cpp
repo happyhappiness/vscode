@@ -1,0 +1,1 @@
+die("BUG: run_command with a pipe can cause deadlock");

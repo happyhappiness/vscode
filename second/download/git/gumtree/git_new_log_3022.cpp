@@ -1,0 +1,1 @@
+extern int error_errno(const char *err, ...) __attribute__((format (printf, 1, 2)));

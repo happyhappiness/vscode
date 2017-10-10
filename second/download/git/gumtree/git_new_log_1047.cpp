@@ -1,0 +1,1 @@
+die("submodule--helper push-check requires at least 1 argument");

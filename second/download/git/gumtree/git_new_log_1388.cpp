@@ -1,0 +1,1 @@
+die("Can't read object %s", oid_to_hex(oid));

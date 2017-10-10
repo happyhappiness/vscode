@@ -1,0 +1,1 @@
+error(_("read of %s failed"), name);

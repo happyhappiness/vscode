@@ -1,0 +1,1 @@
+error(_("cannot rebase: You have unstaged changes."));

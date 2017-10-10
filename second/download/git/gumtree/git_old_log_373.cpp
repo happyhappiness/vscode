@@ -1,0 +1,1 @@
+die("%s not a valid tag", sha1_to_hex(sha1));

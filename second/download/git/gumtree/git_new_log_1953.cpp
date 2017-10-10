@@ -1,0 +1,1 @@
+printf("%s -> %s\n", refname, oid_to_hex(oid));

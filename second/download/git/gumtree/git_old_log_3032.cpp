@@ -1,0 +1,1 @@
+warning("cannot get host name: %s", strerror(errno));

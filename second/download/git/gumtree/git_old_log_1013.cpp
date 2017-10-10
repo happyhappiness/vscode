@@ -1,0 +1,1 @@
+die("sha1 mismatch in blob %s", sha1_to_hex(sha1));

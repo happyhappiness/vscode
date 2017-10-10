@@ -1,0 +1,1 @@
+die(_("unable to write parameters to config file"));

@@ -1,0 +1,1 @@
+die("verify %s missing [<oldvalue>] NUL", ref.buf);

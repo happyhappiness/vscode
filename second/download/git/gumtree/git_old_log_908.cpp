@@ -1,0 +1,1 @@
+error("object file %s is empty", sha1_file_name(sha1));

@@ -1,0 +1,1 @@
+error("problems writing temporary file %s", buf->buf);

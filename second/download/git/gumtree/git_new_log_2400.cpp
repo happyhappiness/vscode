@@ -1,0 +1,1 @@
+printf("%s", find_unique_abbrev(oid->hash, abbrev));

@@ -1,0 +1,1 @@
+die("closing file %s: %s", filename, strerror(errno));

@@ -1,0 +1,1 @@
+die_errno(_("failed to symlink '%s'"), path);

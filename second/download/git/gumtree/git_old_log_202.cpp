@@ -1,0 +1,1 @@
+fprintf_ln(s->fp, "");

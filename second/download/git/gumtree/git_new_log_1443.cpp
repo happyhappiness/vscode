@@ -1,0 +1,1 @@
+die("BUG: attempt to trim too many characters");

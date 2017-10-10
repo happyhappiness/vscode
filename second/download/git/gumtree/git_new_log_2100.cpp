@@ -1,0 +1,1 @@
+die(_("rev-list does not support display of notes"));

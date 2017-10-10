@@ -1,0 +1,1 @@
+die(_("Could not make %s writable by group"), dir);

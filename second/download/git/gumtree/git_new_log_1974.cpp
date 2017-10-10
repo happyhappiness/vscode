@@ -1,0 +1,1 @@
+die_errno(_("failed to delete directory %s"), mtime_dir.buf);

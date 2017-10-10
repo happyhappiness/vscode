@@ -1,0 +1,1 @@
+error(_("empty commit set passed"));

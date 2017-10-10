@@ -1,0 +1,1 @@
+die(_("Could not read the index"));

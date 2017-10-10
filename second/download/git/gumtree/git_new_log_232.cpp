@@ -1,0 +1,1 @@
+fprintf(fp, "%s ", oid_to_hex(&state->orig_commit));

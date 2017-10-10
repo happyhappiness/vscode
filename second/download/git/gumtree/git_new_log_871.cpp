@@ -1,0 +1,1 @@
+fprintf(stderr, "Executing: %s\n", command_line);

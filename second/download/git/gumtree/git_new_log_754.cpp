@@ -1,0 +1,1 @@
+error(_("additionally, your index contains uncommitted changes."));

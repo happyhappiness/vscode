@@ -1,0 +1,1 @@
+die(_("failed to sign the push certificate"));

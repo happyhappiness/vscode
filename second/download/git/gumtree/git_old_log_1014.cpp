@@ -1,0 +1,1 @@
+die("Could not read blob %s", sha1_to_hex(sha1));

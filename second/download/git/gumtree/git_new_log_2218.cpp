@@ -1,0 +1,1 @@
+die("Missing '=': '%s'", buf);

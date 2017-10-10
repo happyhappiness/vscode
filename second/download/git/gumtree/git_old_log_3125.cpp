@@ -1,0 +1,1 @@
+die("cannot load shell32.dll");

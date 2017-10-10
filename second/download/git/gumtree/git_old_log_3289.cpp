@@ -1,0 +1,1 @@
+die("unable to read %s", sha1_to_hex(s->sha1));

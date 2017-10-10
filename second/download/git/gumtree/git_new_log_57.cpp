@@ -1,0 +1,1 @@
+die("mktree did not return an object name");

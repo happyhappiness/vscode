@@ -1,0 +1,1 @@
+die(_("unable to parse object: %s"), name ? name : oid_to_hex(oid));

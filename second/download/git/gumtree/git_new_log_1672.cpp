@@ -1,0 +1,1 @@
+err |= optbug(opts, "short name already used");

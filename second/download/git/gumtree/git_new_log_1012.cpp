@@ -1,0 +1,1 @@
+die ("Could not read blob %s", oid_to_hex(oid));

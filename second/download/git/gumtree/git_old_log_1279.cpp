@@ -1,0 +1,1 @@
+printf("num get patch: %d\n", num_get_patch);

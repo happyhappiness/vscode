@@ -1,0 +1,1 @@
+printf("%6d\t%s\n", onelines->nr, log->list.items[i].string);

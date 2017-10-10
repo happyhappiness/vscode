@@ -1,0 +1,1 @@
+die("delete %s: extra input: %s", refname, next);

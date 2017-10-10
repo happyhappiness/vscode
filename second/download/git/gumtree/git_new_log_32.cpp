@@ -1,0 +1,1 @@
+warning(_("--depth is ignored in local clones; use file:// instead."));

@@ -1,0 +1,1 @@
+error_errno("error reading delta");

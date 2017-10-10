@@ -1,0 +1,1 @@
+error("can't write crash report %s: %s", loc, strerror(errno));

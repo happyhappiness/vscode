@@ -1,0 +1,1 @@
+packet_write(1, "ACK %s common\n", last_hex);

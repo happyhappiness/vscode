@@ -1,0 +1,1 @@
+error(_("could not stat '%s'"), todo_file);

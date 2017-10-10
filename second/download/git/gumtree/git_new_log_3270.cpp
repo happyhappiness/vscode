@@ -1,0 +1,1 @@
+(_("bad config line %d in blob %s");

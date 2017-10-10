@@ -1,0 +1,1 @@
+fprintf(stderr, "Failed to fall back on three-way merge...\n");

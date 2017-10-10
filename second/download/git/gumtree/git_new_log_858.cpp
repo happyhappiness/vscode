@@ -1,0 +1,1 @@
+error(_("unknown command: %d"), command);

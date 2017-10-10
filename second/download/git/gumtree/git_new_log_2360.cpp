@@ -1,0 +1,1 @@
+status_printf(s, color(WT_STATUS_HEADER, s), "%s", "");

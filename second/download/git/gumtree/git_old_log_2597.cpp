@@ -1,0 +1,1 @@
+die("internal error: packed-ref cache cleared while locked");

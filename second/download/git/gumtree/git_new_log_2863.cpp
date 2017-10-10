@@ -1,0 +1,1 @@
+die("not a gitdir '%s'", argv[i]);

@@ -1,0 +1,1 @@
+cb->ret = error(_("branch '%s' does not point at a commit"), refname);

@@ -1,0 +1,1 @@
+die("git-over-rsync is no longer supported");

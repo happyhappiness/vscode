@@ -1,0 +1,1 @@
+die("Reference directory conflict: %s", ref1->name);

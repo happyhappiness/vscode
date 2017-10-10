@@ -1,0 +1,1 @@
+die("invalid shallow object %s", oid_to_hex(&oid));

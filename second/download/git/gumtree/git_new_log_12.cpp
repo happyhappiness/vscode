@@ -1,0 +1,1 @@
+die("BUG: parse_object_buffer transmogrified our buffer");

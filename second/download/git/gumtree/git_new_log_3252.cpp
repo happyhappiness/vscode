@@ -1,0 +1,1 @@
+die("submodule--helper relative-path takes exactly 2 arguments, got %d", argc);

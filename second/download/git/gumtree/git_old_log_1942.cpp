@@ -1,0 +1,1 @@
+die(_("Could not create git link %s"), git_link);

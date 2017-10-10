@@ -1,0 +1,1 @@
+die(_("unable to parse commit %s"), oid_to_hex(&commit->object.oid));

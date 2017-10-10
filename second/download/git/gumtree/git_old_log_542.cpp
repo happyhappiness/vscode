@@ -1,0 +1,1 @@
+die("no shallow found: %s", line);

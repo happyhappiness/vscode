@@ -1,0 +1,1 @@
+die("invalid object type");

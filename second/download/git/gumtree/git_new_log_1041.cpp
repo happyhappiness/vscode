@@ -1,0 +1,1 @@
+error("new commit is the same as the old one: '%s'", oid_to_hex(&old));

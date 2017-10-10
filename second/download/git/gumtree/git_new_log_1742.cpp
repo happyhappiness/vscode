@@ -1,0 +1,1 @@
+strbuf_addf(&refname, "refs/%s", write_ref[i]);

@@ -1,0 +1,1 @@
+warning(_("ignoring --verify-signatures for rebase"));

@@ -1,0 +1,1 @@
+die("unable to stream %s to stdout", sha1_to_hex(sha1));

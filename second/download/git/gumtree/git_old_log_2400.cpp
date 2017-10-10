@@ -1,0 +1,1 @@
+printf("%s", find_unique_abbrev(sha1, abbrev));

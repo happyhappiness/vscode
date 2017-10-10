@@ -1,0 +1,1 @@
+error(_("patch failed: %s:%ld"), name, frag->oldpos);

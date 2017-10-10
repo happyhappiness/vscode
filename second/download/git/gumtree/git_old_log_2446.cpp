@@ -1,0 +1,1 @@
+die(_("insane git directory %s"), git_dir);

@@ -1,0 +1,1 @@
+fprintf(stderr, "IMAP error: could not check mailbox\n");

@@ -1,0 +1,1 @@
+error("abbrev length out of range: %d", abbrev);

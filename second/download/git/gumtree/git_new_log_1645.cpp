@@ -1,0 +1,1 @@
+die("curl_multi_init failed");

@@ -1,0 +1,1 @@
+die(_("Directory %s is in index and no submodule?"), src);

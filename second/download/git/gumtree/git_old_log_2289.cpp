@@ -1,0 +1,1 @@
+die_errno("Error opening '%s'", path);

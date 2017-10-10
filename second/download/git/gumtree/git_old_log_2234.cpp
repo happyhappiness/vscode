@@ -1,0 +1,1 @@
+die("failed to prepare '%s' for appending", path);

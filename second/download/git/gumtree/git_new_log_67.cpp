@@ -1,0 +1,1 @@
+die(_("Not a valid object name: '%s'"), mergetag_data->argv[i]);

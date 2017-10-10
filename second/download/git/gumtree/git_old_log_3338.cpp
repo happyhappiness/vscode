@@ -1,0 +1,1 @@
+printf("log size %i\n", (int)msgbuf.len);

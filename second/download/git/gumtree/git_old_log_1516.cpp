@@ -1,0 +1,1 @@
+die_errno("Cannot determine the current working directory");

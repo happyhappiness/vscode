@@ -1,0 +1,1 @@
+die("not a commit? can't happen: %s", oid_to_hex(&oid));

@@ -1,0 +1,1 @@
+die("create %s given zero new value", ref.buf);

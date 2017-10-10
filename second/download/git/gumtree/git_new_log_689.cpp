@@ -1,0 +1,1 @@
+fprintf(outfile, "%s\n", val);

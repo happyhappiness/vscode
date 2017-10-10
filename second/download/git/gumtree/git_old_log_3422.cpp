@@ -1,0 +1,1 @@
+die(_("bug: unhandled diff status %c"), status);

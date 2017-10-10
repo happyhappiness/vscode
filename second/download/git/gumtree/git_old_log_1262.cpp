@@ -1,0 +1,1 @@
+die_errno("cannot readlink '%s'", read_from);

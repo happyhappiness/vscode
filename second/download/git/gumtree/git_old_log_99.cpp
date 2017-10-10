@@ -1,0 +1,1 @@
+die("verify %s has extra input: %s", ref.buf, next);

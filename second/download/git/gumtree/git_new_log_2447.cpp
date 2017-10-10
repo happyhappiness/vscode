@@ -1,0 +1,1 @@
+die("BUG: invalid value for shared_repository");

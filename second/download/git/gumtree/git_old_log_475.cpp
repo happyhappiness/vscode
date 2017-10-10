@@ -1,0 +1,1 @@
+die("cannot handle more than %d revs.", MAX_REVS);

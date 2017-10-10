@@ -1,0 +1,1 @@
+fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);

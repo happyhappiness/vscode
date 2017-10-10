@@ -1,0 +1,1 @@
+die(_("Failed to find exact merge base"));

@@ -1,0 +1,39 @@
+ 		const char *file2, const char *label2)
+ {
+ 	xpparam_t xpp;
+ 	xdemitconf_t xecfg;
+ 	xdemitcb_t ecb;
+ 	mmfile_t minus, plus;
+-	int ret;
+ 
+ 	if (read_mmfile(&minus, file1) || read_mmfile(&plus, file2))
+-		return -1;
++		return 1;
+ 
+ 	printf("--- a/%s\n+++ b/%s\n", label1, label2);
+ 	fflush(stdout);
+ 	memset(&xpp, 0, sizeof(xpp));
+ 	xpp.flags = 0;
+ 	memset(&xecfg, 0, sizeof(xecfg));
+ 	xecfg.ctxlen = 3;
+ 	ecb.outf = outf;
+-	ret = xdi_diff(&minus, &plus, &xpp, &xecfg, &ecb);
++	xdi_diff(&minus, &plus, &xpp, &xecfg, &ecb);
+ 
+ 	free(minus.ptr);
+ 	free(plus.ptr);
+-	return ret;
++	return 0;
+ }
+ 
+ int cmd_rerere(int argc, const char **argv, const char *prefix)
+ {
+ 	struct string_list merge_rr = STRING_LIST_INIT_DUP;
+-	int i, fd, autoupdate = -1, flags = 0;
++	int i, autoupdate = -1, flags = 0;
+ 
+ 	struct option options[] = {
+ 		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
+ 			N_("register clean resolutions in index"), 1),
+ 		OPT_END(),
+ 	};

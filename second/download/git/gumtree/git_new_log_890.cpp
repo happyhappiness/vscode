@@ -1,0 +1,1 @@
+error(_("cannot amend non-existing commit"));

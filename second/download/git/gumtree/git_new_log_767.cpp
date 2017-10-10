@@ -1,0 +1,1 @@
+die(_(incremental_bitmap_conflict_error));

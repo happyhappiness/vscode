@@ -1,0 +1,1 @@
+die("core.bare and core.worktree do not make sense");

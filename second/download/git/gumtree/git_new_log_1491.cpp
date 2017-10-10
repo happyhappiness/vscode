@@ -1,0 +1,1 @@
+error("'%s' was not filtered properly", path->string);

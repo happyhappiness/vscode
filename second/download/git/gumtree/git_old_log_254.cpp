@@ -1,0 +1,1 @@
+error(_("deleted file still has contents"));

@@ -1,0 +1,1 @@
+printf("num commits: %d\n", sb.num_commits);

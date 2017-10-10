@@ -1,0 +1,1 @@
+fputs(pp->buffered_output.buf, stderr);

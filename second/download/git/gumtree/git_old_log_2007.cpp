@@ -1,0 +1,1 @@
+error("Can't verify ref %s", lock->ref_name);

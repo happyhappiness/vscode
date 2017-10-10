@@ -1,0 +1,1 @@
+die("transport '%s' not allowed", type);

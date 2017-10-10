@@ -1,0 +1,1 @@
+("BUG: non-INDEX attr direction in a bare repo";

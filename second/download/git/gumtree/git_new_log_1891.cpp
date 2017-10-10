@@ -1,0 +1,1 @@
+mark_our_ref(refname, sha1);

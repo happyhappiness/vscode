@@ -1,0 +1,1 @@
+die(_("could not write replacement commit for: '%s'"), old_ref);

@@ -1,0 +1,49 @@
+[
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c grep.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/grep.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c dfa.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/dfa.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c kwset.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/kwset.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c obstack.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/obstack.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c getopt.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/getopt.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c getopt1.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/getopt1.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c search.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/search.c"
+}
+,
+{
+  "directory": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src",
+  "command": "gcc -DHAVE_CONFIG_H -I. -I. -I.. -I../intl -DLOCALEDIR=\"/usr/local/share/locale\" -g -O2 -c regex.c",
+  "file": "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/grep-2.2/src/regex.c"
+}
+]

@@ -1,0 +1,1 @@
+printf("%s missing\n", obj_name);

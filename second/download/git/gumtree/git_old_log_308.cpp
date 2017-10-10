@@ -1,0 +1,1 @@
+die(_("invalid path '%s'"), new_name);

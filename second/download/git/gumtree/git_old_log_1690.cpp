@@ -1,0 +1,1 @@
+die("too long a refname '%s'", refname);

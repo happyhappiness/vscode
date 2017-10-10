@@ -1,0 +1,1 @@
+logerror("user-path too large: %s", rpath);

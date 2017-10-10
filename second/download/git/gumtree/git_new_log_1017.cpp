@@ -1,0 +1,1 @@
+die("object not found: %s", oid_to_hex(&oid));

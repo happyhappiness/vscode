@@ -1,0 +1,1 @@
+die(_("ls-tree returned unexpected return code %d"), code);

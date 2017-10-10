@@ -1,0 +1,1 @@
+fprintf(opt->diffopt.file, "\t%s", (char *) commit->util);

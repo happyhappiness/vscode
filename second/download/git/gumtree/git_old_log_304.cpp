@@ -1,0 +1,1 @@
+error(_("%s: wrong type"), old_name);

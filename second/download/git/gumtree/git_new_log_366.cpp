@@ -1,0 +1,1 @@
+die(_("--progress can't be used with --incremental or porcelain formats"));

@@ -1,0 +1,1 @@
+die(_("base commit shouldn't be in revision list"));

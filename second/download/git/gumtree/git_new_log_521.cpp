@@ -1,0 +1,1 @@
+die("BUG: oid abbreviation out of range: %d", abbrev);

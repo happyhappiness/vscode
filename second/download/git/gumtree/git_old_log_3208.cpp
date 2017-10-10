@@ -1,0 +1,1 @@
+fprintf(realstdout, "%s\n", filename.buf + outdir_offset);

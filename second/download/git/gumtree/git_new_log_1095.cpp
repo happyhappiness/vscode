@@ -1,0 +1,1 @@
+die(_("Only one 'attr:' specification is allowed."));

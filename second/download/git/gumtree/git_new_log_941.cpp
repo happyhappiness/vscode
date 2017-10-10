@@ -1,0 +1,1 @@
+die(_("Failed to parse gc.logexpiry value %s"), gc_log_expire);

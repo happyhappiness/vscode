@@ -1,0 +1,1 @@
+die_errno("unable to create '%s'", tmp_file);

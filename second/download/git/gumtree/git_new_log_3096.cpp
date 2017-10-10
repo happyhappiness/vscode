@@ -1,0 +1,1 @@
+warning_errno("unable to %s %s", op, file);

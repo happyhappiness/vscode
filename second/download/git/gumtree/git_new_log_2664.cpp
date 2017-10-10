@@ -1,0 +1,1 @@
+fprintf(stderr, "Recorded resolution for '%s'.\n", path);

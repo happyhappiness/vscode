@@ -1,0 +1,1 @@
+ret = error("refname %s not found", oldrefname);

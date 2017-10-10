@@ -1,0 +1,1 @@
+(_("-n option is only allowed in list mode");

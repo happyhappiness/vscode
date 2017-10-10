@@ -1,0 +1,1 @@
+error("Object %s already has a mark", oid_to_hex(&oid));

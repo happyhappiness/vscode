@@ -1,0 +1,1 @@
+die(_("unsupported sort specification %s"), arg);

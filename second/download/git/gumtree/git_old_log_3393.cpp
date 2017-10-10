@@ -1,0 +1,1 @@
+error(_("Cannot %s during a %s"), action_str, action_name(opts));

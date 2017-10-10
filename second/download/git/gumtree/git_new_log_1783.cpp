@@ -1,0 +1,1 @@
+die("curl_easy_init failed");

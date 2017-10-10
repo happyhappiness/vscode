@@ -1,0 +1,1 @@
+warning("recount: ignore empty hunk");

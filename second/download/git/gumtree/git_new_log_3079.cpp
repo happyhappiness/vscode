@@ -1,0 +1,1 @@
+error_errno("read(%s) failed", t->src_name);

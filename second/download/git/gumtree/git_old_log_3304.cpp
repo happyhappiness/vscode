@@ -1,0 +1,1 @@
+die("bug: a non-header pattern in grep header list.");

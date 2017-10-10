@@ -1,0 +1,1 @@
+ret = error("error occurred running diff --raw");

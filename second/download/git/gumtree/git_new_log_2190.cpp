@@ -1,0 +1,1 @@
+diff_two(rerere_path(name, "preimage"), path, path, path);

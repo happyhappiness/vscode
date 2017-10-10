@@ -1,0 +1,1 @@
+die("a %s revision is needed", term_bad);

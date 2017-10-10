@@ -1,0 +1,1 @@
+error(_("%s: patch does not apply"), name);

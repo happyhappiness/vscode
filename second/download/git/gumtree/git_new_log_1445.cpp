@@ -1,0 +1,1 @@
+die("BUG: free called on a prepared reference transaction");

@@ -1,0 +1,31 @@
+	strbuf_addf(&buf, "application/x-git-%s-result", svc->name);
+	hdr_str(content_type, buf.buf);
+
+	end_headers();
+
+	argv[0] = svc->name;
+	run_service(argv);
+	strbuf_release(&buf);
+}
+
+static NORETURN void die_webcgi(const char *err, va_list params)
+{
+	static int dead;
+
+	if (!dead) {
+		dead = 1;
+		http_status(500, "Internal Server Error");
+		hdr_nocache();
+		end_headers();
+
+		vreportf("fatal: ", err, params);
+	}
+	exit(0); /* we successfully reported a failure ;-) */
+}
+
+static char* getdir(void)
+{
+	struct strbuf buf = STRBUF_INIT;
+	char *pathinfo = getenv("PATH_INFO");
+	char *root = getenv("GIT_PROJECT_ROOT");
+	char *path = getenv("PATH_TRANSLATED");

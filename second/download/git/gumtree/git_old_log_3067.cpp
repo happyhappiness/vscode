@@ -1,0 +1,1 @@
+error("file write error (%s)", strerror(errno));

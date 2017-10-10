@@ -1,0 +1,1 @@
+die("Log for %s is empty.", refname);

@@ -1,0 +1,1 @@
+error(_("%s: does not exist in index"), name);

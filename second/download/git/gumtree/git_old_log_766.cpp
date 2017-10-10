@@ -1,0 +1,1 @@
+die("bad pack compression level %d", level);

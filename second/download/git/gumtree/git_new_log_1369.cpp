@@ -1,0 +1,1 @@
+die("Timestamp too large for this system: %"PRItime, time);

@@ -1,0 +1,1 @@
+error(_("could not remove CHERRY_PICK_HEAD"));

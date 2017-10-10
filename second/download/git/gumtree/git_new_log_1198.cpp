@@ -1,0 +1,1 @@
+error("empty patch: '%s'", patch);

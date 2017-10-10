@@ -1,0 +1,1 @@
+error(_("cannot cherry-pick during a revert."));

@@ -1,0 +1,1 @@
+die_errno(_("dup2(%d,%d) failed"), fd, to);

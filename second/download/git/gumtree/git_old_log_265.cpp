@@ -1,0 +1,1 @@
+error(_("unable to read symlink %s"), path);

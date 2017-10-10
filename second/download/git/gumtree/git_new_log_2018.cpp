@@ -1,0 +1,1 @@
+error_buf(err, _("push has no destination (push.default is 'nothing')"));

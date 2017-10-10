@@ -1,0 +1,1 @@
+die("BUG: main_ref_store initialized twice");

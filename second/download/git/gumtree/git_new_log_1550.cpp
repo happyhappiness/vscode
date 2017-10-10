@@ -1,0 +1,1 @@
+cwd_is_git_dir = !strcmp(git_dir, cwd);

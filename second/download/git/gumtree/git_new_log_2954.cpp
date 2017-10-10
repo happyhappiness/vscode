@@ -1,0 +1,1 @@
+error_errno("failed to redirect stderr to /dev/null");

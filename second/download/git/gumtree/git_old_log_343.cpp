@@ -1,0 +1,1 @@
+fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);

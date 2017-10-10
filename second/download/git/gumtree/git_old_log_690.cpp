@@ -1,0 +1,1 @@
+error(_("empty trailer token in trailer '%.*s'"), l, trailer);

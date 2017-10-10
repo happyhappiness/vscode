@@ -1,0 +1,1 @@
+error_errno("unable to open %s", path->buf);

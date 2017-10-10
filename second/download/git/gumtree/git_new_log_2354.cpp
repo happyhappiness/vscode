@@ -1,0 +1,1 @@
+warning("symbolic ref is dangling: %s", path);

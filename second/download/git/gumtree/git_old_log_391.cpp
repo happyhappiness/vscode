@@ -1,0 +1,1 @@
+die(_("reference repository '%s' is grafted"), item->string);

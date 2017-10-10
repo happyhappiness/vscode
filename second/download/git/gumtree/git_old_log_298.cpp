@@ -1,0 +1,1 @@
+error(_("removal patch leaves file contents"));

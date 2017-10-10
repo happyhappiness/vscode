@@ -1,0 +1,1 @@
+error(_("Invalid value for %s: %s"), key, value);

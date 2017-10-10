@@ -1,0 +1,1 @@
+die("corrupt MERGE_RR");

@@ -1,0 +1,1 @@
+fprintf(f, "(diff failed)\n");

@@ -1,0 +1,1 @@
+error_errno("could not read file '%s'", path);

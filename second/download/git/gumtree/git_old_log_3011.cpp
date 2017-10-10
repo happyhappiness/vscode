@@ -1,0 +1,1 @@
+error("%s: close error: %s", dst, strerror(errno));

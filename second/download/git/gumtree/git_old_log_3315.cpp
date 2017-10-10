@@ -1,0 +1,1 @@
+fputs(color, stdout);

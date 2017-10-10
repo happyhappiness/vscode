@@ -1,0 +1,1 @@
+warning_errno(_(msg_warn_remove_failed), qname);

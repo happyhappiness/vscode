@@ -1,0 +1,1 @@
+die("git fetch-pack: expected shallow list");

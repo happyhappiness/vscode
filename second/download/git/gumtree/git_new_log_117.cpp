@@ -1,0 +1,1 @@
+die("delete: missing <ref>");

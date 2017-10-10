@@ -1,0 +1,1 @@
+error(_("unrecognized argument: %s"), argv[1]);

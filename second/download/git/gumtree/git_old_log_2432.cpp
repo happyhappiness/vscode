@@ -1,0 +1,1 @@
+fprintf(stderr, "Checking directory %s\n", path);

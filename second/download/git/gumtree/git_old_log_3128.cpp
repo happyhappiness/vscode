@@ -1,0 +1,1 @@
+die("failed to launch browser for %.*s", MAX_PATH, unixpath);

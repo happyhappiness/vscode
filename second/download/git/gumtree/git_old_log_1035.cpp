@@ -1,0 +1,1 @@
+die("replace ref name too long: %.*s...", 50, ref);

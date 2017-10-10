@@ -1,0 +1,1 @@
+error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));

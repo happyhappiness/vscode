@@ -1,0 +1,1 @@
+error("copy-fd: write returned 0");

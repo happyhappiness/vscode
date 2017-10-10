@@ -1,0 +1,1 @@
+strbuf_addstr(err, _("too-short tree object"));

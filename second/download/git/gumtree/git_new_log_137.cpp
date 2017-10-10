@@ -1,0 +1,1 @@
+die("cannot start proxy %s", git_proxy_command);

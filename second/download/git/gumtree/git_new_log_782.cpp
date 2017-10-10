@@ -1,0 +1,1 @@
+die_errno(_("could not read '%s'"), git_path_abort_safety_file());

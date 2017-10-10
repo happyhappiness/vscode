@@ -1,0 +1,1 @@
+error("running trailer command '%s' failed", cmd.buf);

@@ -1,0 +1,1 @@
+error("core.commentChar should only be one character");

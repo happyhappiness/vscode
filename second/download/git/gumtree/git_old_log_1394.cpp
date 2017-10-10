@@ -1,0 +1,1 @@
+packet_buf_write(&req_buf, "have %s\n", sha1_to_hex(sha1));

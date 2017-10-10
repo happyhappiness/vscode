@@ -1,0 +1,1 @@
+die("BUG: unhandled RR_* enum");

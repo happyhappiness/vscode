@@ -1,0 +1,1 @@
+error("unable to delete old %s", oldrefname);

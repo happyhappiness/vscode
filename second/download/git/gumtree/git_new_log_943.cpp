@@ -1,0 +1,1 @@
+die(_("unable to resolve revision: %s"), arg);

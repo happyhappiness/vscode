@@ -1,0 +1,1 @@
+die("BUG: you need to specify a get_next_task function");

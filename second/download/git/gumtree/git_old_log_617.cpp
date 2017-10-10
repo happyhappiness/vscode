@@ -1,0 +1,1 @@
+die(_("%s: Unable to write new index file"), action_name(opts));

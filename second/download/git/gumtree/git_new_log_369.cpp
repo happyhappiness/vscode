@@ -1,0 +1,1 @@
+die(_("--reverse and --first-parent together require specified latest commit"));

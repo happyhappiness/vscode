@@ -1,0 +1,1 @@
+error("waitpid for %s failed: %s", argv0, strerror(errno));

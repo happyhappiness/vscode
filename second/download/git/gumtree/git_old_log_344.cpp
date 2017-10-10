@@ -1,0 +1,1 @@
+fprintf(rej, "%.*s", frag->size, frag->patch);

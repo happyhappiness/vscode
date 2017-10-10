@@ -1,0 +1,1 @@
+*recurse_submodules = parse_push_recurse_submodules_arg(opt->long_name, arg);

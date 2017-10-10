@@ -1,0 +1,1 @@
+die(_("failed to read ref NOTES_MERGE_PARTIAL"));

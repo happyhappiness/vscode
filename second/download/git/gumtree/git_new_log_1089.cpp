@@ -1,0 +1,1 @@
+die("unable to create lazy_name_thread");

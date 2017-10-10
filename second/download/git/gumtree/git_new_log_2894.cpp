@@ -1,0 +1,1 @@
+free(git_work_tree_cfg);

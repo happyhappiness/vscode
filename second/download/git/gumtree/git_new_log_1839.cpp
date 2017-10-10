@@ -1,0 +1,1 @@
+die("BUG: delete called with old_sha1 set to zeros");

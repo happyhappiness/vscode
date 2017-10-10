@@ -1,0 +1,1 @@
+printf("%s", lines[i]->buf);

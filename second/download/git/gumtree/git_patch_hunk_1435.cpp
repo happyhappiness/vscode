@@ -1,0 +1,120 @@
+ 	while (fanout) {
+ 		path[i++] = hex_sha1[j++];
+ 		path[i++] = hex_sha1[j++];
+ 		path[i++] = '/';
+ 		fanout--;
+ 	}
+-	memcpy(path + i, hex_sha1 + j, 40 - j);
+-	path[i + 40 - j] = '\0';
++	memcpy(path + i, hex_sha1 + j, GIT_SHA1_HEXSZ - j);
++	path[i + GIT_SHA1_HEXSZ - j] = '\0';
+ }
+ 
+ static uintmax_t do_change_note_fanout(
+ 		struct tree_entry *orig_root, struct tree_entry *root,
+-		char *hex_sha1, unsigned int hex_sha1_len,
++		char *hex_oid, unsigned int hex_oid_len,
+ 		char *fullpath, unsigned int fullpath_len,
+ 		unsigned char fanout)
+ {
+ 	struct tree_content *t;
+ 	struct tree_entry *e, leaf;
+-	unsigned int i, tmp_hex_sha1_len, tmp_fullpath_len;
++	unsigned int i, tmp_hex_oid_len, tmp_fullpath_len;
+ 	uintmax_t num_notes = 0;
+-	unsigned char sha1[20];
++	struct object_id oid;
+ 	char realpath[60];
+ 
+ 	if (!root->tree)
+ 		load_tree(root);
+ 	t = root->tree;
+ 
+ 	for (i = 0; t && i < t->entry_count; i++) {
+ 		e = t->entries[i];
+-		tmp_hex_sha1_len = hex_sha1_len + e->name->str_len;
++		tmp_hex_oid_len = hex_oid_len + e->name->str_len;
+ 		tmp_fullpath_len = fullpath_len;
+ 
+ 		/*
+ 		 * We're interested in EITHER existing note entries (entries
+ 		 * with exactly 40 hex chars in path, not including directory
+ 		 * separators), OR directory entries that may contain note
+ 		 * entries (with < 40 hex chars in path).
+ 		 * Also, each path component in a note entry must be a multiple
+ 		 * of 2 chars.
+ 		 */
+ 		if (!e->versions[1].mode ||
+-		    tmp_hex_sha1_len > 40 ||
++		    tmp_hex_oid_len > GIT_SHA1_HEXSZ ||
+ 		    e->name->str_len % 2)
+ 			continue;
+ 
+ 		/* This _may_ be a note entry, or a subdir containing notes */
+-		memcpy(hex_sha1 + hex_sha1_len, e->name->str_dat,
++		memcpy(hex_oid + hex_oid_len, e->name->str_dat,
+ 		       e->name->str_len);
+ 		if (tmp_fullpath_len)
+ 			fullpath[tmp_fullpath_len++] = '/';
+ 		memcpy(fullpath + tmp_fullpath_len, e->name->str_dat,
+ 		       e->name->str_len);
+ 		tmp_fullpath_len += e->name->str_len;
+ 		fullpath[tmp_fullpath_len] = '\0';
+ 
+-		if (tmp_hex_sha1_len == 40 && !get_sha1_hex(hex_sha1, sha1)) {
++		if (tmp_hex_oid_len == GIT_SHA1_HEXSZ && !get_oid_hex(hex_oid, &oid)) {
+ 			/* This is a note entry */
+ 			if (fanout == 0xff) {
+ 				/* Counting mode, no rename */
+ 				num_notes++;
+ 				continue;
+ 			}
+-			construct_path_with_fanout(hex_sha1, fanout, realpath);
++			construct_path_with_fanout(hex_oid, fanout, realpath);
+ 			if (!strcmp(fullpath, realpath)) {
+ 				/* Note entry is in correct location */
+ 				num_notes++;
+ 				continue;
+ 			}
+ 
+ 			/* Rename fullpath to realpath */
+ 			if (!tree_content_remove(orig_root, fullpath, &leaf, 0))
+ 				die("Failed to remove path %s", fullpath);
+ 			tree_content_set(orig_root, realpath,
+-				leaf.versions[1].sha1,
++				&leaf.versions[1].oid,
+ 				leaf.versions[1].mode,
+ 				leaf.tree);
+ 		} else if (S_ISDIR(e->versions[1].mode)) {
+ 			/* This is a subdir that may contain note entries */
+ 			num_notes += do_change_note_fanout(orig_root, e,
+-				hex_sha1, tmp_hex_sha1_len,
++				hex_oid, tmp_hex_oid_len,
+ 				fullpath, tmp_fullpath_len, fanout);
+ 		}
+ 
+ 		/* The above may have reallocated the current tree_content */
+ 		t = root->tree;
+ 	}
+ 	return num_notes;
+ }
+ 
+ static uintmax_t change_note_fanout(struct tree_entry *root,
+ 		unsigned char fanout)
+ {
+-	char hex_sha1[40], path[60];
+-	return do_change_note_fanout(root, root, hex_sha1, 0, path, 0, fanout);
++	/*
++	 * The size of path is due to one slash between every two hex digits,
++	 * plus the terminating NUL.  Note that there is no slash at the end, so
++	 * the number of slashes is one less than half the number of hex
++	 * characters.
++	 */
++	char hex_oid[GIT_MAX_HEXSZ], path[GIT_MAX_HEXSZ + (GIT_MAX_HEXSZ / 2) - 1 + 1];
++	return do_change_note_fanout(root, root, hex_oid, 0, path, 0, fanout);
+ }
+ 
+ /*
+  * Given a pointer into a string, parse a mark reference:
+  *
+  *   idnum ::= ':' bigint;

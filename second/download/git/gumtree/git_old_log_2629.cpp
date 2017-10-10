@@ -1,0 +1,1 @@
+error("Couldn't set %s", lock->ref_name);

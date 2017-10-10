@@ -1,0 +1,1 @@
+error_errno("error while reading from stdin");

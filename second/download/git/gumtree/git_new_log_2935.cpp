@@ -1,0 +1,1 @@
+warning(_("failed to exec '%s'"), cmd);

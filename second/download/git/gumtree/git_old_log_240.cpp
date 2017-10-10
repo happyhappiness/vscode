@@ -1,0 +1,1 @@
+die_errno("git apply: failed to read");

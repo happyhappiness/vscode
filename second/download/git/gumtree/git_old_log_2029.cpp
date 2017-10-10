@@ -1,0 +1,1 @@
+die(_("HEAD does not point to a branch"));

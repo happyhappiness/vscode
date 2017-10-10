@@ -1,0 +1,1 @@
+die("BUG: reverse reflog parser had leftover data");

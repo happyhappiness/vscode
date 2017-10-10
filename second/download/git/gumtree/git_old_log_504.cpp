@@ -1,0 +1,1 @@
+die("LF would be replaced by CRLF in %s", path);

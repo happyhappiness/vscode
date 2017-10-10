@@ -1,0 +1,1 @@
+io.io.wrerror = error_errno("Failed to flush %s", path);

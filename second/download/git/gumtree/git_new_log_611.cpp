@@ -1,0 +1,1 @@
+die("dumb http transport does not support shallow capabilities");

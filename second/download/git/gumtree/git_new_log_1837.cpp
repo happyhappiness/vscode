@@ -1,0 +1,1 @@
+die("BUG: create called without valid new_sha1");

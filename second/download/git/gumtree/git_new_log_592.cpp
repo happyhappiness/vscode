@@ -1,0 +1,1 @@
+printf("Auto-merging notes for %s\n", oid_to_hex(&p->obj));

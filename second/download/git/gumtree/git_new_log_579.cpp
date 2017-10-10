@@ -1,0 +1,1 @@
+packet_write_fmt(1, "# service=git-%s\n", svc->name);

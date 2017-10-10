@@ -1,0 +1,1 @@
+die(_("Not a valid object name: '%s'"), argv[i]);

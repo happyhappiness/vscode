@@ -1,0 +1,1 @@
+printf(" %-*s |  Bin\n", max, qname.buf);

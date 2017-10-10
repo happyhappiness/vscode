@@ -44,5 +44,17 @@ int main()
 		// j = 5;
 	}
 
+	switch(i)
+	{
+	case 1:
+		printf("hello");
+	case 2:
+		printf("nihao");
+	}
+
+	for(i = 0; i < n; i++)
+	{
+		printf("for");
+	}
 	return 0;
 }

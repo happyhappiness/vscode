@@ -1,0 +1,1 @@
+die("BUG: create ref with null new_sha1");

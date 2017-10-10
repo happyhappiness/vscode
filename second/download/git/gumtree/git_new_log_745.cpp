@@ -1,0 +1,1 @@
+fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);

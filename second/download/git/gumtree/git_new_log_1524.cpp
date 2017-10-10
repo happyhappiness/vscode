@@ -1,0 +1,1 @@
+die(_("unable to update temporary index"));

@@ -1,0 +1,1 @@
+die("could not recurse into submodule '%s'", sub->path);

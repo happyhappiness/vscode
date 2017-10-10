@@ -1,0 +1,1 @@
+fprintf(f, "%s\n", describe_object(obj));

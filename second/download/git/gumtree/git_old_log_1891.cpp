@@ -1,0 +1,1 @@
+die("git upload-pack: cannot find object %s:", sha1_to_hex(sha1));

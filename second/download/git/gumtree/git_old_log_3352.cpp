@@ -1,0 +1,1 @@
+die("Bug in merge-recursive.c");

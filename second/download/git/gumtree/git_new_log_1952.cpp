@@ -1,0 +1,1 @@
+printf("%s %s\n", oid_to_hex(result), name);

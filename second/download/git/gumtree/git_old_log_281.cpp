@@ -1,0 +1,1 @@
+error(_("cannot checkout %s"), ce->name);

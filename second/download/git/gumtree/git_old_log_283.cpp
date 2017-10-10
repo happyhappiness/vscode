@@ -1,0 +1,1 @@
+error(_("reading from '%s' beyond a symbolic link"), name);

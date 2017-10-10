@@ -1,0 +1,1 @@
+strbuf_addf(&o->obuf, _("(bad commit)\n"));

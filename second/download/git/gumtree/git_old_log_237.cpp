@@ -1,0 +1,1 @@
+die(_("unrecognized whitespace option '%s'"), option);

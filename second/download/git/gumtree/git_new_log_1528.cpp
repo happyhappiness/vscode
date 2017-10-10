@@ -1,0 +1,1 @@
+die(_("commit '%s' has malformed author line"), author_message);

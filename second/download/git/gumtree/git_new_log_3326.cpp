@@ -1,0 +1,1 @@
+fputs(sb.buf, opt->diffopt.file);

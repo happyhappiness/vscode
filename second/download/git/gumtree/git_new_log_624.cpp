@@ -1,0 +1,1 @@
+die("Unknown command: %d", command);

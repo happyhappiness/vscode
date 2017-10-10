@@ -1,0 +1,1 @@
+die(_("git fetch-pack: fetch failed."));

@@ -1,0 +1,1 @@
+die(_("no email was given and auto-detection is disabled"));

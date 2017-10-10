@@ -1,0 +1,1 @@
+printf(_("Remove %s [y/N]? "), qname);

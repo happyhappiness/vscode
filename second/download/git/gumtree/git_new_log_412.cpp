@@ -1,0 +1,1 @@
+die (_("--subject-prefix/--rfc and -k are mutually exclusive."));

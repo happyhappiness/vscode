@@ -1,0 +1,1 @@
+retval = error("bad ref for %s", name->buf);

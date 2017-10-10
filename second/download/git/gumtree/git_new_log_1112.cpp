@@ -1,0 +1,1 @@
+die(_("format: %%(then) atom used without an %%(if) atom"));

@@ -1,0 +1,1 @@
+die(_("commit has empty message"));

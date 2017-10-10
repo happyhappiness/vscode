@@ -1,0 +1,1 @@
+die(_("--[no-]autostash option is only valid with --rebase."));

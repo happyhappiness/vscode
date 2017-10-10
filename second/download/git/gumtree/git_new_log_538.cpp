@@ -1,0 +1,1 @@
+die(_("invalid shallow line: %s"), line);

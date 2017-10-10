@@ -1,0 +1,1 @@
+error_errno("readlink(%s)", elem->path);

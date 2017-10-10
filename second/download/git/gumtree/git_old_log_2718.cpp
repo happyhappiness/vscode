@@ -1,0 +1,1 @@
+error(_("Could not append '%s'"), buf.buf);

@@ -1,0 +1,1 @@
+error("Must specify a notes ref to merge");

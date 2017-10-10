@@ -1,0 +1,1 @@
+die_errno("Cannot change to '%s/..'", cwd);

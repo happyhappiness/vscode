@@ -1,0 +1,1 @@
+fprintf(fout, "Email: %s\n", email.buf);

@@ -1,0 +1,1 @@
+die("remote-helpers do not support ref deletion");

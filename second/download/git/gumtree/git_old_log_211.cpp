@@ -1,0 +1,1 @@
+fprintf(ecbdata->opt->file, "%s", ecbdata->header->buf);

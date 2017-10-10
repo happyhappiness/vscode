@@ -1,0 +1,1 @@
+die("git show %s: bad file", obj_name);

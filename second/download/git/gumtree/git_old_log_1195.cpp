@@ -1,0 +1,1 @@
+die("just how do you expect me to merge %d trees?", stage-1);

@@ -1,0 +1,1 @@
+die("cannot combine --walk-reflogs with history-limiting options");

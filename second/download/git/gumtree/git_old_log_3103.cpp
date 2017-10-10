@@ -1,0 +1,1 @@
+printf(_("nothing to commit, working directory clean\n"));

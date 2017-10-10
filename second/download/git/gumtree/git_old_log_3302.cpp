@@ -1,0 +1,1 @@
+error(_("gpg did not accept the data"));

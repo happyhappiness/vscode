@@ -1,0 +1,1 @@
+die("%s can only be used once.", opt->long_name);

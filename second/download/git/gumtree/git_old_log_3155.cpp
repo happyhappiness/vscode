@@ -1,0 +1,1 @@
+printf("Bisecting: a merge base must be tested\n");

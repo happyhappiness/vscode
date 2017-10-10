@@ -1,0 +1,1 @@
+die("Unknown mark: %s", command_buf.buf);

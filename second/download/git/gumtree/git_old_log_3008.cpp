@@ -1,0 +1,1 @@
+error(_("failed to close rev-list's stdin: %s"), strerror(errno));

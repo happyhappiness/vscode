@@ -1,0 +1,1 @@
+die("bad --word-diff argument: %s", arg);

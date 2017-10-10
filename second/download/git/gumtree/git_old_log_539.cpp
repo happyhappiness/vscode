@@ -1,0 +1,1 @@
+die("invalid unshallow line: %s", line);

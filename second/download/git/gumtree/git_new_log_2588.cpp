@@ -1,0 +1,1 @@
+die(_("format: %%(end) atom missing"));

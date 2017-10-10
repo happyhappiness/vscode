@@ -1,0 +1,1 @@
+print_verbose(args, "have %s", sha1_to_hex(sha1));

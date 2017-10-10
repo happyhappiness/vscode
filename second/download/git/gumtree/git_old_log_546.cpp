@@ -1,0 +1,1 @@
+fprintf(stderr, "have %s\n", sha1_to_hex(sha1));

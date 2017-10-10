@@ -1,0 +1,1 @@
+die("git_all_attrs died");

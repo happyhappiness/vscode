@@ -1,0 +1,1 @@
+("strange hostname '%s' blocked";

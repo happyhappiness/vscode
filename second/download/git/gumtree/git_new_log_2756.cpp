@@ -1,0 +1,1 @@
+insert_one_record(log, v, oneline.buf);

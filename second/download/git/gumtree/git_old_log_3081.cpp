@@ -1,0 +1,1 @@
+error("%s process failed to wait: %s", name, strerror(errno));

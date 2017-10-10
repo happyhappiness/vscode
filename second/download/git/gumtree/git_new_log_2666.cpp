@@ -1,0 +1,1 @@
+memcpy(m, name, nlen + 1);

@@ -1,0 +1,1 @@
+die("BUG: %s: not a valid attribute name", param);

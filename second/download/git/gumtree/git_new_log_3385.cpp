@@ -1,0 +1,1 @@
+error("bad ref for %s", diter->path.buf);

@@ -1,0 +1,1 @@
+warning_errno("unable to set SO_KEEPALIVE on socket");

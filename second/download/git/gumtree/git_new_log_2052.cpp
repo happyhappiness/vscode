@@ -1,0 +1,1 @@
+die(_("editing patch failed"));

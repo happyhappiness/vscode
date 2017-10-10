@@ -1,0 +1,1 @@
+die_errno(_("Writing SQUASH_MSG"));

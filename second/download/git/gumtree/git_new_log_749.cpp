@@ -1,0 +1,1 @@
+die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);

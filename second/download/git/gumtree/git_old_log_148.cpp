@@ -1,0 +1,1 @@
+fprintf(stderr, "Skipping server %s, no user\n", srvc->host);

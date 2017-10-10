@@ -1,0 +1,1 @@
+error(_("cannot %s: You have unstaged changes."), _(action));

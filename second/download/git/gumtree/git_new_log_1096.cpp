@@ -1,0 +1,1 @@
+die(_("attr spec must not be empty"));

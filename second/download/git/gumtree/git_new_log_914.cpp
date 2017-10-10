@@ -1,0 +1,1 @@
+error("unable to unpack contents of %s", path);

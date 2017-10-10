@@ -1,0 +1,1 @@
+die("BUG: cannot normalize type %d", types);

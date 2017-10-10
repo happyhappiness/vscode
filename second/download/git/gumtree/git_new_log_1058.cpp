@@ -1,0 +1,1 @@
+fprintf(stderr, _("Testing mtime in '%s' "), cwd);

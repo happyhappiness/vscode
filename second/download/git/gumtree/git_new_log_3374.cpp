@@ -1,0 +1,1 @@
+(!(base = get_ref(base_list[i], oid_to_hex(base_list[i])));

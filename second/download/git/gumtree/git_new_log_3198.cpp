@@ -1,0 +1,1 @@
+printf("root %s\n", describe_object(&commit->object));

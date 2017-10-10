@@ -1,0 +1,1 @@
+warning("malloc failed: '%s'", strerror(errno));

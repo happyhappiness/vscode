@@ -1,0 +1,1 @@
+printf("i/%-5s w/%-5s attr/%-17s\t", i_txt, w_txt, a_txt);

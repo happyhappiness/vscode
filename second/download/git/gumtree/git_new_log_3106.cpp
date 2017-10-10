@@ -1,0 +1,1 @@
+die_errno(_("could not open '%s'"), git_path_commit_editmsg());

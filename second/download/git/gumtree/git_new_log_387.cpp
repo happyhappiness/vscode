@@ -1,0 +1,1 @@
+error("--path=<path> incompatible with --batch");

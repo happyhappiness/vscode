@@ -1,0 +1,1 @@
+die(_("corrupt patch for submodule %s"), path);

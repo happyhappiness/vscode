@@ -1,0 +1,1 @@
+die_errno(_("closing file '%s'"), path);

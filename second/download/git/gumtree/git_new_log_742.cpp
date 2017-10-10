@@ -1,0 +1,1 @@
+fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);

@@ -1,0 +1,1 @@
+fprintf_or_die(fh, "^%s\n", sha1_to_hex(peeled));

@@ -1,0 +1,1 @@
+die("resolve-relative-url only accepts one or two arguments");

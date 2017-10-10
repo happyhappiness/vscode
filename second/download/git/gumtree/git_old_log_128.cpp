@@ -1,0 +1,1 @@
+fputs(str, stream);

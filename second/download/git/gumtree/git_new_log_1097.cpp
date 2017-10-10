@@ -1,0 +1,1 @@
+die(_("invalid attribute name %s"), attr_name);

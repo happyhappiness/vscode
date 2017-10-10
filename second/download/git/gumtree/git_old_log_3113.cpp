@@ -1,0 +1,1 @@
+die_errno("failed to open '%s'", path);

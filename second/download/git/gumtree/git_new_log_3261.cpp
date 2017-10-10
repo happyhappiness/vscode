@@ -1,0 +1,1 @@
+die(_("The main working tree cannot be locked or unlocked"));

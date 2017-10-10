@@ -1,0 +1,1 @@
+error_errno(_("Cannot open patch file %s"), filename.buf);

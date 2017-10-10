@@ -1,0 +1,1 @@
+fprintf(stderr, "BUG: %s\n", msg);

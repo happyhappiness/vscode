@@ -1,0 +1,1 @@
+error(_("Cannot pull with rebase: You have unstaged changes."));

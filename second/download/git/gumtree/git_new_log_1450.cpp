@@ -1,0 +1,1 @@
+die("BUG: prepare called on a closed reference transaction");

@@ -1,0 +1,1 @@
+die("Could not open skip list: %s", path);

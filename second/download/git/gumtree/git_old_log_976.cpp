@@ -1,0 +1,1 @@
+die("invalid date format: %s", date_str);

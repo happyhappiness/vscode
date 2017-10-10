@@ -1,0 +1,1 @@
+format = "%(refname:short)";

@@ -1,0 +1,1 @@
+die(_("cannot rebase with locally recorded submodule modifications"));

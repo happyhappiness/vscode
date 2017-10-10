@@ -1,0 +1,1 @@
+printf(_("remove %s? "), qname);

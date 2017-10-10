@@ -1,0 +1,1 @@
+die(_("--follow requires exactly one pathspec"));

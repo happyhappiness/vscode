@@ -1,0 +1,1 @@
+ret = error_errno("cannot stat '%s'", path);

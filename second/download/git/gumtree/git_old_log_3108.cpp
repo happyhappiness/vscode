@@ -1,0 +1,1 @@
+die(_("pack has bad object at offset %lu: %s"), offset, buf);

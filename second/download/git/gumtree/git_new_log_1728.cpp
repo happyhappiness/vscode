@@ -1,0 +1,1 @@
+(fprintf(fp, "P %s\n", info[i]->p->pack_name + objdirlen + 6) < 0;

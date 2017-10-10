@@ -1,0 +1,12 @@
+		}
+	}
+
+	return result;
+}
+
+static void check_shallow_file_for_update(void)
+{
+	if (is_shallow == -1)
+		die("BUG: shallow must be initialized by now");
+
+	if (!stat_validity_check(&shallow_stat, git_path_shallow()))

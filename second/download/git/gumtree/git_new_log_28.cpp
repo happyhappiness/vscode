@@ -1,0 +1,1 @@
+die("BUG: remote HEAD points at non-head?");

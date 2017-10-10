@@ -1,0 +1,1 @@
+error_return = error("%s", error_msg);

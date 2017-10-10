@@ -1,0 +1,1 @@
+error("file/directory conflict: %s, %s", name1, name2);

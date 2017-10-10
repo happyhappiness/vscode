@@ -1,0 +1,1 @@
+error(_("Cannot pull with rebase: Your index contains uncommitted changes."));

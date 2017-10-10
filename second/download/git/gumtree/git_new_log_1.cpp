@@ -1,0 +1,1 @@
+error(FAILED_RUN, pack_refs_cmd.argv[0]);

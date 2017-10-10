@@ -1,0 +1,1 @@
+die(_("unrecognized %%(if) argument: %s"), arg);

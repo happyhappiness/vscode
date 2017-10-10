@@ -1,0 +1,1 @@
+die("Option '--stat-name-width' requires a value");

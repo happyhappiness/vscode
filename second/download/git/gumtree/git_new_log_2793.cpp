@@ -1,0 +1,1 @@
+die(_("unrecognized %%(align) argument: %s"), s);

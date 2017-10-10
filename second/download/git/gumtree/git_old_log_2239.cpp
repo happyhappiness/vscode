@@ -1,0 +1,1 @@
+die(_("BUG: reopen a lockfile that has been committed"));

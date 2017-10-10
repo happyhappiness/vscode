@@ -1,0 +1,1 @@
+die(_("%s: cannot lock the ref"), ref.buf);

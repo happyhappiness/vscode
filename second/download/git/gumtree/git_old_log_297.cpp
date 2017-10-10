@@ -1,0 +1,1 @@
+fprintf(stderr, "Applied patch to '%s' cleanly.\n", patch->new_name);

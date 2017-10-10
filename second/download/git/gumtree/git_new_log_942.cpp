@@ -1,0 +1,1 @@
+die(_("--no-index or --untracked cannot be used with revs"));

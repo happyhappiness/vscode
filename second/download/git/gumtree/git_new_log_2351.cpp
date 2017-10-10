@@ -1,0 +1,1 @@
+die(_("cannot prune in a precious-objects repo"));

@@ -1,0 +1,293 @@
+
+	for_each_reflog_ent(refname, read_ref_at_ent_oldest, &cb);
+
+	return 1;
+}
+
+int reflog_exists(const char *refname)
+{
+	struct stat st;
+
+	return !lstat(git_path("logs/%s", refname), &st) &&
+		S_ISREG(st.st_mode);
+}
+
+int delete_reflog(const char *refname)
+{
+	return remove_path(git_path("logs/%s", refname));
+}
+
+static int show_one_reflog_ent(struct strbuf *sb, each_reflog_ent_fn fn, void *cb_data)
+{
+	unsigned char osha1[20], nsha1[20];
+	char *email_end, *message;
+	unsigned long timestamp;
+	int tz;
+
+	/* old SP new SP name <email> SP time TAB msg LF */
+	if (sb->len < 83 || sb->buf[sb->len - 1] != '\n' ||
+	    get_sha1_hex(sb->buf, osha1) || sb->buf[40] != ' ' ||
+	    get_sha1_hex(sb->buf + 41, nsha1) || sb->buf[81] != ' ' ||
+	    !(email_end = strchr(sb->buf + 82, '>')) ||
+	    email_end[1] != ' ' ||
+	    !(timestamp = strtoul(email_end + 2, &message, 10)) ||
+	    !message || message[0] != ' ' ||
+	    (message[1] != '+' && message[1] != '-') ||
+	    !isdigit(message[2]) || !isdigit(message[3]) ||
+	    !isdigit(message[4]) || !isdigit(message[5]))
+		return 0; /* corrupt? */
+	email_end[1] = '\0';
+	tz = strtol(message + 1, NULL, 10);
+	if (message[6] != '\t')
+		message += 6;
+	else
+		message += 7;
+	return fn(osha1, nsha1, sb->buf + 82, timestamp, tz, message, cb_data);
+}
+
+static char *find_beginning_of_line(char *bob, char *scan)
+{
+	while (bob < scan && *(--scan) != '\n')
+		; /* keep scanning backwards */
+	/*
+	 * Return either beginning of the buffer, or LF at the end of
+	 * the previous line.
+	 */
+	return scan;
+}
+
+int for_each_reflog_ent_reverse(const char *refname, each_reflog_ent_fn fn, void *cb_data)
+{
+	struct strbuf sb = STRBUF_INIT;
+	FILE *logfp;
+	long pos;
+	int ret = 0, at_tail = 1;
+
+	logfp = fopen(git_path("logs/%s", refname), "r");
+	if (!logfp)
+		return -1;
+
+	/* Jump to the end */
+	if (fseek(logfp, 0, SEEK_END) < 0)
+		return error("cannot seek back reflog for %s: %s",
+			     refname, strerror(errno));
+	pos = ftell(logfp);
+	while (!ret && 0 < pos) {
+		int cnt;
+		size_t nread;
+		char buf[BUFSIZ];
+		char *endp, *scanp;
+
+		/* Fill next block from the end */
+		cnt = (sizeof(buf) < pos) ? sizeof(buf) : pos;
+		if (fseek(logfp, pos - cnt, SEEK_SET))
+			return error("cannot seek back reflog for %s: %s",
+				     refname, strerror(errno));
+		nread = fread(buf, cnt, 1, logfp);
+		if (nread != 1)
+			return error("cannot read %d bytes from reflog for %s: %s",
+				     cnt, refname, strerror(errno));
+		pos -= cnt;
+
+		scanp = endp = buf + cnt;
+		if (at_tail && scanp[-1] == '\n')
+			/* Looking at the final LF at the end of the file */
+			scanp--;
+		at_tail = 0;
+
+		while (buf < scanp) {
+			/*
+			 * terminating LF of the previous line, or the beginning
+			 * of the buffer.
+			 */
+			char *bp;
+
+			bp = find_beginning_of_line(buf, scanp);
+
+			if (*bp == '\n') {
+				/*
+				 * The newline is the end of the previous line,
+				 * so we know we have complete line starting
+				 * at (bp + 1). Prefix it onto any prior data
+				 * we collected for the line and process it.
+				 */
+				strbuf_splice(&sb, 0, 0, bp + 1, endp - (bp + 1));
+				scanp = bp;
+				endp = bp + 1;
+				ret = show_one_reflog_ent(&sb, fn, cb_data);
+				strbuf_reset(&sb);
+				if (ret)
+					break;
+			} else if (!pos) {
+				/*
+				 * We are at the start of the buffer, and the
+				 * start of the file; there is no previous
+				 * line, and we have everything for this one.
+				 * Process it, and we can end the loop.
+				 */
+				strbuf_splice(&sb, 0, 0, buf, endp - buf);
+				ret = show_one_reflog_ent(&sb, fn, cb_data);
+				strbuf_reset(&sb);
+				break;
+			}
+
+			if (bp == buf) {
+				/*
+				 * We are at the start of the buffer, and there
+				 * is more file to read backwards. Which means
+				 * we are in the middle of a line. Note that we
+				 * may get here even if *bp was a newline; that
+				 * just means we are at the exact end of the
+				 * previous line, rather than some spot in the
+				 * middle.
+				 *
+				 * Save away what we have to be combined with
+				 * the data from the next read.
+				 */
+				strbuf_splice(&sb, 0, 0, buf, endp - buf);
+				break;
+			}
+		}
+
+	}
+	if (!ret && sb.len)
+		die("BUG: reverse reflog parser had leftover data");
+
+	fclose(logfp);
+	strbuf_release(&sb);
+	return ret;
+}
+
+int for_each_reflog_ent(const char *refname, each_reflog_ent_fn fn, void *cb_data)
+{
+	FILE *logfp;
+	struct strbuf sb = STRBUF_INIT;
+	int ret = 0;
+
+	logfp = fopen(git_path("logs/%s", refname), "r");
+	if (!logfp)
+		return -1;
+
+	while (!ret && !strbuf_getwholeline(&sb, logfp, '\n'))
+		ret = show_one_reflog_ent(&sb, fn, cb_data);
+	fclose(logfp);
+	strbuf_release(&sb);
+	return ret;
+}
+/*
+ * Call fn for each reflog in the namespace indicated by name.  name
+ * must be empty or end with '/'.  Name will be used as a scratch
+ * space, but its contents will be restored before return.
+ */
+static int do_for_each_reflog(struct strbuf *name, each_ref_fn fn, void *cb_data)
+{
+	DIR *d = opendir(git_path("logs/%s", name->buf));
+	int retval = 0;
+	struct dirent *de;
+	int oldlen = name->len;
+
+	if (!d)
+		return name->len ? errno : 0;
+
+	while ((de = readdir(d)) != NULL) {
+		struct stat st;
+
+		if (de->d_name[0] == '.')
+			continue;
+		if (ends_with(de->d_name, ".lock"))
+			continue;
+		strbuf_addstr(name, de->d_name);
+		if (stat(git_path("logs/%s", name->buf), &st) < 0) {
+			; /* silently ignore */
+		} else {
+			if (S_ISDIR(st.st_mode)) {
+				strbuf_addch(name, '/');
+				retval = do_for_each_reflog(name, fn, cb_data);
+			} else {
+				struct object_id oid;
+
+				if (read_ref_full(name->buf, 0, oid.hash, NULL))
+					retval = error("bad ref for %s", name->buf);
+				else
+					retval = fn(name->buf, &oid, 0, cb_data);
+			}
+			if (retval)
+				break;
+		}
+		strbuf_setlen(name, oldlen);
+	}
+	closedir(d);
+	return retval;
+}
+
+int for_each_reflog(each_ref_fn fn, void *cb_data)
+{
+	int retval;
+	struct strbuf name;
+	strbuf_init(&name, PATH_MAX);
+	retval = do_for_each_reflog(&name, fn, cb_data);
+	strbuf_release(&name);
+	return retval;
+}
+
+/**
+ * Information needed for a single ref update. Set new_sha1 to the new
+ * value or to null_sha1 to delete the ref. To check the old value
+ * while the ref is locked, set (flags & REF_HAVE_OLD) and set
+ * old_sha1 to the old value, or to null_sha1 to ensure the ref does
+ * not exist before update.
+ */
+struct ref_update {
+	/*
+	 * If (flags & REF_HAVE_NEW), set the reference to this value:
+	 */
+	unsigned char new_sha1[20];
+	/*
+	 * If (flags & REF_HAVE_OLD), check that the reference
+	 * previously had this value:
+	 */
+	unsigned char old_sha1[20];
+	/*
+	 * One or more of REF_HAVE_NEW, REF_HAVE_OLD, REF_NODEREF,
+	 * REF_DELETING, and REF_ISPRUNING:
+	 */
+	unsigned int flags;
+	struct ref_lock *lock;
+	int type;
+	char *msg;
+	const char refname[FLEX_ARRAY];
+};
+
+/*
+ * Transaction states.
+ * OPEN:   The transaction is in a valid state and can accept new updates.
+ *         An OPEN transaction can be committed.
+ * CLOSED: A closed transaction is no longer active and no other operations
+ *         than free can be used on it in this state.
+ *         A transaction can either become closed by successfully committing
+ *         an active transaction or if there is a failure while building
+ *         the transaction thus rendering it failed/inactive.
+ */
+enum ref_transaction_state {
+	REF_TRANSACTION_OPEN   = 0,
+	REF_TRANSACTION_CLOSED = 1
+};
+
+/*
+ * Data structure for holding a reference transaction, which can
+ * consist of checks and updates to multiple references, carried out
+ * as atomically as possible.  This structure is opaque to callers.
+ */
+struct ref_transaction {
+	struct ref_update **updates;
+	size_t alloc;
+	size_t nr;
+	enum ref_transaction_state state;
+};
+
+struct ref_transaction *ref_transaction_begin(struct strbuf *err)
+{
+	assert(err);
+
+	return xcalloc(1, sizeof(struct ref_transaction));
+}

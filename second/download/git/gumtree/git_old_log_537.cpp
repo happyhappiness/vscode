@@ -1,0 +1,1 @@
+die("--stateless-rpc requires multi_ack_detailed");

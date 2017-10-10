@@ -1,0 +1,1 @@
+die("Object not in bitmap: %s\n", sha1_to_hex(object->sha1));

@@ -1,0 +1,1 @@
+error(_("revision walk setup failed"));

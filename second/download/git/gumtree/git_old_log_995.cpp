@@ -1,0 +1,1 @@
+printf(": %s: %s\n", git_attr_name(check[j].attr), value);
