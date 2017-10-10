@@ -1,0 +1,1 @@
+printf("prune %s", message);

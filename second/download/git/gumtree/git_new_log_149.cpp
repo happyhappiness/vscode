@@ -1,0 +1,1 @@
+srvc->user = xstrdup(cred.username);

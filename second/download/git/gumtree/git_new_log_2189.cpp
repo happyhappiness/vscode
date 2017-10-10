@@ -1,0 +1,1 @@
+result |= delete_refs(&refs_to_prune);

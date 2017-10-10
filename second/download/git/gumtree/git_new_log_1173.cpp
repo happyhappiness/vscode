@@ -1,0 +1,1 @@
+die("could not reset submodule index");

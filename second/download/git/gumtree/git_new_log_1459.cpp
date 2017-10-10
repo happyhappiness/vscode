@@ -1,0 +1,1 @@
+die(_("in unpopulated submodule '%s'"), ce->name);

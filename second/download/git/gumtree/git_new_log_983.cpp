@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: %s:%d\n", err.buf, src, lineno);

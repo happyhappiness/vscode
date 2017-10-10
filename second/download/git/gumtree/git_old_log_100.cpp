@@ -1,0 +1,1 @@
+die("whitespace before command: %s", cmd.buf);

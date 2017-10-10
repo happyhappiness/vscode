@@ -1,0 +1,1 @@
+die(_("could not stat file '%s'"), ce->name);

@@ -1,0 +1,1 @@
+die(_("push options must not have new line characters"));

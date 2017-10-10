@@ -1,0 +1,1 @@
+error("Could not get ref %s", refspec[i]);

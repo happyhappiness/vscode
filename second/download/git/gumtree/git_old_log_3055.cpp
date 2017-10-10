@@ -1,0 +1,1 @@
+error("cannot create pipe: %s", strerror(errno));

@@ -1,0 +1,1 @@
+insert_one_record(log, author, !*buffer ? "<none>" : buffer);

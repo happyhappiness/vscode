@@ -1,0 +1,1 @@
+warning(_(degrade_cc_to_c_warning));

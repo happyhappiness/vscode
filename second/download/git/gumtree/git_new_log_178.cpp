@@ -1,0 +1,1 @@
+ret ? error("fetch failed.") : 0;

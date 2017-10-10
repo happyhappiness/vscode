@@ -1,0 +1,1 @@
+die("Reference has invalid format: '%s'", refname);

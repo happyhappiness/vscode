@@ -1,0 +1,1 @@
+ret = error("short read %s", strerror(errno));

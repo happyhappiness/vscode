@@ -1,0 +1,1 @@
+die(_("protocol error: bad pack header"));

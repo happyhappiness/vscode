@@ -1,0 +1,1 @@
+die_errno ("Could not write blob '%s'", oid_to_hex(oid));

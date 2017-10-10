@@ -1,0 +1,1 @@
+die("reading bisect refs failed");

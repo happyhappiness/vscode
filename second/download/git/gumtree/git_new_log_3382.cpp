@@ -1,0 +1,1 @@
+die("BUG: peel called before advance for cache iterator");

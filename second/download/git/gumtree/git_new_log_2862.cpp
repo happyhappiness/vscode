@@ -1,0 +1,1 @@
+die("--resolve-git-dir requires an argument");

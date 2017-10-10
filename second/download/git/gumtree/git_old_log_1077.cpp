@@ -1,0 +1,1 @@
+die("can't use --super-prefix from a subdirectory");

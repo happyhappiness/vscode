@@ -1,0 +1,1 @@
+result = error(_("unknown subcommand: %s"), argv[0]);

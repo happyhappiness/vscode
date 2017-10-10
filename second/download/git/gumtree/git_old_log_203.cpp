@@ -1,0 +1,1 @@
+f(s, color(WT_STATUS_HEADER, s), "");

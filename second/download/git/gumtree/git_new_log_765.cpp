@@ -1,0 +1,1 @@
+die(_("--stdin requires a git repository"));

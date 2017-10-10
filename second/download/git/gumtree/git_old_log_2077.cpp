@@ -1,0 +1,1 @@
+die_errno("Out of memory? mmap failed");

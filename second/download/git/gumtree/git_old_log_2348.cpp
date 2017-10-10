@@ -1,0 +1,1 @@
+die("--contents and --children do not blend well.");

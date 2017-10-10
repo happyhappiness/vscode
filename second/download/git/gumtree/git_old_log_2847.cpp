@@ -1,0 +1,1 @@
+die ("Could not run rsync to get refs");

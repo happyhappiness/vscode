@@ -1,0 +1,1 @@
+ret = error("could not write '%s'", src_path);

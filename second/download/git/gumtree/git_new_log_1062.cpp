@@ -1,0 +1,1 @@
+die("BUG: how is this possible?");

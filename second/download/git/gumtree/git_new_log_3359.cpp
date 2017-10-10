@@ -1,0 +1,1 @@
+ret = err(o, _("blob expected for %s '%s'"), oid_to_hex(oid), path);

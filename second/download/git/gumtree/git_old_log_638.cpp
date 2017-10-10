@@ -1,0 +1,1 @@
+error(_("No commits parsed."));

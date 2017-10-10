@@ -1,0 +1,1 @@
+ret += error(_("failed to delete ref NOTES_MERGE_REF"));

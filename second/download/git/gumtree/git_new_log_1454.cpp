@@ -1,0 +1,1 @@
+die("BUG: commit called on a closed reference transaction");

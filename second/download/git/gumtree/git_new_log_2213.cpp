@@ -1,0 +1,1 @@
+die("Invalid SHA-1: %s", buffer);

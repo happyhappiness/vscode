@@ -1,0 +1,1 @@
+die("BUG: delete called for transaction that is not open");

@@ -1,0 +1,1 @@
+error("Could not write %s: %s", path, strerror(errno));

@@ -1,0 +1,1 @@
+warning("could not mark '%s' as hidden.", filename);

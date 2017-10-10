@@ -1,0 +1,1 @@
+die("BUG: your snprintf is broken");

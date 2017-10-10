@@ -1,0 +1,1 @@
+fp = xfopen(filename, "r");

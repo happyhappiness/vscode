@@ -1,0 +1,1 @@
+item->arg = end_of_object_name + strspn(end_of_object_name, " \t");

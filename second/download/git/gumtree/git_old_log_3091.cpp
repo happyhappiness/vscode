@@ -1,0 +1,1 @@
+error("cannot read delta preimage: %s", strerror(errno));

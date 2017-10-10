@@ -1,0 +1,1 @@
+die(_("could not lookup name for submodule '%s'"), path);

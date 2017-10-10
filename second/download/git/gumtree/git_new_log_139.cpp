@@ -1,0 +1,1 @@
+die(_("external diff died, stopping at %s"), name);

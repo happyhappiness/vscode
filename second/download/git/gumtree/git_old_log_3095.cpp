@@ -1,0 +1,1 @@
+error("cannot open fd %d: %s", in_fd, strerror(errno));

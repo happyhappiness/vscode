@@ -1,0 +1,1 @@
+die("BUG: stat option does not begin with --stat: %s", arg);

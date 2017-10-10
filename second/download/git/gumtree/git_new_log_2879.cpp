@@ -1,0 +1,1 @@
+error("malformed value for %s", var);

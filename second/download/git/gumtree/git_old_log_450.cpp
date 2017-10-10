@@ -1,0 +1,1 @@
+die("Failed to resolve NOTES_MERGE_REF");

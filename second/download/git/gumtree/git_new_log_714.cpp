@@ -1,0 +1,1 @@
+die(_("too-short tree file"));

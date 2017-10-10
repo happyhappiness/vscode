@@ -1,0 +1,1 @@
+die("loose refname is dangerous: %s", refname.buf);

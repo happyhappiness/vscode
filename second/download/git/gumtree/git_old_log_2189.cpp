@@ -1,0 +1,1 @@
+result |= error("%s", err.buf);

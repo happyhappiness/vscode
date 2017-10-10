@@ -1,0 +1,1 @@
+die(_("the receiving end does not support --atomic push"));

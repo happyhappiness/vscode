@@ -1,0 +1,1 @@
+die("cannot describe '%s'", oid_to_hex(oid));

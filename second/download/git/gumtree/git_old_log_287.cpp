@@ -1,0 +1,1 @@
+die("BUG: patch to %s is not a creation", patch->old_name);

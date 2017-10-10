@@ -1,0 +1,1 @@
+die(_("--reverse --first-parent together require range along first-parent chain"));

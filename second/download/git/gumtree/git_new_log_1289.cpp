@@ -1,0 +1,1 @@
+die("BUG: Added a new grep pattern type without updating switch statement");

@@ -1,0 +1,1 @@
+fputs(_(env_hint), stderr);

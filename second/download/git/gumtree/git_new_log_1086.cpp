@@ -1,0 +1,1 @@
+die("cache entry out of order");

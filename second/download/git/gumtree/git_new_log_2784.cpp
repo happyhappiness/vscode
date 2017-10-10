@@ -1,0 +1,1 @@
+die(_("unrecognized format: %%(%s)"), atom->name);

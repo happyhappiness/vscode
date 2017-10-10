@@ -1,0 +1,1 @@
+die("object %s disappeared", sha1_to_hex(sha1));

@@ -1,0 +1,1 @@
+die(_("no URLs configured for remote '%s'"), remotename);

@@ -1,0 +1,1 @@
+warning("Invalid parameter \"%s\" for config option \"submodule.%s.ignore\"", value, var);

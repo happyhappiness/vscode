@@ -1,0 +1,1 @@
+printf("Diag: protocol=%s\n", prot_name(protocol));

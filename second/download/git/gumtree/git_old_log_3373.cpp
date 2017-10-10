@@ -1,0 +1,1 @@
+die(_("merge returned no commit"));

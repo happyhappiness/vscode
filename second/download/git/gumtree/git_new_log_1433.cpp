@@ -1,0 +1,1 @@
+die("BUG: packed-ref cache cleared while locked");

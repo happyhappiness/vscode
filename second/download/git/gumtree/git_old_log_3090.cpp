@@ -1,0 +1,1 @@
+error("seek error: %s", strerror(errno));

@@ -1,0 +1,1 @@
+die(_("base commit should be the ancestor of revision list"));

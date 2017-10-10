@@ -1,0 +1,1 @@
+die_errno("packet write with format failed");

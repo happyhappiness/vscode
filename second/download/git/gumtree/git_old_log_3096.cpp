@@ -1,0 +1,1 @@
+warning("unable to %s %s: %s", op, file, strerror(errno));

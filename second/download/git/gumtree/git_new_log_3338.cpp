@@ -1,0 +1,1 @@
+fprintf(opt->diffopt.file, "log size %i\n", (int)msgbuf.len);

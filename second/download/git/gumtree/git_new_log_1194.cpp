@@ -1,0 +1,1 @@
+error(_("empty mbox: '%s'"), file);

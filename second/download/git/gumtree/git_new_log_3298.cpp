@@ -1,0 +1,1 @@
+error("Unknown object type for %s", describe_object(options, obj));

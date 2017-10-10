@@ -1,0 +1,1 @@
+error("rsync transport does not support mirror mode");

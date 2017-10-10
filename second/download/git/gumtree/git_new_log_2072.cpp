@@ -1,0 +1,1 @@
+fputs(c_context, stdout);

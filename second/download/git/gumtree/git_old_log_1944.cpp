@@ -1,0 +1,2 @@
+die_errno(_("could not open '%s' for reading"),
+				  filename);

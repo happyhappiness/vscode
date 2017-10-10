@@ -1,0 +1,1 @@
+die("unknown value for config '%s': %s", key, value);

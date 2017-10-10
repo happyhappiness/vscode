@@ -1,0 +1,1 @@
+error(_("'%s': short read %s"), filename, strerror(errno));

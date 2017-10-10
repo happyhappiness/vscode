@@ -1,0 +1,1 @@
+fprintf(fout, "Author: %s\n", name.buf);

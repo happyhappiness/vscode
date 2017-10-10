@@ -1,0 +1,1 @@
+die(_("commit '%s' lacks author header"), author_message);

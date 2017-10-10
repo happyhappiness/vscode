@@ -1,0 +1,1 @@
+error(_("switch 'points-at' requires an object"));

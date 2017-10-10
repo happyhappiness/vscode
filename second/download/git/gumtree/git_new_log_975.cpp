@@ -1,0 +1,1 @@
+die(_("name consists only of disallowed characters: %s"), name);

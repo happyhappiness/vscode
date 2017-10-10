@@ -1,0 +1,1 @@
+die("BUG: attempt to create two temporary shallow files");

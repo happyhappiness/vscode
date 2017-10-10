@@ -1,0 +1,1 @@
+error("external filter %s failed", cmd);

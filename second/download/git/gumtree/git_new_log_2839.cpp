@@ -1,0 +1,1 @@
+die_errno(_("could not stat %s"), file);

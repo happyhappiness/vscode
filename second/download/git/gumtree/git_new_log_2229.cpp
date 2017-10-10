@@ -1,0 +1,1 @@
+strbuf_addstr(&filename, path);

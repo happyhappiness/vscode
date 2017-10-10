@@ -1,0 +1,1 @@
+ref_array_clear(&array);

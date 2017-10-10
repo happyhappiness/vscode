@@ -1,0 +1,1 @@
+die("update_treesame %s", oid_to_hex(&commit->object.oid));

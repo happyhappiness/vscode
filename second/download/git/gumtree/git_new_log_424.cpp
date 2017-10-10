@@ -1,0 +1,1 @@
+printf(_("Merging %s with %s\n"), o.branch1, o.branch2);

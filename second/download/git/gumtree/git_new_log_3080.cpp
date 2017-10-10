@@ -1,0 +1,1 @@
+error_errno("write(%s) failed", t->dest_name);

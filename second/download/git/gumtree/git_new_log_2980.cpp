@@ -1,0 +1,1 @@
+die(_("bad value for update parameter"));

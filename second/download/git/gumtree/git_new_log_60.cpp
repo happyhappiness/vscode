@@ -1,0 +1,1 @@
+die("Not a valid object name: '%s'", object_ref);

@@ -1,0 +1,1 @@
+die(_("invalid ident line: %.*s"), (int)ident_len, ident_line);

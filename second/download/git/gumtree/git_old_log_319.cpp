@@ -1,0 +1,1 @@
+die ("Could not add %s to temporary index", name);

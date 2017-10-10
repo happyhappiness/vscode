@@ -1,0 +1,1 @@
+die(_("option '%s' requires a value"), option_name);

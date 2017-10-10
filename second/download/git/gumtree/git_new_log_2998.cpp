@@ -1,0 +1,1 @@
+error_errno("unable to mmap '%s'", config_filename);

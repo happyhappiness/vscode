@@ -1,0 +1,1 @@
+die("BUG: unhandled unmerged status %x", d->stagemask);

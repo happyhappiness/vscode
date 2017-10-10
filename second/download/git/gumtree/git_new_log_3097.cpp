@@ -1,0 +1,1 @@
+warning_errno(_("unable to access '%s'"), path);

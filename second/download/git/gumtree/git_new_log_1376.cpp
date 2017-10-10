@@ -1,0 +1,1 @@
+fputs(oid_to_hex(&tg->oid), rpt);

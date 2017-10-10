@@ -1,0 +1,1 @@
+die_errno("unable to fstat %s", filename);

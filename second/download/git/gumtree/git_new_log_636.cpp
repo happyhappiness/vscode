@@ -1,0 +1,1 @@
+item->arg_len = (int)(eol - item->arg);

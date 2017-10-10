@@ -1,0 +1,1 @@
+error(_("invalid file: '%s'"), rebase_path_amend());

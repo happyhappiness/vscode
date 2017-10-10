@@ -1,0 +1,1 @@
+die("Could not parse object '%s'", argv[i]);

@@ -1,0 +1,1 @@
+die("Couldn't allocate PCRE2 match context");

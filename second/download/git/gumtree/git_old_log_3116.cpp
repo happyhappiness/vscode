@@ -1,0 +1,1 @@
+fprintf(stderr, "%s: protocol error: no band designator\n", me);

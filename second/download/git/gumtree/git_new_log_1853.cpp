@@ -1,0 +1,1 @@
+die(_("--first-parent is incompatible with --bisect"));

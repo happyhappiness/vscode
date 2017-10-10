@@ -1,0 +1,1 @@
+die (_("BUG: returned path string doesn't match cwd?"));

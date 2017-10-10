@@ -1,0 +1,1 @@
+error(str, refname, err.buf);

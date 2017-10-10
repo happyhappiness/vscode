@@ -1,0 +1,1 @@
+die("unable to write object to database");

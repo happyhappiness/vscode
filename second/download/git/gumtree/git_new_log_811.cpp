@@ -1,0 +1,1 @@
+die("BUG: read_loose_object streamed a non-blob");

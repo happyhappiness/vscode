@@ -1,0 +1,1 @@
+die("cannot open '%s' for copying", path);

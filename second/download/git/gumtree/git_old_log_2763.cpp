@@ -1,0 +1,1 @@
+(_("bad config file line %d in %s");

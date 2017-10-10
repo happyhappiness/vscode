@@ -1,0 +1,1 @@
+fprintf(stderr, "corrupt mailbox\n");

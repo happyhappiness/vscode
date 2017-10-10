@@ -1,0 +1,1 @@
+die("sent error to the client: %s", buf.buf);

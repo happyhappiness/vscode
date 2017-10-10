@@ -1,0 +1,1 @@
+die("Cannot use notes ref %s", notes_ref);

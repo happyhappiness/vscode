@@ -1,0 +1,1 @@
+strbuf_swap(&sb, &next_sb);

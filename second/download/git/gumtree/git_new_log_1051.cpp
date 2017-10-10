@@ -1,0 +1,1 @@
+strbuf_reset(&ref);

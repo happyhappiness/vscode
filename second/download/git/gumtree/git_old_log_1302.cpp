@@ -1,0 +1,1 @@
+error(_("Cannot open patch file %s"), filename.buf);

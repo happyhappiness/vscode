@@ -1,0 +1,1 @@
+error("unknown hint type for '%s': %s", var, value);

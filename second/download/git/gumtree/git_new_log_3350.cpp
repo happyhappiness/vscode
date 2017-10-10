@@ -1,0 +1,1 @@
+strbuf_addf(&o->obuf, "%.*s\n", len, title);

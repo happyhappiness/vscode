@@ -1,0 +1,1 @@
+error("--path=<path> needs --textconv or --filters");

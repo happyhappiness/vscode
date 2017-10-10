@@ -1,0 +1,1 @@
+die("BUG: interned attributes shouldn't be deleted");

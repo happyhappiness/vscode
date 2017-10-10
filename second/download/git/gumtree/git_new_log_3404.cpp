@@ -1,0 +1,1 @@
+die("BUG: want to close pack marked 'do-not-close'");

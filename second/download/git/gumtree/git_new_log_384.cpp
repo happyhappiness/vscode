@@ -1,0 +1,1 @@
+die("BUG: invalid cmdmode: %c", opt->cmdmode);

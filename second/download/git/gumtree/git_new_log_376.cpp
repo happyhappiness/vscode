@@ -1,0 +1,1 @@
+die("unable to stream %s to stdout", oid_to_hex(oid));

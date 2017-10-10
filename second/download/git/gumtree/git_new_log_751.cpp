@@ -1,0 +1,1 @@
+fprintf(s->fp, "%c %s%c", prefix, path, eol_char);

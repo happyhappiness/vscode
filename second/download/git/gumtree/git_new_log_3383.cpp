@@ -1,0 +1,1 @@
+strbuf_addf(err, "couldn't set '%s'", lock->ref_name);

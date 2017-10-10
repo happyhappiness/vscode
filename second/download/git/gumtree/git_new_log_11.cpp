@@ -1,0 +1,1 @@
+die("'%s': not a non-negative integer", arg + 1);

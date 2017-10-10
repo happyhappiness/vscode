@@ -1,0 +1,1 @@
+rp_error("failed to lock %s", name);

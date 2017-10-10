@@ -1,0 +1,1 @@
+die(_("Failed to read object '%s'."), arg);

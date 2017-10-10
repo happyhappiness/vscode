@@ -1,0 +1,1 @@
+die(_("Please stage your changes to .gitmodules or stash them to proceed"));

@@ -1,0 +1,1 @@
+warning_errno(_("could not read '%s'"), path);

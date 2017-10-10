@@ -1,0 +1,1 @@
+for_each_reflog_ent_reverse(refname, read_ref_at_ent, &cb);

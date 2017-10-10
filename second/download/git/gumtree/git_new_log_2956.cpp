@@ -1,0 +1,1 @@
+ret = error_errno("Could not write to %s", filename);

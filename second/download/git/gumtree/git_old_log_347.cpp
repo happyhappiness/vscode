@@ -1,0 +1,1 @@
+die(_("unable to read index file"));

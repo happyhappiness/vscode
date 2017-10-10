@@ -1,0 +1,1 @@
+die_errno("unable to read object %s", oid_to_hex(oid));

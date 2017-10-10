@@ -1,0 +1,1 @@
+error_errno("copy-fd: write returned");

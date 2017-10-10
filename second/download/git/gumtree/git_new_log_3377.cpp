@@ -1,0 +1,1 @@
+die("malformed build-time PAGER_ENV");

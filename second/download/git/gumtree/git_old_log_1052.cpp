@@ -1,0 +1,1 @@
+die(_("tag header too big."));

@@ -1,0 +1,1 @@
+die("BUG: pack_name does not end in .pack");

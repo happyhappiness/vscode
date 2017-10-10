@@ -1,0 +1,1 @@
+die("--git-path requires an argument");

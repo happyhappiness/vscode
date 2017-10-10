@@ -1,0 +1,1 @@
+flags |= REF_HAVE_NEW;

@@ -1,0 +1,1 @@
+error(_("cannot open %s: %s"), namebuf, strerror(errno));

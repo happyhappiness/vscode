@@ -1,0 +1,1 @@
+error("cannot spawn %s: %s", cmd->argv[0], strerror(errno));

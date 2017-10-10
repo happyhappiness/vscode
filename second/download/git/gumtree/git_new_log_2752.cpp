@@ -1,0 +1,1 @@
+printf("ref: %s\t%s\n", ref->symref, ref->name);

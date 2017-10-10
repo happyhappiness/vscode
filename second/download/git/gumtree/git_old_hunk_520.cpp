@@ -1,0 +1,6 @@
+		}
+	}
+
+	errno = ELOOP;
+	return NULL;
+}

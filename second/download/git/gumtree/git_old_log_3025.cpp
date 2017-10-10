@@ -1,0 +1,1 @@
+error(_("'%s': %s"), filename, strerror(errno));

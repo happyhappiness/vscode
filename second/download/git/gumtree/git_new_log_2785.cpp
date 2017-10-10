@@ -1,0 +1,1 @@
+die(_("%%(body) does not take arguments"));

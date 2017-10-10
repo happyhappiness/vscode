@@ -1,0 +1,1 @@
+warning(_("the signature will be removed in the replacement commit!"));

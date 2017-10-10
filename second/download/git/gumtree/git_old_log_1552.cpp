@@ -1,0 +1,1 @@
+die("invalid --decorate option: %s", arg);

@@ -1,0 +1,1 @@
+error("cannot open %s: %s", filename ? filename : "NULL", strerror(errno));

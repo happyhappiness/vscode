@@ -1,0 +1,1 @@
+error("Directory not empty: %s", newrefname);

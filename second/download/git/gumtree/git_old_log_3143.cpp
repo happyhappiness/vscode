@@ -1,0 +1,1 @@
+die("Unknown archive format '%s'", format);

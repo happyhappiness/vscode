@@ -1,0 +1,1 @@
+die(_("error in object: %s"), line);

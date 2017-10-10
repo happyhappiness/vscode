@@ -1,0 +1,1 @@
+fprintf(stderr, "fatal: %s\n\n", msg);

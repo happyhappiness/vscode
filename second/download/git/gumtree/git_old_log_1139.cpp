@@ -1,0 +1,1 @@
+error("reflog for %s is a symlink", oldrefname);

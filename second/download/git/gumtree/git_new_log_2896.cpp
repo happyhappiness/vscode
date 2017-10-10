@@ -1,0 +1,1 @@
+memset(format, 0, sizeof(*format));

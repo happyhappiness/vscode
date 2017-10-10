@@ -1,0 +1,1 @@
+error(_("invalid color value: %.*s"), value_len, value);

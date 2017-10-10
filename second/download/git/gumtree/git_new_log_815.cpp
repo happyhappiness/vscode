@@ -1,0 +1,1 @@
+die(_("option not supported with --recurse-submodules."));

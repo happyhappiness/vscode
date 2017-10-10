@@ -1,0 +1,1 @@
+ret = error_errno("Could not close %s", filename);

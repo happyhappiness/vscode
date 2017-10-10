@@ -1,0 +1,1 @@
+error("cannot write delta postimage: %s", strerror(errno));

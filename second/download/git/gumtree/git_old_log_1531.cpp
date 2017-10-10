@@ -1,0 +1,1 @@
+die(_("cannot lock HEAD ref"));

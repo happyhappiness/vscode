@@ -1,0 +1,1 @@
+die("editing object file failed");

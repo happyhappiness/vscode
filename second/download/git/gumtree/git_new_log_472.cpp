@@ -1,0 +1,1 @@
+die(_("no branches given, and HEAD is not valid"));

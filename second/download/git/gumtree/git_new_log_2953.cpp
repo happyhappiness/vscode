@@ -1,0 +1,1 @@
+die(_("refusing to merge unrelated histories"));

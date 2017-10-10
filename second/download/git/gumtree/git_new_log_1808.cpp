@@ -1,0 +1,1 @@
+die("BUG: connectivity check skipped???");

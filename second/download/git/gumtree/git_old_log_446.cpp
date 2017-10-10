@@ -1,0 +1,1 @@
+ret += error("Failed to remove 'git notes merge' worktree");

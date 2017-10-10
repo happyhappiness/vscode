@@ -1,0 +1,1 @@
+die("Invalid mode for object creation: %s", value);

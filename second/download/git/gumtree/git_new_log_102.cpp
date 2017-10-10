@@ -1,0 +1,1 @@
+die("unexpected character after quoted argument: %s", orig);

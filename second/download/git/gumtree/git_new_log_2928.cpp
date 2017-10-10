@@ -1,0 +1,1 @@
+error_errno(_("could not write branch description template"));

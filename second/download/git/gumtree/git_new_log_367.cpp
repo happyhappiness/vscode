@@ -1,0 +1,1 @@
+die(_("--contents and --reverse do not blend well."));

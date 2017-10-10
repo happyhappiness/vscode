@@ -1,0 +1,1 @@
+error("missing value for '%s'", var);

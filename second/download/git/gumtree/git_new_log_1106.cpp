@@ -1,0 +1,1 @@
+die(_("Integer value expected refname:lstrip=%s"), arg);

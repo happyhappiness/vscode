@@ -1,0 +1,1 @@
+error(_("invalid start of line: '%c'"), first);

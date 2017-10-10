@@ -1,0 +1,1 @@
+die(_("could not close file %s"), sb.buf);

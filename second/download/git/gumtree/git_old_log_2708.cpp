@@ -1,0 +1,1 @@
+die("could not set GIT_WORK_TREE to '%s'", work_tree);

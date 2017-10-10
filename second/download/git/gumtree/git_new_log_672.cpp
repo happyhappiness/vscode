@@ -1,0 +1,1 @@
+error("BUG: expected exactly one commit from walk");

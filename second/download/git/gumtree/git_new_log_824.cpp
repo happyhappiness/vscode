@@ -1,0 +1,1 @@
+die("BUG: cannot have prefix and superprefix");

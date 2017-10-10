@@ -1,0 +1,1 @@
+printf(" %s mode %06o %s\n", newdelete, mode, name);

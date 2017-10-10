@@ -1,0 +1,1 @@
+had_error = !!error("tag '%s' not found.", name);

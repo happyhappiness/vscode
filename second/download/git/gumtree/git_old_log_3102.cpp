@@ -1,0 +1,1 @@
+error(_("Can't cherry-pick into empty head"));

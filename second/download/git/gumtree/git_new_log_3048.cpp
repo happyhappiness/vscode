@@ -1,0 +1,1 @@
+error("Failed to update conflicted state in '%s'", path);

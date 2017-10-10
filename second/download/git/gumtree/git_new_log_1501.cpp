@@ -1,0 +1,1 @@
+error("Unexpected line '%s', expected flush", line);

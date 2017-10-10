@@ -1,0 +1,1 @@
+die("destination '%s' is not a directory", dest_path[0]);

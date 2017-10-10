@@ -1,0 +1,1 @@
+cred.host = xstrdup(srvc->host);

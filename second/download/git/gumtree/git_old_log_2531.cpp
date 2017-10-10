@@ -1,0 +1,1 @@
+printf(format, sha1_to_hex(list->item->object.sha1));

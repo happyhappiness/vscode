@@ -1,0 +1,1 @@
+die("git-%s failed", argv[0]);

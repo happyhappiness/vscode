@@ -1,0 +1,1 @@
+die_errno ("Could not write blob '%s'", sha1_to_hex(sha1));

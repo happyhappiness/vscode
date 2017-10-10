@@ -1,0 +1,1 @@
+ret = error("Could not close %s", filename);

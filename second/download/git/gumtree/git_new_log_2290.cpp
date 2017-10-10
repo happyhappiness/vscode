@@ -1,0 +1,1 @@
+error_code = READ_GITFILE_ERR_OPEN_FAILED;

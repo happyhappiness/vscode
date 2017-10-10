@@ -1,0 +1,1 @@
+warning(_("the original commit '%s' has a gpg signature."), old_ref);

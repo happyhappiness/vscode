@@ -1,0 +1,1 @@
+print_rebase_state(s, state, color);

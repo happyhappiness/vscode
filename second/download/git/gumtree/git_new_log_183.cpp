@@ -1,0 +1,1 @@
+error("remote-curl: unknown command '%s' from git", buf.buf);

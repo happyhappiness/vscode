@@ -1,0 +1,1 @@
+die("filename too long");

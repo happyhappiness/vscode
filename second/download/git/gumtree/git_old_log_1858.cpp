@@ -1,0 +1,1 @@
+error("reading from trailer command '%s' failed", cp->argv[0]);

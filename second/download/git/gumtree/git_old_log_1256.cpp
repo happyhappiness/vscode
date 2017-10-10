@@ -1,0 +1,1 @@
+die("cannot open '%s' for reading", git_path_merge_head());

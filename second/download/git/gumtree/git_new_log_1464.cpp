@@ -1,0 +1,1 @@
+die("oops (%s)", oid_to_hex(oid));

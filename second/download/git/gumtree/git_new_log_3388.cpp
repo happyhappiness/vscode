@@ -1,0 +1,1 @@
+die("BUG: REF_ISPRUNING set without REF_NODEREF");

@@ -1,0 +1,1 @@
+opterror(opt, "must point to a commit", 0);

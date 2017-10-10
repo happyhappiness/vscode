@@ -1,0 +1,1 @@
+die("object %s tried to add buffer twice!", sha1_to_hex(object->sha1));

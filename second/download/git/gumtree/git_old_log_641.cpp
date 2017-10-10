@@ -1,0 +1,1 @@
+die(_("Unusable instruction sheet: %s"), git_path_todo_file());

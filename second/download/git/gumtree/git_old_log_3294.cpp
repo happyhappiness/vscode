@@ -1,0 +1,1 @@
+error("unable to read files to diff");

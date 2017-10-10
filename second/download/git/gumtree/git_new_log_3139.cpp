@@ -1,0 +1,1 @@
+die(_("Exiting because of an unresolved conflict."));

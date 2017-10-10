@@ -1,0 +1,1 @@
+die(_("malformed mergetag in commit '%s'"), ref);

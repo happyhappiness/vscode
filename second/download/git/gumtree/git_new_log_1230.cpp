@@ -1,0 +1,1 @@
+error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));

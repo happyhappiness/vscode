@@ -1,0 +1,1 @@
+ret = error("bogus format in " CONFIG_DATA_ENVIRONMENT);

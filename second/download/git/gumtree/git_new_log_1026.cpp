@@ -1,0 +1,1 @@
+die(_("cannot read existing object info %s"), sha1_to_hex(sha1));

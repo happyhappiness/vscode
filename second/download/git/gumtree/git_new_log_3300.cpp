@@ -1,0 +1,1 @@
+error("object %s: %s", describe_object(o, obj), message);

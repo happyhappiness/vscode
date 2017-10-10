@@ -1,0 +1,1 @@
+error("%s %s", sha1_to_hex(e->sha1), e->name);

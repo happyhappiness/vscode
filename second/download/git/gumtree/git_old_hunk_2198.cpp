@@ -1,0 +1,17 @@
+		return status;
+	}
+
+	if (status) {
+		patch->conflicted_threeway = 1;
+		if (patch->is_new)
+			hashclr(patch->threeway_stage[0]);
+		else
+			hashcpy(patch->threeway_stage[0], pre_sha1);
+		hashcpy(patch->threeway_stage[1], our_sha1);
+		hashcpy(patch->threeway_stage[2], post_sha1);
+		fprintf(stderr, "Applied patch to '%s' with conflicts.\n", patch->new_name);
+	} else {
+		fprintf(stderr, "Applied patch to '%s' cleanly.\n", patch->new_name);
+	}
+	return 0;
+}

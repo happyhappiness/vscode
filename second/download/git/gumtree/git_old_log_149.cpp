@@ -1,0 +1,1 @@
+fprintf(stderr, "Skipping account %s@%s, no password\n", srvc->user, srvc->host);

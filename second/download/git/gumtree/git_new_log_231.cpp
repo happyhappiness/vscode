@@ -1,0 +1,1 @@
+die("BUG: check_apply_state() failed");

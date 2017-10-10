@@ -1,0 +1,1 @@
+printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");

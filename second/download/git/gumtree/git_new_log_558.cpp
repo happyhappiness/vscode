@@ -1,0 +1,1 @@
+die(_("%s failed"), cmd_name);

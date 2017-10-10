@@ -1,0 +1,1 @@
+error("%s", o->obuf.buf);

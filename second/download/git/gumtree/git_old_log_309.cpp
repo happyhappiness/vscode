@@ -1,0 +1,1 @@
+error(_("%s: already exists in index"), new_name);

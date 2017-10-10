@@ -1,0 +1,1 @@
+error("error reading delta: %s", strerror(errno));

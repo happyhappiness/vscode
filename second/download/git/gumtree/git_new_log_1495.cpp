@@ -1,0 +1,1 @@
+die(_("Failed to resolve HEAD as a valid ref."));

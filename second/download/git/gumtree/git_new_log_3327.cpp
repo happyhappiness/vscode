@@ -1,0 +1,1 @@
+fprintf(opt->diffopt.file, "From %s Mon Sep 17 00:00:00 2001\n", name);

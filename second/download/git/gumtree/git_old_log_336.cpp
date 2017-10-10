@@ -1,0 +1,1 @@
+die_errno(_("unable to write file '%s' mode %o"), path, mode);

@@ -1,0 +1,1 @@
+keep_name = derive_filename(pack_name, ".keep", &keep_name_buf);

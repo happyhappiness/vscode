@@ -1,0 +1,1 @@
+warning(_("removing '%s' failed"), fname);

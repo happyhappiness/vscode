@@ -1,0 +1,1 @@
+die(permissions_advice, dir);

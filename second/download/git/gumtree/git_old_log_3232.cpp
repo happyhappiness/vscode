@@ -1,0 +1,1 @@
+error("cannot mix --commit, --abort or -s/--strategy");

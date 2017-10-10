@@ -1,0 +1,1 @@
+die("'%s' does not appear to be a git repository", dir);

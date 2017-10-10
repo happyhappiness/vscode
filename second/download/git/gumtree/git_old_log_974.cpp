@@ -1,0 +1,1 @@
+die("unable to auto-detect email address (got '%s')", email);

@@ -1,0 +1,1 @@
+error("Unable to open %s for writing", lockpath);

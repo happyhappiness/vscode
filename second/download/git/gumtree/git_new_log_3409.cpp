@@ -1,0 +1,1 @@
+die("BUG: trailer.c: unhandled type %d", type);

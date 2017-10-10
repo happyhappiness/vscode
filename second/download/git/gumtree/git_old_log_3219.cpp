@@ -1,0 +1,1 @@
+die("bug in show-killed-files");

@@ -1,0 +1,1 @@
+die(_("object not found: %s"), line);

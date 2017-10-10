@@ -1,0 +1,1 @@
+die("ren1_src != ren2_src");

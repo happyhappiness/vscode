@@ -1,0 +1,1 @@
+die("unable to generate diffstat for %s", one->path);

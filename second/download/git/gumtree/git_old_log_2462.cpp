@@ -1,0 +1,1 @@
+fprintf(fout, "%s: %s\n", header[i], hdr->buf);

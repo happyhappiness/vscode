@@ -1,0 +1,1 @@
+die("remote-ext command has too many arguments");

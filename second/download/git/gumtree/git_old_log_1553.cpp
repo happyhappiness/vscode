@@ -1,0 +1,1 @@
+die("unrecognized argument: %s", argv[1]);

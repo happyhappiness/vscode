@@ -1,0 +1,1 @@
+die("symbolic link too long: %s", buf);

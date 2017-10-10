@@ -1,0 +1,1 @@
+(fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) < 0);

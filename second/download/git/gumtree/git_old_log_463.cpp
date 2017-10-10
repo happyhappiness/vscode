@@ -1,0 +1,1 @@
+rp_error("%s", refuse_unconfigured_deny_msg[i]);

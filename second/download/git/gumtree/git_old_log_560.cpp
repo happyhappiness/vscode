@@ -1,0 +1,1 @@
+die("Server does not support shallow clients");

@@ -1,0 +1,1 @@
+die_errno("Could not open file '%s'", filename);

@@ -1,0 +1,1 @@
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

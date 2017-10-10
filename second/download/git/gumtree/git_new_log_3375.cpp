@@ -1,0 +1,1 @@
+err(o, _("Unable to write index."));

@@ -1,0 +1,1 @@
+die("BUG: invalid cmdmode %d", (int)cmdmode);

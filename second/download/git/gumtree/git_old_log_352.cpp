@@ -1,0 +1,1 @@
+die(_("--cached outside a repository"));

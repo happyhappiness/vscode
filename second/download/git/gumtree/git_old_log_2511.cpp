@@ -1,0 +1,1 @@
+die("Whoops! Cannot find object '%s'", sha1_to_hex(obj->sha1));

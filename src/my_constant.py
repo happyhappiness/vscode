@@ -11,8 +11,9 @@
 # USER = 'antirez'
 # REPOS = 'redis'
 
-REPOS = 'httpd'
+# REPOS = 'httpd'
 # REPOS = 'redis'
+REPOS = 'git'
 
 """
 stroed file name prefix

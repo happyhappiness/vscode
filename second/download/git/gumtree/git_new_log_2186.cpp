@@ -1,0 +1,1 @@
+die("invalid ref format: %s", argv[start]);

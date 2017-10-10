@@ -1,0 +1,1 @@
+die("Option '--stat-width' requires a value");

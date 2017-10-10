@@ -1,0 +1,1 @@
+die("Failed to finalize notes merge");

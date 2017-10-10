@@ -1,0 +1,1 @@
+error(_("%s: does not match index"), old_name);

@@ -1,0 +1,1 @@
+error("external filter '%s' failed %d", params->cmd, status);

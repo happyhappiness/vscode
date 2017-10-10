@@ -1,0 +1,1 @@
+not_found(hdr, "Cannot open '%s': %s", p, strerror(errno));

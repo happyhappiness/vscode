@@ -1,0 +1,1 @@
+die(_("Unknown commit %s"), base_commit);

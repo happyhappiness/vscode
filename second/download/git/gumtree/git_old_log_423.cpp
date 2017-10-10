@@ -1,0 +1,1 @@
+die("Could not resolve ref '%s'", o.branch2);

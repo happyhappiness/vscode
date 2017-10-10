@@ -1,0 +1,1 @@
+rollback_lock_file(lock_file);

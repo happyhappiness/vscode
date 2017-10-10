@@ -1,0 +1,1 @@
+error("invalid pattern: %s", regex_);

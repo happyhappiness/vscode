@@ -1,0 +1,1 @@
+error_errno("can't write crash report %s", loc);

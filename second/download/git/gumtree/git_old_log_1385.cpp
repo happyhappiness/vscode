@@ -1,0 +1,1 @@
+die("object not found: %s", sha1_to_hex(sha1));

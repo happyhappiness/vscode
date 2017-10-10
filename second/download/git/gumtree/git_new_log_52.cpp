@@ -1,0 +1,1 @@
+die("cat-file reported failure");

@@ -1,0 +1,1 @@
+die(_("%s already exists"), real_git_dir);

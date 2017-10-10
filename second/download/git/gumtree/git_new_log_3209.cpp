@@ -1,0 +1,1 @@
+fprintf(file, "-- \n%s", signature);

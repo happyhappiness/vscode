@@ -1,0 +1,14 @@
+ 				die_errno("unable to connect to cache daemon");
+ 		}
+ 	}
+ 	strbuf_release(&buf);
+ }
+ 
+-int main(int argc, const char **argv)
++int cmd_main(int argc, const char **argv)
+ {
+ 	char *socket_path = NULL;
+ 	int timeout = 900;
+ 	const char *op;
+ 	const char * const usage[] = {
+ 		"git credential-cache [<options>] <action>",

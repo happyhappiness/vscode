@@ -1,0 +1,1 @@
+error("unable to create temporary file: %s", strerror(errno));

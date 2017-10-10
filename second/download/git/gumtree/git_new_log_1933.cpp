@@ -1,0 +1,1 @@
+error("invalid key pattern: %s", key_);

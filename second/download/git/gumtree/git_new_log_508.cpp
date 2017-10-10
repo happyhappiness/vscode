@@ -1,0 +1,1 @@
+err = error("read from external filter '%s' failed", cmd);

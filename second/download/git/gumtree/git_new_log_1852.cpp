@@ -1,0 +1,1 @@
+die("cannot combine --no-walk with --graph");

@@ -1,0 +1,1 @@
+error(_("%s: %s"), old_name, strerror(errno));

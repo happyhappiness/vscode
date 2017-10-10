@@ -1,0 +1,1 @@
+printf(" %-*s |", max, qname.buf);

@@ -1,0 +1,1 @@
+die("unknown option passed through to git apply");

@@ -1,0 +1,1 @@
+die(_("Could not read %s."), git_path_todo_file());

@@ -1,0 +1,1 @@
+die("internal error: packed refs not locked");

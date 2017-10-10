@@ -1,0 +1,1 @@
+printf("num get patch: %d\n", sb.num_get_patch);

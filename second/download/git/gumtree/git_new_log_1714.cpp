@@ -1,0 +1,1 @@
+packet_buf_write(req_buf, "push-cert-end\n");

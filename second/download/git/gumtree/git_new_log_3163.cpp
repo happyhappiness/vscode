@@ -1,0 +1,1 @@
+write_file_buf(filename, state->msg, state->msg_len);

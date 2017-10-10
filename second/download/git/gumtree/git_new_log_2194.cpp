@@ -1,0 +1,1 @@
+die(_("invalid reference: %s"), refname);

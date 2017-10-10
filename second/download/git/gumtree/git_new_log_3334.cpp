@@ -1,0 +1,1 @@
+fputs("commit ", opt->diffopt.file);

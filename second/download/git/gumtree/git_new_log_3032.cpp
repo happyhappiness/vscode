@@ -1,0 +1,1 @@
+warning_errno("cannot get host name");

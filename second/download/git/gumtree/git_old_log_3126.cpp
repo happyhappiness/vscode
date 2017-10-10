@@ -1,0 +1,1 @@
+die("cannot run browser");

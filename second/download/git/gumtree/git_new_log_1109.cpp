@@ -1,0 +1,1 @@
+die(_("positive value expected objectname:short=%s"), arg);

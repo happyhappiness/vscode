@@ -1,0 +1,1 @@
+fputs(o->obuf.buf, stdout);

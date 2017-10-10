@@ -1,0 +1,1 @@
+error("%s does not point to a valid object!", refname);
