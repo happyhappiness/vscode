@@ -5,19 +5,29 @@ import myUtil
 
 class SrcmlApi:
     
-    def __init__(self, source_file, xml_file, log_functions):
+    def __init__(self, source_file):
+        self.set_file(source_file)
+        self.log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+
+    """
+    @ param log location(int from 0; better not be -1)
+    @ return flag about whether find log or not
+    @ involve find call in given loc and set log node
+    """
+    def set_file(self, source_file):
+        # intiate xml info
+        xml_file = source_file + '.xml'
         commands.getoutput('srcml --position ' + source_file + ' -o ' + xml_file)
         self.tree = etree.parse(xml_file)
         self.root = self.tree.getroot()
         self.namespace_map = self.root.nsmap
         self.namespace_map['default'] = self.namespace_map[None]
         self.namespace_map.pop(None)
+        # initiate log and control info
         self.log_node = None
         self.log = []
         self.control_node = None
         self.control = []
-        self.log_functions = log_functions
-
     """
     @ param log location(int from 0; better not be -1)
     @ return flag about whether find log or not
@@ -312,9 +322,8 @@ class SrcmlApi:
 
 
 if __name__ == "__main__":
-    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     # input function cpp file
-    srcml_api = SrcmlApi('clang/hello.cpp', 'clang/hello.xml', log_functions)
+    srcml_api = SrcmlApi('clang/hello.cpp')
     if srcml_api.set_log_loc(33):
         if srcml_api.set_control_dependence():
             print srcml_api.get_control_info()
