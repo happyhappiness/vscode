@@ -40,7 +40,7 @@ class SrcmlApi:
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
         for call in call_nodes:
             name = call[0]
-            location = self._get_location(name)
+            location = self._get_location_for_nested_node(name)
             # filter by location
             if location == log_location:
                 self.log_node = call
@@ -128,10 +128,12 @@ class SrcmlApi:
                 depended_node = depended_info[0]
                 depended_type = depended_info[1]
                 # call --name or type --name
-                if len(depended_node) <= 0:
-                    print 'can not find name for depended node %s' %depended_node.tag
-                    continue
-                info = self._remove_blank(depended_node[0])
+                # deal with nested ref type
+                while len(depended_node) <= 0:
+                    depended_node = depended_node.getparent().getprevious()[0]
+                    # print 'can not find name for depended node %s' %depended_node.tag
+                    # continue
+                info = self._get_text_for_nested_name(depended_node[0])
                 if info in self.log_functions:
                     continue
                 # level 1
@@ -275,10 +277,9 @@ class SrcmlApi:
         if node is not None and self._remove_prefix(node) == 'type':
             # type must has at least two children
             children_nodes = node.getchildren()
-            if len(children_nodes) > 1:
-                # filter by type --name --modifier
-                modifier_node = children_nodes[1]
-                if self._remove_blank(modifier_node) == '*':
+            for child in children_nodes:
+                # filter by type --specifier(maybe) --name --modifier
+                if self._remove_prefix(child) == 'modifier' and self._remove_blank(child) == '*':
                     return True
         return False
 
@@ -316,29 +317,49 @@ class SrcmlApi:
         return node.tag[node.tag.find('}') + 1:]
 
     """
-    @ param node
+    @ param node(text can not be None)
     @ return text without blank
     @ involve remove blank
     """
     def _remove_blank(self, node):
-        if node.text is None:
-            print 'can not find text for %s' %node.tag
-            return 'no text'
-        else:
-            return node.text.replace(' ', '')
+        return node.text.replace(' ', '')
 
+
+    """
+    @ param node(name)
+    @ return nested text without blank
+    @ involve deal with nested text which name is formed of two or more names
+    """
+    def _get_text_for_nested_name(self, node):
+        text = ''
+        name_tag = "{" + self.namespace_map['default'] + "}name"
+        name_nodes = node.iterdescendants(tag=name_tag)
+        for name_node in name_nodes:
+            if name_node.text is not None:
+                text = text + ' ' + self._remove_blank(name_node)
+        return text
 
     """
     @ param node
     @ return loacation
     @ involve get location if possible
     """
+    def _get_location_for_nested_node(self, node):
+        if node.text is not None:
+            return self._get_location(node)
+        # nested node for location info
+        sub_nodes = node.iterdescendants()
+        for sub_node in sub_nodes:
+            if sub_node.text is not None:
+                return self._get_location(sub_node)
+
+    """
+    @ param node(text can not be none)
+    @ return loacation
+    @ involve get location if possible
+    """
     def _get_location(self, node):
-        if node is None or node.text is None:
-            print 'can not find location for %s' %node.tag
-            return -1
-        else:
-            return node.attrib.values()[0]
+        return node.attrib.values()[0]
         
 if __name__ == "__main__":
     # input function cpp file
