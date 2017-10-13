@@ -1,4 +1,4 @@
-tatic int prepare_to_commit(const char *index_file, const char *prefix,
+static int prepare_to_commit(const char *index_file, const char *prefix,
 			     struct commit *current_head,
 			     struct wt_status *s,
 			     struct strbuf *author_ident)

@@ -1,4 +1,4 @@
-tatic void reject_rebase_or_bisect_branch(const char *target)
+static void reject_rebase_or_bisect_branch(const char *target)
 {
 	struct worktree **worktrees = get_worktrees();
 	int i;

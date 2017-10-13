@@ -1,1 +1,1 @@
-(_("Unable to read current working directory");
+die_errno(_("Unable to read current working directory"));

@@ -133,7 +133,7 @@ def analyze_old_new(is_rebuild = False):
         srcml.set_file(function)
         check = []
         variable = []
-        if srcml.set_log_loc(str(function_loc)):
+        if srcml.set_log_loc(int(function_loc)):
             if srcml.set_control_dependence():
                 check = srcml.get_control_info()
             variable = srcml.get_log_info()
@@ -159,7 +159,7 @@ def analyze_old_new(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new(True)
+    analyze_old_new(False)
 
     # analyze_old_new_joern(False)
     # gumtree = Gumtree()

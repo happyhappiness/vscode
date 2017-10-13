@@ -1,4 +1,4 @@
-void NORETURN die_errno(const char *fmt, ...)
+NORETURN die_errno(const char *fmt, ...)
 {
 	char buf[1024];
 	va_list params;

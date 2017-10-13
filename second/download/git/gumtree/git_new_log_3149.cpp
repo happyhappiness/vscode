@@ -1,1 +1,1 @@
-(_("Must specify a notes ref to merge");
+error(_("Must specify a notes ref to merge"));

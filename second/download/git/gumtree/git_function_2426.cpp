@@ -1,4 +1,4 @@
-tatic int parse_sort_string(const char *var, const char *arg, int *sort)
+static int parse_sort_string(const char *var, const char *arg, int *sort)
 {
 	int type = 0, flags = 0;
 

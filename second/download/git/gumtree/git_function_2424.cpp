@@ -1,4 +1,4 @@
-tatic int list_tags(const char **patterns, int lines,
+static int list_tags(const char **patterns, int lines,
 		     struct commit_list *with_commit, int sort)
 {
 	struct tag_filter filter;

@@ -1,4 +1,4 @@
-nt cmd_tag(int argc, const char **argv, const char *prefix)
+int cmd_tag(int argc, const char **argv, const char *prefix)
 {
 	struct strbuf buf = STRBUF_INIT;
 	struct strbuf ref = STRBUF_INIT;

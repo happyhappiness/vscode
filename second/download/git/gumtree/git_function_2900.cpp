@@ -1,4 +1,4 @@
-tatic int verify_tag(const char *name, const char *ref,
+static int verify_tag(const char *name, const char *ref,
 				const unsigned char *sha1)
 {
 	const char *argv_verify_tag[] = {"verify-tag",

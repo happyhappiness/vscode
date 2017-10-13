@@ -1,1 +1,1 @@
-(_("Bisecting: a merge base must be tested\n");
+printf(_("Bisecting: a merge base must be tested\n"));

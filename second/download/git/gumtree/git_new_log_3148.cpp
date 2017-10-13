@@ -1,1 +1,1 @@
-(_("cannot mix --commit, --abort or -s/--strategy");
+error(_("cannot mix --commit, --abort or -s/--strategy"));

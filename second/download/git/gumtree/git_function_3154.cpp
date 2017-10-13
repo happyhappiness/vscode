@@ -1,4 +1,4 @@
-tatic int get_ref(int argc, const char **argv, const char *prefix)
+static int get_ref(int argc, const char **argv, const char *prefix)
 {
 	struct option options[] = { OPT_END() };
 	argc = parse_options(argc, argv, prefix, options,

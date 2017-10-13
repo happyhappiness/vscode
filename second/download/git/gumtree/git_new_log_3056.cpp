@@ -1,1 +1,1 @@
-(_("Unexpected option --output");
+die(_("Unexpected option --output"));

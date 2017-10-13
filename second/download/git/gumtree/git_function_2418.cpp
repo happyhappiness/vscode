@@ -1,4 +1,4 @@
-tatic void show_tag_lines(const struct object_id *oid, int lines)
+static void show_tag_lines(const struct object_id *oid, int lines)
 {
 	int i;
 	unsigned long size;

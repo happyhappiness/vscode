@@ -1,4 +1,4 @@
-tatic int edit_branch_description(const char *branch_name)
+static int edit_branch_description(const char *branch_name)
 {
 	struct strbuf buf = STRBUF_INIT;
 	struct strbuf name = STRBUF_INIT;

@@ -1,1 +1,1 @@
-(_(":strip= requires a positive integer argument");
+die(_(":strip= requires a positive integer argument"));

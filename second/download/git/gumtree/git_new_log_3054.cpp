@@ -1,1 +1,1 @@
-(_("Unexpected option --remote");
+die(_("Unexpected option --remote"));

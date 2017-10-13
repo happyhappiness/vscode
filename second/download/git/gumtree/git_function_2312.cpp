@@ -1,4 +1,4 @@
-tatic int append_ref(const char *refname, const struct object_id *oid, int flags, void *cb_data)
+static int append_ref(const char *refname, const struct object_id *oid, int flags, void *cb_data)
 {
 	struct append_ref_cb *cb = (struct append_ref_cb *)(cb_data);
 	struct ref_list *ref_list = cb->ref_list;

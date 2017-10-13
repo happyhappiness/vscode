@@ -1,4 +1,4 @@
-tatic void update_head(const struct ref *our, const struct ref *remote,
+static void update_head(const struct ref *our, const struct ref *remote,
 			const char *msg)
 {
 	const char *head;

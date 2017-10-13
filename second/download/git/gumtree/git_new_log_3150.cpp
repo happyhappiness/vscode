@@ -1,1 +1,1 @@
-(_("too many parameters");
+error(_("too many parameters"));
