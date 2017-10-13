@@ -1,1 +1,1 @@
-opterror(opt, "is incompatible with --no-merged", 0);
+packet_buf_write(&req_buf, "%s", item->string);

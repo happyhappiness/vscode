@@ -1,1 +1,1 @@
-die_errno(_("could not open '%s' for reading"), path);
+error("duplicate parent %s ignored", oid_to_hex(oid));

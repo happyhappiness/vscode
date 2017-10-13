@@ -1,1 +1,0 @@
-ret ? error("Fetch failed.") : 0;

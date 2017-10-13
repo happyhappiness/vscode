@@ -1,2 +1,2 @@
-print_verbose(args, _("got %s %d %s"), "ack",
-						      ack, sha1_to_hex(result_sha1));
+print_verbose(args, _("Marking %s as complete"),
+			      oid_to_hex(&complete->item->object.oid));

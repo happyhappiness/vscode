@@ -1,1 +1,3 @@
-die ("Could not add %s to temporary index", name);
+printf(" %s %.*s{%s => %s} (%d%%)\n", renamecopy,
+		       (int)(old - p->old_name), p->old_name,
+		       old, new, p->score);

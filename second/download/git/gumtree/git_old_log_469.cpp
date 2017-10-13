@@ -1,2 +1,1 @@
-warning("ignoring %s; cannot handle more than %d refs",
-			refname, MAX_REVS);
+die("cannot handle more than %d revs.", MAX_REVS);

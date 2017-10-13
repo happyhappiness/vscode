@@ -1,1 +1,0 @@
-die(_("Could not create git link %s"), file_name.buf);

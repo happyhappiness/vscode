@@ -1,1 +1,0 @@
-die("git cat-file --allow-unknown-type: use with -s or -t");

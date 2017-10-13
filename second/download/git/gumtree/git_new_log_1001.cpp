@@ -1,1 +1,1 @@
-warning_errno(_(msg_warn_remove_failed), qname);
+opt->output(opt, child_output.buf, child_output.len);

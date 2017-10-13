@@ -1,1 +1,1 @@
-warning_errno(_("failed to exec '%s'"), path);
+error_errno("unable to create file %s", path);

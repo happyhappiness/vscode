@@ -1,1 +1,2 @@
-die("unable to generate diff for %s", name);
+error(_("'%s' for '%s' is not a valid timestamp"),
+			     value, var);

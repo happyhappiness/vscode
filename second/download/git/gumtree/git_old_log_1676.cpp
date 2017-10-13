@@ -1,1 +1,1 @@
-die("bad tree object");
+error("unable to update %s", path1);

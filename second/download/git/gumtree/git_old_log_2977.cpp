@@ -1,1 +1,2 @@
-die(_("submodule--helper: unspecified or empty --path"));
+error(_("cannot open %s: %s"), git_path_head_file(),
+						strerror(errno));

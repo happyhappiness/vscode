@@ -1,1 +1,2 @@
-fputs(pp->children[i].err.buf, stderr);
+die("Badly quoted content in file '%s': %s",
+			    filename, str.buf);

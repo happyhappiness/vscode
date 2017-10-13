@@ -1,1 +1,1 @@
-die("remote-helpers do not support ref deletion");
+status_printf_ln(s, c, "");

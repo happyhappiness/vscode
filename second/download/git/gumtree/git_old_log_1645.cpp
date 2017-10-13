@@ -1,1 +1,1 @@
-fprintf(stderr, "Error creating curl multi handle.\n");
+die("internal error");

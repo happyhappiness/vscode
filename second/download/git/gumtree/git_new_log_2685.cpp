@@ -1,2 +1,2 @@
-warning("failed utime() on %s: %s",
-				tmp_file.buf, strerror(errno));
+error("unknown core.untrackedCache value '%s'; "
+		      "using 'keep' default value", v);

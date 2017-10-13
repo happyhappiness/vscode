@@ -1,2 +1,1 @@
-packet_write(1, "shallow %s",
-						oid_to_hex(&object->oid));
+die(_("unrecognized color: %%(color:%s)"), color_value);

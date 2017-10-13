@@ -1,1 +1,1 @@
-die("BUG: fdopen_lock_file() called for unlocked object");
+die("transport '%s' not allowed", type);

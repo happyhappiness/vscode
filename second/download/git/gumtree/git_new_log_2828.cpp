@@ -1,1 +1,1 @@
-fputs(pp->children[i].err.buf, stderr);
+warning("could not mark '%s' as hidden.", filename);

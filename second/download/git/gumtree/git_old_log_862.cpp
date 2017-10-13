@@ -1,1 +1,0 @@
-error(_("no commits parsed."));

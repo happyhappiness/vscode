@@ -1,3 +1,1 @@
-warning("skipping rename detection, detected"
-					" duplicate destination '%s'",
-					p->two->path);
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

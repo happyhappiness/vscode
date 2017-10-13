@@ -1,1 +1,2 @@
-printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
+error("failed to read delta-pack base object %s",
+		      sha1_to_hex(base_sha1));

@@ -1,1 +1,1 @@
-fprintf(out, "%s ", oid_to_hex(&obj->oid));
+error("Unable to open %s for writing", lockpath);

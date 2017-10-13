@@ -1,1 +1,2 @@
-warning(_("failed to exec '%s': %s"), path, strerror(errno));
+error("unable to create symlink %s (%s)",
+					     path, strerror(errno));

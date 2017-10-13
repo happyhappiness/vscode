@@ -1,1 +1,1 @@
-fprintf(file, "prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));
+error("Unknown object type for %s", describe_object(options, obj));

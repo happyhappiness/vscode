@@ -1,1 +1,1 @@
-printf_ln(_("  Push  URL: %s"), "(no URL)");
+printf("Message-Id: <%s>\n", opt->message_id);

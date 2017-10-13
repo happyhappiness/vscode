@@ -1,1 +1,1 @@
-die_errno("cannot getcwd");
+die_errno("could not move to %s", orig_cwd);

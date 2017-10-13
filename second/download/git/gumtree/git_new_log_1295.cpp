@@ -1,1 +1,2 @@
-die(_("cannot read existing object info %s"), oid_to_hex(oid));
+die("object %s cannot be read",
+			    oid_to_hex(&trg_entry->idx.oid));

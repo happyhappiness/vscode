@@ -1,1 +1,1 @@
-error("%s: %s", new_name, strerror(errno));
+error(_("%s: patch does not apply"), name);

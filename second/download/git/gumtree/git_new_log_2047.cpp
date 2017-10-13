@@ -1,1 +1,2 @@
-packet_write(1, "%s %s\n", oid_to_hex(oid), refname_nons);
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

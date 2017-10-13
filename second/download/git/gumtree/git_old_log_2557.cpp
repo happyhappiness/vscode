@@ -1,1 +1,1 @@
-fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);
+error("Unable to create %s", git_HEAD);

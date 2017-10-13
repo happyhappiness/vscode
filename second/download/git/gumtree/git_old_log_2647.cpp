@@ -1,1 +1,1 @@
-printf("would prune %s", message);
+die("git-%s failed", argv[0]);

@@ -1,1 +1,0 @@
-die("Invalid gitfile format: %s", path);

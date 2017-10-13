@@ -1,1 +1,1 @@
-die(_("'%s' is not a working tree"), av[0]);
+error("%s", o->obuf.buf);

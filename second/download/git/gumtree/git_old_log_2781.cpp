@@ -1,1 +1,1 @@
-die("internal error: pack revindex fubar");
+printf("%s\n", local_repo_env[i]);

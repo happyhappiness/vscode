@@ -1,1 +1,1 @@
-die("--reverse --first-parent together require range along first-parent chain");
+printf("%s\n", oid_to_hex(&result->item->object.oid));

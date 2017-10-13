@@ -1,1 +1,2 @@
-die_errno(_("cannot create configuration file %s"), config_file);
+error("Couldn't write %s",
+					lock->lk->filename.buf);

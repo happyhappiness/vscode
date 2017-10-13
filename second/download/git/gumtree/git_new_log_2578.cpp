@@ -1,1 +1,0 @@
-die(_("format: %%(end) atom used without corresponding atom"));

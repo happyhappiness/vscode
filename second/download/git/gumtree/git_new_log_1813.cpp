@@ -1,1 +1,1 @@
-execute_commands_non_atomic(commands, si);
+die(_("invalid path '%s'"), old_name);

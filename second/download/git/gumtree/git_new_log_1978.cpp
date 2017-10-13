@@ -1,2 +1,2 @@
-printf(" %s", diff_unique_abbrev(p->parent[i].oid.hash,
-							 opt->abbrev));
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

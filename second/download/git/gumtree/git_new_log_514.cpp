@@ -1,1 +1,1 @@
-error("initialization for external filter '%s' failed", cmd);
+packet_write_fmt(1, "ERR %s: %s", msg, dir);

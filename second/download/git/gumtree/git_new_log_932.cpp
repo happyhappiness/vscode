@@ -1,1 +1,1 @@
-error(ERRORMSG(o, e), super_prefixed(path.buf));
+receive_unpack_status(in);

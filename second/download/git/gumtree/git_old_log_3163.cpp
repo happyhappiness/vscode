@@ -1,1 +1,0 @@
-die_errno(_("could not write to %s"), filename);

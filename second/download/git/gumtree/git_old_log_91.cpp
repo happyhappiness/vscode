@@ -1,1 +1,1 @@
-die("create %s given zero new value", ref.buf);
+die("create %s missing <newvalue>", ref.buf);

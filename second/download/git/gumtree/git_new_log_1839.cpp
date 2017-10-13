@@ -1,1 +1,2 @@
-die("BUG: delete called with old_sha1 set to zeros");
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

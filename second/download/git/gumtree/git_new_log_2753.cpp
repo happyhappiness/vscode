@@ -1,2 +1,1 @@
-die("Refusing to %s notes in %s (outside of refs/notes/)",
-		    subcommand, ref);
+error(_("running trailer command '%s' failed"), cmd.buf);

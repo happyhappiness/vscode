@@ -1,1 +1,1 @@
-warning("object %s: %s", oid_to_hex(&obj->oid), message);
+error("Couldn't set %s", lock->ref_name);

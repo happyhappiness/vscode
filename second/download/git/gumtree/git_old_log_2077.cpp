@@ -1,1 +1,1 @@
-die_errno("Out of memory? mmap failed");
+die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);

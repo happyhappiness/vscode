@@ -1,0 +1,1 @@
+die("cannot happen -- lo and hi are identical");

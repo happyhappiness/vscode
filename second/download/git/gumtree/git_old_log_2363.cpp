@@ -1,1 +1,1 @@
-die_errno("unable to commit credential store");
+die(_("Could not make %s writable by group"), dir);

@@ -1,2 +1,1 @@
-die("Argument not supported for format '%s': -%d",
-					format, compression_level);
+die("Bad value '%s' in environment '%s'", e, name);

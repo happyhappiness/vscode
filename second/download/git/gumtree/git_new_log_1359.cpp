@@ -1,1 +1,1 @@
-die(_("unknown error occurred while reading the configuration files"));
+die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);

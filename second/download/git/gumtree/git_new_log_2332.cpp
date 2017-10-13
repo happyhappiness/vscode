@@ -1,1 +1,3 @@
-status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
+die ("Encountered signed tag %s; use "
+				     "--signed-tags=<mode> to handle it.",
+				     oid_to_hex(&tag->object.oid));

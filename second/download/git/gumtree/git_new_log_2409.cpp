@@ -1,3 +1,1 @@
-die ("Encountered signed tag %s; use "
-				     "--signed-tags=<mode> to handle it.",
-				     oid_to_hex(&tag->object.oid));
+fputs(oid_to_hex(&commit->object.oid), stdout);

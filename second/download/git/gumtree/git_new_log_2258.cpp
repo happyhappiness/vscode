@@ -1,3 +1,1 @@
-strbuf_addf(err,
-			    "Trying to write ref %s with nonexistent object %s",
-			    lock->ref_name, sha1_to_hex(sha1));
+status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);

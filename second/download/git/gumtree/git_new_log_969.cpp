@@ -1,1 +1,1 @@
-warning("alternate disabled by http.followRedirects: %s", url);
+putchar('\n');

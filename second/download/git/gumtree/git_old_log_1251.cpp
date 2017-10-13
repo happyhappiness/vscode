@@ -1,1 +1,2 @@
-printf("author-time %lu\n", ci.author_time);
+die(_("unable to read %s"),
+			    sha1_to_hex(data->entry->idx.sha1));

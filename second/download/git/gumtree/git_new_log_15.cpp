@@ -1,0 +1,1 @@
+get_commit_buffer(commit, NULL);

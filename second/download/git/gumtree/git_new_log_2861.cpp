@@ -1,1 +1,1 @@
-printf("%s\n", local_repo_env[i]);
+die(_("cannot get patch id"));

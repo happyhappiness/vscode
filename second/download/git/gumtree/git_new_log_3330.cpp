@@ -1,2 +1,2 @@
-fprintf(opt->diffopt.file, "%s<%s>\n", (i > 0 ? "\t" : "References: "),
-			       opt->ref_message_ids->items[i].string);
+fprintf(stderr, _("The following submodule paths contain changes that can\n"
+			"not be found on any remote:\n"));

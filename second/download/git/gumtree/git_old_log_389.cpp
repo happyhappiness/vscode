@@ -1,2 +1,1 @@
-die(_("reference repository '%s' is not a local repository."),
-		    item->string);
+die("BUG: finalize_deferred_config() should have been called");

@@ -1,2 +1,1 @@
-error("unable to create file %s (%s)",
-				path, strerror(errno));
+error(_("Can't cherry-pick into empty head"));

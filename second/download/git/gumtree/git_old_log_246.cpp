@@ -1,1 +1,1 @@
-die(_("git apply: bad git-diff - expected /dev/null on line %d"), state->linenr);
+error(_("deleted file still has contents"));

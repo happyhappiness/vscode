@@ -1,1 +1,1 @@
-die("BUG: commit called on a closed reference transaction");
+die(_("Failed to resolve HEAD as a valid ref."));

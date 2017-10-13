@@ -1,1 +1,1 @@
-fprintf(stderr, "Executing: %s\n", command_line);
+die("Too large to be a .git file: '%s'", path);

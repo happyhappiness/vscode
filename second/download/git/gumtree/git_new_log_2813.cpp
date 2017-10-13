@@ -1,0 +1,1 @@
+strbuf_addstr(err, _("unknown repository extensions found:"));

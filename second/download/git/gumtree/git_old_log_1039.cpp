@@ -1,1 +1,2 @@
-error("new object is the same as the old one: '%s'", sha1_to_hex(old));
+error("unknown core.untrackedCache value '%s'; "
+		      "using 'keep' default value", v);

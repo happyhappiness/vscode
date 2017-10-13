@@ -1,1 +1,1 @@
-error("ftell error: %s", strerror(errno));
+die(_("patch with only garbage at line %d"), linenr);

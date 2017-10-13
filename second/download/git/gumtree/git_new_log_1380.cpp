@@ -1,1 +1,1 @@
-die("Can't load tree %s", oid_to_hex(oid));
+error("sha1 mismatch %s", oid_to_hex(oid));

@@ -1,1 +1,1 @@
-error(ERRORMSG(o, e), path.buf);
+error("unpack failed: %s", line + 7);

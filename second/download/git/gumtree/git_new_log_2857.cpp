@@ -1,1 +1,1 @@
-die_errno(_("could not read SQUASH_MSG"));
+die(_("Failed to find exact merge base"));

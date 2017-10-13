@@ -1,2 +1,2 @@
-ret = error("cannot stat '%s': %s", path,
-					strerror(errno));
+die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);

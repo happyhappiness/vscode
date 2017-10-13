@@ -1,1 +1,1 @@
-error("Unable to fix permissions on %s", lockpath);
+fprintf_ln(stderr, "    git pull <remote> <branch>");

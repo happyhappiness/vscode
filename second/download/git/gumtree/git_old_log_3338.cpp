@@ -1,1 +1,1 @@
-printf("log size %i\n", (int)msgbuf.len);
+die(_("bug: unhandled unmerged status %x"), stagemask);

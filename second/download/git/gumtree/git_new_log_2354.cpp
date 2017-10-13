@@ -1,1 +1,1 @@
-warning("symbolic ref is dangling: %s", path);
+printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));

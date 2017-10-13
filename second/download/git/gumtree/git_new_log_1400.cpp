@@ -1,1 +1,0 @@
-die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);

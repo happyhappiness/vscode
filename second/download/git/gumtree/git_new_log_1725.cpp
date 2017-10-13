@@ -1,2 +1,1 @@
-(fprintf(fp, "%s	%s^{}\n",
-				sha1_to_hex(o->sha1), path) < 0;
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

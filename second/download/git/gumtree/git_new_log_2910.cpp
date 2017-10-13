@@ -1,1 +1,1 @@
-warning("could not mark '%s' as hidden.", filename);
+warning_errno("vsnprintf failed");

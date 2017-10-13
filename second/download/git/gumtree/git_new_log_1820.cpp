@@ -1,0 +1,1 @@
+printf("Diag: port=%s\n", port ? port : "NONE");

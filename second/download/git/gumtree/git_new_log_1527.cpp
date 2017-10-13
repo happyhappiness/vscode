@@ -1,1 +1,1 @@
-die(_("commit '%s' lacks author header"), author_message);
+die("revision walk setup failed");

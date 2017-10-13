@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("verify %s: extra input: %s", refname, next);

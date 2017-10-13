@@ -1,1 +1,1 @@
-die("Reference has invalid format: '%s'", refname);
+die("strange pathname '%s' blocked", path);

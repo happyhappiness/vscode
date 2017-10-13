@@ -1,2 +1,2 @@
-argv_array_pushl(&cp.args, "update-ref", "HEAD",
-				 sha1_to_hex(commit->object.sha1), NULL);
+error("cannot fdopen %s (%s)",
+			      get_lock_file_path(&reflog_lock), strerror(errno));

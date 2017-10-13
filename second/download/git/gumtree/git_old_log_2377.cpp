@@ -1,1 +1,1 @@
-die_errno(_("could not read '%s'"), am_path(state, "msg"));
+die_errno("Could not rewind output message file");

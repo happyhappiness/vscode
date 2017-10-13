@@ -1,2 +1,2 @@
-die_errno(_("could not open '%s' for reading"),
-				  git_path_merge_head());
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			sha1_to_hex(object));

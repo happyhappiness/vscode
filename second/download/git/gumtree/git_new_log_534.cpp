@@ -1,1 +1,1 @@
-die(_("git fetch-pack: expected shallow list"));
+die(_("invalid unshallow line: %s"), line);

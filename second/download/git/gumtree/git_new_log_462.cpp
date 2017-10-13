@@ -1,2 +1,3 @@
-packet_write_fmt(1, "%s %s%c%s\n",
-			     sha1_to_hex(sha1), path, 0, cap.buf);
+warning(Q_("ignoring %s; cannot handle more than %d ref",
+			   "ignoring %s; cannot handle more than %d refs",
+			   MAX_REVS), refname, MAX_REVS);

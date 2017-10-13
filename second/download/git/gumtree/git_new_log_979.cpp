@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+printf("%s", suffix);

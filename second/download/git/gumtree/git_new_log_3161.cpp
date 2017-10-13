@@ -1,3 +1,1 @@
-xsnprintf(steps_msg, sizeof(steps_msg),
-		  Q_("(roughly %d step)", "(roughly %d steps)", steps),
-		  steps);
+printf_ln(_("  HEAD branch: %s"), _("(not queried)"));

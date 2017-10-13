@@ -1,2 +1,2 @@
-fprintf(opt->file, "%s ",
-			diff_unique_abbrev(p->two->oid.hash, opt->abbrev));
+die("malformed build-time PAGER_ENV: %s",
+			split_cmdline_strerror(n));

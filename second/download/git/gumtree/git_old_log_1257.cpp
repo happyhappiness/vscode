@@ -1,1 +1,1 @@
-die("unknown line in '%s': %s", git_path_merge_head(), line.buf);
+die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));

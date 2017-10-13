@@ -1,1 +1,0 @@
-error_errno(_("failed to stat '%s'"), filename);

@@ -1,1 +1,1 @@
-error("cannot fork to run external filter '%s'", cmd);
+error("path name too long for external filter");

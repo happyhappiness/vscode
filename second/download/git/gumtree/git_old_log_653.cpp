@@ -1,1 +1,1 @@
-die(_("Malformed options sheet: %s"), git_path_opts_file());
+die("insanely long object directory %s", objdir);

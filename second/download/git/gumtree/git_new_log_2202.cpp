@@ -1,1 +1,1 @@
-die("BUG: cannot create anonymous strftime date_mode struct");
+die_errno(_("Could not open %s"), git_path_todo_file());

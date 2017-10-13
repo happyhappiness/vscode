@@ -1,1 +1,3 @@
-printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, oid_to_hex(&entry->blob->object.oid), entry->path);
+fprintf(stderr, "MKCOL %s failed, aborting (%d/%ld)\n",
+				oid_to_hex(&request->obj->oid),
+				request->curl_result, request->http_code);

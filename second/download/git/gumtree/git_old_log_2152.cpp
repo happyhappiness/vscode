@@ -1,1 +1,0 @@
-die_errno("unable to overwrite old ref-pack file");

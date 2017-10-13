@@ -1,1 +1,1 @@
-fprintf(rej, "%.*s", frag->size, frag->patch);
+die(_("--cached outside a repository"));

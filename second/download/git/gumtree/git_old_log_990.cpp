@@ -1,1 +1,1 @@
-("BUG: non-INDEX attr direction in a bare repo";
+die("Could not read blob %s", sha1_to_hex(sha1));

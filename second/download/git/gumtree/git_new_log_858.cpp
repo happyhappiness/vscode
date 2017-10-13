@@ -1,1 +1,1 @@
-error(_("unknown command: %d"), command);
+error(_("could not read orig-head"));

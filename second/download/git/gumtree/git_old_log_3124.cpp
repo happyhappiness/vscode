@@ -1,1 +1,1 @@
-die("Too long path: %.*s", 60, path);
+fprintf(realstdout, "%s\n", filename.buf + outdir_offset);

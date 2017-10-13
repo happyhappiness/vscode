@@ -1,4 +1,1 @@
-error("%s: unable to read file.",
-				name_to_report ?
-				name_to_report :
-				find_unique_abbrev(sha1, DEFAULT_ABBREV));
+die(_("unable to find filename in patch at line %d"), state->linenr);

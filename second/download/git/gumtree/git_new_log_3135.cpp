@@ -1,1 +1,0 @@
-error(_("Committing is not possible because you have unmerged files."));

@@ -1,1 +1,2 @@
-warning_errno(_(msg_warn_remove_failed), quoted.buf);
+error("%s: object corrupt or missing: %s",
+		      oid_to_hex(oid), path);

@@ -1,1 +1,1 @@
-die(_("object not found: %s"), line);
+packet_buf_write(&req_buf, "deepen-not %s", s->string);

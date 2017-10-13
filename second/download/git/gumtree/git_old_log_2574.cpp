@@ -1,1 +1,2 @@
-die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
+error("cannot fdopen %s (%s)",
+			      get_lock_file_path(&reflog_lock), strerror(errno));

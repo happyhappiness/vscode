@@ -1,0 +1,1 @@
+printf("committer-time %lu\n", ci.committer_time);

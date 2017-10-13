@@ -1,2 +1,1 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+die(_("-b, -B, and --detach are mutually exclusive"));

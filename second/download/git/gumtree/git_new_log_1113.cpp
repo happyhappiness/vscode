@@ -1,1 +1,1 @@
-die(_("format: %%(then) atom used more than once"));
+die_errno("unable to overwrite old ref-pack file");

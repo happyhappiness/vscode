@@ -1,1 +1,1 @@
-die("BUG: unhandled unmerged status %x", d->stagemask);
+error("abbrev length out of range: %d", abbrev);

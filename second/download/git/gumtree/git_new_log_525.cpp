@@ -1,1 +1,1 @@
-die_want_option("--stat-graph-width");
+warning(_(degrade_cc_to_c_warning));

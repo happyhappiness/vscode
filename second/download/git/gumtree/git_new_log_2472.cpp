@@ -1,1 +1,2 @@
-printf("%s\n", find_unique_abbrev(oid->hash, DEFAULT_ABBREV));
+fprintf(stderr, "    sent %s\n",
+					oid_to_hex(&request->obj->oid));

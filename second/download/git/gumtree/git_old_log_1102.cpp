@@ -1,1 +1,1 @@
-die("unable to lookup %s", sha1_to_hex(sha1));
+warning("Duplicated ref: %s", ref1->name);

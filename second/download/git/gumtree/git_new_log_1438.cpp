@@ -1,1 +1,1 @@
-die("BUG: packed-refs not locked");
+die("strange hostname '%s' blocked", ssh_host);

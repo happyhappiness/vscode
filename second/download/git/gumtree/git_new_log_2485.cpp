@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", rerere_path(id, NULL));
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);

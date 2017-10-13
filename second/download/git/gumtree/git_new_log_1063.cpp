@@ -1,1 +1,1 @@
-git_die_config(key, _("Invalid %s: '%s'"), key, *output);
+die("unable to join lazy_dir_thread");

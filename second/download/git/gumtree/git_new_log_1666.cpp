@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that has been committed"));
+packet_buf_write(req_buf, "push-cert%c%s", 0, cap_string);

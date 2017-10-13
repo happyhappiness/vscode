@@ -1,0 +1,1 @@
+die("impossibly large object header");

@@ -1,3 +1,1 @@
-warning("failed utime() on %s: %s",
-			rerere_path(id, "postimage"),
-			strerror(errno));
+die("cannot load shell32.dll");

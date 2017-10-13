@@ -1,0 +1,1 @@
+fprintf(f, "%d\n", todo_list->total_nr);

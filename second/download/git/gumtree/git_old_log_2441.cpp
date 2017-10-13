@@ -1,1 +1,0 @@
-die(_("insanely long template name %s"), de->d_name);

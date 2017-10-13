@@ -1,1 +1,2 @@
-die("Too long path: %.*s", 60, path);
+die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\n"
+			    "Please, commit your changes before you can merge."));

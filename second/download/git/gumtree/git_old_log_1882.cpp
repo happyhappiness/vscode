@@ -1,2 +1,2 @@
-die_errno(_("could not create work tree dir '%s'."),
-				  work_tree);
+die_errno(_("could not open '%s' for reading"),
+				  filename);

@@ -1,1 +1,1 @@
-die("BUG: bad untracked_cache value: %d", untracked_cache);
+fputs(o->obuf.buf, stdout);

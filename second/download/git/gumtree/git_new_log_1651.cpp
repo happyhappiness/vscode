@@ -1,1 +1,0 @@
-git_die_config("imap.host", "Missing value for 'imap.host'");

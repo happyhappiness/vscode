@@ -1,1 +1,1 @@
-die(_("-b, -B, and --detach are mutually exclusive"));
+die("Could not create directory %s", git_path_rr_cache());

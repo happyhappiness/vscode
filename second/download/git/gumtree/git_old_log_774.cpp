@@ -1,2 +1,1 @@
-fprintf(stderr, "Also look at %s\n",
-						target.buf);
+die_errno("Could not change back to '%s'", cwd.buf);

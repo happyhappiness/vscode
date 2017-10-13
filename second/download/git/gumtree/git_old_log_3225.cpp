@@ -1,1 +1,1 @@
-die_errno(_("Could not open '%s' for writing"), filename);
+not_found("Not a git repository: '%s'", dir);

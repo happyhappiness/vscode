@@ -1,1 +1,0 @@
-die("git fetch-pack: fetch failed.");

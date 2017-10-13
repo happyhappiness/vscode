@@ -1,1 +1,1 @@
-printf("Diag: url=%s\n", url ? url : "NULL");
+git_config_date_string("gc.pruneworktreesexpire", &prune_worktrees_expire);

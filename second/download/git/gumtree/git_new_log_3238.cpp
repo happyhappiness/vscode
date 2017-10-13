@@ -1,1 +1,1 @@
-error(_("too many parameters"));
+fprintf(rev->diffopt.file, "%s\n", output_prefix(&rev->diffopt));

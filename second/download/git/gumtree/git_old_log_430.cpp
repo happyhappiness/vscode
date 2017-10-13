@@ -1,1 +1,1 @@
-die(_("Malformed input line: '%s'."), buf.buf);
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

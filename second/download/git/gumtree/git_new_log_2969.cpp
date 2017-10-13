@@ -1,1 +1,1 @@
-die("resolve-relative-url-test only accepts three arguments: <up_path> <remoteurl> <url>");
+error_errno("cannot create pipe");

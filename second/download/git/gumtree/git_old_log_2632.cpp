@@ -1,1 +1,0 @@
-error("refname too long: %s", refs_heads_master);

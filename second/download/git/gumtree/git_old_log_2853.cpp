@@ -1,1 +1,0 @@
-die_errno ("Could not make temporary directory");

@@ -1,1 +1,1 @@
-error("cannot lock ref '%s'", refname);
+die("unable to generate diffstat for %s", one->path);

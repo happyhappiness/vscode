@@ -1,1 +1,1 @@
-error(_("could not run gpg."));
+die("BUG: update called for transaction that is not open");

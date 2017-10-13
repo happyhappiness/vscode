@@ -1,1 +1,0 @@
-die("protocol error: unexpected capabilities^{}");

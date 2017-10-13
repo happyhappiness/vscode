@@ -1,1 +1,0 @@
-die(_("Error wrapping up %s."), filename);

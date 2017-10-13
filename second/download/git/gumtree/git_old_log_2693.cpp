@@ -1,2 +1,1 @@
-error("Object %s not a tag",
-			     sha1_to_hex(item->object.sha1));
+die_errno("Cannot change to '%s'", subdir);

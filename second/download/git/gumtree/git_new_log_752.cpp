@@ -1,1 +1,4 @@
-die("BUG: finalize_deferred_config() should have been called");
+die(_("unable to update url base from redirection:\n"
+		      "  asked for: %s\n"
+		      "   redirect: %s"),
+		    asked, got->buf);

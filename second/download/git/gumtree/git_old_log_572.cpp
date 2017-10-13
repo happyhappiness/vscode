@@ -1,1 +1,1 @@
-die("no matching remote head");
+packet_write(1, "# service=git-%s\n", svc->name);

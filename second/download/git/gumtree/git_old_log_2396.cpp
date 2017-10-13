@@ -1,1 +1,1 @@
-error("duplicate parent %s ignored", sha1_to_hex(sha1));
+die("%s can only be used once.", opt->long_name);

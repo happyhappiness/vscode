@@ -1,2 +1,1 @@
-error("%s: invalid sha1 pointer in cache-tree",
-			      sha1_to_hex(it->sha1));
+die("unable to read %s", sha1_to_hex(entry->idx.sha1));

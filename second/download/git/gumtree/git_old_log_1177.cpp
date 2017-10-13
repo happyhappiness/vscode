@@ -1,1 +1,2 @@
-die(_("could not create directory '%s'"), new_git_dir);
+die_errno("exec '%s': cd to '%s' failed", cmd->argv[0],
+			    cmd->dir);

@@ -1,2 +1,1 @@
-(prepare_revision_walk(&rev))
-		die(_("revision walk setup failed"));
+warning("object %s: %s", describe_object(o, obj), message);

@@ -1,1 +1,0 @@
-error(_("Your local changes would be overwritten by cherry-pick."));

@@ -1,1 +1,1 @@
-warning("ignoring dangling symref %s.", fullref.buf);
+die(_("ls-tree returned unexpected return code %d"), code);

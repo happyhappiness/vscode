@@ -1,2 +1,1 @@
-die(_("relocate_gitdir for submodule '%s' with "
-		      "more than one worktree not supported"), path);
+die(_("unable to resolve revision: %s"), arg);

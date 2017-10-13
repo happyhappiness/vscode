@@ -1,1 +1,1 @@
-die(_("failed to resolve '%s' as a valid ref."), argv[0]);
+error(_("failed to delete ref NOTES_MERGE_REF"));

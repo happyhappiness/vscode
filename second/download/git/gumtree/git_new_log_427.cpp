@@ -1,1 +1,2 @@
-die(_("failed to resolve '%s' as a valid ref."), arg);
+die(_("refusing to %s notes in %s (outside of refs/notes/)"),
+		    subcommand, ref);

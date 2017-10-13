@@ -1,2 +1,1 @@
-die_errno("failed to write to %s",
-				  shallow_lock->filename.buf);
+printf("previous %s ", sha1_to_hex(prev->commit->object.sha1));

@@ -1,2 +1,1 @@
-printf("    %-*s %s %s\n", show_info->width, "", also,
-		       merge->items[i].string);
+printf("From %s Mon Sep 17 00:00:00 2001\n", name);

@@ -1,1 +1,1 @@
-rp_error("failed to lock %s", name);
+warning("%s has multiple values", key);

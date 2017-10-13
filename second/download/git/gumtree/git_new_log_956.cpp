@@ -1,1 +1,1 @@
-ret = receive_unpack_status(in);
+die("strange hostname '%s' blocked", ssh_host);

@@ -1,1 +1,1 @@
-printf("Diag: port=%s\n", port ? port : "NONE");
+die(_("local object %s is corrupt"), sha1_to_hex(d->sha1));

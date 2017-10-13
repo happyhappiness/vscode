@@ -1,1 +1,1 @@
-warning(_(rename_limit_warning));
+die(_("git fetch-pack: expected ACK/NAK, got '%s'"), line);

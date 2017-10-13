@@ -1,1 +1,1 @@
-die("BUG: you need to specify a get_next_task function");
+die (_("Please stage your changes to .gitmodules or stash them to proceed"));

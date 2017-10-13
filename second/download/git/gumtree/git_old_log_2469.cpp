@@ -1,0 +1,1 @@
+fprintf(stderr, " which contains %s\n", sha1_to_hex(request->obj->sha1));

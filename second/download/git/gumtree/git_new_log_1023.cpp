@@ -1,0 +1,1 @@
+die("remote '%s' not configured", argv[1]);

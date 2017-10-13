@@ -1,1 +1,2 @@
-error(_("unable to open or read %s"), path);
+error("cannot apply binary patch to '%s' "
+			     "without full index line", name);

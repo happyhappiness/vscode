@@ -1,2 +1,1 @@
-error(_("Commit %s is a merge but no -m option was given."),
-				oid_to_hex(&commit->object.oid));
+insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");

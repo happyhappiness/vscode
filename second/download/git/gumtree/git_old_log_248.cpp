@@ -1,2 +1,1 @@
-warning(_("recount: unexpected line: %.*s"),
-				(int)linelen(line, size), line);
+die(_("new file %s depends on old contents"), patch->new_name);

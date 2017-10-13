@@ -1,1 +1,1 @@
-strbuf_write(&pp->buffered_output, stderr);
+(_("We cannot bisect more!\n");

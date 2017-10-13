@@ -1,1 +1,1 @@
-die("update_treesame %s", sha1_to_hex(commit->object.sha1));
+printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;

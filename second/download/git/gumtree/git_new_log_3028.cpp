@@ -1,1 +1,1 @@
-error_errno("Couldn't create temporary file %s", freq->tmpfile);
+die_errno("error writing to pack-objects");

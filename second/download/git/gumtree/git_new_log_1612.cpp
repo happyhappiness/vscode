@@ -1,1 +1,1 @@
-die(_("unknown error occured while reading the configuration files"));
+error("cannot fix permission bits on %s", lk->filename.buf);

@@ -1,1 +1,2 @@
-printf("num read blob: %d\n", num_read_blob);
+error(_("no note found for object %s."),
+				       sha1_to_hex(object));

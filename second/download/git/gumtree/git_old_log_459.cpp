@@ -1,1 +1,1 @@
-error(_("Cannot pull with rebase: Your index contains uncommitted changes."));
+packet_write(stdin_fd, "%s %s%c", serv, repo, 0);

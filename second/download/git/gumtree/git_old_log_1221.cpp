@@ -1,0 +1,1 @@
+die_errno("cannot open or read '%s'", read_from);

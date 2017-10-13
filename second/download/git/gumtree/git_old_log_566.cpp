@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");
+die("git fetch-pack: fetch failed.");

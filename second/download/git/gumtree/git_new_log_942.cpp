@@ -1,1 +1,2 @@
-die(_("--no-index or --untracked cannot be used with revs"));
+die("unknown mode for --abbrev-ref: %s",
+						    arg);

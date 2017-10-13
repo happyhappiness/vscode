@@ -1,1 +1,1 @@
-error(_("remote unpack failed: %s"), line);
+fprintf(stderr, "%s: %s:%d\n", err.buf, src, lineno);

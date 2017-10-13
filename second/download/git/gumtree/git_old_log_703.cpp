@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "stale info", porcelain);
+packet_write(1, "ACK %s common\n", last_hex);

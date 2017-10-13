@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die_errno("could not read from stdin");

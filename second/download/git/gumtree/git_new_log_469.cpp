@@ -1,3 +1,3 @@
-warning(Q_("ignoring %s; cannot handle more than %d ref",
-			   "ignoring %s; cannot handle more than %d refs",
-			   MAX_REVS), refname, MAX_REVS);
+die(Q_("cannot handle more than %d rev.",
+			       "cannot handle more than %d revs.",
+			       MAX_REVS), MAX_REVS);

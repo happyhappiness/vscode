@@ -1,1 +1,0 @@
-error(_("can't revert as initial commit"));

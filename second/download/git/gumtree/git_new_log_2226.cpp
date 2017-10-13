@@ -1,2 +1,1 @@
-warning("unsupported ssl version %s: using default",
-				ssl_version);
+die_errno("unable to move new alternates file into place");

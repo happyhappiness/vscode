@@ -1,2 +1,1 @@
-error("cannot stat '%s': %s", path,
-					strerror(errno));
+die("BUG: run_command with a pipe can cause deadlock");

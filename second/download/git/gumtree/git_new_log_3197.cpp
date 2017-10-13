@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), describe_object(obj));
+die("BUG: current_config_origin_type called outside config callback");

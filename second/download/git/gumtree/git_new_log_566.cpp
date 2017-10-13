@@ -1,1 +1,1 @@
-die(_("Server does not support --shallow-since"));
+die(_("git fetch-pack: fetch failed."));

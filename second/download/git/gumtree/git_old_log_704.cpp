@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "new shallow roots not allowed", porcelain);
+packet_write(1, "ACK %s continue\n", last_hex);

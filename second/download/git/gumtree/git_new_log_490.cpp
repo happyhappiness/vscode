@@ -1,1 +1,1 @@
-printf(" %s ", diff_aligned_abbrev(&p->oid, opt->abbrev));
+die("protocol error: unexpected ref after capabilities^{}");

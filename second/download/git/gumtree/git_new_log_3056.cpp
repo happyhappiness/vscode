@@ -1,1 +1,1 @@
-error_errno("fork (async) failed");
+(_("Unexpected option --output");

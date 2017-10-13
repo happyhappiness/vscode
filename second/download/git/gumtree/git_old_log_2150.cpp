@@ -1,1 +1,2 @@
-die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);
+die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

@@ -1,1 +1,1 @@
-usage_msg_opt(_("You must specify a directory."), receive_pack_usage, options);
+error("Failed to update conflicted state in '%s'", path);

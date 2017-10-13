@@ -1,2 +1,1 @@
-die(_("cannot strip one component off url '%s'"),
-			*remoteurl);
+error_errno("cannot fork() for %s", cmd->argv[0]);

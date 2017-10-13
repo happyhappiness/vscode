@@ -1,1 +1,1 @@
-die_errno("unable to move new alternates file into place");
+strbuf_addbuf(&msg, &mi.log_message);

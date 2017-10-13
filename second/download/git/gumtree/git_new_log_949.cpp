@@ -1,1 +1,1 @@
-error("invalid key (newline): %s", key);
+(_("no email was given and auto-detection is disabled");

@@ -1,1 +1,1 @@
-printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));
+warning("object %s: %s", sha1_to_hex(obj->sha1), message);

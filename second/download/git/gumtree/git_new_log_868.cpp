@@ -1,2 +1,4 @@
-fprintf(stderr, "Could not apply %s... %.*s\n",
-			short_commit_name(commit), subject_len, subject);
+error(_("\nYou have uncommitted changes in your "
+				       "working tree. Please, commit them\n"
+				       "first and then run 'git rebase "
+				       "--continue' again."));

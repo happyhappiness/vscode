@@ -1,1 +1,1 @@
-die("cannot happen -- lo and hi are identical");
+fprintf(stderr, "failed to open store\n");

@@ -1,2 +1,1 @@
-error("copy-fd: write returned %s",
-				     strerror(errno));
+optbug(opts, "invalid short name");

@@ -1,3 +1,2 @@
-die("Commit %s in submodule path %s%s not found",
-				    oid_to_hex(entry.oid),
-				    base->buf, entry.path);
+die(_("patch fragment without header at line %d: %.*s"),
+			    state->linenr, (int)len-1, line);

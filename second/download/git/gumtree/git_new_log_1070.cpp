@@ -1,1 +1,1 @@
-die(_("could not create directories for %s"), gitfile_sb.buf);
+die(_("Only one 'attr:' specification is allowed."));

@@ -1,2 +1,1 @@
-die("ls-files --recurse-submodules does not support "
-		    "--error-unmatch");
+die(_("could not resolve ref '%s'"), o.branch1);

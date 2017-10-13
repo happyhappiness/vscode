@@ -1,1 +1,1 @@
-die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");
+printf("committer %s <%s@%s> %lu +0000\n", author, author, "local", timestamp);

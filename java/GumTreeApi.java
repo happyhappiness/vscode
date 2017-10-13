@@ -111,35 +111,37 @@ public class GumTreeApi {
 //			 System.out.printf("(%s, %s)\n", edit_element[0], edit_element[1]);
 //		 }
 		
-		
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_31.cpp";
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setFile(filename);
-//		g.setLoc(26);
-//		System.out.println(g.getLog());
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.9.5/config.c";
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/clang/hello.cpp";
+					
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.0.0/builtin/blame.c";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.0.1/builtin/blame.c";
+		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile(oldFile, newFile);
+		g.setFile(filename);
+		g.setLoc(73);
+		System.out.println(g.getLog());
 //		g.printSpliter();
 //		System.out.println(g.getBlock());
 //		g.printSpliter();
 //		System.out.println(g.getControl());
-//		g.printSpliter();
-//		System.out.println(g.getFunction());
-//		g.printSpliter();
-//		System.out.println(g.getFunctionLoc());
+		g.printSpliter();
+		System.out.println(g.getFunction());
+		g.printSpliter();
+		System.out.println(g.getFunctionLoc());
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_57.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_57.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setOldAndNewFile(oldFile, newFile);
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_57.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_57.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile(oldFile, newFile);
 //		g.addNewLogNode(5);		
-		g.addNewLogNode(31);
+//		g.addNewLogNode(31);
 //		g.addOldLogNode(5);
 //		g.setOldLoc(119);
 //		System.out.println(g.getNewLoc());
 //		g.setNewLoc(5);
 //		System.out.println(g.getOldLog());
-		System.out.println(g.getActionType());
+//		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -161,7 +163,7 @@ public class GumTreeApi {
 
 	public boolean setOldLoc(int oldLoc) {
 		this.oldLoc = oldLoc;
-		this.oldLogNode = getTopNodeOfLine(this.oldLoc, this.oldTree, this.oldTreeContext, this.oldFile);
+		this.oldLogNode = getLogNodeOfLine(this.oldLoc, this.oldTree, this.oldTreeContext, this.oldFile);
 		// commented line
 		if (oldLogNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.oldLoc, this.oldFile);
@@ -175,7 +177,7 @@ public class GumTreeApi {
 	
 	public boolean setNewLoc(int newLoc) {
 		this.newLoc = newLoc;
-		this.newLogNode = getTopNodeOfLine(this.newLoc, this.newTree, this.newTreeContext, this.newFile);
+		this.newLogNode = getLogNodeOfLine(this.newLoc, this.newTree, this.newTreeContext, this.newFile);
 		// commented line
 		if (newLogNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.newLoc, this.newFile);
@@ -244,13 +246,13 @@ public class GumTreeApi {
 	}
 	
 	public void addOldLogNode(int line) {
-		ITree logNode = this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
+		ITree logNode = this.getLogNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
 		if (logNode != null)
 			this.oldLogs.add(logNode);
 	}
 	
 	public void addNewLogNode(int line) {
-		ITree logNode = this.getTopNodeOfLine(line, this.newTree, this.newTreeContext, this.newFile);
+		ITree logNode = this.getLogNodeOfLine(line, this.newTree, this.newTreeContext, this.newFile);
 		if (logNode != null)
 		{
 			this.newLogs.add(logNode);
@@ -390,7 +392,7 @@ public class GumTreeApi {
 
 	public boolean setLoc(int line) {
 		this.loc = line;
-		this.logNode = getTopNodeOfLine(this.loc, this.tree, this.treeContext, this.filename);
+		this.logNode = getLogNodeOfLine(this.loc, this.tree, this.treeContext, this.filename);
 		// commented line
 		if (this.logNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.loc, this.filename);
@@ -825,7 +827,7 @@ public class GumTreeApi {
 	}
 	
 	// one line to src node
-	private ITree getTopNodeOfLine(int line, ITree rootNode, TreeContext treeContext, String filename) {
+	private ITree getLogNodeOfLine(int line, ITree rootNode, TreeContext treeContext, String filename) {
 		// ITree topNode = isOld ? oldTree : newTree;
 		line = line + 1;
 //		Iterator<ITree> allNodesIter = rootNode.getDescendants().iterator();
@@ -838,11 +840,12 @@ public class GumTreeApi {
 		while (allNodesIter.hasNext()) {
 			tempNode = allNodesIter.next();
 			// the node with most children in given line [!block fault!]
-			if (getLineNumber(tempNode, filename, true) == line && 
-//					!this.isBlock(tempNode, treeContext, filename)){
-					this.isStatement(tempNode, treeContext, filename)) {
-				largestNode = tempNode;
-				break;
+			if (getLineNumber(tempNode, filename, true) == line){
+				//TODO call with given name and loc
+				if(this.isCall(tempNode, treeContext, filename)) {
+					largestNode = tempNode;
+					break;
+				}
 			}
 		}
 
@@ -1008,9 +1011,19 @@ public class GumTreeApi {
 	
 	private boolean isFunction(ITree node, TreeContext treeContext, String filename)
 	{
-		String function = "function";
+		String function = filename.endsWith(".cpp") ? "function" : "Definition";
 		String type = getType(node, treeContext);
 		return type.equals(function);
+	}
+	
+	private boolean isCall(ITree node, TreeContext treeContext, String filename)
+	{
+		String call = filename.endsWith(".cpp") ? "call" : "FunCall";
+		String type = getType(node, treeContext);
+		if(type.equals(call))
+			return true;
+		else
+			return false;
 	}
 	
 	private boolean isStatement(ITree node, TreeContext treeContext, String filename)

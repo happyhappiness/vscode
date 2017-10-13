@@ -1,2 +1,1 @@
-failure |= error("Unable to commit marks file %s: %s",
-			export_marks_file, strerror(errno));
+die(_("insanely long template name %s"), de->d_name);

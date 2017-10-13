@@ -1,1 +1,1 @@
-error(_("Cannot pull with rebase: You have unstaged changes."));
+rp_error("%s", refuse_unconfigured_deny_delete_current_msg[i]);

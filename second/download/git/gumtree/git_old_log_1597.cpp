@@ -1,1 +1,1 @@
-error(_("pack-objects died"));
+die_errno("cannot getcwd");

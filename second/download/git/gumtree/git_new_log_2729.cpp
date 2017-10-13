@@ -1,2 +1,2 @@
-die(_("offset beyond end of pack index for %s (truncated index?)"),
-		    p->pack_name);
+die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);

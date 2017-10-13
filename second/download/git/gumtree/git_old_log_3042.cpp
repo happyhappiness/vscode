@@ -1,2 +1,1 @@
-error("Writing %s failed: %s", path,
-			     strerror(errno));
+die("failed to launch browser for %.*s", MAX_PATH, unixpath);

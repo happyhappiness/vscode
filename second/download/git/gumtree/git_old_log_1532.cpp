@@ -1,1 +1,1 @@
-die(_("cannot update HEAD ref"));
+rp_error("failed to lock %s", name);

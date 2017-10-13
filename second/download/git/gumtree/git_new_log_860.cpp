@@ -1,1 +1,2 @@
-fprintf(out, "%s\n", oid_to_hex(oid));
+error(_("could not update %s"),
+					head_ref.buf);

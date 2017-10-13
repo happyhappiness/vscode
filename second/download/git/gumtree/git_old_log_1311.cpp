@@ -1,1 +1,1 @@
-printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
+error("%s %s", sha1_to_hex(e->sha1), e->name);

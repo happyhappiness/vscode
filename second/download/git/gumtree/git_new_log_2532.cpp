@@ -1,1 +1,0 @@
-die_errno(_("failed to unlink '%s'"), path.buf);

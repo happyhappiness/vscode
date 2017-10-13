@@ -1,1 +1,0 @@
-die(_("unrecognized width:%s"), s);

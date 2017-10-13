@@ -1,2 +1,1 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+error("--name-only is only applicable to --list or --get-regexp");

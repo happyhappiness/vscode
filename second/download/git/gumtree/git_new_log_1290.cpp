@@ -1,1 +1,2 @@
-warning(_("no threads support, ignoring --threads"));
+error("bad packed object CRC for %s",
+		      oid_to_hex(&entry->idx.oid));

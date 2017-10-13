@@ -1,1 +1,1 @@
-cwd_is_git_dir = !strcmp(git_dir, cwd);
+error(_("Could not spawn pack-objects"));

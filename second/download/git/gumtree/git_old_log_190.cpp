@@ -1,1 +1,1 @@
-fprintf(stderr, "Defaulting to tracing on stderr...\n");
+status_printf_ln(s, c, "");

@@ -1,1 +1,2 @@
-die(_("Cannot read note data from non-blob object '%s'."), arg);
+error(_("No note found for object %s."),
+				       sha1_to_hex(object));

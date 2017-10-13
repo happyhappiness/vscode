@@ -1,1 +1,1 @@
-error("external filter '%s' failed", entry->subprocess.cmd);
+die(_("commit '%s' has malformed author line"), author_message);

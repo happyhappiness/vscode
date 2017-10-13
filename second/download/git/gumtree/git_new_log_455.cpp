@@ -1,2 +1,2 @@
-die(_("failed to store link to current notes ref (%s)"),
-			    default_notes_ref());
+packet_write_fmt(1, "%s %s%c%s\n",
+			     sha1_to_hex(sha1), path, 0, cap.buf);

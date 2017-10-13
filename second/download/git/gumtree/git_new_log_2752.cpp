@@ -1,1 +1,1 @@
-printf("ref: %s\t%s\n", ref->symref, ref->name);
+fprintf(outfile, "%s%c %s\n", tok, separators[0], val);

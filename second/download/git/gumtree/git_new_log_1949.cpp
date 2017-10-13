@@ -1,1 +1,3 @@
-die(_("Can merge only exactly one commit into empty head"));
+error_buf(err,
+				 _("no upstream configured for branch '%s'"),
+				 branch->name);

@@ -1,1 +1,2 @@
-die(_("There is no merge in progress (MERGE_HEAD missing)."));
+die(_("Invalid pathspec magic '%.*s' in '%s'"),
+			    (int) len, pos, elem);

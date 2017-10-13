@@ -1,1 +1,4 @@
-printf(" %s", find_unique_abbrev(parent->object.oid.hash, abbrev));
+fprintf(stderr,
+				"Could not open '%s' for tracing: %s\n"
+				"Defaulting to tracing on stderr...\n",
+				trace, strerror(errno));

@@ -1,1 +1,1 @@
-error(_("could not delete references: %s"), err.buf);
+print_rebase_state(s, state, color);

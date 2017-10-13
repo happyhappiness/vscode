@@ -1,1 +1,1 @@
-fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);
+die("git diff-tree: internal error");

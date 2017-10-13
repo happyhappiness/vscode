@@ -1,1 +1,1 @@
-die("resolve-relative-url only accepts one or two arguments");
+error_errno("cannot spawn %s", cmd->argv[0]);

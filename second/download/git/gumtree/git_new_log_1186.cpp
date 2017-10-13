@@ -1,1 +1,1 @@
-printf_ln(_("Patch is empty."));
+fprintf(stdout, "%s", item->string);

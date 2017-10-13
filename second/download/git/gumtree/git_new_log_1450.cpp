@@ -1,1 +1,1 @@
-die("BUG: prepare called on a closed reference transaction");
+error("'%s' was not filtered properly", path->string);

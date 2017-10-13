@@ -1,1 +1,1 @@
-fputs(sha1_to_hex(sha1), fh);
+printf("root %s\n", describe_object(&commit->object));

@@ -1,1 +1,2 @@
-die("BUG: run_command with a pipe can cause deadlock");
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

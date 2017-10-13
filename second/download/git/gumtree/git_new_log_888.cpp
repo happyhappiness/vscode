@@ -1,1 +1,1 @@
-error(_("cannot rebase: You have unstaged changes."));
+error("unable to unpack header of %s", path);

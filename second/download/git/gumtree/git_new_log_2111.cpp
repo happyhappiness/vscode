@@ -1,1 +1,1 @@
-die("unable to generate diff");
+warning("Skipping unknown msg id '%s'", var);

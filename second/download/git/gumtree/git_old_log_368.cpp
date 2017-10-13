@@ -1,1 +1,0 @@
-die("Cannot use --contents with final commit object name");

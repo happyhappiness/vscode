@@ -1,1 +1,3 @@
-die("Cannot read blob %s", sha1_to_hex(spec->sha1));
+die("ambiguous argument '%s': both revision and filename\n"
+	    "Use '--' to separate paths from revisions, like this:\n"
+	    "'git <command> [<revision>...] -- [<file>...]'", arg);

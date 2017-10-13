@@ -1,0 +1,1 @@
+warning_errno(_("failed to exec '%s'"), path);

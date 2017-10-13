@@ -1,2 +1,1 @@
-die("ref '%s' does not have %ld components to :strip",
-			    refname, nr);
+die(_("unrecognized width:%s"), s);

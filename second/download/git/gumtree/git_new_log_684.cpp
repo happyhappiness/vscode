@@ -1,2 +1,3 @@
-die("unable to parse commit %s",
-			    oid_to_hex(&c->object.oid));
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "new shallow roots not allowed",
+				 porcelain, summary_width);

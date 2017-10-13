@@ -1,1 +1,1 @@
-die("helper %s does not support dry-run", data->name);
+error(_("some refs could not be read"));

@@ -1,1 +1,3 @@
-die_errno("BUG: unexpected fast_export_ls_rev error");
+die((flags & HASH_WRITE_OBJECT)
+		    ? "Unable to add %s to database"
+		    : "Unable to hash %s", path);

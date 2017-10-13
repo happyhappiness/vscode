@@ -1,1 +1,1 @@
-warning("unable to %s %s: %s", op, file, strerror(errno));
+error(_("corrupt index file"));

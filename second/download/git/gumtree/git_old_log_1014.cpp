@@ -1,1 +1,1 @@
-die("Could not read blob %s", sha1_to_hex(sha1));
+die("unable to get object type for %s", sha1_to_hex(old));

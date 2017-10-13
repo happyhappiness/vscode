@@ -1,1 +1,1 @@
-had_error = !!error("tag '%s' not found.", name);
+die(_("negative values not allowed for submodule.fetchJobs"));

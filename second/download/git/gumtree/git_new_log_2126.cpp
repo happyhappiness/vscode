@@ -1,1 +1,0 @@
-error(_("You have not concluded your merge (MERGE_HEAD exists)."));

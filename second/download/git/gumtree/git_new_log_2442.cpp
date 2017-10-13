@@ -1,1 +1,1 @@
-die_errno(_("cannot stat '%s'"), path->buf);
+printf("%s\n", sb.buf);

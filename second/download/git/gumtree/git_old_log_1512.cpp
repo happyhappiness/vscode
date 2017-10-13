@@ -1,1 +1,1 @@
-die("symbolic link too long: %s", buf);
+die("Not a valid object name %s", obj_name);

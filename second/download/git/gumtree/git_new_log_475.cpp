@@ -1,3 +1,1 @@
-die(Q_("cannot handle more than %d rev.",
-			       "cannot handle more than %d revs.",
-			       MAX_REVS), MAX_REVS);
+die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);

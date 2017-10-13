@@ -1,1 +1,1 @@
-error(_("deleted file still has contents"));
+printf(" %-*s |  Bin\n", max, qname.buf);

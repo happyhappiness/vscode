@@ -1,1 +1,2 @@
-die_errno(_("Could not write to %s"), git_path_head_file());
+die ("Expected git repo version <= %d, found %d",
+			     GIT_REPO_VERSION_READ, repository_format_version);

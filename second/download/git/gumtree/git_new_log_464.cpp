@@ -1,1 +1,2 @@
-rp_error("%s", _(refuse_unconfigured_deny_delete_current_msg));
+die(_("--reflog is incompatible with --all, --remotes, "
+			      "--independent or --merge-base"));

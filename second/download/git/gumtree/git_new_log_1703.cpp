@@ -1,1 +1,1 @@
-die("BUG: create ref with null new_sha1");
+die("BUG: reverse reflog parser had leftover data");

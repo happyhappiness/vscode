@@ -1,1 +1,0 @@
-fprintf(rev->diffopt.file, _("Final output: %d %s\n"), nr, stage);

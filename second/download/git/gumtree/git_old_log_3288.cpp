@@ -1,1 +1,2 @@
-("strange hostname '%s' blocked";
+die(_("Unprocessed path??? %s"),
+				    entries->items[i].string);

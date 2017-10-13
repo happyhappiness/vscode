@@ -1,1 +1,1 @@
-die("Log %s is empty.", logfile);
+die("Log %s is corrupt.", logfile);

@@ -1,1 +1,1 @@
-die("update %s: extra input: %s", refname, next);
+die("update %s: missing <newvalue>", refname);

@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+die_errno(_("Could not create sequencer directory %s"), seq_dir);

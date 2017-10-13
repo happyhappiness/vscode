@@ -1,2 +1,1 @@
-failure |= error("Unable to write file %s: %s",
-			export_marks_file, strerror(errno));
+strbuf_addstr(path, de->d_name);

@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that is still open"));
+die(_("failed to sign the push certificate"));

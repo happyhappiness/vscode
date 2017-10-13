@@ -1,1 +1,1 @@
-e("bad tree compare for commit %s", sha1_to_hex(commit->object.sha1));
+warning("%s\n", _(warn_unspecified_push_default_msg));

@@ -1,1 +1,1 @@
-warning(_("%s has multiple values"), key);
+die(_("BUG: reopen a lockfile that is still open"));

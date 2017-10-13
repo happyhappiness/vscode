@@ -1,1 +1,1 @@
-fprintf(porcelain ? stdout : stderr, "To %s\n", url);
+fprintf(file, "%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");

@@ -1,1 +1,1 @@
-packet_write_fmt(stdin_fd, "%s %s%c", serv, repo, 0);
+die(_("--reflog option needs one branch name"));

@@ -1,1 +1,1 @@
-warning("object %s: %s", sha1_to_hex(obj->sha1), message);
+die("Too large to be a .git file: '%s'", path);

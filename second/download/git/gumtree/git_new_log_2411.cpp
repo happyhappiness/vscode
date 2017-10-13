@@ -1,2 +1,1 @@
-warning ("Stripping signature from tag %s",
-					 oid_to_hex(&tag->object.oid));
+printf(" %s", oid_to_hex(&children->item->object.oid));

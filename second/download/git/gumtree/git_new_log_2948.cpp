@@ -1,1 +1,1 @@
-error_errno("cannot open mail %s", file);
+warning_errno("cannot get host name");

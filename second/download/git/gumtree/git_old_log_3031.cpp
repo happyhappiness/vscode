@@ -1,2 +1,1 @@
-warning("cannot read /etc/mailname: %s",
-				strerror(errno));
+fprintf(stderr, "%.*s", brk + sf, b);

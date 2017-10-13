@@ -1,2 +1,1 @@
-status |= error("Couldn't write %s",
-				lock->lk->filename);
+error("copy-fd: write returned 0");

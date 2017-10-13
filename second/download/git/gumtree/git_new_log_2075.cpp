@@ -1,1 +1,0 @@
-die("unable to set up work tree using invalid config");

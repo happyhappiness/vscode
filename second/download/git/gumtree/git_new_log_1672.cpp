@@ -1,1 +1,1 @@
-err |= optbug(opts, "short name already used");
+ref_transaction_free(transaction);

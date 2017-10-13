@@ -1,1 +1,1 @@
-die("Log %s is corrupt.", logfile);
+error(str, updates[i]->ref_name);

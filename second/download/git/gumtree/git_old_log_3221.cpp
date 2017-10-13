@@ -1,1 +1,1 @@
-die_errno(_("Writing SQUASH_MSG"));
+die("bug: malformed header expr");

@@ -1,2 +1,2 @@
-die("invalid old value for ref %s: %s",
-		    update->ref_name, oldvalue);
+die("invalid new value for ref %s: %s",
+		    update->ref_name, newvalue);

@@ -1,2 +1,1 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+error("there are still refs under '%s'", orig_refname);

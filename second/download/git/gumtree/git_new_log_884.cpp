@@ -1,1 +1,1 @@
-res = error(_("could not read 'onto'"));
+error("object file %s is empty", path);

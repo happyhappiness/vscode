@@ -1,2 +1,1 @@
-error("readlink(\"%s\"): %s", path,
-			             errstr);
+die("reading bisect refs failed");

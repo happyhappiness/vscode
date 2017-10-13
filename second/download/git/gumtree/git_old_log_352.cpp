@@ -1,1 +1,1 @@
-die(_("--cached outside a repository"));
+packet_write(fd[1], "argument --format=%s\n", format);

@@ -1,1 +1,1 @@
-die(_("commit '%s' has malformed author line"), author_message);
+fprintf(stderr, "bad sha1 file: %s\n", path);

@@ -1,1 +1,1 @@
-fprintf(out, "%s ", sha1_to_hex(obj->sha1));
+die("unable to generate checkdiff for %s", one->path);

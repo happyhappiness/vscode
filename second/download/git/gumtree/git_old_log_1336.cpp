@@ -1,2 +1,1 @@
-die("object %s cannot be read",
-			    sha1_to_hex(trg_entry->idx.sha1));
+fprintf(pack_edges, " %s", sha1_to_hex(b->sha1));

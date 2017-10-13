@@ -1,1 +1,2 @@
-fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
+warning(_("You seem to have moved HEAD since the last 'am' failure.\n"
+		"Not rewinding to ORIG_HEAD"));

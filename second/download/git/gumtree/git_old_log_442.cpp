@@ -1,1 +1,1 @@
-die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+die("Could not parse commit from NOTES_MERGE_PARTIAL.");

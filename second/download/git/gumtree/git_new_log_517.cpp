@@ -1,1 +1,1 @@
-error("external filter '%s' failed", cmd);
+die(_("--name-only, --name-status, --check and -s are mutually exclusive"));

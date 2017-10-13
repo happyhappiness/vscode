@@ -1,1 +1,1 @@
-die("update %s missing [<oldvalue>] NUL", ref.buf);
+die("update %s missing <newvalue>", ref.buf);

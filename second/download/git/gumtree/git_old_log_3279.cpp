@@ -1,0 +1,1 @@
+die(_("Failed to execute internal merge"));

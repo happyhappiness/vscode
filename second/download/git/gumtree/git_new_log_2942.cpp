@@ -1,1 +1,1 @@
-die(_("base commit shouldn't be in revision list"));
+error_errno(_("'%s': short read"), filename);

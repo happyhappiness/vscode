@@ -1,1 +1,2 @@
-printf("committer %s <%s@%s> %"PRItime" +0000\n", author, author, "local", timestamp);
+die_errno("Could not switch to '%s'",
+						  sb.buf);

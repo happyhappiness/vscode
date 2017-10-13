@@ -1,1 +1,1 @@
-error("invalid key: %s", key);
+die(_("empty ident name (for <%s>) not allowed"), email);

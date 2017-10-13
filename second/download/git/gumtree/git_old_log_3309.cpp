@@ -1,1 +1,1 @@
-not_found("Not a git repository: '%s'", dir);
+error(_("Cannot %s during a %s"), action_str, action_name(opts));

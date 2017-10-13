@@ -1,2 +1,1 @@
-die("BUG: killed-file %.*s not found",
-						ent->len, ent->name);
+die("BUG: a non-header pattern in grep header list.");

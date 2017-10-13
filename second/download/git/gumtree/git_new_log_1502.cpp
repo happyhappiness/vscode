@@ -1,1 +1,1 @@
-error("Version %d not supported", *chosen_version);
+error("%s", err.buf);

@@ -1,0 +1,1 @@
+die("strange hostname '%s' blocked", ssh_host);

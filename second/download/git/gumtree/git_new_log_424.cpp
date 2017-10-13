@@ -1,1 +1,1 @@
-printf(_("Merging %s with %s\n"), o.branch1, o.branch2);
+die(_("failed to resolve '%s' as a valid ref."), split[0]->buf);

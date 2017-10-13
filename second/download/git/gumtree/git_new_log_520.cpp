@@ -1,1 +1,1 @@
-die(_("option '%s' requires a value"), option_name);
+die_want_option("--stat-graph-width");

@@ -1,2 +1,1 @@
-die("unable to read %s",
-				    oid_to_hex(&s->oid));
+err(o, _("merge returned no commit"));

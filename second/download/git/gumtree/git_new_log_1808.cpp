@@ -1,1 +1,2 @@
-die("BUG: connectivity check skipped???");
+status_printf_ln(s, c,
+			"--------------------------------------------------");

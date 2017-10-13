@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports multi_ack_detailed\n");
+fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");

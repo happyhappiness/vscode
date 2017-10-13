@@ -1,2 +1,1 @@
-error("cannot run %s: %s", cmd->argv[0],
-					strerror(ENOENT));
+die("cannot open '%s' for reading", git_path_merge_head());

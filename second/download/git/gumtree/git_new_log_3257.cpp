@@ -1,1 +1,1 @@
-die("submodule %s doesn't exist", argv[1]);
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

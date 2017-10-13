@@ -1,1 +1,1 @@
-printf("Message-Id: <%s>\n", opt->message_id);
+die("transport: invalid depth option '%s'", value);

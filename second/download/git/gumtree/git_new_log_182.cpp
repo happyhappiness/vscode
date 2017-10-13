@@ -1,1 +1,1 @@
-die("remote-curl: fetch attempted without a local repo");
+getenv(key->key);

@@ -1,2 +1,2 @@
-die(_("unable to read %s"),
-				    oid_to_hex(&entry->idx.oid));
+error("bad tree object %s",
+			     tree_name ? tree_name : oid_to_hex(tree_oid));

@@ -1,2 +1,2 @@
-warning(_("You seem to have moved HEAD since the last 'am' failure.\n"
-		"Not rewinding to ORIG_HEAD"));
+warning(_("You seem to have moved HEAD. "
+			  "Not rewinding, check your HEAD!"));

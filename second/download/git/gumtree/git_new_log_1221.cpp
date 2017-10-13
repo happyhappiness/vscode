@@ -1,1 +1,0 @@
-vreportf(prefix, fmt, params);

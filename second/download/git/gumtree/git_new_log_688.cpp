@@ -1,1 +1,1 @@
-fprintf(f, "(diff failed)\n");
+warning("%s unexpectedly said: '%s'", data->name, buf->buf);

@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+die(_("Could not read %s."), todo_file);

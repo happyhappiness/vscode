@@ -1,1 +1,1 @@
-error("malformed value for %s: %s", var, value);
+usage_msg_opt(_("You must specify a directory."), receive_pack_usage, options);

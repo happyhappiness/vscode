@@ -1,1 +1,1 @@
-warning_errno("failed utime() on %s", tmp_file.buf);
+(_("Bisecting: a merge base must be tested\n");

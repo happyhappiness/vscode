@@ -1,1 +1,2 @@
-error(_("Could not spawn pack-objects"));
+die("bad pack.indexversion=%"PRIu32,
+			    pack_idx_opts.version);

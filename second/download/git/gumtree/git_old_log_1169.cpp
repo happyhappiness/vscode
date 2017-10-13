@@ -1,0 +1,1 @@
+die_errno(_("open /dev/null failed"));

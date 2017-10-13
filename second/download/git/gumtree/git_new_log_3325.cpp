@@ -1,1 +1,2 @@
-fprintf(opt->diffopt.file, "\t%s", (char *) commit->util);
+warning("unable to write trace for %s: %s",
+			key->key, strerror(errno));

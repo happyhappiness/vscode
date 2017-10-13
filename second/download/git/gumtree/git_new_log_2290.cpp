@@ -1,1 +1,1 @@
-error_code = READ_GITFILE_ERR_OPEN_FAILED;
+die("unable to auto-detect name (got '%s')", name);

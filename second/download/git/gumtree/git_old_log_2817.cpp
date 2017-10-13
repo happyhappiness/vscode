@@ -1,1 +1,1 @@
-error("Unable to create %s", git_HEAD);
+fprintf_ln(stderr, "    git pull <remote> <branch>");

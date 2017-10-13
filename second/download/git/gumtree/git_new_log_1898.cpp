@@ -1,2 +1,2 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+die("an empty %s object %s?",
+		    typename(type), oid_to_hex(oid));

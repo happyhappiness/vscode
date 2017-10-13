@@ -1,1 +1,0 @@
-die("a bad revision is needed");

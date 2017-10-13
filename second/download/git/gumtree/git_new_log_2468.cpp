@@ -1,2 +1,1 @@
-find_unique_abbrev_r(to, remoteheads->item->object.oid.hash,
-					      DEFAULT_ABBREV);
+fprintf(stderr, "Unable to fetch %s, will not be able to update server info refs\n", oid_to_hex(&request->obj->oid));

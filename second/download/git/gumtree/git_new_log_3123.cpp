@@ -1,2 +1,4 @@
-status_printf_ln(s, color,
-					 _("  (use \"git merge --abort\" to abort the merge)"));
+fprintf(rev.diffopt.file, "%stree %s%s\n\n",
+					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
+					name,
+					diff_get_color_opt(&rev.diffopt, DIFF_RESET));

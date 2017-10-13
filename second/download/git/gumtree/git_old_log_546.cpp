@@ -1,1 +1,2 @@
-fprintf(stderr, "have %s\n", sha1_to_hex(sha1));
+fprintf(stderr, "got ack (%d) %s\n", ack,
+					sha1_to_hex(result_sha1));

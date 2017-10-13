@@ -1,1 +1,1 @@
-usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);
+error_errno("cannot unlink %s", filename);

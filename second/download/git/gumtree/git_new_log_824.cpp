@@ -1,1 +1,1 @@
-die("BUG: cannot have prefix and superprefix");
+fputs(buf.buf, stderr);

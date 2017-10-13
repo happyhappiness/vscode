@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+error("Version %d not supported", *chosen_version);

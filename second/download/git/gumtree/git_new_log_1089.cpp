@@ -1,1 +1,1 @@
-die("unable to create lazy_name_thread");
+die(_("format: %%(then) atom used after %%(else)"));

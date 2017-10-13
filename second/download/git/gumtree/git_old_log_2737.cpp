@@ -1,0 +1,1 @@
+error("Unable to fix permissions on %s", lockpath);

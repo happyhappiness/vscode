@@ -1,1 +1,1 @@
-warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);
+warning("could not freshen shared index '%s'", shared_index);

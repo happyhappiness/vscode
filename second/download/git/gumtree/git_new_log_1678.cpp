@@ -1,1 +1,1 @@
-die("unable to lookup %s", sha1_to_hex(sha1));
+xgetcwd();

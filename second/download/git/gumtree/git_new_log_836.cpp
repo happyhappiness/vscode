@@ -1,1 +1,2 @@
-warning("ignoring alternate with restricted protocol: %s", url);
+error(_("could not rename '%s' to '%s'"),
+					     rebase_path_squash_msg(), dest);

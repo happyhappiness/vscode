@@ -1,1 +1,0 @@
-printf("%s %s^{}\n", hex, refname);

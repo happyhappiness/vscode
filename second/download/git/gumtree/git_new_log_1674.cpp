@@ -1,1 +1,1 @@
-die(_("unable to parse --pretty format"));
+(fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) <;

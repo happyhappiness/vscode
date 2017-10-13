@@ -1,1 +1,2 @@
-error("running trailer command '%s' failed", cp->argv[0]);
+printf("%s was both good and bad\n",
+		       sha1_to_hex(current_bad_sha1));

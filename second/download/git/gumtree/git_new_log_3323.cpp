@@ -1,1 +1,2 @@
-fprintf(file, " %s", find_unique_abbrev(parent->object.oid.hash, abbrev));
+warning("could not open '%s' for tracing: %s",
+				trace, strerror(errno));

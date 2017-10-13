@@ -1,1 +1,2 @@
-die("BUG: create ref with null new_sha1");
+die("-L argument '%s' not of the form start,end:file",
+			    item->string);

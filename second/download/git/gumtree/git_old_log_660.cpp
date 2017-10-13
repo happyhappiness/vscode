@@ -1,1 +1,1 @@
-die(_("Could not format %s."), git_path_todo_file());
+error("short SHA1 %.*s is ambiguous.", len, hex_pfx);

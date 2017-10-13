@@ -1,1 +1,0 @@
-fputs(v->s, stdout);

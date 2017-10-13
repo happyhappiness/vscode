@@ -1,1 +1,0 @@
-die_errno("cannot open pid file '%s'", path);

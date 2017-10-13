@@ -1,3 +1,1 @@
-error("object directory %s does not exist; "
-		      "check .git/objects/info/alternates.",
-		      ent->base);
+print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);

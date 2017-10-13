@@ -34,6 +34,8 @@ DOWNLOAD_NEW_HUNK = GUMTREE_DIR + REPOS + '_new_hunk_'
 # log
 SAVE_OLD_LOG = GUMTREE_DIR + REPOS + '_old_log_'
 SAVE_NEW_LOG = GUMTREE_DIR + REPOS + '_new_log_'
+# function
+SAVE_FUNCTION = GUMTREE_DIR + REPOS + '_function_'
 
 """
 file name
@@ -85,15 +87,15 @@ FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 analyze old new title and index
 """
 # 'old_block', 'old_block_file', 'old_block_feature',
-ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'edit_words', 'edit_feature']
+ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'function', 'function_loc', 'edit_words', 'edit_feature']
 ANALYZE_EDIT_WORD = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_words')
 ANALYZE_EDIT_FEATURE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_feature')
+ANALYZE_FUNCTION = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('function')
+ANALYZE_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('function_loc')
 
-ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_check', 'old_variable', 'new_check', 'new_variable', 'ddg_codes', 'ddg_locs']
-ANALYZE_OLD_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_check')
-ANALYZE_NEW_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('new_check')
-ANALYZE_OLD_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('old_variable')
-ANALYZE_NEW_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('new_variable')
+ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['check', 'variable', 'ddg_codes', 'ddg_locs']
+ANALYZE_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('check')
+ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 
 

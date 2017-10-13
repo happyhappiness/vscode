@@ -1,1 +1,1 @@
-die_errno("Could not switch to '%s'", buf);
+die_errno (_("Cannot access current working directory"));

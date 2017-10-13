@@ -1,1 +1,1 @@
-error("repository lacks the necessary blob to fall back on 3-way merge.");
+error(_("path %s has been renamed/deleted"), old_name);

@@ -1,1 +1,1 @@
-die("%s is not a tree", oid_to_hex(hash));
+fprintf(stderr, "flushed.\n");

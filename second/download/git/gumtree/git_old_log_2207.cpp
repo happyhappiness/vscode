@@ -1,2 +1,1 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+die_errno(_("Could not write to %s"), head_file);

@@ -1,1 +1,1 @@
-strbuf_addstr(path, de->d_name);
+printf("\n");

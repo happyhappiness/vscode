@@ -1,1 +1,1 @@
-fprintf(stderr, "Applied patch to '%s' with conflicts.\n", patch->new_name);
+error(_("%s: wrong type"), old_name);

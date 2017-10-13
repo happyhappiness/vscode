@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system or location."));
+die_errno(_("could not read SQUASH_MSG"));

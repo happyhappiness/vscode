@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(result), name);
+error_buf(err, _("HEAD does not point to a branch"));

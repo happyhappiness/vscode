@@ -1,1 +1,0 @@
-die("missing path for '%s'", oid_to_hex(oid));

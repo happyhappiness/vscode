@@ -1,1 +1,1 @@
-die("helper %s does not support --signed", data->name);
+die(_("revision walk setup failed"));

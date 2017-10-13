@@ -1,1 +1,1 @@
-die("internal error: packed-refs not locked");
+fprintf(stderr, "cannot chmod '%s'", ce->name);

@@ -1,1 +1,1 @@
-fprintf(output, fmt, sb.buf);
+warning("recount: ignore empty hunk");

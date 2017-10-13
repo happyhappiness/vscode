@@ -1,1 +1,1 @@
-(_("bad config line %d in %s %s");
+error(msg, path, _(": perhaps a D/F conflict?"));

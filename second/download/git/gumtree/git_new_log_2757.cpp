@@ -1,0 +1,1 @@
+die(_("file %s is not a regular file"), file);

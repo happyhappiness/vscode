@@ -1,1 +1,1 @@
-error_errno("readlink(\"%s\")", path);
+(_("reading bisect refs failed");

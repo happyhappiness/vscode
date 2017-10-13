@@ -1,1 +1,1 @@
-fprintf(fh, "%s%s\n", prefix, msg);
+die_errno("Cannot stat '%s'", contents_from);

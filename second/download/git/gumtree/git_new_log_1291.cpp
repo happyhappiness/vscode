@@ -1,2 +1,2 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"),
-			    oid_to_hex(&data->entry->idx.oid));
+error("corrupt packed object for %s",
+		      oid_to_hex(&entry->idx.oid));

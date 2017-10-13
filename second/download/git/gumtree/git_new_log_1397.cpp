@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE JIT stack");
+die("Reference has invalid format: '%s'", refname);

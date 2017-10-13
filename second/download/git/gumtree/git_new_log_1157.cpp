@@ -1,2 +1,2 @@
-error(_("could not copy '%s' to '%s'"),
-			     rebase_path_message(), git_path_merge_msg());
+die(_("'%s' is not a commit and a branch '%s' cannot be created from it"),
+				argv[0], opts.new_branch);

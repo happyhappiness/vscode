@@ -1,1 +1,1 @@
-("strange hostname '%s' blocked";
+printf("%s", suffix);

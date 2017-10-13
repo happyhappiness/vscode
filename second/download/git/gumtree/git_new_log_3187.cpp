@@ -1,1 +1,1 @@
-fprintf(stderr, " %s\n",sb.buf);
+die("%s", error_msg);

@@ -1,1 +1,1 @@
-die ("Could not run rsync to get refs");
+error(_("cannot open %s: %s\n"), filename, strerror(errno));

@@ -1,1 +1,1 @@
-fputs(sb.buf, stdout);
+die("internal bug in trailer.c");

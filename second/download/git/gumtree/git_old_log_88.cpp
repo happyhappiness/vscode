@@ -1,1 +1,1 @@
-die("update %s has extra input: %s", ref.buf, next);
+die("update %s missing [<oldvalue>] NUL", ref.buf);

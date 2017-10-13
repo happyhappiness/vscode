@@ -1,1 +1,0 @@
-die_errno(_("cannot open file '%s'"), sb.buf);

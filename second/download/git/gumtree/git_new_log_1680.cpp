@@ -1,2 +1,1 @@
-die("unknown object type for %s: %s",
-		    sha1_to_hex(sha1), typename(type));
+die_errno("Cannot change to '%s/..'", cwd.buf);

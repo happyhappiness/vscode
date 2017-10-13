@@ -1,1 +1,1 @@
-die(_("Server does not support --shallow-exclude"));
+die(_("no matching remote head"));

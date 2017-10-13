@@ -1,1 +1,1 @@
-die("remote '%s' not configured", argv[1]);
+die("BUG: setup_git_env called without repository");

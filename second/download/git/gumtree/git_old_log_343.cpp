@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);
+die(_("--index outside a repository"));

@@ -1,1 +1,2 @@
-die(_("file %s is not a regular file"), file);
+error_errno(_("could not open '%s' for writing"),
+					   mail);

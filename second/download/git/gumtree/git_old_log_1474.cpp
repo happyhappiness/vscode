@@ -1,1 +1,1 @@
-error("Could not open %s", filename);
+die("Too long path: %.*s", 60, path);

@@ -1,1 +1,1 @@
-fprintf(stderr, "U %s\n", item->string);
+die("BUG: state->lock_file should not be NULL");

@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+error("external filter '%s' failed", entry->subprocess.cmd);

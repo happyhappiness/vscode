@@ -1,1 +1,0 @@
-die(_("your current branch appears to be broken"));

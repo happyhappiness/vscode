@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+printf("-%d-g%s", depth, find_unique_abbrev(oid->hash, abbrev));

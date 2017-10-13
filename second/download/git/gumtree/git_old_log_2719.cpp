@@ -1,1 +1,2 @@
-error(_("Could not set '%s'"), buf.buf);
+die("ref '%s' does not have %ld components to :strip",
+			    refname, nr);

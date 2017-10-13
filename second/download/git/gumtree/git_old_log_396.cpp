@@ -1,1 +1,0 @@
-die("BUG: finalize_deferred_config() should have been called");

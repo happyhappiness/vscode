@@ -1,1 +1,1 @@
-die_errno("Cannot change to '%s/..'", cwd.buf);
+fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);

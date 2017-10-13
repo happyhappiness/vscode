@@ -1,1 +1,2 @@
-printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;
+error("Object %s not a commit",
+			     oid_to_hex(&item->object.oid));

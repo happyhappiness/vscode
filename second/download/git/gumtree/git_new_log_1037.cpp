@@ -1,1 +1,1 @@
-die("replace ref '%s' already exists", ref->buf);
+die("BUG: how is this possible?");

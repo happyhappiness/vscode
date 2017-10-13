@@ -1,1 +1,1 @@
-error_errno("Could not write %s", output);
+error("Could not write flush packet");

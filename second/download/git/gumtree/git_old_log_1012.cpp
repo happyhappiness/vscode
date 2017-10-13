@@ -1,1 +1,1 @@
-die ("Could not read blob %s", sha1_to_hex(sha1));
+die("'%s' is not a valid ref name.", ref);

@@ -1,1 +1,1 @@
-die(_("No such ref: %s"), "HEAD");
+die("'%s': not a non-negative integer", arg);

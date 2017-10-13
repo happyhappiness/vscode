@@ -1,1 +1,2 @@
-printf("num commits: %d\n", num_commits);
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			sha1_to_hex(object));

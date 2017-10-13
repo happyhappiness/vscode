@@ -1,1 +1,1 @@
-die("Object not in bitmap: %s\n", sha1_to_hex(commit->object.sha1));
+printf("keep %s", message);

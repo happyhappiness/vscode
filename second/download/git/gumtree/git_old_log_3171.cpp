@@ -1,1 +1,0 @@
-die(_("corrupt patch at line %d"), linenr);

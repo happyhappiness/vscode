@@ -1,1 +1,1 @@
-die_errno("unable to point stderr to /dev/null");
+optbug(opts, "short name already used");

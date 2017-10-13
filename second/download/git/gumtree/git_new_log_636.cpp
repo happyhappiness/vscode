@@ -1,1 +1,1 @@
-item->arg_len = (int)(eol - item->arg);
+error(_("cannot cherry-pick during a revert."));

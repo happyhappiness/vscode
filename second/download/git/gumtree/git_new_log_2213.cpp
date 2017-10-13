@@ -1,1 +1,1 @@
-die("Invalid SHA-1: %s", buffer);
+die_errno(_("Could not write to %s"), git_path_todo_file());

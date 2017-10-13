@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+printf("previous %s ", oid_to_hex(&prev->commit->object.oid));

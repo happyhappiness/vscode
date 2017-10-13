@@ -1,2 +1,1 @@
-error("There are still logs under '%s'",
-					     logfile);
+die("Log %s is corrupt.", logfile);

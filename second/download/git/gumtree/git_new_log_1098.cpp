@@ -1,1 +1,1 @@
-die("BUG: should have same number of entries");
+opterror(opt, "is incompatible with --no-merged", 0);

@@ -1,2 +1,2 @@
-printf("There are only 'skip'ped commits left to test.\n"
-	       "The first bad commit could be any of:\n");
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

@@ -1,1 +1,1 @@
-printf(_("Updating %s..%s\n"), from, to);
+fprintf(stderr, " which contains %s\n", oid_to_hex(&request->obj->oid));

@@ -1,3 +1,1 @@
-printf(" (from %s)",
-			       find_unique_abbrev(parent->object.sha1,
-						  abbrev_commit));
+die("BUG: commit called for transaction that is not open");

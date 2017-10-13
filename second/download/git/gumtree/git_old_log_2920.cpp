@@ -1,2 +1,1 @@
-die("could not read file '%s': %s", filename,
-				strerror(errno));
+die("strange hostname '%s' blocked", host);

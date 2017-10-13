@@ -1,1 +1,1 @@
-error("Could not write %s: %s", path, strerror(errno));
+printf("Launching default browser to display HTML ...\n");

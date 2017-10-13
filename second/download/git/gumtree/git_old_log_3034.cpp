@@ -1,1 +1,1 @@
-die("unable to read tree (%s)", sha1_to_hex(hash));
+fprintf(porcelain ? stdout : stderr, "To %s\n", dest);

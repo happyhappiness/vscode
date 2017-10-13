@@ -1,1 +1,0 @@
-die("impossibly large verbosity value");

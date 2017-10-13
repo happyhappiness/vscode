@@ -1,1 +1,0 @@
-die("No path in gitfile: %s", path);

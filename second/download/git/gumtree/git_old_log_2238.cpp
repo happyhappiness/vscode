@@ -1,1 +1,0 @@
-die(_("BUG: reopen a lockfile that is still open"));

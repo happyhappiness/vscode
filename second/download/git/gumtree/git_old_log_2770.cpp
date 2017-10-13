@@ -1,1 +1,1 @@
-("strange hostname '%s' blocked";
+die_errno ("Could not make temporary directory");

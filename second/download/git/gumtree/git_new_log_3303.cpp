@@ -1,0 +1,1 @@
+die("BUG: update called for transaction that is not open");

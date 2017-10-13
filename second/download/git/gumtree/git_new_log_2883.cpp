@@ -1,1 +1,1 @@
-die(_("could not unset '%s'"), key);
+die(_("Expecting a full ref name, got %s"), refname);

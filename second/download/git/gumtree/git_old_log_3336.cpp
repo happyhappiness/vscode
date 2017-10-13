@@ -1,3 +1,1 @@
-printf(" (from %s)",
-			       find_unique_abbrev(parent->object.oid.hash,
-						  abbrev_commit));
+die_errno(_("could not open %s for writing"), path);

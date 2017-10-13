@@ -1,1 +1,1 @@
-die("whitespace before command: %s", cmd.buf);
+die("verify %s has extra input: %s", ref.buf, next);

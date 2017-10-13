@@ -1,1 +1,1 @@
-die("could not read ref '%s'", pseudoref);
+die_errno(_("could not open '%s' for reading and writing"), path);

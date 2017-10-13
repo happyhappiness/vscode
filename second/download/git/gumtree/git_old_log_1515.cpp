@@ -1,1 +1,1 @@
-die("Too long path: %.*s", 60, path);
+fprintf(stderr, "corrupt mailbox\n");

@@ -1,1 +1,0 @@
-objreport(obj, "error", err, params);

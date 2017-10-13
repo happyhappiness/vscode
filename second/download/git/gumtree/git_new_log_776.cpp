@@ -1,1 +1,2 @@
-die("BUG: inbody_header_accum, if not empty, must always contain a valid in-body header");
+die("More than %d nested symlinks "
+					    "on path '%s'", MAXSYMLINKS, path);

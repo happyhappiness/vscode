@@ -1,1 +1,2 @@
-error("unable to lock %s for rollback: %s", oldrefname, err.buf);
+die("could not read file '%s': %s", filename,
+				strerror(errno));

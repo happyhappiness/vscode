@@ -127,7 +127,7 @@ class Gumtree:
         Gumtree.gumtree.setFile(filename)
 
     """
-    @ param line
+    @ param line(int)
     @ return flag about whether success
     @ involve set loccation of log
     """

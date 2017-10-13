@@ -1,1 +1,1 @@
-die("ls-files --recurse-submodules unsupported mode");
+die(_("not handling anything other than two heads merge."));

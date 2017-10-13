@@ -1,1 +1,1 @@
-wt_longstatus_print_other(s, &s->untracked, _("Untracked files"), "add");
+die("unable to read blob object %s", oid_to_hex(oid));

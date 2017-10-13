@@ -1,1 +1,1 @@
-fprintf(stderr, "  %s\n", needs_pushing->items[i].string);
+die("strange pathname '%s' blocked", path);

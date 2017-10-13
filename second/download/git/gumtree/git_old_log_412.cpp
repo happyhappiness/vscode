@@ -1,1 +1,1 @@
-die (_("--subject-prefix and -k are mutually exclusive."));
+die("Could not parse object '%s'", argv[i]);

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("BUG: check_apply_state() failed");

@@ -1,1 +1,1 @@
-printf("%s (%d):\n", log->list.items[i].string, onelines->nr);
+warning ("invalid SHA-1: %s", buffer);

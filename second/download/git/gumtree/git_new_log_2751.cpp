@@ -1,1 +1,1 @@
-printf("%s\t%s\n", oid_to_hex(&ref->old_oid), ref->name);
+fprintf(outfile, "%s%s\n", tok, val);

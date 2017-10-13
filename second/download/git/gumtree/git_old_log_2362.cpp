@@ -1,1 +1,1 @@
-ret = error("could not commit config file %s", config_filename);
+die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));

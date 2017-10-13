@@ -1,1 +1,2 @@
-die_errno(_("could not stat %s"), file);
+error_errno(_("could not open '%s' for reading"),
+					   *paths);

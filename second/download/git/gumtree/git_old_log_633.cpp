@@ -1,1 +1,0 @@
-die(_("git %s: failed to read the index"), action_name(opts));

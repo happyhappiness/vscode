@@ -1,2 +1,2 @@
-die("attempting to allocate %"PRIuMAX" over limit %d",
-		    (intmax_t)size, limit);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

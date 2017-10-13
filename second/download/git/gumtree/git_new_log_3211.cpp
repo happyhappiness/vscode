@@ -1,1 +1,1 @@
-fprintf(rev->diffopt.file, "\n");
+die_errno("Failed seeking to start of '%s'", p->pack_name);

@@ -1,1 +1,2 @@
-die("unable to generate diffstat for %s", one->path);
+printf("%s %s\n",
+		       oid_to_hex(&ref->old_oid), ref->name);

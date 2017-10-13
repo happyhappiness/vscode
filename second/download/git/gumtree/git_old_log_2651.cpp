@@ -1,1 +1,1 @@
-error("cannot lock ref '%s': %s", refname, err.buf);
+die("Invalid search pattern: %s", prefix);

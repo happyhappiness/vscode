@@ -1,2 +1,3 @@
-(fprintf(f, ":%"PRIu32" %s\n", mark,
-				sha1_to_hex(deco->base->sha1)) < 0;
+printf("[%s] ",
+			       find_unique_abbrev(commit->object.sha1,
+						  DEFAULT_ABBREV));

@@ -1,1 +1,3 @@
-printf("From %s Mon Sep 17 00:00:00 2001\n", name);
+printf("Would set upstream of '%s' to '%s' of '%s'\n",
+				localname + 11, remotename + 11,
+				transport->remote->name);

@@ -1,1 +1,1 @@
-die("Invalid deepen-since: %s", line);
+die("BUG: unhandled unmerged status %x", d->stagemask);

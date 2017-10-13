@@ -1,1 +1,2 @@
-fprintf(stderr, "no symlink - falling back to symbolic ref\n");
+error(_("Not tracking: ambiguous information for ref %s"),
+				orig_ref);

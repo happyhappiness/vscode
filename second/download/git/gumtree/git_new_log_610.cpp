@@ -1,1 +1,1 @@
-die("BUG: %s called for a submodule", caller);
+error(_("unable to update cache tree\n"));

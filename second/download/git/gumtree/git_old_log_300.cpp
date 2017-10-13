@@ -1,1 +1,1 @@
-error(_("%s: %s"), old_name, strerror(errno));
+die(_("invalid path '%s'"), new_name);

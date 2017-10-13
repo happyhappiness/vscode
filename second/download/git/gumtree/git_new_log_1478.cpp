@@ -1,1 +1,1 @@
-("strange hostname '%s' blocked";
+strbuf_release(&err);

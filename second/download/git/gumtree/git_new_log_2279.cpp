@@ -1,1 +1,1 @@
-die(_("Malformed options sheet: %s"), git_path_opts_file());
+warning("No LOGIN_OPTIONS support in this cURL version");

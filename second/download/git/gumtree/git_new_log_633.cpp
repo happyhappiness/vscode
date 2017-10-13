@@ -1,1 +1,2 @@
-rollback_lock_file(&index_lock);
+error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));

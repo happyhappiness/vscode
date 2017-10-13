@@ -1,1 +1,1 @@
-die(":strip= requires a positive integer argument");
+die(_("unrecognized position:%s"), s);

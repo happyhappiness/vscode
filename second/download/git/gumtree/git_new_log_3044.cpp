@@ -1,1 +1,1 @@
-fprintf(stderr, "Recorded preimage for '%s'\n", path);
+die("strange port '%s' blocked", port);

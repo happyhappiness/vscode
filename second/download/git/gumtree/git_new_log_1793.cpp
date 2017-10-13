@@ -1,1 +1,2 @@
-die("could not read %s%s", prompt, err);
+error("couldn't write %s",
+					lock->lk->filename.buf);

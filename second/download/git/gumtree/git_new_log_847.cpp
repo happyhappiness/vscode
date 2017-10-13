@@ -1,1 +1,1 @@
-die(_("Unknown action: %d"), opts->action);
+error(_("could not read index"));

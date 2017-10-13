@@ -1,1 +1,1 @@
-die("BUG: state->lock_file should not be NULL");
+packet_write(fd[1], "argument %s\n", argv[i]);

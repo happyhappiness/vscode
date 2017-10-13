@@ -1,3 +1,1 @@
-fprintf(stderr,
-				_("info: Could not add alternate for '%s': %s\n"),
-				item->string, err.buf);
+printf("%s\n", oid_to_hex(&commit_oid));

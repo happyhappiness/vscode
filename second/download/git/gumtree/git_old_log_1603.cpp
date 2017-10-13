@@ -1,1 +1,1 @@
-error("bad config file line %d in %s", cf->linenr, cf->name);
+die("cannot start proxy %s", argv[0]);

@@ -1,2 +1,2 @@
-fprintf(opt->file, ":%06o %06o %s ", p->one->mode, p->two->mode,
-			diff_unique_abbrev(p->one->oid.hash, opt->abbrev));
+error("unable to read sha1 file of %s (%s)",
+				path, sha1_to_hex(ce->sha1));

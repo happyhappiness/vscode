@@ -1,1 +1,1 @@
-status_printf_ln(s, c, "%s", "");
+fprintf(stderr, "cannot chmod '%s'", ce->name);

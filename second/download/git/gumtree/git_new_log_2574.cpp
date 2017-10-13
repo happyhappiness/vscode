@@ -1,1 +1,0 @@
-die("Commit %s doesn't have an indexed bitmap", oid_to_hex(&root->oid));

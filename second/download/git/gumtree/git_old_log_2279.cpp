@@ -1,1 +1,0 @@
-die(_("Malformed options sheet: %s"), opts_file);

@@ -1,1 +1,0 @@
-warning(_(msg_warn_remove_failed), qname);

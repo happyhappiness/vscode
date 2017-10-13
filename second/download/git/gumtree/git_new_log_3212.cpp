@@ -1,1 +1,2 @@
-fprintf(file, "base-commit: %s\n", oid_to_hex(&bases->base_commit));
+error("in tree %s: entry %s has bad mode %.6o",
+					describe_object(options, &tree->object), entry.path, entry.mode);

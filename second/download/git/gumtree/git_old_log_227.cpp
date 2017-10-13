@@ -1,1 +1,1 @@
-die("git-cvsserver only handles server: %s", arg);
+error(_("Could not parse object '%s'."), sha1_to_hex(remote));

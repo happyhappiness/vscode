@@ -1,1 +1,1 @@
-error("unable to open %s: %s", path->buf, strerror(errno));
+fprintf(stderr, "\n");

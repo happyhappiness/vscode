@@ -1,1 +1,1 @@
-die(_("'%s' is already checked out at '%s'"), branch, existing);
+die("strange port '%s' blocked", port);

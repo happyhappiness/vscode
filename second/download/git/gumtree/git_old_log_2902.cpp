@@ -1,1 +1,1 @@
-fprintf_ln(stderr, "    git pull <remote> <branch>");
+error("no signature found");

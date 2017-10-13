@@ -1,1 +1,1 @@
-error_return = error("%s", error_msg);
+err(o, msg, path, _(": perhaps a D/F conflict?"));

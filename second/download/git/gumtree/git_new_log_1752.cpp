@@ -1,1 +1,1 @@
-exit_status = 1;
+die("BUG: connectivity check skipped???");

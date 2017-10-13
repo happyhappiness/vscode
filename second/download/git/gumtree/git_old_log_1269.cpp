@@ -1,1 +1,1 @@
-die("No commit to dig up from?");
+printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);

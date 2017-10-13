@@ -1,1 +1,1 @@
-error_errno("cannot create thread");
+die(_("Unknown archive format '%s'"), format);

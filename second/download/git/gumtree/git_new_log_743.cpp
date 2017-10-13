@@ -1,1 +1,0 @@
-fprintf(s->fp, "# branch.head %s%c", branch_name, eol);

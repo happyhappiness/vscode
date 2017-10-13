@@ -1,2 +1,2 @@
-error(_("could not delete reference %s: %s"),
-			      refnames->items[0].string, err.buf);
+die("unable to parse commit %s",
+			    sha1_to_hex(c->object.sha1));

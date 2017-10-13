@@ -1,1 +1,1 @@
-die (_("--subject-prefix/--rfc and -k are mutually exclusive."));
+die(_("could not parse object '%s'"), argv[i]);

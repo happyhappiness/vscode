@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+warning("packfile %s cannot be accessed", p->pack_name);

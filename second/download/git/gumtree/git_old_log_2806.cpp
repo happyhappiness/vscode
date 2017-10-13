@@ -1,2 +1,1 @@
-die("unknown %.*s format %s",
-				    (int)(formatp - name), name, formatp);
+fprintf(stderr, "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host);

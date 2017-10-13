@@ -1,1 +1,1 @@
-warning("%s unexpectedly said: '%s'", data->name, buf->buf);
+die("Invalid deepen-since: %s", line);

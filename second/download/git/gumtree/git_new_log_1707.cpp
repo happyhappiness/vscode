@@ -1,1 +1,1 @@
-die(str, refname, err.buf);
+warning(_("--dissociate given, but there is no --reference"));

@@ -1,1 +1,2 @@
-die_errno(_("failed to delete file %s"), path);
+error("unable to parse %s header with --allow-unknown-type",
+				       sha1_to_hex(sha1));

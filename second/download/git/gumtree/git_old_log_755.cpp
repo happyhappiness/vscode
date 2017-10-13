@@ -1,0 +1,1 @@
+fprintf(stderr, "%s\n\n", msg);

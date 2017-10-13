@@ -1,1 +1,2 @@
-die_errno("Cannot determine the current working directory");
+die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
+				  "Please, commit your changes before you can merge."));

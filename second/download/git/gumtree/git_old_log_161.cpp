@@ -1,1 +1,1 @@
-die_errno("Unable to read log '%s'", logfile);
+die("Log %s is corrupt.", logfile);

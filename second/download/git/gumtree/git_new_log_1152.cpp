@@ -1,1 +1,1 @@
-die("BUG: error while iterating over references");
+warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);

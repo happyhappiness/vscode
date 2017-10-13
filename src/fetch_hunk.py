@@ -183,12 +183,13 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
     return total_hunk
 
 """
-@ param
+@ param flag, true if want recreate patch db
 @ return
 @ involve read patch from repos patch dir and deal with each patch file
 """
-def fetch_version_diff():
-
+def fetch_version_diff(is_recreate=False):
+    if is_recreate:
+        create_version_diff()
     # filter out the one with log statement changes
     log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     log_function = myUtil.functionToRegrexStr(log_functions)
@@ -208,31 +209,6 @@ def fetch_version_diff():
 
     hunk_file.close()
 
-"""
-@ param
-@ return
-@ involve sort dir by version
-"""
-def compare_version_dir(version_a, version_b):
-    pattern = r'.*-(\d*)\.(\d*)\.(\d*)'
-    info_a = re.match(pattern, version_a)
-    info_b = re.match(pattern, version_b)
-    if info_a and info_b:
-        info_a = info_a.groups()
-        info_b = info_b.groups()
-        for i in range(len(info_a)):
-            if int(info_a[i]) == int(info_b[i]):
-                continue
-            else:
-                if int(info_a[i]) > int(info_b[i]):
-                    return 1
-                else:
-                    return -1
-    else:
-        print 'can not deal with %s and %s' %(version_a, version_b)
-        return 0
-
-
 
 """
 @ param
@@ -241,23 +217,43 @@ def compare_version_dir(version_a, version_b):
 """
 def create_version_diff():
     # clear old patch file
-    clear = commands.getoutput('rm ' + my_constant.PATCH_DIR + '*')
+    # clear = commands.getoutput('rm ' + my_constant.PATCH_DIR + '*')
     # get all versions
     versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
     versions = versions.split('\n')
-    versions.sort(compare_version_dir)
+    versions.sort(key=get_version_number)
     size = len(versions)
     for i in range(size - 1):
         print 'now creating patch for %s and %s' %(versions[i], versions[i + 1])
         patch = commands.getoutput('diff -BEr -U 6 ' + my_constant.REPOS_DIR + versions[i] + ' '\
                                 + my_constant.REPOS_DIR + versions[i + 1] + ' > ' \
                                 + my_constant.PATCH_DIR + versions[i] + '_diff_' + versions[i + 1])
-                       
+
+"""
+@ param version
+@ return a.b.c -> a*10000 + b*100 + c
+@ involve sort dir by version
+"""
+def get_version_number(version):
+    pattern = r'.*-(\d*)\.(\d*)\.(\d*)'
+    info = re.match(pattern, version)
+    version_number = 0
+    # 100 sub version
+    version_number_basis = [10000, 100, 1]
+    if info:
+        info = info.groups()
+        for i in range(len(info)):
+            version_number += int(info[i]) * version_number_basis[i]
+    else:
+        print 'error processing version dir %s' %version
+    return version_number
+
+
 """
 main function
 """
 if __name__ == "__main__":
-    create_version_diff()
-    fetch_version_diff()
+    # param is about whether call create version diff before analysis
+    fetch_version_diff(False)
 
 

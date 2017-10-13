@@ -1,2 +1,2 @@
-die("parse_object_buffer failed on %s for %s",
-		    sha1_to_hex(tagged), ref->refname);
+die ("Expected git repo version <= %d, found %d",
+			     GIT_REPO_VERSION_READ, repository_format_version);

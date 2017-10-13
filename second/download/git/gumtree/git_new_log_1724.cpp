@@ -1,1 +1,1 @@
-(fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) < 0);
+fprintf(stderr, "failed to open store\n");

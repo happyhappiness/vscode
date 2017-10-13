@@ -1,1 +1,0 @@
-die("internal error in blame::blame_chunk_cb");

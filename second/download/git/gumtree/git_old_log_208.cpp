@@ -1,1 +1,0 @@
-fprintf(file, "base-commit: %s\n", oid_to_hex(&bases->base_commit));

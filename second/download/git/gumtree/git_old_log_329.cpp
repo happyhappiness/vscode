@@ -1,2 +1,1 @@
-printf(" rewrite %s (%d%%)\n",
-					       p->new_name, p->score);
+die(_("unable to add cache entry for %s"), patch->new_name);

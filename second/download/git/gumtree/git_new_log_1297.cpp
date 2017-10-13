@@ -1,1 +1,2 @@
-die(_("cannot read existing object %s"), oid_to_hex(oid));
+warning("object %s cannot be read",
+						oid_to_hex(&src_entry->idx.oid));

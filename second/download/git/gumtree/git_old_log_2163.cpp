@@ -1,2 +1,1 @@
-die("unknown %.*s format %s",
-				    (int)(formatp - name), name, formatp);
+die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);

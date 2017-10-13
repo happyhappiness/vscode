@@ -1,1 +1,0 @@
-die(_("%s: bad revision"), name);

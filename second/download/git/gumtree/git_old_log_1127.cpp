@@ -1,1 +1,1 @@
-warning("Duplicated ref: %s", ref1->name);
+die_errno(_("Cannot come back to cwd"));

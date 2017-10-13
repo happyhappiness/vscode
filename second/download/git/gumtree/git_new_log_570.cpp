@@ -1,1 +1,1 @@
-warning(_("no common commits"));
+die("can't use --super-prefix from a subdirectory");

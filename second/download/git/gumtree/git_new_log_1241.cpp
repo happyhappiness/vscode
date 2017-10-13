@@ -1,1 +1,0 @@
-warning(_("adding embedded git repository: %s"), name.buf);

@@ -1,1 +1,1 @@
-die(_("could not lookup name for submodule '%s'"), path);
+error("key does not contain variable name: %s", key);

@@ -1,1 +1,1 @@
-die_errno(_("could not close '%s'"), filename);
+error_buf(err, _("HEAD does not point to a branch"));

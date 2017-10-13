@@ -1,1 +1,1 @@
-error("%s %s", oid_to_hex(&e->oid), e->name);
+packet_buf_write(&req_buf, "deepen-since %"PRItime, max_age);

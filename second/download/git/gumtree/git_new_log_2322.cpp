@@ -1,1 +1,2 @@
-die_errno(_("could not open '%s' for reading"), path);
+fprintf(stderr, _("finished search at %s\n"),
+					oid_to_hex(&c->object.oid));

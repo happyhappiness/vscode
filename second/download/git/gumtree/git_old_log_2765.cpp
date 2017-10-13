@@ -1,2 +1,2 @@
-die(_("bad numeric config value '%s' for '%s' in %s: %s"),
-		    value, name, cf->name, reason);
+warning ("Error removing temporary directory %s.",
+				temp_dir.buf);

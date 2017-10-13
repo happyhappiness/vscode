@@ -1,1 +1,1 @@
-fprintf(out, "%s ", oid_to_hex(&obj->oid));
+die(_("invalid number of threads specified (%d)"), num_threads);

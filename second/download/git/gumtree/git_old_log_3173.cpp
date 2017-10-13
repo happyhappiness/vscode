@@ -1,1 +1,0 @@
-error(_("unrecognized binary patch at line %d"), linenr-1);

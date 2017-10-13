@@ -1,1 +1,1 @@
-error("packet write failed");
+error(_("failed to finalize '%s'."), filename);

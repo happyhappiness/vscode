@@ -1,1 +1,1 @@
-wt_longstatus_print_other(s, &s->ignored, _("Ignored files"), "add -f");
+error("Unable to update %s", ref_name.buf);

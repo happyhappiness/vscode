@@ -1,1 +1,2 @@
-die_errno(_("could not open '%s' for reading and writing"), path);
+fprintf(stderr, "%s %s... %s\n", msg,
+		find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV), sb.buf);

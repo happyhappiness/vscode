@@ -1,0 +1,1 @@
+fprintf(rev->diffopt.file, "\n");

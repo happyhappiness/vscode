@@ -1,1 +1,1 @@
-die("Duplicated ref, and SHA1s don't match: %s", ref1->name);
+sha1_to_hex(commit->object.sha1);

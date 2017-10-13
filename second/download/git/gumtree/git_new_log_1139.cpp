@@ -1,1 +1,2 @@
-ret = error("reflog for %s is a symlink", oldrefname);
+die(_("could not run 'git status' in submodule '%s'"),
+				path);

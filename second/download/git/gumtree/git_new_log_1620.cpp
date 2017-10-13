@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename.buf, strerror(errno));
+die(_("BUG: reopen a lockfile that has been committed"));

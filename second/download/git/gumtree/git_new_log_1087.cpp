@@ -1,1 +1,1 @@
-die("unable to create lazy_dir_thread");
+die(_("format: %%(then) atom used without an %%(if) atom"));

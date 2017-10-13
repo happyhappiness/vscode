@@ -1,1 +1,0 @@
-fputs(msgbuf.buf, fp);

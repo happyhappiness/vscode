@@ -1,1 +1,1 @@
-die(_("expected format: %%(color:<color>)"));
+die("user.useConfigOnly set but no name given");

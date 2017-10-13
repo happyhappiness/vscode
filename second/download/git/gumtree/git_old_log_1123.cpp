@@ -1,0 +1,1 @@
+packet_buf_write(&sb, "%s", item->string);

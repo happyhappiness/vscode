@@ -1,1 +1,1 @@
-error_errno("waitpid for %s failed", argv0);
+error(_("Reverting is not possible because you have unmerged files."));

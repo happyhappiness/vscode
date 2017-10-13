@@ -1,2 +1,2 @@
-die("More than %d nested symlinks "
-					    "on path '%s'", MAXSYMLINKS, path);
+die("git show-ref: bad ref %s (%s)", refname,
+		    oid_to_hex(oid));

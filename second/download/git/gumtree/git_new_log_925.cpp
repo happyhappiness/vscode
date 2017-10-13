@@ -1,1 +1,1 @@
-die("BUG: we don't know how to pass the flags down?");
+error("invalid key (newline): %s", key);

@@ -1,1 +1,1 @@
-die(_("%%(trailers) does not take arguments"));
+fprintf(stderr, "Executing: %s\n", command_line);

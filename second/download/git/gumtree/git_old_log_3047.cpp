@@ -1,1 +1,1 @@
-error("cannot unlink %s: %s", filename, strerror(errno));
+error("%s is not possible because you have unmerged files.", me);

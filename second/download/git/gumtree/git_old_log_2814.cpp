@@ -1,1 +1,2 @@
-error("refname too long: %s", refs_heads_master);
+warning("unknown repository extension: %s",
+				unknown_extensions.items[i].string);

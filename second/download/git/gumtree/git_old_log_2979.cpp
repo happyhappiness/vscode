@@ -1,2 +1,3 @@
-die(_("fatal: '%s' is not a valid submodule--helper "
-	      "subcommand"), argv[1]);
+die("packfile %s cannot be mapped: %s",
+					p->pack_name,
+					strerror(errno));

@@ -1,1 +1,1 @@
-die("index cache-tree records empty sub-tree");
+die("curl_multi_init failed");

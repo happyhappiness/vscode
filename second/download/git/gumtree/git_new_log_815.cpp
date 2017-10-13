@@ -1,1 +1,1 @@
-die(_("option not supported with --recurse-submodules."));
+parse_long_magic(magic, prefix_len, elem);

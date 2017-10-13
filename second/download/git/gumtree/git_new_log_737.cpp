@@ -1,1 +1,1 @@
-die("BUG: worktree status unknown???");
+fprintf(stderr, "BUG: %s\n", msg);

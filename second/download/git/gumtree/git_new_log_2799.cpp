@@ -1,1 +1,1 @@
-die(_(":strip= requires a positive integer argument"));
+die(_("could not unset '%s'"), key);

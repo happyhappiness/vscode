@@ -5,8 +5,9 @@ import myUtil
 
 class SrcmlApi:
     
-    def __init__(self, source_file):
-        self.set_file(source_file)
+    def __init__(self, source_file=None):
+        if source_file is not None:
+            self.set_file(source_file)
         self.log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
 
     """

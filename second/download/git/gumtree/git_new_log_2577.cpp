@@ -1,1 +1,1 @@
-die(_("Could not make %s writable by group"), dir);
+!string_list_has_string(skip, extra_refname);

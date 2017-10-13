@@ -1,1 +1,1 @@
-entry = (struct cmd2process *)subprocess_find_entry(&subprocess_map, cmd);
+die(_("revision walk setup failed"));

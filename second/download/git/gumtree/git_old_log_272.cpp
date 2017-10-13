@@ -1,4 +1,1 @@
-error(_("missing binary patch data for '%s'"),
-			     patch->new_name ?
-			     patch->new_name :
-			     patch->old_name);
+error(_("patch failed: %s:%ld"), name, frag->oldpos);

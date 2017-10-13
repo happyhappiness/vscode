@@ -1,1 +1,2 @@
-error("%s does not point to a valid object!", entry->name);
+die("Failed to simplify parents of commit %s",
+			    sha1_to_hex(commit->object.sha1));

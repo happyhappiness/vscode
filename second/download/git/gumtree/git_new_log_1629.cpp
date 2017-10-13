@@ -1,1 +1,0 @@
-fprintf(o->file, "%s", header.buf);

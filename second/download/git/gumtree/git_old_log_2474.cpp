@@ -1,1 +1,1 @@
-die("%s can only be used once.", opt->long_name);
+die("bad tree object %s", sha1_to_hex(obj->sha1));

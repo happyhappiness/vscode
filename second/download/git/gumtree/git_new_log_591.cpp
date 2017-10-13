@@ -1,2 +1,2 @@
-die(_("You have not concluded your notes merge "
-				    "(%s exists)."), git_path("NOTES_MERGE_*"));
+printf("Concatenating unique lines in local and remote "
+				"notes for %s\n", oid_to_hex(&p->obj));

@@ -1,1 +1,0 @@
-print_ref_status(type, quickref, ref, ref->peer_ref, msg, porcelain);

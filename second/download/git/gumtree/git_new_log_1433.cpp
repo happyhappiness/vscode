@@ -1,1 +1,1 @@
-die("BUG: packed-ref cache cleared while locked");
+error_errno("Could not stat %s", filename);

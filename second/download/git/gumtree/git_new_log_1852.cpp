@@ -1,1 +1,2 @@
-die("cannot combine --no-walk with --graph");
+die("-L argument not 'start,end:file' or ':funcname:file': %s",
+			    item->string);

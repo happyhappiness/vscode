@@ -1,2 +1,3 @@
-warning("Invalid parameter '%s' for config option "
-					"'submodule.%s.ignore'", value, var);
+fprintf(stderr,
+				"%.*s is not a valid attribute name: %s:%d\n",
+				len, cp, src, lineno);

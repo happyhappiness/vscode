@@ -1,1 +1,1 @@
-die(_("%.*s is in index"), len_w_slash, src_w_slash);
+die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);

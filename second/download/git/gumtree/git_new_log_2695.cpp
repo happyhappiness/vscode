@@ -1,2 +1,2 @@
-error("Could not read %s",
-			     oid_to_hex(&item->object.oid));
+warning("unsupported proxy authentication method %s: using anyauth",
+					http_proxy_authmethod);

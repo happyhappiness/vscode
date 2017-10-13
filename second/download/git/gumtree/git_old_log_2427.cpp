@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", sha1_to_hex(obj->sha1));
+error(_("switch 'points-at' requires an object"));

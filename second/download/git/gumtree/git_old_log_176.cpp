@@ -1,0 +1,1 @@
+die("Fetch attempted without a local repo");

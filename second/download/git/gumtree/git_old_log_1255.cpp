@@ -1,1 +1,1 @@
-die("no such commit %s", oid_to_hex(oid));
+die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));

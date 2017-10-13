@@ -1,2 +1,1 @@
-die("Timestamp+tz too large: %"PRItime" +%04d",
-			    time, tz);
+error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", oid_to_hex(&head_oid));

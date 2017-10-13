@@ -1,1 +1,1 @@
-fputs(sigc->payload, stdout);
+die_errno("unable to read alternates file");

@@ -1,2 +1,1 @@
-error("Could not read %s",
-			     oid_to_hex(&item->object.oid));
+warning(_("Untracked cache is disabled on this system or location."));

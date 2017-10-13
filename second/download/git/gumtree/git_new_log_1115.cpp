@@ -1,1 +1,2 @@
-die(_("format: %%(else) atom used without an %%(if) atom"));
+error("unable to restore logfile %s from logs/"TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));

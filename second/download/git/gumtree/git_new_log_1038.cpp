@@ -1,1 +1,1 @@
-die("unable to get object type for %s", oid_to_hex(&old));
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

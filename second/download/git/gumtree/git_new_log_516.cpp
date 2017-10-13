@@ -1,1 +1,1 @@
-error("path name too long for external filter");
+die("BUG: oid abbreviation out of range: %d", abbrev);

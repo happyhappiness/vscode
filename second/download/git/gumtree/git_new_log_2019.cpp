@@ -1,2 +1,1 @@
-error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
+die("unable to generate diff for %s", one->path);

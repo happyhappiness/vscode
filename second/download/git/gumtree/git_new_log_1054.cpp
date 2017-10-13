@@ -1,1 +1,1 @@
-die(_("--contains option is only allowed in list mode"));
+die("Invalid proxy URL '%s'", curl_http_proxy);

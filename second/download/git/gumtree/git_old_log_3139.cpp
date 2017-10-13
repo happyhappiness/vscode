@@ -1,1 +1,1 @@
-die("Exiting because of an unresolved conflict.");
+die_errno(_("Could not write to '%s'"), filename);

@@ -1,1 +1,2 @@
-packet_write_fmt(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);
+error(_("cannot %s: Your index contains uncommitted changes."),
+			      _(action));

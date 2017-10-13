@@ -1,3 +1,2 @@
-printf("symlink %"PRIuMAX"\n%s\n",
-		       (uintmax_t)ctx.symlink_path.len,
-		       ctx.symlink_path.buf);
+error("unknown value after ws-error-highlight=%.*s",
+			      (int)(arg - orig_arg), orig_arg);

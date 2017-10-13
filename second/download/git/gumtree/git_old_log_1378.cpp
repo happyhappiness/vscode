@@ -1,1 +1,1 @@
-fprintf(pack_edges, " %s", sha1_to_hex(t->sha1));
+warning("object %s has unknown type id %d", sha1_to_hex(sha1), type);

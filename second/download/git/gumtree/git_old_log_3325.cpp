@@ -1,1 +1,0 @@
-printf("\t%s", (char *) commit->util);

@@ -1,3 +1,1 @@
-printf("[%s] ",
-			       find_unique_abbrev(commit->object.oid.hash,
-						  DEFAULT_ABBREV));
+die("Object not in bitmap: %s\n", oid_to_hex(&object->oid));

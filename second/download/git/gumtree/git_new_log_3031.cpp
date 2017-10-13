@@ -1,1 +1,1 @@
-warning_errno("cannot read /etc/mailname");
+xwrite(2, outbuf.buf, outbuf.len);

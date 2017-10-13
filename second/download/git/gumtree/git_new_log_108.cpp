@@ -1,4 +1,4 @@
 die(flags & PARSE_SHA1_OLD ?
-	    "%s %s: unexpected end of input when reading <oldvalue>" :
-	    "%s %s: unexpected end of input when reading <newvalue>",
-	    command, refname);
+	    "%s %s: invalid <oldvalue>: %s" :
+	    "%s %s: invalid <newvalue>: %s",
+	    command, refname, arg.buf);

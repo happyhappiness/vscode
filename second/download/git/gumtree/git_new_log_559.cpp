@@ -1,1 +1,1 @@
-die(_("error in sideband demultiplexer"));
+print_verbose(args, _("Server supports side-band-64k"));

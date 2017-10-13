@@ -1,1 +1,2 @@
-warning(_("failed to exec '%s': %s"), cmd, strerror(errno));
+error("unable to unlink old '%s' (%s)",
+				     path.buf, strerror(errno));

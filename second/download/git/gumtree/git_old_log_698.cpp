@@ -1,2 +1,1 @@
-print_ref_status('=', "[up to date]", ref,
-						 ref->peer_ref, NULL, porcelain);
+packet_write(1, "ACK %s ready\n", last_hex);

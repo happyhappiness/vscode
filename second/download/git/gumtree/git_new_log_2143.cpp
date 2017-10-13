@@ -1,0 +1,1 @@
+die("Cannot demote %s to %s", msg_id, msg_type);

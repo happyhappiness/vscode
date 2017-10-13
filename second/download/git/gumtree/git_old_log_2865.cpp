@@ -1,1 +1,1 @@
-die("--resolve-git-dir requires an argument");
+error("cannot open mail %s (%s)", file, strerror(errno));

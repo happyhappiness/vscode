@@ -1,1 +1,1 @@
-error_errno("can't write crash report %s", loc);
+printf("sizeof-long: %d\n", (int)sizeof(long));

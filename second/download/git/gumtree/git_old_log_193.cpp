@@ -1,1 +1,1 @@
-die("remote-helpers do not support old:new syntax");
+status_printf_ln(s, color(WT_STATUS_HEADER, s), "");

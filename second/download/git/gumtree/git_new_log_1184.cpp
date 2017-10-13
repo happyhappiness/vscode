@@ -1,1 +1,2 @@
-warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);
+error(_("inconsistent header lines %d and %d"),
+			     patch->extension_linenr, state->linenr);

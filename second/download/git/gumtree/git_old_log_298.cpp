@@ -1,1 +1,1 @@
-error(_("removal patch leaves file contents"));
+error("%s: %s", new_name, strerror(errno));

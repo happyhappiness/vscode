@@ -1,1 +1,1 @@
-error(ERRORMSG(o, e), path);
+error("did not receive remote status");

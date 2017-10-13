@@ -1,1 +1,0 @@
-error("--name-only is only applicable to --list or --get-regexp");

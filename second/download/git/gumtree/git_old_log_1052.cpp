@@ -1,1 +1,1 @@
-die(_("tag header too big."));
+die("can't use --super-prefix from a subdirectory");

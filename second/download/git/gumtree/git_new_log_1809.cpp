@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+status_printf_ln(s, c, _("Changes not staged for commit:"));

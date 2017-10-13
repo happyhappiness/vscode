@@ -1,2 +1,2 @@
-fprintf(stderr, "Staged '%s' using previous resolution.\n",
-			item->string);
+error("--show-origin is only applicable to --get, --get-all, "
+			  "--get-regexp, and --list.");

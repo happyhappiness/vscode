@@ -1,0 +1,1 @@
+not_found(&hdr, "Not a git repository: '%s'", dir);

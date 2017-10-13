@@ -1,1 +1,0 @@
-die_errno(_("Failed to write ref"));

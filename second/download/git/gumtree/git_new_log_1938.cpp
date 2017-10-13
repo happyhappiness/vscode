@@ -1,1 +1,0 @@
-error(FAILED_RUN, prune_worktrees.argv[0]);

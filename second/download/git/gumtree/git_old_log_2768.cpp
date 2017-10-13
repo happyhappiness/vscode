@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+error("rsync transport does not support mirror mode");

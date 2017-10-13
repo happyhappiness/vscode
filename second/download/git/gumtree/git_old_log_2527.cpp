@@ -1,1 +1,2 @@
-error("bad parents in commit %s", sha1_to_hex(item->object.sha1));
+die("internal error peeling reference %s (%s)",
+		    entry->name, oid_to_hex(&entry->u.value.oid));

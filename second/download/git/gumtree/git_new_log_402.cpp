@@ -1,1 +1,1 @@
-die(_("--deepen and --depth are mutually exclusive"));
+die(_("%s already exists"), git_dir);

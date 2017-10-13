@@ -1,1 +1,2 @@
-die("%s doesn't support --super-prefix", p->cmd);
+warning("Unknown delegation method '%s': using default",
+				curl_deleg);

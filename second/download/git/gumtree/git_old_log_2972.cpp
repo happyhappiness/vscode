@@ -1,0 +1,1 @@
+error("cannot create thread: %s", strerror(err));

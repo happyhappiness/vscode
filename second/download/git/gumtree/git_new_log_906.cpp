@@ -1,0 +1,1 @@
+die("helper %s does not support 'push-option'", name);

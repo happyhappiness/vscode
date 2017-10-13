@@ -1,1 +1,1 @@
-error_errno("cannot read delta preimage");
+error(_("failed to read %s"), name);

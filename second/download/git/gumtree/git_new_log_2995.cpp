@@ -1,1 +1,1 @@
-warning_errno("realloc failed");
+error_errno("write(%s) failed", t->dest_name);

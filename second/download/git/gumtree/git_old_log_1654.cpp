@@ -1,1 +1,1 @@
-warning("%s: symlink too long", p);
+die(str, refname);

@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), valp);
+printf("%s %s\n", oid_to_hex(&posn->old_oid), posn->name);

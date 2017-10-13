@@ -1,1 +1,1 @@
-die_errno(_("Could not write to %s"), todo_file);
+error("could not commit config file %s", config_filename);

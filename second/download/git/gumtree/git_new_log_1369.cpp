@@ -1,1 +1,2 @@
-die("Timestamp too large for this system: %"PRItime, time);
+die("cannot read note %s for object %s",
+		    oid_to_hex(note), oid_to_hex(obj));

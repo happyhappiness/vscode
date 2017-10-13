@@ -1,2 +1,2 @@
-die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+error(_("Could not read object %s"),
+					    oid_to_hex(&t->tagged->oid));

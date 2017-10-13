@@ -1,1 +1,1 @@
-die(_("corrupt patch at line %d"), state->linenr);
+die(_("Expecting a full ref name, got %s"), refname);

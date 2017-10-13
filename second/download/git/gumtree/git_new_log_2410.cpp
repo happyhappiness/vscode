@@ -1,2 +1,1 @@
-warning ("Exporting signed tag %s",
-					 oid_to_hex(&tag->object.oid));
+printf(" %s", oid_to_hex(&parents->item->object.oid));

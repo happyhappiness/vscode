@@ -1,1 +1,1 @@
-error("could not expand include path '%s'", path);
+die(_("--[no-]autostash option is only valid with --rebase."));

@@ -1,2 +1,2 @@
-die_errno("failed to write to %s",
-				  temporary_shallow.buf);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

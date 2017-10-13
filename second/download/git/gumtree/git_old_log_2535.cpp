@@ -1,1 +1,2 @@
-fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));
+error("unable to move logfile "TMP_RENAMED_LOG" to logs/%s: %s",
+				newrefname, strerror(errno));

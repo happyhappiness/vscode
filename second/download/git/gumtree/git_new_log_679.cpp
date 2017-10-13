@@ -1,1 +1,2 @@
-error("unknown hint type for '%s': %s", var, value);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "non-fast-forward", porcelain, summary_width);

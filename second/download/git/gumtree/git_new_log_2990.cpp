@@ -1,1 +1,1 @@
-error_errno(_("failed to remove '%s'"), path.buf);
+die(_("invalid value for %s"), var);

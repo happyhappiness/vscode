@@ -1,1 +1,0 @@
-error("Could not open %s", path);

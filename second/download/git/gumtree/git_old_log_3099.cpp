@@ -1,1 +1,1 @@
-(_("unknown error occured while reading the configuration files");
+fprintf(stderr, _("done.\n"));

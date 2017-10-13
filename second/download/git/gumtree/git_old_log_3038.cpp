@@ -1,2 +1,1 @@
-io.io.wrerror = error("Failed to flush %s: %s",
-				      path, strerror(errno));
+die("Too long path: %.*s", 60, path);

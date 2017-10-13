@@ -1,1 +1,1 @@
-anonymize_ident_line(&committer, &committer_end);
+ref_transaction_free(transaction);

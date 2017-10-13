@@ -1,1 +1,4 @@
-status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+error(_("Cannot copy notes. Found existing "
+				       "notes for object %s. Use '-f' to "
+				       "overwrite existing notes"),
+				       sha1_to_hex(object));

@@ -1,2 +1,2 @@
-error(_("your local changes would be overwritten by %s."),
-		_(action_name(opts)));
+error(_("commit %s is a merge but no -m option was given."),
+				oid_to_hex(&commit->object.oid));

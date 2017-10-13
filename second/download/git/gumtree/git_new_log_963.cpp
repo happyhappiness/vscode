@@ -1,2 +1,2 @@
-die_errno(_("cannot close written keep file '%s'"),
-					  keep_name);
+die("BUG: counted %d != ended at %d",
+			    check->nr, cnt);

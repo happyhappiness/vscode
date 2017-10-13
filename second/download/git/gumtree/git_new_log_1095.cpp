@@ -1,1 +1,1 @@
-die(_("Only one 'attr:' specification is allowed."));
+die("BUG: unhandled RR_* enum");

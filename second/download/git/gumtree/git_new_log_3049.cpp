@@ -1,1 +1,1 @@
-error("no remembered resolution for '%s'", path);
+error(_("Committing is not possible because you have unmerged files."));

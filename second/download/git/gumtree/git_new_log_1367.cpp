@@ -1,1 +1,2 @@
-die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);
+die("Could not read %s for notes-index",
+		     oid_to_hex(&subtree->val_oid));

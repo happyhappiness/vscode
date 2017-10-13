@@ -1,2 +1,2 @@
-fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, typename(obj->type), sha1_to_hex(obj->sha1), err);
+die("an empty %s object %s?",
+		    typename(type), oid_to_hex(oid));

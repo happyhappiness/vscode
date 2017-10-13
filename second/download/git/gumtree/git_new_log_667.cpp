@@ -1,1 +1,1 @@
-error(_("%s: bad revision"), name);
+fprintf(f, "%s(revision walker failed)\n", line_prefix);

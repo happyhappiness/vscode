@@ -1,1 +1,3 @@
-die("Object not in bitmap: %s\n", sha1_to_hex(object->sha1));
+fprintf(cb->newlog, "%s %s %s %lu %+05d\t%s",
+				sha1_to_hex(osha1), sha1_to_hex(nsha1),
+				email, timestamp, tz, message);

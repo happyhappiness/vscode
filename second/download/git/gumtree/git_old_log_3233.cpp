@@ -1,1 +1,1 @@
-error("Must specify a notes ref to merge");
+fputs("\\ No newline at end of file\n", stdout);

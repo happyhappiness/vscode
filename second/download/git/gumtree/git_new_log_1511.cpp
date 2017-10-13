@@ -1,2 +1,1 @@
-die_errno("Invalid symlink '%s'",
-						  sb.buf);
+die(_("unrecognized argument: %s"), argv[1]);

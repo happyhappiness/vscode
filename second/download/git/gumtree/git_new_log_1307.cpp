@@ -1,1 +1,1 @@
-printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(oid->hash, DEFAULT_ABBREV));

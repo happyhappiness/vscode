@@ -1,1 +1,2 @@
-printf("%s %s\n", sha1_to_hex(note_sha1), sha1_to_hex(object_sha1));
+warning(_("%s %s is not a commit!"),
+			ref_name, sha1_to_hex(sha1));

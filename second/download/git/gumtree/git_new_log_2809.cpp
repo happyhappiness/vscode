@@ -1,2 +1,1 @@
-die(_("missing object %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
+error("unable to block SIGPIPE in async thread");

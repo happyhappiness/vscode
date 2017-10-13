@@ -1,1 +1,1 @@
-strcpy(id->hex, hex);
+(_("stage should be between 1 and 3 or all");

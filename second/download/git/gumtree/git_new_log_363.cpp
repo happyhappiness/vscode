@@ -1,1 +1,1 @@
-die("no such commit %s", oid_to_hex(oid));
+die(_("no such path %s in %s"), path, final_commit_name);

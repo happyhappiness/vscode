@@ -1,0 +1,1 @@
+error("%s: object corrupt or missing", oid_to_hex(oid));

@@ -1,1 +1,1 @@
-print_signature_buffer(&signature_check, flags);
+die("BUG: initial ref transaction called with existing refs");

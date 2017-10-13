@@ -1,2 +1,2 @@
-fprintf(rpt, "  old tree    : %s\n",
-		oid_to_hex(&b->branch_tree.versions[0].oid));
+printf("Multiple merge bases found. Using the first "
+				"(%.7s)\n", oid_to_hex(base_oid));

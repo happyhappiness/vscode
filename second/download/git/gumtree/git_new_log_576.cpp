@@ -1,1 +1,1 @@
-die("%s doesn't support --super-prefix", argv[0]);
+fputs(_(env_hint), stderr);

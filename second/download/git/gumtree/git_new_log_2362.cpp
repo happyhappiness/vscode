@@ -1,2 +1,1 @@
-ret = error("could not write config file %s: %s",
-			    config_filename, strerror(errno));
+die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));

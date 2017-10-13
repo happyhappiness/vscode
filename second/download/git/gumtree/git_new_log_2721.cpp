@@ -1,1 +1,0 @@
-die(_("Could not set '%s' to '%s'"), key, value);

@@ -1,2 +1,1 @@
-error(_("failed write to rev-list: %s"),
-				      strerror(errno));
+error("cannot write delta postimage: %s", strerror(errno));

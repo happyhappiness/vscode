@@ -1,3 +1,1 @@
-die(Q_("file %s has only %lu line",
-			       "file %s has only %lu lines",
-			       lno), path, lno);
+die("object %s changed size!?", oid_to_hex(oid));

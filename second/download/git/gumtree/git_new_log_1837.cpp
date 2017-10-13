@@ -1,1 +1,2 @@
-die("BUG: create called without valid new_sha1");
+die("-L argument not 'start,end:file' or ':funcname:file': %s",
+			    item->string);

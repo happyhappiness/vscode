@@ -1,1 +1,2 @@
-fprintf_ln(stderr, "    git pull <remote> <branch>");
+error("poll failed resuming: %s",
+				      strerror(errno));

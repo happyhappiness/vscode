@@ -1,1 +1,1 @@
-error("fork (async) failed: %s", strerror(errno));
+die("Unexpected option --output");

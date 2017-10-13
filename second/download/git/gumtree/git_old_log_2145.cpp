@@ -1,1 +1,0 @@
-die("unknown line in '%s': %s", merge_head_file, line.buf);

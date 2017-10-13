@@ -1,1 +1,1 @@
-error(str, updates[i]->ref_name);
+fprintf(stderr, "Error reading command stream\n");

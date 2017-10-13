@@ -1,1 +1,1 @@
-packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
+printf(" %s", find_unique_abbrev(parent->object.oid.hash, abbrev));

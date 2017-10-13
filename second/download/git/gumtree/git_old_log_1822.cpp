@@ -1,2 +1,1 @@
-status |= error("cannot rename %s to %s",
-					newlog_path, log_file);
+warning("--use-curl not supported in this build");

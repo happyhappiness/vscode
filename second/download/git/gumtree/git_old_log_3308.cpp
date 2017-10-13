@@ -1,1 +1,1 @@
-not_found("Cannot open '%s': %s", p, strerror(errno));
+die(_("Error wrapping up %s"), filename);

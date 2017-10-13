@@ -1,1 +1,1 @@
-die("object size is too enormous to format");
+die(_("format: %%(else) atom used more than once"));

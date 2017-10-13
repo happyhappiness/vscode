@@ -1,2 +1,1 @@
-retval = error(_("missing notes on source object %s. Cannot "
-			       "copy."), sha1_to_hex(from_obj));
+die(_("failed to read ref NOTES_MERGE_PARTIAL"));

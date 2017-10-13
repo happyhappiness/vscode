@@ -1,2 +1,1 @@
-error("cannot seek back reflog for %s: %s",
-				     refname, strerror(errno));
+die(_("could not create directory '%s'"), new_git_dir);

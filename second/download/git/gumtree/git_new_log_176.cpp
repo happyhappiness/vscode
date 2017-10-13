@@ -1,1 +1,1 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+die("remote-curl: fetch attempted without a local repo");

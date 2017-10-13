@@ -1,1 +1,1 @@
-die("internal error in blame::origin_decref");
+error("%s: object corrupt or missing", sha1_to_hex(sha1));

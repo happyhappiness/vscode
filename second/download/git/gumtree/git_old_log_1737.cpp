@@ -1,2 +1,1 @@
-die_errno("failed to write to %s",
-				  shallow_lock.filename);
+fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);

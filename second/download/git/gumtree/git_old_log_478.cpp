@@ -1,1 +1,3 @@
-printf("%06o %s %d\t", ce->ce_mode, sha1_to_hex(ce->sha1), ce_stage(ce));
+warning("core.untrackedCache is set to true; "
+				"remove or change it, if you really want to "
+				"disable the untracked cache");

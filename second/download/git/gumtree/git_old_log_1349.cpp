@@ -1,1 +1,1 @@
-printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev, DEFAULT_ABBREV));
+die("object not found: %s", sha1_to_hex(sha1));

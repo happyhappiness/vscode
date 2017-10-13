@@ -1,1 +1,0 @@
-die("BUG: unexpected reference transaction state");

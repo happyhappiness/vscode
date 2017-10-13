@@ -1,1 +1,1 @@
-die("Failed to finalize notes merge");
+error(_("Additionally, your index contains uncommitted changes."));

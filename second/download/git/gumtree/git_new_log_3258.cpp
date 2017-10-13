@@ -1,1 +1,1 @@
-printf("%s", ret);
+maybe_flush_or_die(opt->diffopt.file, "stdout");

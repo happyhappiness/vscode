@@ -1,2 +1,1 @@
-die(_("Please supply the note contents using either -m" \
-			    " or -F option"));
+error("Couldn't set %s", lock->ref_name);

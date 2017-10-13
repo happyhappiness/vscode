@@ -1,1 +1,1 @@
-error(_("cannot read HEAD"));
+error(_("invalid file: '%s'"), rebase_path_amend());

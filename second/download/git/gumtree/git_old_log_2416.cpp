@@ -1,1 +1,0 @@
-die(_("object %s not found"), sha1_to_hex(ref->new_sha1));

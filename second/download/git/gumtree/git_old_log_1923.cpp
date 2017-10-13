@@ -1,0 +1,1 @@
+(fprintf(f, "%"PRIuMAX"\n", (uintmax_t) getpid());

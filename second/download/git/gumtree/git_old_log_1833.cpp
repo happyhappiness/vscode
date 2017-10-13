@@ -1,2 +1,1 @@
-die("-L argument not 'start,end:file' or ':funcname:file': %s",
-			    item->string);
+die("git upload-pack: cannot find object %s:", sha1_to_hex(sha1));

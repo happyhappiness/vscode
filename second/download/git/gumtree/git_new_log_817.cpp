@@ -1,2 +1,2 @@
-usage_msg_opt(_("--continue expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+		    item->original, ce_len, ce->name);

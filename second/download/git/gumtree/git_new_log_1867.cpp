@@ -1,1 +1,3 @@
-status_printf_ln(s, c, _("Changes not staged for commit:"));
+printf("symlink %"PRIuMAX"\n%s\n",
+		       (uintmax_t)ctx.symlink_path.len,
+		       ctx.symlink_path.buf);

@@ -1,1 +1,1 @@
-warning_errno("unable to %s %s", op, file);
+error(_("index file corrupt"));

@@ -1,1 +1,1 @@
-die("BUG: startup_info struct is not initialized.");
+error("cannot open mbox %s", file);

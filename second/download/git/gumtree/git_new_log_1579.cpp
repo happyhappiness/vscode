@@ -1,1 +1,2 @@
-die("'%s' does not appear to be a git repository", service_dir);
+error("copy-fd: read returned %s",
+				     strerror(errno));

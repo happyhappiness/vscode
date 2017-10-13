@@ -1,1 +1,1 @@
-die("curl_easy_init failed");
+error("'%s' exists; cannot create '%s'", entry->name, refname);

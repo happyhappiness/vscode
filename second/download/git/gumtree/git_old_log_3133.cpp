@@ -1,1 +1,3 @@
-error("%s is not possible because you have unmerged files.", me);
+printf("%c %s %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev),
+		       buf.buf);

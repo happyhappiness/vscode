@@ -1,1 +1,1 @@
-die("Too long path: %.*s", 60, path);
+die_errno(_("cannot tell cwd"));

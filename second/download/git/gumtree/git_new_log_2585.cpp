@@ -1,1 +1,2 @@
-die(_("revision walk setup failed"));
+fprintf(stderr, "Staged '%s' using previous resolution.\n",
+			item->string);

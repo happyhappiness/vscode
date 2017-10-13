@@ -1,1 +1,0 @@
-const char msg[] = "error() should not be called in child\n";

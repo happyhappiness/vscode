@@ -1,4 +1,1 @@
-fprintf(stderr, "The merge base %s is %s.\n"
-				"This means the first '%s' commit is "
-				"between %s and [%s].\n",
-				bad_hex, term_bad, term_good, bad_hex, good_hex);
+fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));

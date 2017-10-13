@@ -1,1 +1,0 @@
-die(_("the receiving end does not support --signed push"));

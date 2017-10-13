@@ -1,1 +1,2 @@
-error(_("Could not resolve HEAD commit\n"));
+error(_("Cannot get commit message for %s"),
+			oid_to_hex(&commit->object.oid));

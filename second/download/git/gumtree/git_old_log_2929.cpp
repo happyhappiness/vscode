@@ -1,1 +1,1 @@
-error(_("cannot open %s: %s\n"), filename, strerror(errno));
+warning("accept failed: %s", strerror(errno));

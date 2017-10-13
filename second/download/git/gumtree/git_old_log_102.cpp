@@ -1,0 +1,1 @@
+die("unknown command: %s", cmd.buf);

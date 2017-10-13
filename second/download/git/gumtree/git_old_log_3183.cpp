@@ -1,1 +1,1 @@
-fprintf(stderr, _("done.\n"));
+printf(format, oid_to_hex(&list->item->object.oid));

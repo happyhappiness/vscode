@@ -1,1 +1,0 @@
-e(_("No existing author found with '%s'"), name);

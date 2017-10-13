@@ -1,1 +1,1 @@
-die("BUG: abort called on a closed reference transaction");
+die("cannot combine --walk-reflogs with history-limiting options");

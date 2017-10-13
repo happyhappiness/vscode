@@ -1,1 +1,1 @@
-printf(" %s", sha1_to_hex(parents->item->object.sha1));
+printf("%s ", find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV));

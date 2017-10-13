@@ -1,2 +1,1 @@
-(fprintf(fp, "%s	%s^{}\n",
-				sha1_to_hex(o->sha1), path) < 0;
+error(_("bad config file line %d in %s"), cf->linenr, cf->name);

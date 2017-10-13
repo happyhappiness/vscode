@@ -1,1 +1,1 @@
-die_errno("Failed seeking to start of '%s'", p->pack_name);
+error("%s does not point to a valid object!", refname);

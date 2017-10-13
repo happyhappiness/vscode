@@ -1,1 +1,1 @@
-die("Expected two arguments");
+die("Not a valid commit: %s", sha1_to_hex(b->sha1));

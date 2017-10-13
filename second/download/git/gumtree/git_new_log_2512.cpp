@@ -1,1 +1,1 @@
-die("Error on reachable objects of %s", oid_to_hex(&obj->oid));
+opterror(opt, "must point to a commit", 0);

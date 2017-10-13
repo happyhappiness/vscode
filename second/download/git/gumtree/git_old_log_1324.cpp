@@ -1,2 +1,1 @@
-fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+error("initialization for external filter '%s' failed", cmd);

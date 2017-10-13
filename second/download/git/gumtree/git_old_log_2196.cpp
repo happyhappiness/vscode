@@ -1,1 +1,2 @@
-fprintf_ln(stderr, _("Enter %s (identifier %s)"), path, name);
+error("couldn't write %s",
+					lock->lk->filename.buf);

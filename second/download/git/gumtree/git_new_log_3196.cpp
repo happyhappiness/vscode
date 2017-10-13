@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", describe_object(obj));
+die("BUG: configset_add_value has no source");

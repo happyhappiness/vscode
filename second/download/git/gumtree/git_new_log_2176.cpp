@@ -1,1 +1,1 @@
-objreport(obj, (type == FSCK_WARN) ? "warning" : "error", message);
+error(_("could not delete references: %s"), err.buf);

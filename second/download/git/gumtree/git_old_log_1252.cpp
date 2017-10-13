@@ -1,1 +1,2 @@
-printf("committer-time %lu\n", ci.committer_time);
+die(_("SHA1 COLLISION FOUND WITH %s !"),
+			    sha1_to_hex(data->entry->idx.sha1));

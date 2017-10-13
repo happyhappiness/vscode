@@ -1,1 +1,0 @@
-die_errno("error reading request body");

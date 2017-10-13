@@ -1,1 +1,1 @@
-die("sha1 mismatch in blob %s", oid_to_hex(oid));
+die("replace ref '%s' already exists", ref->buf);

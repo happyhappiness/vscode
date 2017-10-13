@@ -1,1 +1,2 @@
-die(_("invalid path '%s'"), old_name);
+die("sha1 information is lacking or useless for submodule %s",
+				    name);

@@ -1,1 +1,1 @@
-error("'%s' exists; cannot create '%s'", entry->name, refname);
+die("helper %s does not support --signed", data->name);

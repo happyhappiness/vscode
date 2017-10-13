@@ -1,7 +1,1 @@
-error(_("The last gc run reported the following. "
-			       "Please correct the root cause\n"
-			       "and remove %s.\n"
-			       "Automatic cleanup will not be performed "
-			       "until the file is removed.\n\n"
-			       "%s"),
-			     git_path("gc.log"), sb.buf);
+fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));

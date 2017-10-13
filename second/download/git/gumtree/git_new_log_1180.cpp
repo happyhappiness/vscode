@@ -1,1 +1,1 @@
-die(_("ls-tree returned unexpected return code %d"), code);
+die_errno(_("open /dev/null failed"));

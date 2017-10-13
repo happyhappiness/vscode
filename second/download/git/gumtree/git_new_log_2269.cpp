@@ -1,2 +1,2 @@
-status |= error("couldn't write %s",
-					get_lock_file_path(lock->lk));
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

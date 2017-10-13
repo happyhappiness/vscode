@@ -1,1 +1,1 @@
-die(_("'%s' is not a commit"), argv[1]);
+die(_("-n option is only allowed with -l."));

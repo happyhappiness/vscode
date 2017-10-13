@@ -1,1 +1,1 @@
-error(_("failed to finalize '%s'."), todo_path);
+packet_write_fmt(fd, "shallow %s\n", oid_to_hex(&graft->oid));

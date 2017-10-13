@@ -1,1 +1,2 @@
-diff_two(rerere_path(name, "preimage"), path, path, path);
+die_errno(_("could not create work tree dir '%s'"),
+				  work_tree);

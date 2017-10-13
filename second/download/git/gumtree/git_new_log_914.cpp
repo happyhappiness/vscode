@@ -1,1 +1,1 @@
-error("unable to unpack contents of %s", path);
+packet_buf_write(&preamble, "%s\n", specs[i]);

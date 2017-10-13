@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+die_errno(_("Could not open '%s' for writing"), filename);

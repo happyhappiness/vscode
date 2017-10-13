@@ -1,1 +1,1 @@
-status_printf_ln(s, GIT_COLOR_NORMAL, "");
+fputs("~\n", ecbdata->opt->file);

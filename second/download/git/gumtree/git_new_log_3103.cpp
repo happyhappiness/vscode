@@ -1,1 +1,1 @@
-printf(_("nothing to commit, working tree clean\n"));
+fprintf(stderr, " %s\n",sb.buf);

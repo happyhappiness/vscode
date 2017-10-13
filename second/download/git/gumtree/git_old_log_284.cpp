@@ -1,1 +1,1 @@
-error(_("failed to read %s"), name);
+fprintf(stderr, "Falling back to three-way merge...\n");

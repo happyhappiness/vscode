@@ -1,1 +1,2 @@
-fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
+die(N_("Could not read ref %s"),
+					    (*tail)->name);

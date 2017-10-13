@@ -1,1 +1,2 @@
-packet_write(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);
+warning("protocol restrictions not applied to curl redirects because\n"
+			"your curl version is too old (>= 7.19.4)");

@@ -1,1 +1,1 @@
-die(_("could not start ls-files in .."));
+child_die(CHILD_ERR_SILENT);

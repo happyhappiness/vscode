@@ -1,1 +1,2 @@
-die("Could not find commit from NOTES_MERGE_PARTIAL.");
+die(_("Failed to store link to current notes ref (%s)"),
+			    default_notes_ref());

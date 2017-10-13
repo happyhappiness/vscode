@@ -1,1 +1,2 @@
-die("no email was given and auto-detection is disabled");
+error("%s: not a valid attribute name",
+					name);

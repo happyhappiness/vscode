@@ -1,1 +1,1 @@
-die(_(permissions_advice), dir);
+die_want_option("--stat-width");

@@ -1,1 +1,1 @@
-error(_("'%s': %s"), filename, strerror(errno));
+die("found existing file at '%s'", path);

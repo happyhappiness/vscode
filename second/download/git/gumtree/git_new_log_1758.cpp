@@ -1,1 +1,0 @@
-die_errno(_("cannot unlink temporary alternates file"));

@@ -1,1 +1,1 @@
-die(_("unable to update HEAD"));
+die_errno("read");

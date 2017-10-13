@@ -1,1 +1,1 @@
-die("delete %s: extra input: %s", refname, next);
+die("delete %s: zero <oldvalue>", refname);

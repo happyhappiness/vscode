@@ -1,1 +1,2 @@
-fprintf(fp, "\t%s\n", ce->name);
+error("Couldn't write %s",
+					lock->lk->filename.buf);

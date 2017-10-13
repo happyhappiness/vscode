@@ -1,1 +1,1 @@
-printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);
+die_errno(_("could not rename temporary file to %s"), file);

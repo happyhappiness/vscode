@@ -1,1 +1,1 @@
-die(_("expected format: %%(align:<width>,<position>)"));
+strcpy(id->hex, hex);

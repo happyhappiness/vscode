@@ -1,3 +1,2 @@
-strbuf_addf(&outbuf,
-				    "%s%s: protocol error: no band designator",
-				    outbuf.len ? "\n" : "", me);
+printf(" (%s) in %s\n", tag->tag,
+				describe_object(&tag->object));

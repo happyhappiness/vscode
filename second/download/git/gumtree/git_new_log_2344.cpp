@@ -1,2 +1,2 @@
-warning("protocol restrictions not applied to curl redirects because\n"
-			"your curl version is too old (>= 7.19.4)");
+printf("broken link from %7s %s\n",
+				 typename(parent->type), oid_to_hex(&parent->oid));

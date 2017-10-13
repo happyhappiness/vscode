@@ -1,1 +1,1 @@
-warning_errno("unable to set SO_KEEPALIVE on socket");
+fputs(sha1_to_hex(sha1), fh);

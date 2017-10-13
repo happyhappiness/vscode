@@ -1,1 +1,2 @@
-ret = error_errno("cannot stat '%s'", path);
+die("git diff header lacks filename information "
+				    "(line %d)", state->linenr);

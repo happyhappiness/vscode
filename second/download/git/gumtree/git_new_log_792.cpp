@@ -1,1 +1,2 @@
-die_errno("unable to get current working directory");
+die("process for submodule '%s' failed with exit code: %d",
+		    gs->name, status);

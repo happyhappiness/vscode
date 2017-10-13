@@ -1,1 +1,1 @@
-error(_("%s: does not exist in index"), name);
+fprintf(stderr, "Applied patch to '%s' with conflicts.\n", patch->new_name);

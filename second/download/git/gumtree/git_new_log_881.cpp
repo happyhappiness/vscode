@@ -1,1 +1,0 @@
-error(_("unknown command %d"), item->command);

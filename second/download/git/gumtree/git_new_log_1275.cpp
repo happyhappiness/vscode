@@ -1,0 +1,1 @@
+printf("%s %s\n", oid_to_hex(note_oid), oid_to_hex(object_oid));

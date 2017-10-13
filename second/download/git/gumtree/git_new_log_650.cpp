@@ -1,1 +1,1 @@
-error(_("cannot revert during a cherry-pick."));
+error(_("revision walk setup failed"));

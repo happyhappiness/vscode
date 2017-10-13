@@ -1,1 +1,2 @@
-error_code = READ_GITFILE_ERR_TOO_LARGE;
+error("Unable to write file %s: %s",
+			export_marks_file, strerror(errno));

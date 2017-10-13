@@ -1,1 +1,3 @@
-die("helper %s does not support 'push-option'", name);
+warning("ignoring alternate that does"
+						" not end in 'objects': %s",
+						target.buf);

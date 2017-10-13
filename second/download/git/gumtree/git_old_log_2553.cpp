@@ -1,1 +1,1 @@
-die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);
+fprintf(stderr, "no symlink - falling back to symbolic ref\n");

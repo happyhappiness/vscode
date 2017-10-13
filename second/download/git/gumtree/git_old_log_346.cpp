@@ -1,1 +1,1 @@
-die(_("unrecognized input"));
+die_errno(_("can't open patch '%s'"), arg);

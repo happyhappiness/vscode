@@ -1,1 +1,1 @@
-die("unable to add recent objects");
+(_("unable to parse command-line config");

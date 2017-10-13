@@ -1,1 +1,1 @@
-die("git diff-tree: internal error");
+fprintf_ln(s->fp, "");

@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+fprintf(stderr, "%s%s\n", prefix, msg);

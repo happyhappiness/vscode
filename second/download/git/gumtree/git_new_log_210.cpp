@@ -1,1 +1,2 @@
-die("deleting '%s' is not allowed", argv[0]);
+warning("skipping invalid relative alternate: %s/%s",
+				src_repo, line.buf);

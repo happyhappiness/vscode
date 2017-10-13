@@ -1,1 +1,1 @@
-error(_("reading from '%s' beyond a symbolic link"), name);
+die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);

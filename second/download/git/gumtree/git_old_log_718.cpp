@@ -1,1 +1,1 @@
-packet_write(1, "ACK %s ready\n", last_hex);
+wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");

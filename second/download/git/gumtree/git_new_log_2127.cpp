@@ -1,1 +1,2 @@
-die(_("Exiting because of unfinished merge."));
+error("chmod on %s failed: %s",
+			      get_lock_file_path(lock), strerror(errno));

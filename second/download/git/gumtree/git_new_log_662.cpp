@@ -1,0 +1,1 @@
+error(_("short SHA1 %s is ambiguous"), ds.hex_pfx);

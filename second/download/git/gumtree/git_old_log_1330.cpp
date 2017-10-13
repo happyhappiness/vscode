@@ -1,1 +1,2 @@
-die(_("unable to read %s"), sha1_to_hex(entry->idx.sha1));
+error("bad tree object %s",
+			     tree_name ? tree_name : sha1_to_hex(tree_sha1));

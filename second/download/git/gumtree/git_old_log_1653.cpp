@@ -1,1 +1,1 @@
-error("%s: lacks value", var);
+error(str, refname);

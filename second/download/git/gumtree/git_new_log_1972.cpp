@@ -1,2 +1,1 @@
-fprintf_ln(stderr, _("directory stat info does not "
-				     "change after deleting a file"));
+die("Out of memory, getdelim failed");

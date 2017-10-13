@@ -1,1 +1,1 @@
-fprintf(fp, "--shallow %s\n", oid_to_hex(&graft->oid));
+die("unable to generate diffstat for %s", one->path);

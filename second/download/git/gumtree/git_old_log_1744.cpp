@@ -1,0 +1,1 @@
+(_("No existing author found with '%s'");

@@ -1,1 +1,1 @@
-error_errno(_("could not open '%s' for reading"), *paths);
+error_errno(_("failed write to rev-list"));

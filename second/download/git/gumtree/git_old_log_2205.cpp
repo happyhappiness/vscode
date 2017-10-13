@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die(_("Malformed options sheet: %s"), opts_file);

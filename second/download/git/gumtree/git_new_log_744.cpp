@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.upstream %s%c", base, eol);
+die(_("--stdin requires a git repository"));

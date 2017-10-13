@@ -1,2 +1,1 @@
-fputs("fatal: recursion detected in die_errno handler\n",
-			stderr);
+error(_("unrecognized binary patch at line %d"), state->linenr-1);

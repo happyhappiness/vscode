@@ -1,1 +1,2 @@
-die("Not a valid commit: %s", sha1_to_hex(b->sha1));
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+			    item->original, ce_len, ce->name);

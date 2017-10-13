@@ -1,1 +1,0 @@
-error("cannot delete '%s' from packed refs", refnames[i]);

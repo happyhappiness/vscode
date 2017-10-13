@@ -1,1 +1,0 @@
-printf("%s\n", sha1_to_hex(commit_sha1));

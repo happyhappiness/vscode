@@ -1,2 +1,1 @@
-die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+die_errno(_("failed to delete directory %s"), mtime_dir.buf);

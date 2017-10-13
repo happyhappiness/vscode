@@ -1,1 +1,1 @@
-die(_("positive value expected objectname:short=%s"), arg);
+die("error while iterating over references");

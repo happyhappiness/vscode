@@ -1,2 +1,1 @@
-error("unable to create directory for %s",
-				     logfile);
+die("Log %s is empty.", logfile);

@@ -1,1 +1,1 @@
-fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
+printf("%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");

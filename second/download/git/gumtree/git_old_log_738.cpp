@@ -1,1 +1,1 @@
-wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
+die("unable to read blob object %s", sha1_to_hex(sha1));

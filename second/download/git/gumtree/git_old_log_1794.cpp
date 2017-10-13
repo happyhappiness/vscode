@@ -1,1 +1,0 @@
-fputs(name, fp);

@@ -1,2 +1,2 @@
-printf("missing %s %s\n", typename(obj->type),
-			describe_object(obj));
+die(_("bad numeric config value '%s' for '%s' in standard input: %s"),
+		    value, name, error_type);

@@ -1,1 +1,1 @@
-fputs("~\n", o->file);
+die("strange hostname '%s' blocked", host);

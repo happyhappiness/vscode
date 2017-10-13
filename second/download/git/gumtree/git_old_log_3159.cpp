@@ -1,4 +1,2 @@
-printf("%s was both %s and %s\n",
-		       oid_to_hex(current_bad_oid),
-		       term_good,
-		       term_bad);
+printf("    %-*s %s %s\n", show_info->width, "", also,
+		       merge->items[i].string);

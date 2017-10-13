@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("too-short tree object"));
+argv_array_pushf(&av, "--max-age=%lu", deepen_since);

@@ -1,1 +1,2 @@
-fprintf(f, "%s\n", sha1_to_hex(obj->sha1));
+warning(_("unsupported sort specification '%s' in variable '%s'"),
+				var, arg);

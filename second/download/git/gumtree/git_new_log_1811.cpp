@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+die("helper %s does not support --signed", data->name);

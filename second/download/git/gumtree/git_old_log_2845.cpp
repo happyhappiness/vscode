@@ -1,1 +1,2 @@
-die_errno ("Could not make temporary directory");
+error(_("could not write branch description template: %s"),
+			     strerror(errno));

@@ -1,2 +1,1 @@
-error("problems writing temporary file %s: %s",
-			     buf->buf, strerror(errno));
+warning(_("failed to exec '%s': %s"), path, strerror(errno));

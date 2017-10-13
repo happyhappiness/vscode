@@ -1,1 +1,1 @@
-error(_("No commits parsed."));
+error(_("Invalid key: %s"), key);

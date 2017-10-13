@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+printf("dangling %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);

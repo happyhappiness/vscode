@@ -1,1 +1,1 @@
-print_debug(ce);
+oid_to_hex(&r->list[i].oid);

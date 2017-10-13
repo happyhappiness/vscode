@@ -1,1 +1,1 @@
-die("BUG: reverse reflog parser had leftover data");
+rp_error("%s", err.buf);

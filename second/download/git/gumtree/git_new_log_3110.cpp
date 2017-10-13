@@ -1,1 +1,2 @@
-options = parse_options_concat(options, cp_extra);
+printf("dangling %s %s\n", typename(obj->type),
+			       describe_object(obj));

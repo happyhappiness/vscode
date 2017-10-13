@@ -1,2 +1,1 @@
-error("unable to unlink old '%s' (%s)",
-				     path.buf, strerror(errno));
+printf(_("nothing to commit, working directory clean\n"));

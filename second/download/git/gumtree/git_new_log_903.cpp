@@ -1,1 +1,1 @@
-read_gitfile_error_die(error_code, path, dir);
+is_blank_line(buf + ll);

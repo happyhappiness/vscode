@@ -1,1 +1,1 @@
-failure |= error("%s", err.buf);
+die("revision walk setup failed");

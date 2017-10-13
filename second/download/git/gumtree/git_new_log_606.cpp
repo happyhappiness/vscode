@@ -1,2 +1,1 @@
-die("BUG: ref_store is type \"%s\" not \"files\" in %s",
-		    ref_store->be->name, caller);
+warning_errno(_("could not read '%s'"), path);

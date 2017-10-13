@@ -1,2 +1,1 @@
-die(_("bad numeric config value '%s' for '%s': %s"),
-		    value, name, error_type);
+err(o, _("blob expected for %s '%s'"), oid_to_hex(oid), path);

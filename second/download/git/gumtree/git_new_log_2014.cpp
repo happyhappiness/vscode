@@ -1,3 +1,2 @@
-error_buf(err,
-				 _("push destination '%s' on remote '%s' has no local tracking branch"),
-				 refname, remote->name);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

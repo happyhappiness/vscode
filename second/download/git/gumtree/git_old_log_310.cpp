@@ -1,2 +1,1 @@
-error(_("%s: already exists in working directory"),
-				     new_name);
+die(_("make_cache_entry failed for path '%s'"), name);

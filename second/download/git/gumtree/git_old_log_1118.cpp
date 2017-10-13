@@ -1,1 +1,1 @@
-die(_(":strip= requires a positive integer argument"));
+warning("ignoring broken ref %s.", fullref);

@@ -1,1 +1,1 @@
-error(_("no such remote ref %s"), sought[i]->name);
+die(_("Not a valid commit name %s"), oid_to_hex(oid));

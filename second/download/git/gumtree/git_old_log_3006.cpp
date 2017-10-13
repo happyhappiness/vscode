@@ -1,1 +1,1 @@
-("strange hostname '%s' blocked";
+error("cannot read delta preimage: %s", strerror(errno));

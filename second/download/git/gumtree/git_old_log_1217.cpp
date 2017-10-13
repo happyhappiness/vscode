@@ -1,1 +1,1 @@
-die_errno("cannot exec '%s'", cmd->argv[0]);
+die("unknown line in '%s': %s", git_path_merge_head(), line.buf);

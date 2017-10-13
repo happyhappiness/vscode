@@ -1,1 +1,1 @@
-die_errno(_("Could not write to '%s'"), filename);
+not_found("Repository not exported: '%s'", dir);

@@ -1,1 +1,1 @@
-die(_("unable to remove %s from index"), patch->old_name);
+die(_("internal error"));

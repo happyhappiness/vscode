@@ -1,1 +1,1 @@
-die("Failed to resolve NOTES_MERGE_REF");
+error(_("Cannot pull with rebase: You have unstaged changes."));

@@ -1,1 +1,1 @@
-fputs(pp->buffered_output.buf, stderr);
+printf("We cannot bisect more!\n");

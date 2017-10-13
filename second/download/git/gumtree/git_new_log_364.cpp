@@ -1,3 +1,3 @@
-die("More than one commit to dig up from, %s and %s?",
-			    revs->pending.objects[i].name,
-			    final_commit_name);
+die(_("cannot read blob %s for path %s"),
+			    oid_to_hex(&o->blob_oid),
+			    path);

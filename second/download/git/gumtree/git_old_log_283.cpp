@@ -1,1 +1,1 @@
-error(_("reading from '%s' beyond a symbolic link"), name);
+error("repository lacks the necessary blob to fall back on 3-way merge.");

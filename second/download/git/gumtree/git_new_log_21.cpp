@@ -1,0 +1,1 @@
+object_as_type(obj, OBJ_TREE, 0);

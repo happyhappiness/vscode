@@ -1,1 +1,2 @@
-die("impossibly large object header");
+die(_("There is nothing to exclude from by :(exclude) patterns.\n"
+		      "Perhaps you forgot to add either ':/' or '.' ?"));

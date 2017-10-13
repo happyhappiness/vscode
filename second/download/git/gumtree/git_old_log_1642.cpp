@@ -1,1 +1,2 @@
-die_errno("cannot getcwd");
+error("'%s' exists; cannot create '%s'",
+		      data.conflicting_refname, refname);

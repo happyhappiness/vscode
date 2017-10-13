@@ -1,2 +1,1 @@
-die(_("patch fragment without header at line %d: %.*s"),
-			    state->linenr, (int)len-1, line);
+die(_("deleted file %s still has contents"), patch->old_name);

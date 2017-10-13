@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", todo_list->done_nr);
+read_gitfile_error_die(error_code, path, dir);

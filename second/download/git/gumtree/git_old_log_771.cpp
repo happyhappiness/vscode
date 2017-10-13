@@ -1,2 +1,2 @@
-git_die_config("pack.compression",
-					"bad pack compression level %d", pack_compression_level);
+die_errno("Could not switch to '%s'",
+						  sb.buf);

@@ -1,2 +1,1 @@
-error(_("unknown core.untrackedCache value '%s'; "
-			"using 'keep' default value"), v);
+die("unable to create lazy_name_thread");

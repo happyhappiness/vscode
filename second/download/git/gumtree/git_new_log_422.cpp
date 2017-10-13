@@ -1,1 +1,1 @@
-die(_("could not resolve ref '%s'"), o.branch1);
+die(_("cannot read note data from non-blob object '%s'."), arg);

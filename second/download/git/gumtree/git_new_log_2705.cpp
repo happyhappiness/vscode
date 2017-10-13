@@ -1,1 +1,1 @@
-die("BUG: your snprintf is broken");
+die(_("positive value expected contents:lines=%s"), arg);

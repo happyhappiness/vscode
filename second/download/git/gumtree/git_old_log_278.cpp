@@ -1,2 +1,1 @@
-error(_("binary patch does not apply to '%s'"),
-				     name);
+error(_("failed to read %s"), patch->old_name);

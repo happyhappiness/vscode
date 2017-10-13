@@ -1,1 +1,1 @@
-die("invalid ref format: %s", ref.buf);
+die("unexpected character after quoted argument: %s", orig);

@@ -1,1 +1,2 @@
-die(_("pack exceeds maximum allowed size"));
+printf(" %s", diff_aligned_abbrev(&p->parent[i].oid,
+							  opt->abbrev));

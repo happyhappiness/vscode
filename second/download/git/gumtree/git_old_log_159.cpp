@@ -1,1 +1,1 @@
-error("Unable to append to %s", log_file);
+die("Log %s is corrupt.", logfile);

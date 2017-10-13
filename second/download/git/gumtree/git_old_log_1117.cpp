@@ -1,0 +1,1 @@
+warning("ignoring dangling symref %s.", fullref);

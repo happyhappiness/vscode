@@ -1,2 +1,1 @@
-warning("skipping invalid relative alternate: %s/%s",
-				src_repo, line.buf);
+die("strange hostname '%s' blocked", ssh_host);

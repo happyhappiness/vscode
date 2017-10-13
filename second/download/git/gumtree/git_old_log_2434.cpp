@@ -1,0 +1,1 @@
+die("Error on reachable objects of %s", sha1_to_hex(obj->sha1));

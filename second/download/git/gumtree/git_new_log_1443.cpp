@@ -1,1 +1,1 @@
-die("BUG: attempt to trim too many characters");
+die("HEAD does not match the named branch in the superproject");

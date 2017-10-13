@@ -1,2 +1,1 @@
-ret = error("cannot stat '%s': %s", path,
-					strerror(errno));
+rp_error("%s", err.buf);

@@ -1,1 +1,2 @@
-fputs(pp->buffered_output.buf, stderr);
+die("Argument not supported for format '%s': -%d",
+					format, compression_level);

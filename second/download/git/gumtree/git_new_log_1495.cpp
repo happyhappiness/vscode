@@ -1,1 +1,1 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+die_errno(_("cannot create configuration file %s"), config_file);

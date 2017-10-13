@@ -1,1 +1,0 @@
-die("'%s': not a non-negative integer", optarg);

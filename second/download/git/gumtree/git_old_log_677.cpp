@@ -1,2 +1,2 @@
-error("%s: ignoring relative alternate object store %s",
-					relative_base, entry);
+print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);

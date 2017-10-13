@@ -1,2 +1,1 @@
-die("src refspec '%s' must name a ref",
-				    rs->src);
+die(_("unable to update temporary index"));

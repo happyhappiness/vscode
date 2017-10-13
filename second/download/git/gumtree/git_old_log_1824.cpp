@@ -1,1 +1,2 @@
-die("unable to generate diff for %s", name);
+die_errno(_("could not create work tree dir '%s'."),
+				  work_tree);

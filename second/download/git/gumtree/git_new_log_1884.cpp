@@ -1,1 +1,1 @@
-die_errno("unable to open /dev/null");
+die_errno(_("could not read '%s'"), filename);

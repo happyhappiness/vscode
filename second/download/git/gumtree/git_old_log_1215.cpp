@@ -1,2 +1,1 @@
-die_errno("exec '%s': cd to '%s' failed", cmd->argv[0],
-			    cmd->dir);
+die("no such commit %s", oid_to_hex(oid));

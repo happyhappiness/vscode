@@ -1,1 +1,1 @@
-error("cannot spawn %s: %s", cmd->argv[0], strerror(errno));
+die("Exiting because of an unresolved conflict.");

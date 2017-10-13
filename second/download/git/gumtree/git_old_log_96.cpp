@@ -1,1 +1,1 @@
-die("delete %s has extra input: %s", ref.buf, next);
+die("delete %s given zero old value", ref.buf);

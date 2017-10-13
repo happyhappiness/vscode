@@ -1,1 +1,2 @@
-die(_("Integer value expected refname:lstrip=%s"), arg);
+die("BUG: unknown ref type %d of ref %s",
+		    ref_type(refname), refname);

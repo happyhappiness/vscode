@@ -1,1 +1,1 @@
-die_errno(_("Finishing SQUASH_MSG"));
+die("bug: unknown binary handling mode");

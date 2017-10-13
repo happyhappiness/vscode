@@ -1,1 +1,1 @@
-printf("missing %s %s\n", typename(obj->type), sha1_to_hex(obj->sha1));
+printf("%s\n", filter.tags.items[i].string);

@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", name);
+die_errno(_("failed to stat %s"), mtime_dir.buf);

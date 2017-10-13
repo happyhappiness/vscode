@@ -1,2 +1,1 @@
-die(_("Failed to register url for submodule path '%s'"),
-			    displaypath);
+strbuf_write(&pp->buffered_output, stderr);

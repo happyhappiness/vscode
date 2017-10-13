@@ -1,1 +1,1 @@
-printf("keep %s", message);
+die ("Invalid search pattern: %s", prefix);

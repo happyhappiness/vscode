@@ -1,1 +1,1 @@
-printf("Diag: protocol=%s\n", prot_name(protocol));
+error(FAILED_RUN, prune_worktrees.argv[0]);

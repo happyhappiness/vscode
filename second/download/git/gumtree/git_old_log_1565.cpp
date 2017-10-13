@@ -1,1 +1,1 @@
-die (_("Please, stage your changes to .gitmodules or stash them to proceed"));
+die("bad zlib compression level %d", level);

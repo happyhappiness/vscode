@@ -1,1 +1,1 @@
-error("BUG: expected exactly one commit from walk");
+fprintf(stderr, " %c %-*s ", flag, summary_width, summary);

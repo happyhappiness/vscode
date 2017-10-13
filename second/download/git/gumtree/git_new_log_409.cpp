@@ -1,1 +1,0 @@
-die(_("%s already exists"), git_dir);

@@ -1,1 +1,1 @@
-die(_("deleted file %s still has contents"), patch->old_name);
+error(_("unable to read symlink %s"), path);

@@ -1,1 +1,1 @@
-fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_LOCAL));
+die(_("Error wrapping up %s."), head_file);

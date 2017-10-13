@@ -1,1 +1,1 @@
-die_errno(_("Could not open %s"), git_path_todo_file());
+error(_("Invalid value for %s: %s"), key, value);

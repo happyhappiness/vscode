@@ -1,1 +1,1 @@
-die(_("unable to add cache entry for %s"), patch->new_name);
+fprintf(stderr, "U %s\n", item->string);

@@ -1,2 +1,2 @@
-die("unable to generate combined diff for %s",
-		    oid_to_hex(parent));
+(fprintf(f, ":%"PRIu32" %s\n", mark,
+				oid_to_hex(&deco->base->oid));

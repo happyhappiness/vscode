@@ -1,1 +1,1 @@
-printf(" %s ", diff_unique_abbrev(p->sha1, opt->abbrev));
+fprintf(fp, "--shallow %s\n", sha1_to_hex(graft->sha1));

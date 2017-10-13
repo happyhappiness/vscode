@@ -1,1 +1,1 @@
-error_errno("copy-fd: read returned");
+error_errno("cannot open %s", filename ? filename : "NULL");

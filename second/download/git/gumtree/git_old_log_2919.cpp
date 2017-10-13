@@ -1,2 +1,2 @@
-warning("could not create file '%s': %s",
-			filename, strerror(errno));
+error("could not write config file %s: %s",
+			    config_filename, strerror(errno));

@@ -1,1 +1,2 @@
-die("No path in gitfile: %s", path);
+error("unable to commit reflog '%s' (%s)",
+					log_file, strerror(errno));

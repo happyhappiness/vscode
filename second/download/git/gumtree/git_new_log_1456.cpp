@@ -1,1 +1,1 @@
-error_errno("Could not open %s", path);
+error("Could not write requested version");

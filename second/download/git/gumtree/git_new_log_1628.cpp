@@ -1,1 +1,1 @@
-fprintf(o->file, "%s", header.buf);
+die(_("unable to parse --pretty format"));

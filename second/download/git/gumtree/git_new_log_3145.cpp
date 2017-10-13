@@ -1,1 +1,2 @@
-die_errno(_("Could not open file '%s'"), filename);
+die(_("not something we can merge in %s: %s"),
+			    filename, merge_names->buf + pos);

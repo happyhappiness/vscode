@@ -1,1 +1,1 @@
-die("BUG! Want to close pack marked 'do-not-close'");
+die(_("object type mismatch at %s"), oid_to_hex(&obj->oid));

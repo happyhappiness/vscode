@@ -1,1 +1,1 @@
-error(_("'%s': short read %s"), filename, strerror(errno));
+die_errno("failed to open '%s'", path);

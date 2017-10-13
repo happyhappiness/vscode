@@ -1,1 +1,1 @@
-fprintf(stderr, "Recorded resolution for '%s'.\n", path);
+die("unable to write parameters to config file");

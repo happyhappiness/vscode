@@ -1,1 +1,1 @@
-printf(_("Bisecting: a merge base must be tested\n"));
+warning("loose object at %s could not be examined", path);

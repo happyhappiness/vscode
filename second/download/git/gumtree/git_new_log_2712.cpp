@@ -1,1 +1,1 @@
-error(_("Unable to write upstream branch configuration"));
+die(_("positive width expected with the %%(align) atom"));

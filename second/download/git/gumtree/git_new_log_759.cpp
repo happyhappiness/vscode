@@ -1,1 +1,1 @@
-failure |= error("Unable to update %s", ref_name.buf);
+die(_("could not parse %s"), git_path_abort_safety_file());

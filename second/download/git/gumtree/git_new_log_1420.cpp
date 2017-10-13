@@ -1,1 +1,2 @@
-die(_("unable to parse object: %s"), name ? name : oid_to_hex(oid));
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+			    item->original, ce_len, ce->name);

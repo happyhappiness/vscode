@@ -1,3 +1,2 @@
-printf("%06o #%d %s %.8s\n",
-		       ce->ce_mode, ce_stage(ce), ce->name,
-		       oid_to_hex(&ce->oid));
+packet_write_fmt(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);

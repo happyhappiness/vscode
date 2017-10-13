@@ -1,1 +1,0 @@
-die("curl_global_init failed");

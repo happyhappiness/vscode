@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", todo_list->total_nr);
+error(_("cannot amend non-existing commit"));

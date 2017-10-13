@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "log size %i\n", (int)msgbuf.len);
+die("BUG: unhandled unmerged status %x", stagemask);

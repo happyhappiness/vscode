@@ -1,1 +1,1 @@
-die(_("Server does not support --deepen"));
+fprintf(stderr, "No prefix given for --super-prefix.\n" );

@@ -1,1 +1,0 @@
-die("unable to add index blob to traversal");

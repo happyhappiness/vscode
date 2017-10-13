@@ -1,1 +1,1 @@
-die("combining --first-parent and --reverse is not supported");
+fprintf(fout, "\n");

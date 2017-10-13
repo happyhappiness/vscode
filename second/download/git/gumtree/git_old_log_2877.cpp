@@ -1,1 +1,2 @@
-error(_("unrecognized argument: %s"), argv[1]);
+warning("failed utime() on %s: %s",
+						pack_tmp_name, strerror(errno));

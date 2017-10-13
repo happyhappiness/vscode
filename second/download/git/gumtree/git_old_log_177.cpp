@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to rewind rpc post data - try increasing http.postBuffer\n");
+fprintf(stderr, "Unknown command '%s'\n", buf.buf);

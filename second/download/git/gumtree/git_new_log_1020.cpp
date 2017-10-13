@@ -1,1 +1,0 @@
-error("%s: invalid reflog entry %s", refname, oid_to_hex(oid));

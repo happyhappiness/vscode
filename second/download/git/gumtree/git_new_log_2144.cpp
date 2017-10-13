@@ -1,1 +1,1 @@
-die("cannot open '%s' for reading", git_path_merge_head());
+die("skiplist requires a path");

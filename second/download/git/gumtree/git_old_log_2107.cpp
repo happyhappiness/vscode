@@ -1,1 +1,0 @@
-fprintf(stderr, "%s%s\n", prefix, msg);

@@ -1,2 +1,1 @@
-die(_("fatal: submodule--helper subcommand must be "
-		      "called with a subcommand"));
+error("unable to update %s: %s", path, strerror(errno));

@@ -1,1 +1,0 @@
-result |= error(_("Could not remove branch %s"), refname);

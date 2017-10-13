@@ -1,2 +1,2 @@
-warning("protocol restrictions not applied to curl redirects because\n"
-		"your curl version is too old (>= 7.19.4)");
+fprintf(out, "%.*s %s\n", (int)(eol - bol),
+					bol, sha1_to_hex(newsha1));

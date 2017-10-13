@@ -1,2 +1,2 @@
-error(_("path %s has been renamed/deleted"),
-			     patch->old_name);
+error("cannot read the current contents of '%s'",
+				     patch->new_name);

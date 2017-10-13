@@ -1,1 +1,1 @@
-die("bad default revision '%s'", revs->def);
+objreport(obj, (type == FSCK_WARN) ? "warning" : "error", err, params);

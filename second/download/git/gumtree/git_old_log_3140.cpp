@@ -1,1 +1,1 @@
-die("Unexpected option --remote");
+die_errno(_("Could not open '%s' for writing"), filename);

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+error("Could not get ref %s", refspec[i]);

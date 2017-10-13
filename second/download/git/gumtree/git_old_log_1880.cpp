@@ -1,1 +1,1 @@
-warning("--use-curl not supported in this build");
+die(_("Could not create git link %s"), git_link);

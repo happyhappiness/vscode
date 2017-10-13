@@ -1,1 +1,1 @@
-ref_array_clear(&array);
+die(_("positive value expected contents:lines=%s"), valp);

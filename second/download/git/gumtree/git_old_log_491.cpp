@@ -1,1 +1,1 @@
-fprintf(stderr, commit_utf8_warn);
+die("strange hostname '%s' blocked", host);

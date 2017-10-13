@@ -1,1 +1,1 @@
-error("unable to parse header of %s", path);
+die("BUG: child->real_type != OBJ_REF_DELTA");

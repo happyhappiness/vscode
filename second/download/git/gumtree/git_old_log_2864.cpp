@@ -1,1 +1,1 @@
-printf("%s\n", local_repo_env[i]);
+error("cannot opendir %s (%s)", name, strerror(errno));

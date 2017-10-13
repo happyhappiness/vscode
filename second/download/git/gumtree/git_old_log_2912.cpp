@@ -1,0 +1,1 @@
+warning("realloc failed: '%s'", strerror(errno));

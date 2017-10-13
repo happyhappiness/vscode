@@ -1,2 +1,1 @@
-error(_("relative config include "
-				       "conditionals must come from files"));
+die("cache entry out of order");

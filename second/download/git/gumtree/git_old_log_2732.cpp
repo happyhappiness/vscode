@@ -1,2 +1,1 @@
-die(_("Could not set core.worktree in %s"),
-		    file_name.buf);
+error("unable to create directory for %s", git_HEAD);

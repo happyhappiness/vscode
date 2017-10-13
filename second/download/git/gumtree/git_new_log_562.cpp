@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports no-done"));
+die(_("Server does not support --shallow-exclude"));

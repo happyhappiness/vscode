@@ -1,1 +1,1 @@
-(fprintf(fp, "P %s\n", info[i]->p->pack_name + objdirlen + 6) < 0;
+die("curl_global_init failed");

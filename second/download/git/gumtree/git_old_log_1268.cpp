@@ -1,3 +1,1 @@
-die("More than one commit to dig up from, %s and %s?",
-			    revs->pending.objects[i].name,
-			    final_commit_name);
+printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);

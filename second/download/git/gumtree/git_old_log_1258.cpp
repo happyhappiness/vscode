@@ -1,1 +1,1 @@
-die("no such ref: HEAD");
+die(_("invalid blob object %s"), sha1_to_hex(sha1));

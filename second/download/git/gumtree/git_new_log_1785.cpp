@@ -1,1 +1,1 @@
-fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+printf("would prune %s", message);

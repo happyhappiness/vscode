@@ -1,1 +1,1 @@
-ret = error_errno("short read");
+die(_("a %s revision is needed"), term_bad);

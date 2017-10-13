@@ -1,1 +1,1 @@
-error("--path=<path> incompatible with --batch");
+warning(_("--shallow-exclude is ignored in local clones; use file:// instead."));

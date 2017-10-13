@@ -1,1 +1,1 @@
-die(_("CRLF would be replaced by LF in %s."), path);
+error("external filter '%s' failed %d", params->cmd, status);

@@ -1,1 +1,1 @@
-error("no matching refs with %s", av);
+die("'%s' is not a valid ref.", ref_name[num_rev]);

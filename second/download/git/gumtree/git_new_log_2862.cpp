@@ -1,1 +1,1 @@
-die("--resolve-git-dir requires an argument");
+printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));

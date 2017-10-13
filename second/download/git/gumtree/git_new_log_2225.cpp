@@ -1,1 +1,1 @@
-fputs(output, stderr);
+die_errno("unable to fdopen alternates lockfile");

@@ -1,1 +1,1 @@
-die("user.useConfigOnly set but no name given");
+printf("%s\n", local_repo_env[i]);

@@ -1,1 +1,1 @@
-die("bad tag object %s", sha1_to_hex(obj->sha1));
+die_errno("Could not get directory '%s'", git_work_tree_cfg);

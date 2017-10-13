@@ -1,1 +1,1 @@
-ret += error(_("failed to remove 'git notes merge' worktree"));
+error(_("unknown -s/--strategy: %s"), strategy);

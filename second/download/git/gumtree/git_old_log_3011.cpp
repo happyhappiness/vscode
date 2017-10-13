@@ -1,1 +1,1 @@
-error("%s: close error: %s", dst, strerror(errno));
+warning("unable to %s %s: %s", op, file, strerror(errno));

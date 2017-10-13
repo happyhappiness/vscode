@@ -1,3 +1,4 @@
-die(_("Could not read from remote repository.\n\n"
-		      "Please make sure you have the correct access rights\n"
-		      "and the repository exists."));
+packet_write_fmt(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);

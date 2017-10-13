@@ -1,1 +1,1 @@
-strbuf_reset(&link);
+die("BUG: create called for transaction that is not open");

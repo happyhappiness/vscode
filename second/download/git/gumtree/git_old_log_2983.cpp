@@ -1,1 +1,1 @@
-error(_("could not verify the tag '%s'"), name);
+error("unable to create temporary file: %s", strerror(errno));

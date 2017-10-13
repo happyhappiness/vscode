@@ -1,1 +1,1 @@
-error("Unknown object type for %s", describe_object(options, obj));
+die("BUG: peel called before advance for cache iterator");

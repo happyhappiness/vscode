@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+die("BUG: config_buf can only ungetc the same character");

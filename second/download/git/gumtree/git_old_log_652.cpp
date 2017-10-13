@@ -1,1 +1,1 @@
-error(_("Invalid value for %s: %s"), key, value);
+error(_("Can't revert as initial commit"));

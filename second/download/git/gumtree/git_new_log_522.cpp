@@ -1,1 +1,2 @@
-die(_("--name-only, --name-status, --check and -s are mutually exclusive"));
+error("unknown value after ws-error-highlight=%.*s",
+		      -1 - val, arg);

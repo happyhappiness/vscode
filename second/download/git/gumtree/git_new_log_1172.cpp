@@ -1,1 +1,1 @@
-die("could not recurse into submodule '%s'", sub->path);
+die("BUG: command is empty");

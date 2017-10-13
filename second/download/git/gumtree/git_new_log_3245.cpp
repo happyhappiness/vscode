@@ -1,1 +1,1 @@
-printf_ln(_("  HEAD branch: %s"), _("(not queried)"));
+fprintf(opt->diffopt.file, "In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);

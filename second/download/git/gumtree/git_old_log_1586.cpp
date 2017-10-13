@@ -1,1 +1,0 @@
-die_errno("unable to get current working directory");

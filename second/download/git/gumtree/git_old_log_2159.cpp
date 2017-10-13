@@ -1,1 +1,1 @@
-die("unknown field name: %.*s", (int)(ep-atom), atom);
+die("cannot open '%s' for copying", path);

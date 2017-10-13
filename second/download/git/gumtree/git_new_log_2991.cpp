@@ -1,1 +1,1 @@
-error_errno("lstat(%s)", ce->name);
+error("no signature found");

@@ -1,1 +1,3 @@
-fprintf(opt->file, "%s%sdiff --git a/%s b/%s%s\n", prefix, c_meta, pair->one->path, pair->two->path, c_reset);
+die(_("Not a git repository (or any parent up to mount point %s)\n"
+				"Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set)."),
+				    cwd.buf);

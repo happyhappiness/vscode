@@ -1,1 +1,1 @@
-die(_("Could not format %s."), todo_file);
+error("could not commit config file %s", config_filename);

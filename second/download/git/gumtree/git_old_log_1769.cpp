@@ -1,2 +1,2 @@
-error(_("The note contents have been left in %s"),
-				      path);
+die("unable to generate combined diff for %s",
+		    sha1_to_hex(parent));

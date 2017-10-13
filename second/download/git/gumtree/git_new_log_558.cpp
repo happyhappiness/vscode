@@ -1,1 +1,1 @@
-die(_("%s failed"), cmd_name);
+print_verbose(args, _("Server supports multi_ack"));

@@ -1,1 +1,0 @@
-die_errno("Could not change back to '%s'", cwd.buf);

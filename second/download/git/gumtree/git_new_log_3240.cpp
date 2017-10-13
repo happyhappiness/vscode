@@ -1,1 +1,1 @@
-warning(_("ignoring --verify-signatures for rebase"));
+fprintf(opt->diffopt.file, " %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));

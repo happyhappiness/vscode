@@ -1,1 +1,1 @@
-die_errno("sigfillset");
+printf("committer-time %"PRItime"\n", ci.committer_time);

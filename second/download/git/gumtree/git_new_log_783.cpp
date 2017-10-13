@@ -1,2 +1,2 @@
-warning(_("You seem to have moved HEAD. "
-			  "Not rewinding, check your HEAD!"));
+printf("broken link from %7s %s\n",
+				 printable_type(parent), describe_object(parent));

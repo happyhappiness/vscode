@@ -1,1 +1,1 @@
-die(_("Directory %s is in index and no submodule?"), src);
+error(_("bad config file line %d in %s"), cf->linenr, cf->name);

@@ -1,1 +1,2 @@
-die(_("Could not format %s."), git_path_todo_file());
+error("could not write config file %s: %s", config_filename,
+		      strerror(errno));

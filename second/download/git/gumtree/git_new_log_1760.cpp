@@ -1,1 +1,0 @@
-die("BUG: unable to parse our own ident: %s", buf->buf);

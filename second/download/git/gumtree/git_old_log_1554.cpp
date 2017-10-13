@@ -1,1 +1,1 @@
-die("Not a valid object name %s", obj_name);
+error(_("pack-objects died"));

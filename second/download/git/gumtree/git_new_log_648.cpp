@@ -1,1 +1,2 @@
-error(_("unusable instruction sheet: '%s'"), todo_file);
+error(_("%s: can't cherry-pick a %s"),
+					name, typename(type));

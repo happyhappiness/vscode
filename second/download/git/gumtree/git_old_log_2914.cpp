@@ -1,1 +1,2 @@
-error("core.autocrlf=input conflicts with core.eol=crlf");
+error("opening %s: %s", config_filename,
+			      strerror(errno));

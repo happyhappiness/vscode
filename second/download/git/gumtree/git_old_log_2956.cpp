@@ -1,1 +1,2 @@
-ret = error("Could not write to %s", filename);
+error("Could not open %s: %s", path,
+			     strerror(errno));

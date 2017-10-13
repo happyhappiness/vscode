@@ -1,1 +1,1 @@
-status |= error("couldn't set %s", lock->ref_name);
+noindex_filespec(NULL, 0);

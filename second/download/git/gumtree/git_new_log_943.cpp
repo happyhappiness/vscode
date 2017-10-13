@@ -1,1 +1,1 @@
-die(_("unable to resolve revision: %s"), arg);
+error(_("no such remote ref %s"), sought[i]->name);

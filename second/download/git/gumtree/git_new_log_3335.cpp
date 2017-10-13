@@ -1,2 +1,1 @@
-fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit),
-		      opt->diffopt.file);
+die_errno(_("failed to read '%s'"), path.buf);

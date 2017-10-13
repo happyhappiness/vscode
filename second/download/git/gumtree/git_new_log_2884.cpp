@@ -1,1 +1,2 @@
-error("missing value for '%s'", var);
+die(_("cannot strip one component off url '%s'"),
+			*remoteurl);

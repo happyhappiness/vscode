@@ -1,1 +1,1 @@
-die("unrecognized argument: %s", argv[1]);
+error(_("Could not spawn pack-objects"));

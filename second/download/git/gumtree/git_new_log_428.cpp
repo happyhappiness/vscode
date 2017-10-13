@@ -1,1 +1,1 @@
-die(_("failed to read object '%s'."), arg);
+die(_("failed to resolve '%s' as a valid ref."), argv[0]);

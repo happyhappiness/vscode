@@ -1,1 +1,1 @@
-error("object file %s is empty", sha1_file_name(sha1));
+error(ERRORMSG(o, e), path.buf);

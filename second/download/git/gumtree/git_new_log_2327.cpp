@@ -1,5 +1,2 @@
-status_printf_ln(s, color,
-				Q_("Last command done (%d command done):",
-					"Last commands done (%d commands done):",
-					have_done.nr),
-				have_done.nr);
+printf("%s %s\n", oid_to_hex(&tree1->object.oid),
+			  oid_to_hex(&tree2->object.oid));

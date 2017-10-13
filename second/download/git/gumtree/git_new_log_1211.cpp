@@ -1,1 +1,1 @@
-die_errno("BUG: %s", msg);
+printf("author-time %"PRItime"\n", ci.author_time);

@@ -1,1 +1,1 @@
-(_("-n option is only allowed in list mode");
+warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);

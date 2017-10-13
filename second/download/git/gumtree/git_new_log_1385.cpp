@@ -1,1 +1,2 @@
-die("object not found: %s", oid_to_hex(&oid));
+die("The same object %s appears twice in the pack",
+			    oid_to_hex(&obj->oid));

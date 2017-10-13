@@ -1,1 +1,1 @@
-die(_("base commit should be the ancestor of revision list"));
+error_errno(_("failed to stat '%s'"), filename);

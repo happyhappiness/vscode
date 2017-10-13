@@ -1,1 +1,1 @@
-packet_write_fmt(1, "%s %s\n", sha1_to_hex(sha1), path);
+error(_("Failed to find tree of %s."), oid_to_hex(oid));

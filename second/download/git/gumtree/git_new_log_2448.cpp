@@ -1,2 +1,2 @@
-ret = error(_("Could not read object %s"),
-					    oid_to_hex(&t->tagged->oid));
+error("bad tree pointer in commit %s",
+			     oid_to_hex(&item->object.oid));

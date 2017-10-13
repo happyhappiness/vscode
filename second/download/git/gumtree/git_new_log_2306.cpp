@@ -1,2 +1,4 @@
-die_errno("failed to write to %s",
-				  get_lock_file_path(&shallow_lock));
+fprintf(stderr, "%s in %s has negative refcnt %d\n",
+				ent->suspect->path,
+				oid_to_hex(&ent->suspect->commit->object.oid),
+				ent->suspect->refcnt);

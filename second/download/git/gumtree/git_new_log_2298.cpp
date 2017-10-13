@@ -1,1 +1,1 @@
-die_errno("unable to read alternates file");
+die("could not open input");

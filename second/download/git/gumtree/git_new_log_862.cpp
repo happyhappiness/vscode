@@ -1,2 +1,2 @@
-error(_("cannot '%s' without a previous commit"),
-				command_to_string(item->command));
+fprintf(stderr, "Successfully rebased and updated %s.\n",
+			head_ref.buf);

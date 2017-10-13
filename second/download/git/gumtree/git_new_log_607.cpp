@@ -1,1 +1,2 @@
-die("BUG: main_ref_store initialized twice");
+error(_("your local changes would be overwritten by %s."),
+		_(action_name(opts)));

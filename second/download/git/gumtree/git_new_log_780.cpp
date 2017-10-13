@@ -1,1 +1,1 @@
-(_("redirecting to %s");
+printf(_("Bye.\n"));

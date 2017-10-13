@@ -1,1 +1,1 @@
-die(_("Not a valid commit name %s"), oid_to_hex(oid));
+die_errno ("Could not write blob '%s'", oid_to_hex(oid));

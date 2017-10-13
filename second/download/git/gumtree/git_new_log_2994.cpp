@@ -1,1 +1,1 @@
-warning_errno("malloc failed");
+error_errno("read(%s) failed", t->src_name);

@@ -1,1 +1,1 @@
-printf_ln(_("`git %s' is aliased to `%s'"), cmd, alias);
+die(_("%s already exists"), real_git_dir);

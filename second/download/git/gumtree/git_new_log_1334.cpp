@@ -1,2 +1,2 @@
-error("delta base offset overflow in pack for %s",
-					      oid_to_hex(&entry->idx.oid));
+fprintf(rpt, "  cur tree    : %s\n",
+		oid_to_hex(&b->branch_tree.versions[1].oid));

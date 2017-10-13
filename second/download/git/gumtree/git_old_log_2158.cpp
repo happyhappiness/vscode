@@ -1,1 +1,1 @@
-die("malformed field name: %.*s", (int)(ep-atom), atom);
+error("cannot fix permission bits on %s", lk->filename.buf);

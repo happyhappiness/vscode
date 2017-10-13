@@ -1,1 +1,1 @@
-die("malformed field name: %.*s", (int)(ep-atom), atom);
+error("Malformed value for %s", var);

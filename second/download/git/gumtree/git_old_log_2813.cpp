@@ -1,1 +1,2 @@
-error("unable to create directory for %s", git_HEAD);
+die("unknown repository extension: %s",
+			    unknown_extensions.items[0].string);

@@ -1,2 +1,2 @@
-die("Badly quoted content in file '%s': %s",
-			    filename, str.buf);
+help_unknown_ref(argv[i], "merge",
+						 "not something we can merge");

@@ -1,1 +1,1 @@
-die(permissions_advice, dir);
+die("Option '--stat-width' requires a value");

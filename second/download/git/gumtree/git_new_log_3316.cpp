@@ -1,1 +1,1 @@
-fputs(reset, file);
+(_("Unable to read current working directory");

@@ -1,1 +1,1 @@
-warning("object %s: %s", describe_object(o, obj), message);
+strbuf_addf(err, "couldn't set '%s'", lock->ref_name);

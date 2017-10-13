@@ -1,2 +1,2 @@
-error(_("cannot read %s: %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
+warning("unknown repository extension: %s",
+				unknown_extensions.items[i].string);

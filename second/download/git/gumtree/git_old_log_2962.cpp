@@ -1,0 +1,1 @@
+error("cannot unlink %s: %s", filename, strerror(errno));

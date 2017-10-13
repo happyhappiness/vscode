@@ -1,1 +1,1 @@
-die("no such commit %s", sha1_to_hex(sha1));
+die("no such path %s in %s", path, final_commit_name);

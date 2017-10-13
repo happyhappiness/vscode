@@ -1,1 +1,1 @@
-die("combining --first-parent and --reverse is not supported");
+printf("unreachable %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));

@@ -1,1 +1,4 @@
-die(_("unable to read index file"));
+warning(Q_("squelched %d whitespace error",
+				   "squelched %d whitespace errors",
+				   squelched),
+				squelched);

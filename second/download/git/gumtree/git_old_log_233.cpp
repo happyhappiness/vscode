@@ -1,1 +1,2 @@
-fprintf(fp, "%s\n", sha1_to_hex(commit));
+warning(_("Cannot prepare timestamp regexp %s"),
+				stamp_regexp);

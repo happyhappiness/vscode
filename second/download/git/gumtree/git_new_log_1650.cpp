@@ -1,1 +1,1 @@
-fprintf(stderr, "IMAP error: could not create missing mailbox\n");
+error("Couldn't write %s", lock->lk->filename.buf);

@@ -1,1 +1,1 @@
-ref_transaction_free(transaction);
+fprintf(o->file, "%s", header.buf);

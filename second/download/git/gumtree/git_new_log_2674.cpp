@@ -1,2 +1,3 @@
-die("Failed to traverse parents of commit %s",
-						oid_to_hex(&commit->object.oid));
+printf_ln(_(branch_info->rebase == INTERACTIVE_REBASE ?
+			"rebases interactively onto remote %s" :
+			"rebases onto remote %s"), merge->items[0].string);

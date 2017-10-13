@@ -1,1 +1,2 @@
-die_errno("git apply: failed to read");
+warning(_("recount: unexpected line: %.*s"),
+				(int)linelen(line, size), line);

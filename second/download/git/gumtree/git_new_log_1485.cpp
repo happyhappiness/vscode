@@ -1,1 +1,1 @@
-die(_("unable to parse format string"));
+free(*buf);

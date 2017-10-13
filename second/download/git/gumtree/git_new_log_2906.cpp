@@ -1,1 +1,1 @@
-die("Command input error");
+!error("tag '%s' not found.", name);

@@ -1,2 +1,1 @@
-die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
-				  "Please, commit your changes before you merge."));
+error(_("invalid color value: %.*s"), value_len, value);

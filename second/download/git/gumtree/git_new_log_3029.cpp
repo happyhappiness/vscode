@@ -1,2 +1,3 @@
-error_errno("Couldn't truncate temporary file %s",
-					    freq->tmpfile);
+strbuf_addf(&outbuf,
+				    "%s%s: protocol error: no band designator",
+				    outbuf.len ? "\n" : "", me);

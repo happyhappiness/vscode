@@ -1,2 +1,1 @@
-retval = error(_("no note found for object %s."),
-			       sha1_to_hex(object));
+die(_("failed to resolve NOTES_MERGE_REF"));

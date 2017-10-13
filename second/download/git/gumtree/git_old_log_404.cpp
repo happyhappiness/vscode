@@ -1,1 +1,1 @@
-printf_ln(_("`git %s' is aliased to `%s'"), argv[0], alias);
+error(_("Could not read object %s"), sha1_to_hex(sha1));

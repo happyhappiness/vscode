@@ -1,2 +1,1 @@
-error("delta base offset out of bound for %s",
-				      oid_to_hex(&entry->idx.oid));
+fputs(oid_to_hex(&tg->oid), rpt);

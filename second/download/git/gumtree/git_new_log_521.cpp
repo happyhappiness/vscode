@@ -1,1 +1,1 @@
-die("BUG: oid abbreviation out of range: %d", abbrev);
+die_want_option("--stat-count");

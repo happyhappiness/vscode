@@ -1,1 +1,0 @@
-fputs(signature_check.gpg_output, stderr);

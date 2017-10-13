@@ -1,1 +1,1 @@
-printf("%s\n", commands[i].cmd);
+die("BUG: packed refs not locked");

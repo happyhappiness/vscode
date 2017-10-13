@@ -1,2 +1,1 @@
-die("Failed to simplify parents of commit %s",
-			    oid_to_hex(&commit->object.oid));
+insert_one_record(log, v, oneline.buf);

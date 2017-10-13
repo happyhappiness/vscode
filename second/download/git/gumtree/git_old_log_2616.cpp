@@ -1,2 +1,2 @@
-error("refname %s is a symbolic ref, renaming it is not supported",
-			oldrefname);
+error("Object %s not a tree",
+			     sha1_to_hex(item->object.sha1));

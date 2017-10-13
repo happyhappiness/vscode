@@ -1,1 +1,1 @@
-warning(_("removing '%s' failed"), fname);
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);

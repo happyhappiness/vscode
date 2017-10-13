@@ -1,1 +1,0 @@
-die_errno("failed to write pid file '%s'", path);

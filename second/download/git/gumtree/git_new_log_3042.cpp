@@ -1,1 +1,0 @@
-error_errno("Writing %s failed", path);

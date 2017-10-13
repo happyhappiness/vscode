@@ -1,2 +1,1 @@
-warning(_("not copying templates from '%s': %s"),
-			  template_dir, err.buf);
+error_errno("failed to redirect stderr to /dev/null");

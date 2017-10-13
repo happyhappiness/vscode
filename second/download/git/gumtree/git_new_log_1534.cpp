@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("malformed push certificate %.*s", 100, push_cert->buf);

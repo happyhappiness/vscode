@@ -1,2 +1,2 @@
-die(_("unable to read %s"),
-			    sha1_to_hex(data->entry->idx.sha1));
+warning("recursive delta detected for object %s",
+			sha1_to_hex(e->idx.sha1));

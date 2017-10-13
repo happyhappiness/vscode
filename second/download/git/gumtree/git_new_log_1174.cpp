@@ -1,1 +1,1 @@
-("BUG: could not get submodule information for '%s'";
+die_errno("sigfillset");

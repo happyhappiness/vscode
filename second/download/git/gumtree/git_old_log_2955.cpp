@@ -1,1 +1,3 @@
-ret = error("Could not open %s for writing", filename);
+warning("failed utime() on %s: %s",
+			rerere_path(id, "postimage"),
+			strerror(errno));

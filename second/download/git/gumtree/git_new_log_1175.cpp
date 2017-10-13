@@ -1,1 +1,1 @@
-error(_("submodule '%s' has dirty index"), path);
+die_errno("sigprocmask");

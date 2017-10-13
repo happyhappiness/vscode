@@ -1,1 +1,2 @@
-error(_("Could not parse object '%s'."), sha1_to_hex(head));
+warning(_("regexec returned %d for input: %s"),
+				status, timestamp);

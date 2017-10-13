@@ -1,1 +1,1 @@
-opt->output(opt, child_output.buf, child_output.len);
+die("submodule--helper is-active takes exactly 1 argument");

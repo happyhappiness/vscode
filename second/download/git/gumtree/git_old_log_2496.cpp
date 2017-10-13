@@ -1,1 +1,1 @@
-die_errno("unable to read object %s", oid_to_hex(oid));
+die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));

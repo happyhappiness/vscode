@@ -1,1 +1,1 @@
-die("socket directory must be an absolute path");
+die("git-over-rsync is no longer supported");

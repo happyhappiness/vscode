@@ -1,1 +1,0 @@
-(fprintf(f, "%"PRIuMAX"\n", (uintmax_t) getpid()) < 0 || fclose(f) != 0;

@@ -1,2 +1,1 @@
-die("missing object %s for %s",
-		    sha1_to_hex(tagged), ref->refname);
+die(_("BUG: reopen a lockfile that has been committed"));

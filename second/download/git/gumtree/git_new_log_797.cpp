@@ -1,2 +1,1 @@
-die_errno("Invalid path '%s'",
-						  resolved->buf);
+die(_("could not remove '%s'"), path);

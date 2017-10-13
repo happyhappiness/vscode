@@ -1,1 +1,1 @@
-fprintf(stderr, "No prefix given for --super-prefix.\n" );
+warning(_("Delegation control is not supported with cURL < 7.22.0"));

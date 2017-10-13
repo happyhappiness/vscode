@@ -1,2 +1,1 @@
-die(_("submodule--helper subcommand must be "
-		      "called with a subcommand"));
+die("Can't read object %s", sha1_to_hex(sha1));

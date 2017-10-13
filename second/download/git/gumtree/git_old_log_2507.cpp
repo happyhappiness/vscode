@@ -1,1 +1,0 @@
-die(_("--sort and -n are incompatible"));

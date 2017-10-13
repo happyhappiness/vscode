@@ -1,1 +1,1 @@
-die(_("reference repository '%s' is shallow"), item->string);
+die("BUG: finalize_deferred_config() should have been called");

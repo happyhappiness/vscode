@@ -1,1 +1,1 @@
-die("Bad type of menu_stuff when print menu");
+rp_error("%s", err.buf);

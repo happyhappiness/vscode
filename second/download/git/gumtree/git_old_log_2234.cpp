@@ -1,1 +1,1 @@
-die("failed to prepare '%s' for appending", path);
+die("bad %s argument: %s", opt, arg);

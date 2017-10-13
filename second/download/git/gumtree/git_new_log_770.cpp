@@ -1,1 +1,1 @@
-die(_("bad pack compression level %d"), level);
+die_errno("unable to get current working directory");

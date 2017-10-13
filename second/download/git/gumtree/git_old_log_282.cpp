@@ -1,1 +1,1 @@
-error(_("failed to read %s"), name);
+error(_("%s: does not match index"), name);

@@ -1,1 +1,1 @@
-die("insanely long object directory %s", objdir);
+print_ref_status('-', "[deleted]", ref, NULL, NULL, porcelain);

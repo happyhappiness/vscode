@@ -1,1 +1,1 @@
-die("BUG: create called for transaction that is not open");
+die("Bad type of menu_stuff when print menu");

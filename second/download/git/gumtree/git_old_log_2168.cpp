@@ -1,1 +1,1 @@
-warning("ignoring ref with broken name %s", refname);
+die("BUG: attempt to commit unlocked object");

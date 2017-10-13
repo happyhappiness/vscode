@@ -1,2 +1,1 @@
-die("an empty %s object %s?",
-		    typename(type), oid_to_hex(oid));
+die_errno(_("failed to read %s"), path.buf);

@@ -1,1 +1,1 @@
-die("git upload-pack: ambiguous deepen-not: %s", line);
+die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);

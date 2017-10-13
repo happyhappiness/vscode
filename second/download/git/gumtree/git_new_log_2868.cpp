@@ -1,2 +1,1 @@
-error(_("HEAD of working tree %s is not updated"),
-			      worktrees[i]->path);
+error_errno("cannot stat %s", arg);

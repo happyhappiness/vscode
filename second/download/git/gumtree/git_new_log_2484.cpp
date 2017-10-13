@@ -1,2 +1,1 @@
-packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));

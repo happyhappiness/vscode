@@ -1,1 +1,1 @@
-error("insanely long ref %.*s...", 20, path);
+die(_("tag header too big."));

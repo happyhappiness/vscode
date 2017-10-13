@@ -1,1 +1,1 @@
-error_errno("cannot create pipe");
+(_("Option --exec can only be used together with --remote");

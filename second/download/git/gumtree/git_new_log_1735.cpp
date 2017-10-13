@@ -1,0 +1,1 @@
+append_msgs_to_imap(&server, &all_msgs, total);

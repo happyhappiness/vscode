@@ -1,0 +1,1 @@
+die("object size is too enormous to format");

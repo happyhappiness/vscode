@@ -1,3 +1,1 @@
-warning("Cannot handle more than %d bases. "
-				"Ignoring %s.",
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+die(_("Failed to resolve '%s' as a valid ref."), arg);

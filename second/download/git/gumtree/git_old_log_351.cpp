@@ -1,1 +1,1 @@
-die(_("--index outside a repository"));
+die(_("Unable to write new index file"));

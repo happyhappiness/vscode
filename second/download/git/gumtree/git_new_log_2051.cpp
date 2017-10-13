@@ -1,1 +1,2 @@
-die_errno(_("could not close %s"), path);
+die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

@@ -1,1 +1,1 @@
-die (_("Please, stage your changes to .gitmodules or stash them to proceed"));
+error(_("failed to remove: %s"), strerror(errno));

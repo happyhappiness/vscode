@@ -1,4 +1,3 @@
-die(Q_("%d line adds whitespace errors.",
-			       "%d lines add whitespace errors.",
-			       state->whitespace_error),
-			    state->whitespace_error);
+die("More than one commit to dig down to %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);

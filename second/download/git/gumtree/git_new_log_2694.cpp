@@ -1,1 +1,1 @@
-print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);
+warning(_("Public key pinning not supported with cURL < 7.44.0"));

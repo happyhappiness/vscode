@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("BUG: read_loose_object streamed a non-blob");

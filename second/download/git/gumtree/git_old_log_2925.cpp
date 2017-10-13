@@ -1,3 +1,1 @@
-error(_("Cannot delete branch '%s' "
-					"checked out at '%s'"),
-				      bname.buf, worktree);
+error(_("failed to close rev-list's stdin: %s"), strerror(errno));

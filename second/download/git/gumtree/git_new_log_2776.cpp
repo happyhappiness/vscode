@@ -1,1 +1,0 @@
-warning(_("Public key pinning not supported with cURL < 7.44.0"));

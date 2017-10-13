@@ -1,2 +1,3 @@
-status_printf_ln(s, color,
-					 _("You are currently rebasing."));
+die(_("No annotated tags can describe '%s'.\n"
+			    "However, there were unannotated tags: try --tags."),
+			    sha1_to_hex(sha1));

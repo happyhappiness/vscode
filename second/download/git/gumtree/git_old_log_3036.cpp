@@ -1,2 +1,2 @@
-error("unable to stat %s: %s",
-			     sha1_to_hex(sha1), strerror(errno));
+fprintf(stderr, "%s: write error (%s)\n",
+			msg, strerror(errno));

@@ -1,1 +1,1 @@
-error("cannot open '%s' for copying", path);
+die(str, refname, err.buf);

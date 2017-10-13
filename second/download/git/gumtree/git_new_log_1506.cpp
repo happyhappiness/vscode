@@ -1,1 +1,2 @@
-die_errno("BUG: unexpected fast_export_ls error");
+git_die_config("gc.pruneexpire", _("Invalid gc.pruneexpire: '%s'"),
+						prune_expire);

@@ -1,1 +1,1 @@
-strbuf_addf(err, "can't verify ref %s", lock->ref_name);
+die("unable to set up work tree using invalid config");

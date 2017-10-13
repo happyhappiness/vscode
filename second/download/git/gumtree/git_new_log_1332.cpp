@@ -1,2 +1,1 @@
-error("corrupt packed object for %s",
-		      oid_to_hex(&entry->idx.oid));
+fprintf(rpt, "  tip commit  : %s\n", oid_to_hex(&b->oid));

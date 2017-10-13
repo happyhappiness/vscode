@@ -1,1 +1,1 @@
-die("bad tree object %s", sha1_to_hex(obj->sha1));
+error("unable to create directory for %s", git_HEAD);

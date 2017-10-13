@@ -1,2 +1,1 @@
-print_verbose(args, _("Server version is %.*s"),
-				      agent_len, agent_feature);
+die("%s doesn't support --super-prefix", p->cmd);

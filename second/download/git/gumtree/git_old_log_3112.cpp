@@ -1,1 +1,1 @@
-die("found existing file at '%s'", path);
+fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));

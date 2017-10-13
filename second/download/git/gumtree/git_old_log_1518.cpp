@@ -1,1 +1,0 @@
-die_errno(_("Failed to lock ref for update"));

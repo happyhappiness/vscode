@@ -1,1 +1,1 @@
-warning("recount: ignore empty hunk");
+die(_("corrupt patch at line %d"), state->linenr);

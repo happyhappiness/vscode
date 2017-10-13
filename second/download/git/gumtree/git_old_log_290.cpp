@@ -1,1 +1,1 @@
-error(_("%s: does not match index"), name);
+error(_("removal patch leaves file contents"));

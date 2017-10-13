@@ -1,1 +1,2 @@
-die("no such path '%s' in HEAD", path);
+printf("broken link from %7s %s\n",
+			   typename(parent->type), describe_object(parent));

@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+error("seek error: %s", strerror(errno));

@@ -1,0 +1,1 @@
+die(":strip= requires a positive integer argument");

@@ -1,1 +1,2 @@
-die("'%s' is not a valid ref name.", ref->buf);
+error(_("relative config include "
+				       "conditionals must come from files"));

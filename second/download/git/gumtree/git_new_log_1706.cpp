@@ -1,1 +1,1 @@
-error(str, refname, err.buf);
+die_errno(_("cannot unlink temporary alternates file"));

@@ -1,1 +1,1 @@
-ret = error("short read %s", strerror(errno));
+die("a %s revision is needed", term_bad);

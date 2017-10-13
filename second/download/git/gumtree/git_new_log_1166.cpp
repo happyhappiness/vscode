@@ -1,1 +1,1 @@
-die("Could not run 'git status --porcelain=2' in submodule %s", path);
+BUG("setup_git_env called without repository");

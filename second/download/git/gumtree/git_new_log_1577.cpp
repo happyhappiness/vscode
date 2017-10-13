@@ -1,1 +1,2 @@
-die("protocol error: got both push certificate and unsigned commands");
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

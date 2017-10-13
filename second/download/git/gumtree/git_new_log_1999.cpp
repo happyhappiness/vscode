@@ -1,1 +1,1 @@
-printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
+error("cannot lock ref '%s': %s", refname, err.buf);

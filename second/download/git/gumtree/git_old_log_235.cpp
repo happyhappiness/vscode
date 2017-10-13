@@ -1,1 +1,1 @@
-error(_("Could not parse object '%s'."), sha1_to_hex(remote));
+die(_("unable to find filename in patch at line %d"), state->linenr);

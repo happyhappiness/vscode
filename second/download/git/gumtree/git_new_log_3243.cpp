@@ -1,2 +1,1 @@
-printf(_("%-*s    and with remote %s\n"), width, "",
-		       merge->items[i].string);
+fprintf(opt->diffopt.file, "From %s Mon Sep 17 00:00:00 2001\n", name);

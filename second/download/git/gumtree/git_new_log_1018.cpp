@@ -1,1 +1,1 @@
-die("not a commit? can't happen: %s", oid_to_hex(&oid));
+warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);

@@ -1,1 +1,2 @@
-error("Couldn't write %s", lock->lk->filename.buf);
+error("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
+			      (uintmax_t)size, (uintmax_t)limit);

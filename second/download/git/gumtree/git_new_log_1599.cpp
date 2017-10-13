@@ -1,1 +1,1 @@
-(const char *key;
+die("curl_global_init failed");

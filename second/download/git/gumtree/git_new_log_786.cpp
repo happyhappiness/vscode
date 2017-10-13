@@ -1,2 +1,2 @@
-die("Could not run 'git rev-list <commits> --not --remotes -n 1' command in submodule %s",
-					path);
+fprintf(stderr, "Checking %s %s\n",
+			printable_type(obj), describe_object(obj));

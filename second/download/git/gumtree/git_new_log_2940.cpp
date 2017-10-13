@@ -1,1 +1,1 @@
-die(_("Failed to find exact merge base"));
+error_errno(_("failed writing detached signature to '%s'"), path);

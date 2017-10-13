@@ -1,1 +1,1 @@
-die(_("could not parse commit from NOTES_MERGE_PARTIAL."));
+error(_("unknown subcommand: %s"), argv[0]);

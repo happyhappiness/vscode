@@ -1,1 +1,2 @@
-die("oops (%s)", oid_to_hex(oid));
+warning("subprocess '%s' requested unsupported capability '%s'",
+				process->argv[0], p);

@@ -1,1 +1,2 @@
-error("Unknown object type for %s", sha1_to_hex(obj->sha1));
+error("refname %s is a symbolic ref, renaming it is not supported",
+			oldrefname);

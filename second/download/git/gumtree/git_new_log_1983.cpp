@@ -1,1 +1,1 @@
-error("copy-fd: write returned %s", strerror(errno));
+die_errno(_("could not open %s for writing"), path);

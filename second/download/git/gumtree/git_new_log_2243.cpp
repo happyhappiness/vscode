@@ -1,3 +1,1 @@
-opterror(opt,
-				"expects a non-negative integer value with an optional k/m/g suffix",
-				flags);
+die_errno(_("could not open '%s' for reading and writing"), path);

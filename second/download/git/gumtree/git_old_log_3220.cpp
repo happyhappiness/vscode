@@ -1,1 +1,1 @@
-die_errno(_("Could not write to '%s'"), filename);
+die("bug: unknown header field %d", p->field);

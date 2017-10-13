@@ -1,1 +1,1 @@
-die("BUG: unhandled setup_git_directory_1() result");
+printf(_("Applied autostash.\n"));

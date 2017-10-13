@@ -1,1 +1,2 @@
-die_errno(_("could not open '%s'"), git_path(commit_editmsg));
+printf("broken link from %7s %s\n",
+				 typename(parent->type), oid_to_hex(&parent->oid));

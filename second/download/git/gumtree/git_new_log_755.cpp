@@ -1,2 +1,1 @@
-error(_("cannot %s: Your index contains uncommitted changes."),
-			      _(action));
+fprintf(stderr, "fatal: %s\n\n", msg);

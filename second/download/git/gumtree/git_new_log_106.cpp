@@ -1,2 +1,2 @@
-warning("%s %s: missing <newvalue>, treating as zero",
-				command, refname);
+die("%s %s: expected NUL but got: %s",
+			    command, refname, *next);

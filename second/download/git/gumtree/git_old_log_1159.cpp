@@ -1,1 +1,1 @@
-die_errno(_("Cannot come back to cwd"));
+die("just how do you expect me to merge %d trees?", stage-1);

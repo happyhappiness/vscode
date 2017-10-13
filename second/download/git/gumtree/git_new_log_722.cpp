@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s continue\n", hex);
+fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);

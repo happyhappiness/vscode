@@ -1,1 +1,2 @@
-die_errno("cannot read '%s'", input_file);
+error(_("missing notes on source object %s. Cannot "
+			       "copy."), sha1_to_hex(from_obj));

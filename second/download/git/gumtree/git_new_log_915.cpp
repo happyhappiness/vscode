@@ -1,2 +1,3 @@
-error("sha1 mismatch for %s (expected %s)", path,
-			      sha1_to_hex(expected_sha1));
+fprintf(stderr, _("Failed to fstat %s: %s"),
+			get_tempfile_path(&log_lock.tempfile),
+			strerror(saved_errno));

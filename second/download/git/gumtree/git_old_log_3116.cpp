@@ -1,1 +1,1 @@
-fprintf(stderr, "%s: protocol error: no band designator\n", me);
+printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));

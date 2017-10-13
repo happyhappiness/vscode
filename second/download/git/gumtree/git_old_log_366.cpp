@@ -1,1 +1,1 @@
-die("--progress can't be used with --incremental or porcelain formats");
+die("%s not a valid tag", sha1_to_hex(sha1));

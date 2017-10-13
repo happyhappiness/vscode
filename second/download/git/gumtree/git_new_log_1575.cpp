@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+warning(_("%s has multiple values"), key);

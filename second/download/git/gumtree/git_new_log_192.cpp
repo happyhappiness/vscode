@@ -1,1 +1,1 @@
-strbuf_addf(&buf, "%s:%s", name, ref->name);
+status_printf_ln(s, c, "%s", "");

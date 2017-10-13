@@ -1,0 +1,1 @@
+die(_("Unknown action: %d"), opts->action);

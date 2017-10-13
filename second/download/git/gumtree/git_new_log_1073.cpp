@@ -1,1 +1,1 @@
-die("BUG: setup_git_env called without repository");
+die("BUG: should have same number of entries");

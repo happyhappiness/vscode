@@ -1,1 +1,2 @@
-fprintf(opt->diffopt.file, "In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
+die("BUG: taking over transport requires non-NULL "
+		    "smart_options field.");

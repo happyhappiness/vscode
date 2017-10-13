@@ -1,1 +1,1 @@
-fprintf(stderr, "%.*s", l, b);
+printf(_("Final output: %d %s\n"), nr, stage);

@@ -1,1 +1,1 @@
-die("object %s changed size!?", oid_to_hex(oid));
+error("--path=<path> needs --textconv or --filters");

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+error(_("object %s is not a blob"), sha1_to_hex(sha1));

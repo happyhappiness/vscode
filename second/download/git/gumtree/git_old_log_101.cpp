@@ -1,1 +1,1 @@
-die("unknown command: %s", cmd.buf);
+die("whitespace before command: %s", cmd.buf);

@@ -1,1 +1,2 @@
-die(_("no branches given, and HEAD is not valid"));
+printf("%06o %s %d\t", ce->ce_mode,
+			       oid_to_hex(&ce->oid), ce_stage(ce));

@@ -1,1 +1,0 @@
-warning ("invalid SHA-1: %s", buffer);

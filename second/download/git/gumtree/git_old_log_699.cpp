@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "non-fast-forward", porcelain);
+packet_write(1, "NAK\n");

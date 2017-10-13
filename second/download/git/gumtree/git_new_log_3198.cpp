@@ -1,1 +1,1 @@
-printf("root %s\n", describe_object(&commit->object));
+die("BUG: unknown config origin type");

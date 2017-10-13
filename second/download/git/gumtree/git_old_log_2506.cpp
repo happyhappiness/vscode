@@ -1,1 +1,0 @@
-error(_("malformed object name '%s'"), arg);

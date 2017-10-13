@@ -1,1 +1,1 @@
-die("internal error: packed-ref cache cleared while locked");
+error("Could not stat %s", filename);

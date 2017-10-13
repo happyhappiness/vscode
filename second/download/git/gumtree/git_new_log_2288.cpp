@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s."), git_path_todo_file());
+die_errno("unable to write credential store");

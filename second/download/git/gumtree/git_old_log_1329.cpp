@@ -1,1 +1,1 @@
-die("unable to read %s", sha1_to_hex(entry->delta->idx.sha1));
+die_errno("Could not open '%s'", path);

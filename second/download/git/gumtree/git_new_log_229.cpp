@@ -1,1 +1,0 @@
-die("BUG: init_apply_state() failed");

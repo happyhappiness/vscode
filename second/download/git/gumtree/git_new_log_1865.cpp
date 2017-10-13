@@ -1,1 +1,2 @@
-status_printf_ln(s, c, _("Changes to be committed:"));
+printf("notdir %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);

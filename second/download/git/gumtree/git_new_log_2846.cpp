@@ -1,0 +1,1 @@
+error_errno(_("cannot open %s"), filename);

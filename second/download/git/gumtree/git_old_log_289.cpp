@@ -1,1 +1,1 @@
-error(_("%s: %s"), name, strerror(errno));
+fprintf(stderr, "Applied patch to '%s' cleanly.\n", patch->new_name);

@@ -1,1 +1,1 @@
-die(_("reference repository '%s' is grafted"), item->string);
+printf("%s\n", sha1_to_hex(commit_sha1));

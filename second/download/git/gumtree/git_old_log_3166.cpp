@@ -1,1 +1,1 @@
-die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);
+printf("%s (%d):\n", item->string, onelines->nr);

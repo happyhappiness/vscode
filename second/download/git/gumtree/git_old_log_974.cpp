@@ -1,1 +1,1 @@
-die("unable to auto-detect email address (got '%s')", email);
+warning(_(msg_warn_remove_failed), quoted.buf);

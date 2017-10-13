@@ -1,1 +1,1 @@
-die_errno("unable to dup file descriptor");
+die("bad %s argument: %s", opt->long_name, arg);

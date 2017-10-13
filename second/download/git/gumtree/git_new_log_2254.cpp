@@ -1,2 +1,1 @@
-strbuf_addf(err, "There are still logs under "
-					    "'%s'", logfile->buf);
+status_printf_ln(s, color, "   %s", have_done.items[i].string);

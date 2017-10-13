@@ -1,1 +1,1 @@
-warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");
+error(_("remote unpack failed: %s"), line);

@@ -1,2 +1,1 @@
-die_errno("failed to write to %s",
-				  shallow_lock->filename);
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

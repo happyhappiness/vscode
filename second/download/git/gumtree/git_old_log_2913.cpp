@@ -1,1 +1,1 @@
-error("core.autocrlf=input conflicts with core.eol=crlf");
+error("could not lock config file %s: %s", config_filename, strerror(errno));

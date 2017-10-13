@@ -1,2 +1,1 @@
-failure |= error("Unable to write file %s: %s",
-			export_marks_file, strerror(errno));
+die(_("pack has bad object at offset %lu: %s"), offset, buf);

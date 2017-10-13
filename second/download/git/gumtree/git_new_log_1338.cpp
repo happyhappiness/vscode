@@ -1,2 +1,1 @@
-warning("object %s cannot be read",
-						oid_to_hex(&src_entry->idx.oid));
+die("Not a tree: %s", oid_to_hex(oid));

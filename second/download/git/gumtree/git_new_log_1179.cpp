@@ -1,1 +1,1 @@
-die (_("BUG: returned path string doesn't match cwd?"));
+child_die(CHILD_ERR_ERRNO);

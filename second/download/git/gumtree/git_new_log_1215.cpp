@@ -1,1 +1,0 @@
-child_die(CHILD_ERR_CHDIR);

@@ -1,1 +1,0 @@
-fputs("~\n", ecbdata->opt->file);

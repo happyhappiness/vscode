@@ -1,1 +1,1 @@
-die("Eh?  Object of type %d?", obj->type);
+die("failed to prepare '%s' for appending", path);

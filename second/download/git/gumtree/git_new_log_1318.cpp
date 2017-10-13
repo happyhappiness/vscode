@@ -1,2 +1,1 @@
-die(_("failed to finish 'show' for object '%s'"),
-		    oid_to_hex(object));
+die(_("unknown error occurred while reading the configuration files"));

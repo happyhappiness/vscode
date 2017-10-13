@@ -1,1 +1,1 @@
-die(_("unable to parse '%s' from command-line config"), key);
+die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);

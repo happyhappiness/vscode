@@ -1,1 +1,1 @@
-fputs(color, stdout);
+die_errno("Cannot come back to cwd");

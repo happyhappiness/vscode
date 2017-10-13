@@ -1,1 +1,3 @@
-die(_("malformed object at '%s'"), refname);
+fprintf(stderr,
+				"Resolved '%s' using previous resolution.\n",
+				path);

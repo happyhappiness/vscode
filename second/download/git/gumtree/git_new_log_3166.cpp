@@ -1,1 +1,2 @@
-die(_("git apply: bad git-diff - expected /dev/null on line %d"), state->linenr);
+fprintf(log->file, "%s (%d):\n",
+				item->string, onelines->nr);

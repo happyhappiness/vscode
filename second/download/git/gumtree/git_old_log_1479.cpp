@@ -1,1 +1,1 @@
-fprintf(stderr, "cannot chmod '%s'", ce->name);
+die("revision walk setup failed");

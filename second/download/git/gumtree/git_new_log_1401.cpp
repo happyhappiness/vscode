@@ -1,1 +1,0 @@
-die("Couldn't allocate PCRE2 JIT stack");

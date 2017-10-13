@@ -1,1 +1,2 @@
-error("%s: object corrupt or missing", oid_to_hex(oid));
+error(_("no note found for object %s."),
+			       oid_to_hex(&object));

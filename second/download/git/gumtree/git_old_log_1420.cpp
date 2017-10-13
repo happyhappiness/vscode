@@ -1,1 +1,0 @@
-die(_("unable to parse object: %s"), name ? name : sha1_to_hex(sha1));

@@ -1,1 +1,1 @@
-die("BUG: fdopen_lock_file() called for unlocked object");
+die("BUG: commit called for transaction that is not open");

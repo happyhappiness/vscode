@@ -1,1 +1,1 @@
-error("key does not contain a section: %s", key);
+die("unable to auto-detect email address (got '%s')", email);

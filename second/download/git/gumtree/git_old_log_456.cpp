@@ -1,1 +1,1 @@
-result = error(_("Unknown subcommand: %s"), argv[0]);
+rp_error("%s", refuse_unconfigured_deny_msg[i]);

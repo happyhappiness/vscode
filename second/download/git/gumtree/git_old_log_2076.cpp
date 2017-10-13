@@ -1,1 +1,2 @@
-die("core.bare and core.worktree do not make sense");
+fprintf(stderr, _("Can not do reflog for '%s'\n"),
+					    opts->new_orphan_branch);

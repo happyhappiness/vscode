@@ -1,1 +1,1 @@
-error("copy-fd: write returned %s", strerror(errno));
+error("cannot open fd %d: %s", in_fd, strerror(errno));

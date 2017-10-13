@@ -1,1 +1,1 @@
-printf("%s", dirty);
+die(_("'%s' is not a commit"), argv[1]);

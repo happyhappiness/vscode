@@ -1,1 +1,2 @@
-error_errno("read(%s) failed", t->src_name);
+die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
+			    *name, state->linenr);

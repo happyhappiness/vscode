@@ -1,1 +1,1 @@
-die(_("unrecognized position:%s"), s);
+die(_("submodule--helper: unspecified or empty --path"));

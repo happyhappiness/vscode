@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+die(_("%.*s is in index"), len_w_slash, src_w_slash);

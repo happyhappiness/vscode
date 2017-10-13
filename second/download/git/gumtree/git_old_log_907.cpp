@@ -1,1 +1,1 @@
-die("Not a git repository: %s", dir);
+error(ERRORMSG(o, e), path);

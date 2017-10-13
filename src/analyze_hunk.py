@@ -78,6 +78,7 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
             total_log += 1
 
     return total_log
+
 """
 @ param
 @ return nothing 

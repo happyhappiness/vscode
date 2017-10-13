@@ -1,1 +1,1 @@
-die("submodule--helper remote-branch takes exactly one arguments, got %d", argc);
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

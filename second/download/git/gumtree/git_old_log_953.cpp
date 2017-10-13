@@ -1,1 +1,0 @@
-error("invalid key (newline): %s", key);

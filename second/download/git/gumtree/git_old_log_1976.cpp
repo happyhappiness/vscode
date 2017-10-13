@@ -1,1 +1,1 @@
-die("object '%s' is not a blob!", sha1_to_hex(sha1));
+error("problems writing temporary file %s", buf->buf);

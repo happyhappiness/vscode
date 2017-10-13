@@ -1,1 +1,2 @@
-strbuf_write(&pp->buffered_output, stderr);
+die(_("Argument not supported for format '%s': -%d"),
+					format, compression_level);

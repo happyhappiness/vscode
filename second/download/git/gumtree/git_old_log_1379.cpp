@@ -1,1 +1,1 @@
-die("Not a tree: %s", sha1_to_hex(sha1));
+die(_("unable to parse object: %s"), name ? name : sha1_to_hex(sha1));

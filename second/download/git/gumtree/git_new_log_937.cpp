@@ -1,1 +1,1 @@
-die("BUG: child->real_type != OBJ_REF_DELTA");
+report_unmatched_refs(sought, nr_sought);

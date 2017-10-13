@@ -1,1 +1,1 @@
-die("BUG: initial ref transaction called with existing refs");
+die("unable to generate diff for %s", one->path);

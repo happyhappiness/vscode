@@ -1,1 +1,1 @@
-error(_("cannot cherry-pick during a revert."));
+error(_("%s: bad revision"), name);
