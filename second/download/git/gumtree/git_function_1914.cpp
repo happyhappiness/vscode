@@ -1,4 +1,4 @@
-static char *grab_blob(const unsigned char *sha1, unsigned int mode,
+char *grab_blob(const unsigned char *sha1, unsigned int mode,
 		       unsigned long *size, struct userdiff_driver *textconv,
 		       const char *path)
 {

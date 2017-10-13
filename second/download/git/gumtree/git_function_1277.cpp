@@ -1,4 +1,4 @@
-tatic void write_commented_object(int fd, const unsigned char *object)
+static void write_commented_object(int fd, const unsigned char *object)
 {
 	const char *show_args[5] =
 		{"show", "--stat", "--no-notes", sha1_to_hex(object), NULL};

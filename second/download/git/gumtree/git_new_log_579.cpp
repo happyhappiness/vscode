@@ -1,1 +1,1 @@
-(_(env_hint);
+fputs(_(env_hint), stderr);

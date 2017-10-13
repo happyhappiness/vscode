@@ -1,4 +1,4 @@
-tatic int list(int argc, const char **argv, const char *prefix)
+static int list(int argc, const char **argv, const char *prefix)
 {
 	struct notes_tree *t;
 	unsigned char object[20];

@@ -1,1 +1,1 @@
-_("too-short tree object");
+strbuf_addstr(err, _("too-short tree object"));

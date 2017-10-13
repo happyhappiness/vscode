@@ -1,4 +1,4 @@
-tatic void check_ref_valid(unsigned char object[20],
+static void check_ref_valid(unsigned char object[20],
 			    unsigned char prev[20],
 			    char *ref,
 			    int ref_size,

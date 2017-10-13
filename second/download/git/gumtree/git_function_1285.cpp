@@ -1,4 +1,4 @@
-tatic int append_edit(int argc, const char **argv, const char *prefix)
+static int append_edit(int argc, const char **argv, const char *prefix)
 {
 	int allow_empty = 0;
 	const char *object_ref;

@@ -1,4 +1,4 @@
-tatic int add(int argc, const char **argv, const char *prefix)
+static int add(int argc, const char **argv, const char *prefix)
 {
 	int retval = 0, force = 0;
 	const char *object_ref;

@@ -1,4 +1,4 @@
-tatic void format_and_print_ref_item(struct ref_array_item *item, int maxwidth,
+static void format_and_print_ref_item(struct ref_array_item *item, int maxwidth,
 				      struct ref_filter *filter, const char *remote_prefix)
 {
 	char c;
