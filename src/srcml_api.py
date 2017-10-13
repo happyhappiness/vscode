@@ -9,6 +9,7 @@ class SrcmlApi:
         if source_file is not None:
             self.set_file(source_file)
         self.log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+        self.log_functions.append('_')
 
     """
     @ param log location(int from 0; better not be -1)
