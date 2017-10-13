@@ -1,4 +1,4 @@
-tatic const unsigned char *match_points_at(const char *refname,
+static const unsigned char *match_points_at(const char *refname,
 					    const unsigned char *sha1)
 {
 	const unsigned char *tagged_sha1 = NULL;

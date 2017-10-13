@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_function_940.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">break_delta_chains<pos:position pos:line="1" pos:column="31"/></name><parameter_list pos:line="1" pos:column="31">(<parameter><decl><type><name><name pos:line="1" pos:column="32">struct<pos:position pos:line="1" pos:column="38"/></name> <name pos:line="1" pos:column="39">object_entry<pos:position pos:line="1" pos:column="51"/></name></name> <modifier pos:line="1" pos:column="52">*<pos:position pos:line="1" pos:column="53"/></modifier></type><name pos:line="1" pos:column="53">entry<pos:position pos:line="1" pos:column="58"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="59"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<comment type="block" pos:line="3" pos:column="9">/*
+	 * The actual depth of each object we will write is stored as an int,
+	 * as it cannot exceed our int "depth" limit. But before we break
+	 * changes based no that limit, we may potentially go as deep as the
+	 * number of objects, which is elsewhere bounded to a uint32_t.
+	 */</comment>
+	<decl_stmt><decl><type><name pos:line="9" pos:column="9">uint32_t<pos:position pos:line="9" pos:column="17"/></name></type> <name pos:line="9" pos:column="18">total_depth<pos:position pos:line="9" pos:column="29"/></name></decl>;<pos:position pos:line="9" pos:column="30"/></decl_stmt>
+	<decl_stmt><decl><type><name><name pos:line="10" pos:column="9">struct<pos:position pos:line="10" pos:column="15"/></name> <name pos:line="10" pos:column="16">object_entry<pos:position pos:line="10" pos:column="28"/></name></name> <modifier pos:line="10" pos:column="29">*<pos:position pos:line="10" pos:column="30"/></modifier></type><name pos:line="10" pos:column="30">cur<pos:position pos:line="10" pos:column="33"/></name></decl>, <modifier pos:line="10" pos:column="35">*<pos:position pos:line="10" pos:column="36"/></modifier><decl><type ref="prev"/><name pos:line="10" pos:column="36">next<pos:position pos:line="10" pos:column="40"/></name></decl>;<pos:position pos:line="10" pos:column="41"/></decl_stmt>
+
+	<for pos:line="12" pos:column="9">for <control pos:line="12" pos:column="13">(<init><expr><name pos:line="12" pos:column="14">cur<pos:position pos:line="12" pos:column="17"/></name> <operator pos:line="12" pos:column="18">=<pos:position pos:line="12" pos:column="19"/></operator> <name pos:line="12" pos:column="20">entry<pos:position pos:line="12" pos:column="25"/></name></expr><operator pos:line="12" pos:column="25">,<pos:position pos:line="12" pos:column="26"/></operator> <expr><name pos:line="12" pos:column="27">total_depth<pos:position pos:line="12" pos:column="38"/></name> <operator pos:line="12" pos:column="39">=<pos:position pos:line="12" pos:column="40"/></operator> <literal type="number" pos:line="12" pos:column="41">0<pos:position pos:line="12" pos:column="42"/></literal></expr>;<pos:position pos:line="12" pos:column="43"/></init>
+	     <condition><expr><name pos:line="13" pos:column="14">cur<pos:position pos:line="13" pos:column="17"/></name></expr>;<pos:position pos:line="13" pos:column="18"/></condition>
+	     <incr><expr><name pos:line="14" pos:column="14">cur<pos:position pos:line="14" pos:column="17"/></name> <operator pos:line="14" pos:column="18">=<pos:position pos:line="14" pos:column="19"/></operator> <name><name pos:line="14" pos:column="20">cur<pos:position pos:line="14" pos:column="23"/></name><operator pos:line="14" pos:column="23">-&gt;<pos:position pos:line="14" pos:column="28"/></operator><name pos:line="14" pos:column="25">delta<pos:position pos:line="14" pos:column="30"/></name></name></expr><operator pos:line="14" pos:column="30">,<pos:position pos:line="14" pos:column="31"/></operator> <expr><name pos:line="14" pos:column="32">total_depth<pos:position pos:line="14" pos:column="43"/></name><operator pos:line="14" pos:column="43">++<pos:position pos:line="14" pos:column="45"/></operator></expr></incr>)<pos:position pos:line="14" pos:column="46"/></control> <block pos:line="14" pos:column="47">{
+		<if pos:line="15" pos:column="17">if <condition pos:line="15" pos:column="20">(<expr><name><name pos:line="15" pos:column="21">cur<pos:position pos:line="15" pos:column="24"/></name><operator pos:line="15" pos:column="24">-&gt;<pos:position pos:line="15" pos:column="29"/></operator><name pos:line="15" pos:column="26">dfs_state<pos:position pos:line="15" pos:column="35"/></name></name> <operator pos:line="15" pos:column="36">==<pos:position pos:line="15" pos:column="38"/></operator> <name pos:line="15" pos:column="39">DFS_DONE<pos:position pos:line="15" pos:column="47"/></name></expr>)<pos:position pos:line="15" pos:column="48"/></condition><then pos:line="15" pos:column="48"> <block pos:line="15" pos:column="49">{
+			<comment type="block" pos:line="16" pos:column="25">/*
+			 * We've already seen this object and know it isn't
+			 * part of a cycle. We do need to append its depth
+			 * to our count.
+			 */</comment>
+			<expr_stmt><expr><name pos:line="21" pos:column="25">total_depth<pos:position pos:line="21" pos:column="36"/></name> <operator pos:line="21" pos:column="37">+=<pos:position pos:line="21" pos:column="39"/></operator> <name><name pos:line="21" pos:column="40">cur<pos:position pos:line="21" pos:column="43"/></name><operator pos:line="21" pos:column="43">-&gt;<pos:position pos:line="21" pos:column="48"/></operator><name pos:line="21" pos:column="45">depth<pos:position pos:line="21" pos:column="50"/></name></name></expr>;<pos:position pos:line="21" pos:column="51"/></expr_stmt>
+			<break pos:line="22" pos:column="25">break;<pos:position pos:line="22" pos:column="31"/></break>
+		}<pos:position pos:line="23" pos:column="18"/></block></then></if>
+
+		<comment type="block" pos:line="25" pos:column="17">/*
+		 * We break cycles before looping, so an ACTIVE state (or any
+		 * other cruft which made its way into the state variable)
+		 * is a bug.
+		 */</comment>
+		<if pos:line="30" pos:column="17">if <condition pos:line="30" pos:column="20">(<expr><name><name pos:line="30" pos:column="21">cur<pos:position pos:line="30" pos:column="24"/></name><operator pos:line="30" pos:column="24">-&gt;<pos:position pos:line="30" pos:column="29"/></operator><name pos:line="30" pos:column="26">dfs_state<pos:position pos:line="30" pos:column="35"/></name></name> <operator pos:line="30" pos:column="36">!=<pos:position pos:line="30" pos:column="38"/></operator> <name pos:line="30" pos:column="39">DFS_NONE<pos:position pos:line="30" pos:column="47"/></name></expr>)<pos:position pos:line="30" pos:column="48"/></condition><then pos:line="30" pos:column="48">
+			<block type="pseudo"><expr_stmt><expr><call><name pos:line="31" pos:column="25">die<pos:position pos:line="31" pos:column="28"/></name><argument_list pos:line="31" pos:column="28">(<argument><expr><literal type="string" pos:line="31" pos:column="29">"BUG: confusing delta dfs state in first pass: %d"<pos:position pos:line="31" pos:column="79"/></literal></expr></argument>,
+			    <argument><expr><name><name pos:line="32" pos:column="29">cur<pos:position pos:line="32" pos:column="32"/></name><operator pos:line="32" pos:column="32">-&gt;<pos:position pos:line="32" pos:column="37"/></operator><name pos:line="32" pos:column="34">dfs_state<pos:position pos:line="32" pos:column="43"/></name></name></expr></argument>)<pos:position pos:line="32" pos:column="44"/></argument_list></call></expr>;<pos:position pos:line="32" pos:column="45"/></expr_stmt></block></then></if>
+
+		<comment type="block" pos:line="34" pos:column="17">/*
+		 * Now we know this is the first time we've seen the object. If
+		 * it's not a delta, we're done traversing, but we'll mark it
+		 * done to save time on future traversals.
+		 */</comment>
+		<if pos:line="39" pos:column="17">if <condition pos:line="39" pos:column="20">(<expr><operator pos:line="39" pos:column="21">!<pos:position pos:line="39" pos:column="22"/></operator><name><name pos:line="39" pos:column="22">cur<pos:position pos:line="39" pos:column="25"/></name><operator pos:line="39" pos:column="25">-&gt;<pos:position pos:line="39" pos:column="30"/></operator><name pos:line="39" pos:column="27">delta<pos:position pos:line="39" pos:column="32"/></name></name></expr>)<pos:position pos:line="39" pos:column="33"/></condition><then pos:line="39" pos:column="33"> <block pos:line="39" pos:column="34">{
+			<expr_stmt><expr><name><name pos:line="40" pos:column="25">cur<pos:position pos:line="40" pos:column="28"/></name><operator pos:line="40" pos:column="28">-&gt;<pos:position pos:line="40" pos:column="33"/></operator><name pos:line="40" pos:column="30">dfs_state<pos:position pos:line="40" pos:column="39"/></name></name> <operator pos:line="40" pos:column="40">=<pos:position pos:line="40" pos:column="41"/></operator> <name pos:line="40" pos:column="42">DFS_DONE<pos:position pos:line="40" pos:column="50"/></name></expr>;<pos:position pos:line="40" pos:column="51"/></expr_stmt>
+			<break pos:line="41" pos:column="25">break;<pos:position pos:line="41" pos:column="31"/></break>
+		}<pos:position pos:line="42" pos:column="18"/></block></then></if>
+
+		<comment type="block" pos:line="44" pos:column="17">/*
+		 * Mark ourselves as active and see if the next step causes
+		 * us to cycle to another active object. It's important to do
+		 * this _before_ we loop, because it impacts where we make the
+		 * cut, and thus how our total_depth counter works.
+		 * E.g., We may see a partial loop like:
+		 *
+		 *   A -&gt; B -&gt; C -&gt; D -&gt; B
+		 *
+		 * Cutting B-&gt;C breaks the cycle. But now the depth of A is
+		 * only 1, and our total_depth counter is at 3. The size of the
+		 * error is always one less than the size of the cycle we
+		 * broke. Commits C and D were "lost" from A's chain.
+		 *
+		 * If we instead cut D-&gt;B, then the depth of A is correct at 3.
+		 * We keep all commits in the chain that we examined.
+		 */</comment>
+		<expr_stmt><expr><name><name pos:line="61" pos:column="17">cur<pos:position pos:line="61" pos:column="20"/></name><operator pos:line="61" pos:column="20">-&gt;<pos:position pos:line="61" pos:column="25"/></operator><name pos:line="61" pos:column="22">dfs_state<pos:position pos:line="61" pos:column="31"/></name></name> <operator pos:line="61" pos:column="32">=<pos:position pos:line="61" pos:column="33"/></operator> <name pos:line="61" pos:column="34">DFS_ACTIVE<pos:position pos:line="61" pos:column="44"/></name></expr>;<pos:position pos:line="61" pos:column="45"/></expr_stmt>
+		<if pos:line="62" pos:column="17">if <condition pos:line="62" pos:column="20">(<expr><name><name pos:line="62" pos:column="21">cur<pos:position pos:line="62" pos:column="24"/></name><operator pos:line="62" pos:column="24">-&gt;<pos:position pos:line="62" pos:column="29"/></operator><name pos:line="62" pos:column="26">delta<pos:position pos:line="62" pos:column="31"/></name><operator pos:line="62" pos:column="31">-&gt;<pos:position pos:line="62" pos:column="36"/></operator><name pos:line="62" pos:column="33">dfs_state<pos:position pos:line="62" pos:column="42"/></name></name> <operator pos:line="62" pos:column="43">==<pos:position pos:line="62" pos:column="45"/></operator> <name pos:line="62" pos:column="46">DFS_ACTIVE<pos:position pos:line="62" pos:column="56"/></name></expr>)<pos:position pos:line="62" pos:column="57"/></condition><then pos:line="62" pos:column="57"> <block pos:line="62" pos:column="58">{
+			<expr_stmt><expr><call><name pos:line="63" pos:column="25">drop_reused_delta<pos:position pos:line="63" pos:column="42"/></name><argument_list pos:line="63" pos:column="42">(<argument><expr><name pos:line="63" pos:column="43">cur<pos:position pos:line="63" pos:column="46"/></name></expr></argument>)<pos:position pos:line="63" pos:column="47"/></argument_list></call></expr>;<pos:position pos:line="63" pos:column="48"/></expr_stmt>
+			<expr_stmt><expr><name><name pos:line="64" pos:column="25">cur<pos:position pos:line="64" pos:column="28"/></name><operator pos:line="64" pos:column="28">-&gt;<pos:position pos:line="64" pos:column="33"/></operator><name pos:line="64" pos:column="30">dfs_state<pos:position pos:line="64" pos:column="39"/></name></name> <operator pos:line="64" pos:column="40">=<pos:position pos:line="64" pos:column="41"/></operator> <name pos:line="64" pos:column="42">DFS_DONE<pos:position pos:line="64" pos:column="50"/></name></expr>;<pos:position pos:line="64" pos:column="51"/></expr_stmt>
+			<break pos:line="65" pos:column="25">break;<pos:position pos:line="65" pos:column="31"/></break>
+		}<pos:position pos:line="66" pos:column="18"/></block></then></if>
+	}<pos:position pos:line="67" pos:column="10"/></block></for>
+
+	<comment type="block" pos:line="69" pos:column="9">/*
+	 * And now that we've gone all the way to the bottom of the chain, we
+	 * need to clear the active flags and set the depth fields as
+	 * appropriate. Unlike the loop above, which can quit when it drops a
+	 * delta, we need to keep going to look for more depth cuts. So we need
+	 * an extra "next" pointer to keep going after we reset cur-&gt;delta.
+	 */</comment>
+	<for pos:line="76" pos:column="9">for <control pos:line="76" pos:column="13">(<init><expr><name pos:line="76" pos:column="14">cur<pos:position pos:line="76" pos:column="17"/></name> <operator pos:line="76" pos:column="18">=<pos:position pos:line="76" pos:column="19"/></operator> <name pos:line="76" pos:column="20">entry<pos:position pos:line="76" pos:column="25"/></name></expr>;<pos:position pos:line="76" pos:column="26"/></init> <condition><expr><name pos:line="76" pos:column="27">cur<pos:position pos:line="76" pos:column="30"/></name></expr>;<pos:position pos:line="76" pos:column="31"/></condition> <incr><expr><name pos:line="76" pos:column="32">cur<pos:position pos:line="76" pos:column="35"/></name> <operator pos:line="76" pos:column="36">=<pos:position pos:line="76" pos:column="37"/></operator> <name pos:line="76" pos:column="38">next<pos:position pos:line="76" pos:column="42"/></name></expr></incr>)<pos:position pos:line="76" pos:column="43"/></control> <block pos:line="76" pos:column="44">{
+		<expr_stmt><expr><name pos:line="77" pos:column="17">next<pos:position pos:line="77" pos:column="21"/></name> <operator pos:line="77" pos:column="22">=<pos:position pos:line="77" pos:column="23"/></operator> <name><name pos:line="77" pos:column="24">cur<pos:position pos:line="77" pos:column="27"/></name><operator pos:line="77" pos:column="27">-&gt;<pos:position pos:line="77" pos:column="32"/></operator><name pos:line="77" pos:column="29">delta<pos:position pos:line="77" pos:column="34"/></name></name></expr>;<pos:position pos:line="77" pos:column="35"/></expr_stmt>
+
+		<comment type="block" pos:line="79" pos:column="17">/*
+		 * We should have a chain of zero or more ACTIVE states down to
+		 * a final DONE. We can quit after the DONE, because either it
+		 * has no bases, or we've already handled them in a previous
+		 * call.
+		 */</comment>
+		<if pos:line="85" pos:column="17">if <condition pos:line="85" pos:column="20">(<expr><name><name pos:line="85" pos:column="21">cur<pos:position pos:line="85" pos:column="24"/></name><operator pos:line="85" pos:column="24">-&gt;<pos:position pos:line="85" pos:column="29"/></operator><name pos:line="85" pos:column="26">dfs_state<pos:position pos:line="85" pos:column="35"/></name></name> <operator pos:line="85" pos:column="36">==<pos:position pos:line="85" pos:column="38"/></operator> <name pos:line="85" pos:column="39">DFS_DONE<pos:position pos:line="85" pos:column="47"/></name></expr>)<pos:position pos:line="85" pos:column="48"/></condition><then pos:line="85" pos:column="48">
+			<block type="pseudo"><break pos:line="86" pos:column="25">break;<pos:position pos:line="86" pos:column="31"/></break></block></then>
+		<elseif pos:line="87" pos:column="17">else <if pos:line="87" pos:column="22">if <condition pos:line="87" pos:column="25">(<expr><name><name pos:line="87" pos:column="26">cur<pos:position pos:line="87" pos:column="29"/></name><operator pos:line="87" pos:column="29">-&gt;<pos:position pos:line="87" pos:column="34"/></operator><name pos:line="87" pos:column="31">dfs_state<pos:position pos:line="87" pos:column="40"/></name></name> <operator pos:line="87" pos:column="41">!=<pos:position pos:line="87" pos:column="43"/></operator> <name pos:line="87" pos:column="44">DFS_ACTIVE<pos:position pos:line="87" pos:column="54"/></name></expr>)<pos:position pos:line="87" pos:column="55"/></condition><then pos:line="87" pos:column="55">
+			<block type="pseudo"><expr_stmt><expr><call><name pos:line="88" pos:column="25">die<pos:position pos:line="88" pos:column="28"/></name><argument_list pos:line="88" pos:column="28">(<argument><expr><literal type="string" pos:line="88" pos:column="29">"BUG: confusing delta dfs state in second pass: %d"<pos:position pos:line="88" pos:column="80"/></literal></expr></argument>,
+			    <argument><expr><name><name pos:line="89" pos:column="29">cur<pos:position pos:line="89" pos:column="32"/></name><operator pos:line="89" pos:column="32">-&gt;<pos:position pos:line="89" pos:column="37"/></operator><name pos:line="89" pos:column="34">dfs_state<pos:position pos:line="89" pos:column="43"/></name></name></expr></argument>)<pos:position pos:line="89" pos:column="44"/></argument_list></call></expr>;<pos:position pos:line="89" pos:column="45"/></expr_stmt></block></then></if></elseif></if>
+
+		<comment type="block" pos:line="91" pos:column="17">/*
+		 * If the total_depth is more than depth, then we need to snip
+		 * the chain into two or more smaller chains that don't exceed
+		 * the maximum depth. Most of the resulting chains will contain
+		 * (depth + 1) entries (i.e., depth deltas plus one base), and
+		 * the last chain (i.e., the one containing entry) will contain
+		 * whatever entries are left over, namely
+		 * (total_depth % (depth + 1)) of them.
+		 *
+		 * Since we are iterating towards decreasing depth, we need to
+		 * decrement total_depth as we go, and we need to write to the
+		 * entry what its final depth will be after all of the
+		 * snipping. Since we're snipping into chains of length (depth
+		 * + 1) entries, the final depth of an entry will be its
+		 * original depth modulo (depth + 1). Any time we encounter an
+		 * entry whose final depth is supposed to be zero, we snip it
+		 * from its delta base, thereby making it so.
+		 */</comment>
+		<expr_stmt><expr><name><name pos:line="109" pos:column="17">cur<pos:position pos:line="109" pos:column="20"/></name><operator pos:line="109" pos:column="20">-&gt;<pos:position pos:line="109" pos:column="25"/></operator><name pos:line="109" pos:column="22">depth<pos:position pos:line="109" pos:column="27"/></name></name> <operator pos:line="109" pos:column="28">=<pos:position pos:line="109" pos:column="29"/></operator> <operator pos:line="109" pos:column="30">(<pos:position pos:line="109" pos:column="31"/></operator><name pos:line="109" pos:column="31">total_depth<pos:position pos:line="109" pos:column="42"/></name><operator pos:line="109" pos:column="42">--<pos:position pos:line="109" pos:column="44"/></operator><operator pos:line="109" pos:column="44">)<pos:position pos:line="109" pos:column="45"/></operator> <operator pos:line="109" pos:column="46">%<pos:position pos:line="109" pos:column="47"/></operator> <operator pos:line="109" pos:column="48">(<pos:position pos:line="109" pos:column="49"/></operator><name pos:line="109" pos:column="49">depth<pos:position pos:line="109" pos:column="54"/></name> <operator pos:line="109" pos:column="55">+<pos:position pos:line="109" pos:column="56"/></operator> <literal type="number" pos:line="109" pos:column="57">1<pos:position pos:line="109" pos:column="58"/></literal><operator pos:line="109" pos:column="58">)<pos:position pos:line="109" pos:column="59"/></operator></expr>;<pos:position pos:line="109" pos:column="60"/></expr_stmt>
+		<if pos:line="110" pos:column="17">if <condition pos:line="110" pos:column="20">(<expr><operator pos:line="110" pos:column="21">!<pos:position pos:line="110" pos:column="22"/></operator><name><name pos:line="110" pos:column="22">cur<pos:position pos:line="110" pos:column="25"/></name><operator pos:line="110" pos:column="25">-&gt;<pos:position pos:line="110" pos:column="30"/></operator><name pos:line="110" pos:column="27">depth<pos:position pos:line="110" pos:column="32"/></name></name></expr>)<pos:position pos:line="110" pos:column="33"/></condition><then pos:line="110" pos:column="33">
+			<block type="pseudo"><expr_stmt><expr><call><name pos:line="111" pos:column="25">drop_reused_delta<pos:position pos:line="111" pos:column="42"/></name><argument_list pos:line="111" pos:column="42">(<argument><expr><name pos:line="111" pos:column="43">cur<pos:position pos:line="111" pos:column="46"/></name></expr></argument>)<pos:position pos:line="111" pos:column="47"/></argument_list></call></expr>;<pos:position pos:line="111" pos:column="48"/></expr_stmt></block></then></if>
+
+		<expr_stmt><expr><name><name pos:line="113" pos:column="17">cur<pos:position pos:line="113" pos:column="20"/></name><operator pos:line="113" pos:column="20">-&gt;<pos:position pos:line="113" pos:column="25"/></operator><name pos:line="113" pos:column="22">dfs_state<pos:position pos:line="113" pos:column="31"/></name></name> <operator pos:line="113" pos:column="32">=<pos:position pos:line="113" pos:column="33"/></operator> <name pos:line="113" pos:column="34">DFS_DONE<pos:position pos:line="113" pos:column="42"/></name></expr>;<pos:position pos:line="113" pos:column="43"/></expr_stmt>
+	}<pos:position pos:line="114" pos:column="10"/></block></for>
+}<pos:position pos:line="115" pos:column="2"/></block></function></unit>

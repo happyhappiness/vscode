@@ -40,7 +40,7 @@ class SrcmlApi:
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
         for call in call_nodes:
             name = call[0]
-            location = name.attrib.values()[0]
+            location = self._get_location(name)
             # filter by location
             if location == log_location:
                 self.log_node = call
@@ -115,7 +115,7 @@ class SrcmlApi:
         # filter out the one with log statement changes
         name_nodes, node_info = self._get_pure_name_nodes(node)
         for name_node in name_nodes:
-            name_line = int(name_node.attrib.values()[0])
+            name_line = int(self._get_location(name_node))
             depended_nodes = self._get_depended_nodes(name_node)
             type_info = None
             arg_info = None
@@ -128,6 +128,9 @@ class SrcmlApi:
                 depended_node = depended_info[0]
                 depended_type = depended_info[1]
                 # call --name or type --name
+                if len(depended_node) <= 0:
+                    print 'can not find name for depended node %s' %depended_node.tag
+                    continue
                 info = self._remove_blank(depended_node[0])
                 if info in self.log_functions:
                     continue
@@ -161,14 +164,14 @@ class SrcmlApi:
     """
     def _get_depended_nodes(self, node):
         depended_nodes = {}
-        node_line = node.attrib.values()[0]
+        node_line = self._get_location(node)
         # find all name node
         candi_nodes = self.tree.findall("//default:name", namespaces=self.namespace_map)
         is_ptr = False # mark for pointer argument
         for candi_node in candi_nodes:
-            if candi_node == node or candi_node.text != node.text:
+            if candi_node == node or candi_node.text != node.text or candi_node.text is None:
                 continue
-            candi_line = candi_node.attrib.values()[0]
+            candi_line = self._get_location(candi_node)
             # find use as return or reference argument for functions
             if candi_line < node_line:
                 # filter by name = call
@@ -240,7 +243,7 @@ class SrcmlApi:
                     is_valid = False
                     break
             # append valid name node
-            if is_valid:
+            if is_valid and name_node.text is not None:
                 name_nodes.append(name_node)
 
         # add call info for call descendants
@@ -291,7 +294,7 @@ class SrcmlApi:
             return content
         # if has text, add to content
         if node.text:
-            content += " " + node.attrib.values()[0]+ "@"\
+            content += " " + self._get_location(node)+ "@"\
                          + self._remove_prefix(node) + "@" + node.text
 
         # add text of children
@@ -318,10 +321,25 @@ class SrcmlApi:
     @ involve remove blank
     """
     def _remove_blank(self, node):
-        return node.text.replace(' ', '')
+        if node.text is None:
+            print 'can not find text for %s' %node.tag
+            return 'no text'
+        else:
+            return node.text.replace(' ', '')
 
 
-
+    """
+    @ param node
+    @ return loacation
+    @ involve get location if possible
+    """
+    def _get_location(self, node):
+        if node is None or node.text is None:
+            print 'can not find location for %s' %node.tag
+            return -1
+        else:
+            return node.attrib.values()[0]
+        
 if __name__ == "__main__":
     # input function cpp file
     srcml_api = SrcmlApi('clang/hello.cpp')

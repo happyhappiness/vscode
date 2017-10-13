@@ -1,1 +1,1 @@
-oid_to_hex(&commit->object.oid);
+die("bad tree compare for commit %s", oid_to_hex(&commit->object.oid));

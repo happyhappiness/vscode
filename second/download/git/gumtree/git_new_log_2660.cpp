@@ -1,1 +1,1 @@
-(_("stage should be between 1 and 3 or all");
+die(_("stage should be between 1 and 3 or all"));

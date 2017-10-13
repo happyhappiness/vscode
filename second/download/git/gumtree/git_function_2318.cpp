@@ -1,4 +1,4 @@
-nt cmd_clone(int argc, const char **argv, const char *prefix)
+int cmd_clone(int argc, const char **argv, const char *prefix)
 {
 	int is_bundle = 0, is_local;
 	struct stat buf;

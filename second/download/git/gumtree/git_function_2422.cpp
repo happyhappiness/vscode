@@ -1,4 +1,4 @@
-tatic int show_reference(const char *refname, const struct object_id *oid,
+static int show_reference(const char *refname, const struct object_id *oid,
 			  int flag, void *cb_data)
 {
 	struct tag_filter *filter = cb_data;

@@ -1,1 +1,1 @@
-(_("We cannot bisect more!\n");
+printf(_("We cannot bisect more!\n"));

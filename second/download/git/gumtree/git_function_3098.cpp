@@ -1,4 +1,4 @@
-tatic void update_remote_refs(const struct ref *refs,
+static void update_remote_refs(const struct ref *refs,
 			       const struct ref *mapped_refs,
 			       const struct ref *remote_head_points_at,
 			       const char *branch_top,

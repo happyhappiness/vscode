@@ -1,1 +1,1 @@
-(_("Aborting.");
+die(_("Aborting."));

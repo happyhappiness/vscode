@@ -1,4 +1,4 @@
-tatic struct notes_tree *init_notes_check(const char *subcommand)
+static struct notes_tree *init_notes_check(const char *subcommand)
 {
 	struct notes_tree *t;
 	init_notes(NULL, NULL, NULL, 0);

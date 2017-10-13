@@ -1,1 +1,1 @@
-(_("reading bisect refs failed");
+die(_("reading bisect refs failed"));

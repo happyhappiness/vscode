@@ -1,4 +1,4 @@
-tatic void write_config(struct string_list *config)
+static void write_config(struct string_list *config)
 {
 	int i;
 
