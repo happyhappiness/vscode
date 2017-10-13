@@ -1,4 +1,4 @@
-tatic void print_ref_list(struct ref_filter *filter, struct ref_sorting *sorting, struct ref_format *format)
+static void print_ref_list(struct ref_filter *filter, struct ref_sorting *sorting, struct ref_format *format)
 {
 	int i;
 	struct ref_array array;

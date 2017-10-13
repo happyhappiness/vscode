@@ -1,4 +1,4 @@
-tatic int delete_tag(const char *name, const char *ref,
+static int delete_tag(const char *name, const char *ref,
 		      const unsigned char *sha1, const void *cb_data)
 {
 	if (delete_ref(NULL, ref, sha1, 0))

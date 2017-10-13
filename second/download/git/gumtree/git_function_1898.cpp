@@ -1,4 +1,4 @@
-tatic void show_tag_lines(const unsigned char *sha1, int lines)
+static void show_tag_lines(const unsigned char *sha1, int lines)
 {
 	int i;
 	unsigned long size;

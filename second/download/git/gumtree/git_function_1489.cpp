@@ -1,4 +1,4 @@
-tatic void print_summary(const char *prefix, const unsigned char *sha1,
+static void print_summary(const char *prefix, const unsigned char *sha1,
 			  int initial_commit)
 {
 	struct rev_info rev;

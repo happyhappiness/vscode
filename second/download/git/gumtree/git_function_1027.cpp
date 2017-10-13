@@ -1,4 +1,4 @@
-tatic void create_tag(const unsigned char *object, const char *tag,
+static void create_tag(const unsigned char *object, const char *tag,
 		       struct strbuf *buf, struct create_tag_options *opt,
 		       unsigned char *prev, unsigned char *result)
 {

@@ -1,4 +1,4 @@
-tatic int delete_branches(int argc, const char **argv, int force, int kinds,
+static int delete_branches(int argc, const char **argv, int force, int kinds,
 			   int quiet)
 {
 	struct commit *head_rev = NULL;

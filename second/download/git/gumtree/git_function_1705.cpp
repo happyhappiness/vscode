@@ -1,4 +1,4 @@
-tatic void dissociate_from_references(void)
+static void dissociate_from_references(void)
 {
 	static const char* argv[] = { "repack", "-a", "-d", NULL };
 

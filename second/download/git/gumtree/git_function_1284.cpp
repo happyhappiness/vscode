@@ -1,4 +1,4 @@
-tatic int copy(int argc, const char **argv, const char *prefix)
+static int copy(int argc, const char **argv, const char *prefix)
 {
 	int retval = 0, force = 0, from_stdin = 0;
 	const unsigned char *from_note, *note;

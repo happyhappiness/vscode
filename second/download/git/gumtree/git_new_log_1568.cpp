@@ -1,1 +1,1 @@
-(_("unable to parse command-line config");
+die(_("unable to parse command-line config"));

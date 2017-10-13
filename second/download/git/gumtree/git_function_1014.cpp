@@ -1,4 +1,4 @@
-tatic int edit_and_replace(const char *object_ref, int force, int raw)
+static int edit_and_replace(const char *object_ref, int force, int raw)
 {
 	char *tmpfile = git_pathdup("REPLACE_EDITOBJ");
 	enum object_type type;

@@ -1,4 +1,4 @@
-tatic int for_each_tag_name(const char **argv, each_tag_name_fn fn,
+static int for_each_tag_name(const char **argv, each_tag_name_fn fn,
 			     const void *cb_data)
 {
 	const char **p;

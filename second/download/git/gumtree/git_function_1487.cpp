@@ -1,4 +1,4 @@
-tatic void determine_author_info(struct strbuf *author_ident)
+static void determine_author_info(struct strbuf *author_ident)
 {
 	char *name, *email, *date;
 	struct ident_split author;

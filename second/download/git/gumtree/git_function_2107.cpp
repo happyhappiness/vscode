@@ -1,4 +1,4 @@
-tatic int merge(int argc, const char **argv, const char *prefix)
+static int merge(int argc, const char **argv, const char *prefix)
 {
 	struct strbuf remote_ref = STRBUF_INIT, msg = STRBUF_INIT;
 	unsigned char result_sha1[20];

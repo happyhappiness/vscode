@@ -1,4 +1,4 @@
-tatic void create_note(const unsigned char *object, struct msg_arg *msg,
+static void create_note(const unsigned char *object, struct msg_arg *msg,
 			int append_only, const unsigned char *prev,
 			unsigned char *result)
 {

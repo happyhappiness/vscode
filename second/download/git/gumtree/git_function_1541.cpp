@@ -1,4 +1,4 @@
-tatic int replace_object_sha1(const char *object_ref,
+static int replace_object_sha1(const char *object_ref,
 			       unsigned char object[20],
 			       const char *replace_ref,
 			       unsigned char repl[20],

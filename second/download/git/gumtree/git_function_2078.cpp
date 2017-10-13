@@ -1,4 +1,4 @@
-tatic char *guess_dir_name(const char *repo, int is_bundle, int is_bare)
+static char *guess_dir_name(const char *repo, int is_bundle, int is_bare)
 {
 	const char *end = repo + strlen(repo), *start, *ptr;
 	size_t len;

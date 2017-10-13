@@ -1,4 +1,4 @@
-tatic int show_reference(const char *refname, const unsigned char *sha1,
+static int show_reference(const char *refname, const unsigned char *sha1,
 			  int flag, void *cb_data)
 {
 	struct show_data *data = cb_data;

@@ -1,1 +1,1 @@
-(_("--author '%s' is not 'Name <email>' and matches no existing author");
+die(_("--author '%s' is not 'Name <email>' and matches no existing author"), name);

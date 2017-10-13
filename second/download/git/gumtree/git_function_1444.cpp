@@ -1,4 +1,4 @@
-tatic int list_tags(struct ref_filter *filter, struct ref_sorting *sorting,
+static int list_tags(struct ref_filter *filter, struct ref_sorting *sorting,
 		     struct ref_format *format)
 {
 	struct ref_array array;

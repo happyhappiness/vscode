@@ -1,4 +1,4 @@
-tatic int create_graft(int argc, const char **argv, int force)
+static int create_graft(int argc, const char **argv, int force)
 {
 	unsigned char old[20], new[20];
 	const char *old_ref = argv[0];

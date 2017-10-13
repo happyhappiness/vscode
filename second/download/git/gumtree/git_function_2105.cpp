@@ -1,4 +1,4 @@
-tatic int git_config_get_notes_strategy(const char *key,
+static int git_config_get_notes_strategy(const char *key,
 					 enum notes_merge_strategy *strategy)
 {
 	const char *value;

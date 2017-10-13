@@ -1,4 +1,4 @@
-tatic void write_remote_refs(const struct ref *local_refs)
+static void write_remote_refs(const struct ref *local_refs)
 {
 	const struct ref *r;
 

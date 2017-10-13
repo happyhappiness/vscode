@@ -1,1 +1,1 @@
-(_("revision walk setup failed");
+die(_("revision walk setup failed"));

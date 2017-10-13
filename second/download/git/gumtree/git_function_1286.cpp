@@ -1,4 +1,4 @@
-tatic int show(int argc, const char **argv, const char *prefix)
+static int show(int argc, const char **argv, const char *prefix)
 {
 	const char *object_ref;
 	struct notes_tree *t;

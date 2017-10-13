@@ -1,4 +1,4 @@
-tatic const char *find_author_by_nickname(const char *name)
+static const char *find_author_by_nickname(const char *name)
 {
 	struct rev_info revs;
 	struct commit *commit;

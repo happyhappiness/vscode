@@ -1,1 +1,1 @@
-(_("no email was given and auto-detection is disabled");
+die(_("no email was given and auto-detection is disabled"));
