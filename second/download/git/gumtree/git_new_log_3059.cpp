@@ -1,1 +1,1 @@
-strbuf_write(&pp->children[i].err, stderr);
+die_errno(_("Could not open file '%s'"), filename);

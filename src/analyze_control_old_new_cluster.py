@@ -27,8 +27,8 @@ def cluster_feature(z3_api):
     for record in islice(records, 1, None):  # remove the table title
         old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
         new_loc = record[my_constant.FETCH_LOG_NEW_LOC]# old cdg feature
-        old_check_feature = json.loads(record[my_constant.ANALYZE_OLD_CHECK])
-        old_variable_feature = json.loads(record[my_constant.ANALYZE_OLD_VARIABLE])
+        check_feature = json.loads(record[my_constant.ANALYZE_OLD_CHECK])
+        variable_feature = json.loads(record[my_constant.ANALYZE_OLD_VARIABLE])
         new_check_feature = json.loads(record[my_constant.ANALYZE_NEW_CHECK])
         new_variable_feature = json.loads(record[my_constant.ANALYZE_NEW_VARIABLE])
         # insert: so care new feature

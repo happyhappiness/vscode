@@ -1,1 +1,0 @@
-die("date format missing colon separator: %s", format);

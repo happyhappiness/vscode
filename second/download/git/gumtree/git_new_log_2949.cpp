@@ -1,1 +1,1 @@
-error_errno("cannot read mail %s", file);
+error_errno("unable to open mailmap at %s", filename);

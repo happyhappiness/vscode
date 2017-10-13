@@ -1,1 +1,2 @@
-rp_error("%s", err.buf);
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

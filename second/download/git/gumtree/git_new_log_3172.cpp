@@ -1,2 +1,1 @@
-error(_("corrupt binary patch at line %d: %.*s"),
-	      state->linenr-1, llen-1, buffer);
+die("submodule--helper remote-branch takes exactly one arguments, got %d", argc);

@@ -1,0 +1,1 @@
+error_errno("cannot read mail %s", file);

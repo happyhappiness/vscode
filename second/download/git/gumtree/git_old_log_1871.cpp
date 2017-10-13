@@ -1,0 +1,1 @@
+fprintf(stderr, "Invalid key pattern: %s\n", key_);

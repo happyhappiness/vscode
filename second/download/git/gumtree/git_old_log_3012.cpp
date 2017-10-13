@@ -1,1 +1,1 @@
-warning("accept failed: %s", strerror(errno));
+warning(_("unable to access '%s': %s"), path, strerror(errno));

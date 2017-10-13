@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die("unable to generate diff");

@@ -1,1 +1,1 @@
-printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");
+printf("rm -f %s\n", path);

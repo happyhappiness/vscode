@@ -1,1 +1,1 @@
-insert_one_record(log, v, oneline.buf);
+die_errno(_("could not stat %s"), file);

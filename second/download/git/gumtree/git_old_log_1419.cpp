@@ -1,1 +1,0 @@
-warning("object %s has unknown type id %d", sha1_to_hex(sha1), type);

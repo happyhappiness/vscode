@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports multi_ack"));
+die(_("Server does not support --deepen"));

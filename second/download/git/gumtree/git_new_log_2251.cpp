@@ -1,1 +1,2 @@
-error("unable to write current sha1 into %s: %s", newrefname, err.buf);
+die_errno("Could not open file %s for reading",
+			  git_path("%s", fname));

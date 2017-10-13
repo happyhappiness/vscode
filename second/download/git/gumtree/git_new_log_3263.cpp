@@ -1,1 +1,2 @@
-die(_("'%s' is already locked"), av[0]);
+strbuf_addf(&o->obuf, "virtual %s\n",
+			merge_remote_util(commit)->name);

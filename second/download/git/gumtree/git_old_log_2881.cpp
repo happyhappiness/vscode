@@ -1,1 +1,1 @@
-die(_("Could not set '%s' to '%s'"), key, value);
+warning("'%s': %s", ce->name, strerror(errno));

@@ -1,1 +1,0 @@
-die("BUG: invalid protocol_allow_config type");

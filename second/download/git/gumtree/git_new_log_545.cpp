@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "deepen-not %s", s->string);
+print_verbose(args, _("done"));

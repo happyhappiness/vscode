@@ -1,2 +1,3 @@
-error(_("Commit %s is a merge but no -m option was given."),
-				oid_to_hex(&commit->object.oid));
+error((opts->action == REPLAY_REVERT)
+			    ? _("Cannot revert during another revert.")
+			    : _("Cannot revert during a cherry-pick."));

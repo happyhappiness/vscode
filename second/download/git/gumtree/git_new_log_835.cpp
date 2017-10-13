@@ -1,1 +1,1 @@
-warning("ignoring alternate with unknown protocol: %s", url);
+fprintf(out, "%s\n", oid_to_hex(oid));

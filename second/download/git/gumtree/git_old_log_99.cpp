@@ -1,1 +1,1 @@
-die("verify %s has extra input: %s", ref.buf, next);
+die("verify %s missing [<oldvalue>] NUL", ref.buf);

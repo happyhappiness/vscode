@@ -1,2 +1,1 @@
-error("BUG: connectivity check has not been run on ref %s",
-			      cmd->ref_name);
+status_printf_ln(s, c, _("Changes to be committed:"));

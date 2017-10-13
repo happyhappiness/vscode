@@ -1,1 +1,1 @@
-die(_("unknown option %s"), arg);
+die(_("please supply the note contents using either -m or -F option"));

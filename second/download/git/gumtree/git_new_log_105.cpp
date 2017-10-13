@@ -1,2 +1,2 @@
-die("%s %s: expected NUL but got: %s",
+die("%s %s: expected SP but got: %s",
 			    command, refname, *next);

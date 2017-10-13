@@ -1,1 +1,1 @@
-fprintf(rev->diffopt.file, "%s\n", output_prefix(&rev->diffopt));
+die("BUG: unpack_entry: left loop at a valid delta");

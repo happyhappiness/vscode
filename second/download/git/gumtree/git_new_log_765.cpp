@@ -1,1 +1,1 @@
-die(_("--stdin requires a git repository"));
+die("strange hostname '%s' blocked", host);

@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die(_("Fatal merge failure, shouldn't happen."));

@@ -1,1 +1,1 @@
-fprintf(out, "%s ", sha1_to_hex(obj->sha1));
+printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;

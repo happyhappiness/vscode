@@ -1,3 +1,1 @@
-fprintf(stderr,
-				_("Submodule '%s' (%s) registered for path '%s'\n"),
-				sub->name, url, displaypath);
+strbuf_write(&pp->children[i].err, stderr);

@@ -1,2 +1,1 @@
-res = error(_("invalid line %d: %.*s"),
-				i, (int)(eol - p), p);
+error_errno(_("could not write to '%s'"), todo_path);

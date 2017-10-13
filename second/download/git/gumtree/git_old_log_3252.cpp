@@ -1,1 +1,3 @@
-die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
+printf(" (from %s)",
+			       find_unique_abbrev(parent->object.oid.hash,
+						  abbrev_commit));

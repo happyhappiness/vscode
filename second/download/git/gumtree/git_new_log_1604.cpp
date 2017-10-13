@@ -1,2 +1,1 @@
-die(_("bad numeric config value '%s' for '%s' in %s: %s"),
-		    value, name, cf->name, reason);
+fprintf(stderr, "IMAP error: could not check mailbox\n");

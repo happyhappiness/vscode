@@ -1,1 +1,2 @@
-die("Failed to read ref NOTES_MERGE_PARTIAL");
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), wt->path);

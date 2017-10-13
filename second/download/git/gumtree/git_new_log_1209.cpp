@@ -1,1 +1,0 @@
-const char msg[] = "die() should not be called in child\n";

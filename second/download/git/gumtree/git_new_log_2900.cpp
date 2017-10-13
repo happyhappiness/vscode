@@ -1,1 +1,0 @@
-die("%s", err.buf);

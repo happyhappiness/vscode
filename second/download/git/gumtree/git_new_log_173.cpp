@@ -1,1 +1,1 @@
-die("Log for %s is empty.", refname);
+error("remote-curl: usage: git remote-curl <remote> [<url>]");

@@ -1,2 +1,1 @@
-error("Could not push objects to %s",
-				rsync_url(transport->url));
+warning(_("failed to exec '%s': %s"), cmd, strerror(errno));

@@ -1,1 +1,1 @@
-die("BUG: not unique item in first-parent chain");
+printf("%.*s%s", p_len - 40, p_start, name);

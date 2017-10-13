@@ -1,1 +1,1 @@
-die(_("unrecognized %%(if) argument: %s"), arg);
+!ref_resolves_to_object(iter->refname, iter->oid, iter->flags);

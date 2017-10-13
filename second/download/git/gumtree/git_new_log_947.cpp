@@ -1,1 +1,1 @@
-error("key does not contain variable name: %s", key);
+die(_("unable to auto-detect name (got '%s')"), name);

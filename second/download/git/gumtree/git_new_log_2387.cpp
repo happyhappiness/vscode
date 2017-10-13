@@ -1,1 +1,1 @@
-die("BUG: not unique item in first-parent chain");
+printf("%s\n", oid_to_hex(&result->item->object.oid));

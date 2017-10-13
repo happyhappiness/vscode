@@ -1,0 +1,1 @@
+die("bad tree object %s", oid_to_hex(&obj->oid));

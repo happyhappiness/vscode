@@ -1,1 +1,1 @@
-die("unknown option --%s", a);
+die_errno("cannot getcwd");

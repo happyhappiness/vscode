@@ -1,1 +1,1 @@
-error("cannot open '%s' for copying", path);
+warning("Invalid parameter \"%s\" for config option \"submodule.%s.ignore\"", value, var);

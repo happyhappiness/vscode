@@ -1,1 +1,1 @@
-error_errno(_("failed writing detached signature to '%s'"), path);
+fprintf(stderr, "fixed %s\n", sb.buf);

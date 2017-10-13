@@ -1,1 +1,1 @@
-die(_("fetch-pack: unable to fork off %s"), cmd_name);
+print_verbose(args, _("Server supports no-done"));

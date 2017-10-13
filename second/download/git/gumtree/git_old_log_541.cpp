@@ -1,1 +1,1 @@
-die("error in object: %s", line);
+fprintf(stderr, "have %s\n", sha1_to_hex(sha1));

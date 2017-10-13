@@ -1,1 +1,1 @@
-die("%s: cannot lock the ref", ref);
+die("usage: git-credential-cache--daemon <socket_path>");

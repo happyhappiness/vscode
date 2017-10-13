@@ -1,2 +1,5 @@
-error("cannot stat '%s': %s", path,
-					strerror(errno));
+status_printf_ln(s, GIT_COLOR_NORMAL,
+				_("%s"
+				"Date:      %s"),
+				ident_shown++ ? "" : "\n",
+				show_ident_date(&ai, DATE_NORMAL));

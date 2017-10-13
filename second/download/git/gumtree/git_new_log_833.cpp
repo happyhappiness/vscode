@@ -1,1 +1,1 @@
-e("BUG: invalid grep_source type to load");
+error(_("unknown command: %d"), command);

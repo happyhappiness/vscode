@@ -1,1 +1,1 @@
-die(_("%s: cannot lock the ref"), ref.buf);
+die_errno("can't find the current directory");

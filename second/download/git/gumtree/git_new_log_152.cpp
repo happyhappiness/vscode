@@ -1,1 +1,1 @@
-unable_to_lock_message(path, err, &buf);
+die_errno("%s: index file open failed", path);

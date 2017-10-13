@@ -1,1 +1,0 @@
-printf("previous %s ", oid_to_hex(&prev->commit->object.oid));

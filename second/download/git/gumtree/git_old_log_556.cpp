@@ -1,1 +1,1 @@
-die("protocol error: bad pack header");
+fprintf(stderr, "Server supports multi_ack_detailed\n");

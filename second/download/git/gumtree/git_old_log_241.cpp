@@ -1,2 +1,2 @@
-warning(_("Cannot prepare timestamp regexp %s"),
-				stamp_regexp);
+die(_("patch fragment without header at line %d: %.*s"),
+			    state->linenr, (int)len-1, line);

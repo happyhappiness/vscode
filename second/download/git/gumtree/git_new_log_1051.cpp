@@ -1,1 +1,1 @@
-strbuf_reset(&ref);
+die(_("remote error: %s"), arg);

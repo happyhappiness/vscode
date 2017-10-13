@@ -1,1 +1,1 @@
-error("no signature found");
+error("short read %s", strerror(errno));

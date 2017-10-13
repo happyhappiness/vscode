@@ -1,1 +1,1 @@
-fprintf(rev->diffopt.file, "%s\n", sb.buf);
+error("unable to read files to diff");

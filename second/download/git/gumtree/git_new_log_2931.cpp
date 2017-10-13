@@ -1,2 +1,1 @@
-die(_("unable to read tree (%s)"),
-				    oid_to_hex(entry.oid));
+error_errno("error while reading from stdin");

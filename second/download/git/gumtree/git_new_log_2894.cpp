@@ -1,1 +1,2 @@
-free(git_work_tree_cfg);
+usage_with_options(git_submodule_helper_usage,
+				   module_clone_options);

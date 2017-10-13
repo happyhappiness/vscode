@@ -1,2 +1,2 @@
-die ("Can't find replacement commit for tag %s\n",
-					     oid_to_hex(&tag->object.oid));
+warning(_("Missing author: %s"),
+		    oid_to_hex(&commit->object.oid));

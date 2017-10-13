@@ -1,0 +1,1 @@
+printf("root %s\n", sha1_to_hex(commit->object.sha1));

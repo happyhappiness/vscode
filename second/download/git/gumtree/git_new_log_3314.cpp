@@ -1,1 +1,1 @@
-fputs(prefix, file);
+die(_("Not a git repository (or any of the parent directories): %s"), DEFAULT_GIT_DIR_ENVIRONMENT);

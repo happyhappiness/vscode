@@ -1,1 +1,1 @@
-die("cannot load shell32.dll");
+printf("-- \n%s", signature);

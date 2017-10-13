@@ -1,1 +1,1 @@
-die("BUG: malformed header expr");
+die(_("the receiving end does not support push options"));

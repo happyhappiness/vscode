@@ -1,1 +1,1 @@
-print_rebase_state(s, state, color);
+printf("%s", find_unique_abbrev(oid->hash, abbrev));

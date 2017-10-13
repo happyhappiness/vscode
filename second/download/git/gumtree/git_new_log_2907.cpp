@@ -1,1 +1,1 @@
-die (_("Please stage your changes to .gitmodules or stash them to proceed"));
+error_errno(_("failed to remove '%s'"), path.buf);

@@ -1,1 +1,1 @@
-die("unable to auto-detect name (got '%s')", name);
+printf(": %s: %s\n", git_attr_name(check[j].attr), value);

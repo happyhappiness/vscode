@@ -1,1 +1,0 @@
-error("pack-objects died of signal %d", rc - 128);

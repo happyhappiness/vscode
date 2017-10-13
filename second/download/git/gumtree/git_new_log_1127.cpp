@@ -1,0 +1,1 @@
+die(_("Cannot change to '%s'"), dir.buf);

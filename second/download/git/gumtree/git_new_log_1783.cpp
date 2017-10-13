@@ -1,1 +1,1 @@
-die("curl_easy_init failed");
+die("BUG: delete called with old_sha1 set to zeros");

@@ -1,1 +1,1 @@
-die("expected NUL but got: %s", next);
+die("badly quoted argument: %s", next);

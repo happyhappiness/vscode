@@ -1,3 +1,2 @@
-die("internal error: work tree has already been set\n"
-			    "Current worktree: %s\nNew worktree: %s",
-			    work_tree, new_work_tree);
+die("Could not parse remote commit %s (%s)",
+		    sha1_to_hex(remote_sha1), o->remote_ref);

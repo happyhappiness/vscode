@@ -1,1 +1,1 @@
-die("BUG: attempt to snprintf into too-small buffer");
+die(_("unrecognized %%(contents) argument: %s"), arg);

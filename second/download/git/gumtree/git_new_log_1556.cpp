@@ -1,1 +1,1 @@
-fprintf(stderr, "corrupt mailbox\n");
+(format(printf, 2, 3);

@@ -1,1 +1,0 @@
-die_errno(_("failed to create directory %s"), path);

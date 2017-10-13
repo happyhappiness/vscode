@@ -1,1 +1,0 @@
-printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));

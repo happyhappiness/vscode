@@ -1,2 +1,1 @@
-die(_("reference repository '%s' as a linked checkout is not supported yet."),
-			    item->string);
+fprintf(f, "%s\n", oid_to_hex(&obj->oid));

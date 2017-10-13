@@ -1,1 +1,1 @@
-("not handling anything other than two heads merge.";
+die(_("failed to read object '%s'."), arg);

@@ -1,2 +1,2 @@
-error("internal error: %s is not a valid packed reference!",
-		      entry->name);
+error(_("%s: cannot parse parent commit %s"),
+			action_name(opts), sha1_to_hex(parent->object.sha1));

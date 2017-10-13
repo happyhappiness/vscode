@@ -1,1 +1,2 @@
-fprintf(file, "\nbase-commit: %s\n", oid_to_hex(&bases->base_commit));
+warning("curl_multi_add_handle failed: %s",
+			curl_multi_strerror(curlm_result));

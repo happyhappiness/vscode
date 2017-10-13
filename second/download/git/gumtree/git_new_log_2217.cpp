@@ -1,1 +1,0 @@
-die("skiplist requires a path");

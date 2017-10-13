@@ -1,1 +1,1 @@
-error("invalid key: %s", key);
+die("invalid date format: %s", date_str);

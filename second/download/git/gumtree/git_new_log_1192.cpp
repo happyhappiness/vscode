@@ -1,3 +1,1 @@
-ret = error("could not create "
-						    "directory for '%s'",
-						    dst_path);
+fprintf(stderr, _("Applied autostash.\n"));

@@ -1,1 +1,1 @@
-error(_("unrecognized binary patch at line %d"), state->linenr-1);
+error(_("invalid start of line: '%c'"), first);

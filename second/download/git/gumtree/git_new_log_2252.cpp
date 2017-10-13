@@ -1,1 +1,1 @@
-error("unable to write current sha1 into %s: %s", oldrefname, err.buf);
+status_printf_ln(s, color, _("No commands done."));

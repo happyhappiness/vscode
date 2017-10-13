@@ -1,1 +1,0 @@
-fprintf(stderr, "%.*s", brk + sf, b);

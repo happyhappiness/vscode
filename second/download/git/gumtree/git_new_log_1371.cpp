@@ -1,2 +1,2 @@
-error("bad tree object %s",
-			     tree_name ? tree_name : oid_to_hex(tree_oid));
+die("Could not parse local commit %s (%s)",
+		    oid_to_hex(&local_oid), o->local_ref);

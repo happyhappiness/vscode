@@ -1,1 +1,1 @@
-die("update line missing <ref>");
+die("expected NUL but got: %s", next);

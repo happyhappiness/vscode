@@ -1,1 +1,0 @@
-die("bad tree %s", sha1_to_hex(obj->sha1));

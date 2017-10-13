@@ -1,1 +1,1 @@
-warning("object %s: %s", sha1_to_hex(obj->sha1), message);
+error("refname %s not found", oldrefname);

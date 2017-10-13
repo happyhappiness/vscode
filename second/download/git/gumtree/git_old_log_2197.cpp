@@ -1,1 +1,1 @@
-die(_("-b and -B are mutually exclusive"));
+die("Could not create directory %s", rr_cache);

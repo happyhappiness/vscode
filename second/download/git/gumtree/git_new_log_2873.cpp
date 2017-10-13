@@ -1,1 +1,1 @@
-warning(_(no_split_warning));
+error_errno("Could not write to %s", filename);

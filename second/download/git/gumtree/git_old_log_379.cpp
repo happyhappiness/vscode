@@ -1,1 +1,0 @@
-die("object %s changed size!?", sha1_to_hex(sha1));

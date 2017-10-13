@@ -1,2 +1,2 @@
-status_printf_ln(s, GIT_COLOR_NORMAL,
-					"%s", only_include_assumed);
+fprintf(stderr, _("Removing note for object %s\n"),
+			sha1_to_hex(object));

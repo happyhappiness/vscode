@@ -1,1 +1,1 @@
-error("'%s' exists; cannot create '%s'", entry->name, refname);
+die_errno("could not create file '%s'", filename);

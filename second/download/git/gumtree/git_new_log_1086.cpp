@@ -1,1 +1,1 @@
-die("cache entry out of order");
+die(_("format: %%(if) atom used without a %%(then) atom"));

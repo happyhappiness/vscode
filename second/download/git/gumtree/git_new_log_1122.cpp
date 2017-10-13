@@ -1,1 +1,1 @@
-opterror(opt, "is incompatible with --merged", 0);
+die("cannot handle pushes this big");

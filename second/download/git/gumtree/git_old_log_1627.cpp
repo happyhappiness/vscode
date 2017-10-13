@@ -1,1 +1,2 @@
-die("usage: git-credential-cache--daemon <socket_path>");
+warning("malformed commit (header is missing newline): %s",
+				sha1_to_hex(commit->object.sha1));

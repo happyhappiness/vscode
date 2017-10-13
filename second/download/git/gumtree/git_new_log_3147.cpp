@@ -1,1 +1,1 @@
-printf(_("We cannot bisect more!\n"));
+git_die_config(key, _("unknown notes merge strategy %s"), value);

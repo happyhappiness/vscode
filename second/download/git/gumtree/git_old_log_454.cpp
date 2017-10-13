@@ -1,2 +1,1 @@
-die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), wt->path);
+packet_write(1, "%s %s\n", sha1_to_hex(sha1), path);

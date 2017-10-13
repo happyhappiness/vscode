@@ -1,1 +1,2 @@
-status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+die("unable to pack objects reachable from tag %s",
+			    oid_to_hex(oid));

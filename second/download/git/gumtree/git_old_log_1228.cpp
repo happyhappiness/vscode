@@ -1,2 +1,3 @@
-fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
-				(float)autocorrect/10.0);
+die("More than one commit to dig up from, %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);

@@ -1,1 +1,0 @@
-die("BUG: pack tmpfile does not end in .pack.temp?");

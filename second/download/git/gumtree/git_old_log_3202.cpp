@@ -1,0 +1,1 @@
+die("strange pathname '%s' blocked", path);

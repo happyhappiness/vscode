@@ -1,1 +1,0 @@
-printf("%s -> %s\n", refname, sha1_to_hex(sha1));

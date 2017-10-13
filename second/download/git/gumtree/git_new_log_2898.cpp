@@ -1,2 +1,1 @@
-strbuf_addf(err, "\n\t%s",
-				    format->unknown_extensions.items[i].string);
+die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);

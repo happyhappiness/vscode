@@ -1,1 +1,1 @@
-die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);
+die(_("blob expected for %s '%s'"), sha1_to_hex(sha), path);

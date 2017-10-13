@@ -1,1 +1,2 @@
-die_errno("unable to mkdir '%s'", dir);
+warning ("Could not remove temporary directory %s.",
+				temp_dir.buf);

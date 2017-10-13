@@ -1,1 +1,1 @@
-die("failed to launch browser for %.*s", MAX_PATH, unixpath);
+printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));

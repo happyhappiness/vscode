@@ -1,1 +1,1 @@
-die_errno("Could not change back to '%s'", cwd.buf);
+die(_("git show %s: bad file"), obj_name);

@@ -1,1 +1,0 @@
-die("failed to parse %s", k);

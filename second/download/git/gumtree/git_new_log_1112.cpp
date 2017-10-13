@@ -1,1 +1,1 @@
-die(_("format: %%(then) atom used without an %%(if) atom"));
+die("error while iterating over references");

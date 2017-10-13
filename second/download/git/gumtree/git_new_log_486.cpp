@@ -1,1 +1,1 @@
-packet_write_fmt(1, "NACK unable to spawn subprocess\n");
+die(_("The remote end hung up upon initial contact"));

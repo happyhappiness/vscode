@@ -13,6 +13,7 @@ import commands
 import base64
 import json
 from itertools import islice
+from srcml_api import SrcmlApi
 from gumtree_api import Gumtree
 from llvm_api import LLVM
 import my_constant
@@ -25,25 +26,51 @@ import myUtil
 """
 def deal_log( log_record, gumtree, writer, total_log):
 
-    old_log = log_record[my_constant.FETCH_LOG_OLD_LOG]
-    new_log = log_record[my_constant.FETCH_LOG_NEW_LOG]
     # do not deal with LOG_NO_MODIFY
     action_type = log_record[my_constant.FETCH_LOG_ACTION_TYPE]
     # no modification of this log statement
     if int(action_type) % 2 == 0:
         return total_log
-    # write old and new log file
+    # old loc and old file
+    old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
+    old_file = log_record[my_constant.FETCH_LOG_OLD_FILE]
+    new_loc = log_record[my_constant.FETCH_LOG_NEW_LOC]
+    new_file = log_record[my_constant.FETCH_LOG_NEW_FILE]
+    temp_file = my_constant.GUMTREE_DIR + 'temp.cpp'
+    # get function and function loc
+    function = new_log = old_log = ''
+    function_loc = -1
+    # parse old log if is not insert
+    if old_loc != '-1':
+        # use srcml parser(.cpp temp file)
+        myUtil.copy_file(old_file, temp_file)
+        gumtree.set_file(temp_file)
+        if gumtree.set_loc(int(old_loc)):
+            old_log = gumtree.get_log()
+            function = gumtree.get_function()
+            function_loc = gumtree.get_function_loc()
+    # parse new log if is not delete
+    if new_loc != '-1':
+        myUtil.copy_file(new_file, temp_file)
+        gumtree.set_file(temp_file)
+        if gumtree.set_loc(int(new_loc)):
+            new_log = gumtree.get_log()
+            # refresh function if is insert(update so care about old context)
+            if old_loc == '-1':
+                function = gumtree.get_function()
+                function_loc = gumtree.get_function_loc()
+    # write old and new log file as well as function file
+    function_file_name = my_constant.SAVE_FUNCTION + str(total_log) + '.cpp'
+    myUtil.save_file(function, function_file_name)
     old_log_file_name = my_constant.SAVE_OLD_LOG + str(total_log) + '.cpp'
-    log_file = open(old_log_file_name, 'wb')
-    log_file.write(old_log)
-    log_file.close()
+    myUtil.save_file(old_log, old_log_file_name)
     new_log_file_name = my_constant.SAVE_NEW_LOG + str(total_log) + '.cpp'
-    log_file = open(new_log_file_name, 'wb')
-    log_file.write(new_log)
-    log_file.close()
+    myUtil.save_file(new_log, new_log_file_name)
+    log_record[my_constant.FETCH_LOG_OLD_LOG] = old_log
+    log_record[my_constant.FETCH_LOG_NEW_LOG] = new_log
     # get edit word and feature
     edit_words, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
-    writer.writerow(log_record + [old_log_file_name, new_log_file_name, edit_words, json.dumps(edit_feature)])
+    writer.writerow(log_record + [old_log_file_name, new_log_file_name, function_file_name, function_loc, edit_words, json.dumps(edit_feature)])
     total_log += 1
 
     return total_log
@@ -91,21 +118,25 @@ def analyze_old_new(is_rebuild = False):
 
     total_record = 0
     total_log = 0
-    llvm_api = LLVM()
+    # llvm_api = LLVM()
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
         # get old and new check and variable
-        old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
-        old_file = record[my_constant.FETCH_LOG_OLD_FILE]
-        llvm_api.set_log_loc(int(old_loc))
-        llvm_api.set_in_file(old_file + '.bc')
-        old_check, old_variable = llvm_api.get_cdg_ddg_list()
-
-        new_loc = record[my_constant.FETCH_LOG_NEW_LOC]
-        new_file = record[my_constant.FETCH_LOG_NEW_FILE]
-        llvm_api.set_log_loc(int(new_loc))
-        llvm_api.set_in_file(new_file + '.bc')
-        new_check, new_variable = llvm_api.get_cdg_ddg_list()
+        # old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
+        # old_file = record[my_constant.FETCH_LOG_OLD_FILE]
+        # llvm_api.set_log_loc(int(old_loc))
+        # llvm_api.set_in_file(old_file + '.bc')
+        # old_check, old_variable = llvm_api.get_cdg_ddg_list()
+        function = record[my_constant.ANALYZE_FUNCTION]
+        function_loc = record[my_constant.ANALYZE_FUNCTION_LOC]
+        srcml = SrcmlApi()
+        srcml.set_file(function)
+        check = []
+        variable = []
+        if srcml.set_log_loc(str(function_loc)):
+            if srcml.set_control_dependence():
+                check = srcml.get_control_info()
+            variable = srcml.get_log_info()
         # depended statement locations
         ddg_codes = set()
         ddg_locs = set()
@@ -114,8 +145,7 @@ def analyze_old_new(is_rebuild = False):
         #     record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_FEATURE_MODIFY
         # else:
         #     record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
-        old_new_llvm_writer.writerow(record + [json.dumps(old_check), json.dumps(old_variable), \
-                    json.dumps(new_check), json.dumps(new_variable), ddg_codes, ddg_locs])
+        old_new_llvm_writer.writerow(record + [json.dumps(check), json.dumps(variable), ddg_codes, ddg_locs])
         print 'have dealed with %d record; %d log' %(total_record, total_log)
         total_log += 1
         total_record += 1

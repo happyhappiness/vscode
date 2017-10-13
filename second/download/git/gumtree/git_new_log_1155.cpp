@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "%s", item->string);
+die(_("invalid ident line: %.*s"), (int)ident_len, ident_line);

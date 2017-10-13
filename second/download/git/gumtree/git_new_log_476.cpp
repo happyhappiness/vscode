@@ -1,1 +1,1 @@
-die(_("'%s' is not a valid ref."), ref_name[num_rev]);
+die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);

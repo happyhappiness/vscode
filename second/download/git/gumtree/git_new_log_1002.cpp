@@ -1,1 +1,1 @@
-printf("-%d-g%s", depth, find_unique_abbrev(oid->hash, abbrev));
+die(_("cannot read existing object info %s"), sha1_to_hex(sha1));

@@ -1,0 +1,1 @@
+die("Error reading %s", path);

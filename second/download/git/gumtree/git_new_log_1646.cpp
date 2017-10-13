@@ -1,2 +1,1 @@
-fprintf(stderr, "Also look at %s\n",
-						target.buf);
+die_errno("unable to fdopen packed-refs descriptor");

@@ -1,1 +1,0 @@
-fputs(sb.buf, stdout);

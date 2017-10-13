@@ -1,1 +1,0 @@
-fprintf(stderr, "bad sha1 file: %s/%s\n", path->buf, de->d_name);

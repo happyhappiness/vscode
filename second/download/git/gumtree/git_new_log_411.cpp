@@ -1,1 +1,1 @@
-error(_("Could not read object %s"), oid_to_hex(oid));
+die(_("unknown option %s"), arg);

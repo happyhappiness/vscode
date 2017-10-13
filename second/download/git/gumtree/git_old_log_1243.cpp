@@ -1,1 +1,1 @@
-die("could not open output 'info'");
+die_errno("cannot read '%s'", input_file);

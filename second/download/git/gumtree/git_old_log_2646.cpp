@@ -1,1 +1,2 @@
-die("BUG: initial ref transaction with old_sha1 set");
+error("RPC failed; result=%d, HTTP code = %ld",
+		      results->curl_result, results->http_code);

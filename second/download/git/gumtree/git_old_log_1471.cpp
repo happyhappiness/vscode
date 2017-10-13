@@ -1,1 +1,1 @@
-fputs("", s->fp);
+die("symbolic link too long: %s", buf);

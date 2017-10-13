@@ -1,2 +1,2 @@
-die_errno("failed to write to %s",
-				  get_lock_file_path(shallow_lock));
+die("unable to generate diff (%s)",
+		    oid_to_hex(&parent->commit->object.oid));

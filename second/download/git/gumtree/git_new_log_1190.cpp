@@ -1,1 +1,4 @@
-ret = error("could not write '%s'", src_path);
+fprintf_ln(stderr,
+				   _("Continuing under the assumption that "
+				     "you meant '%s'."),
+				   assumed);

@@ -1,1 +1,0 @@
-error(_("Reverting is not possible because you have unmerged files."));

@@ -1,1 +1,2 @@
-error("short SHA1 %.*s is ambiguous.", len, hex_pfx);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "already exists", porcelain);

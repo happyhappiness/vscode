@@ -1,1 +1,1 @@
-die("no branches given, and HEAD is not valid");
+die("Object not in bitmap: %s\n", oid_to_hex(&commit->object.oid));

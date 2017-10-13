@@ -1,1 +1,1 @@
-die(_("the receiving end does not support --atomic push"));
+printf("%s\n", oid_to_hex(bad));

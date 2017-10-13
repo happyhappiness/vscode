@@ -1,1 +1,1 @@
-die(_("could not create leading directories of '%s'"), sb.buf);
+die("strange hostname '%s' blocked", ssh_host);

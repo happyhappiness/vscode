@@ -1,1 +1,1 @@
-die(_(incremental_bitmap_conflict_error));
+die("strange pathname '%s' blocked", path);

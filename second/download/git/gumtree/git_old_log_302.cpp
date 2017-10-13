@@ -1,1 +1,2 @@
-error(_("%s: does not match index"), old_name);
+error(_("%s: already exists in working directory"),
+				     new_name);

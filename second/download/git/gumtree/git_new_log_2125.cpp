@@ -1,1 +1,1 @@
-fprintf(out, "%s ", sha1_to_hex(obj->sha1));
+die_errno("unable to dup file descriptor");

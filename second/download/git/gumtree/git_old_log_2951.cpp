@@ -1,1 +1,1 @@
-error("cannot stat %s (%s)", arg, strerror(errno));
+die("%s is not a tree", sha1_to_hex(hash));

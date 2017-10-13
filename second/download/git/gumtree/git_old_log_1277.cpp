@@ -1,3 +1,2 @@
-die(_("cannot read blob %s for path %s"),
-			    oid_to_hex(&o->blob_oid),
-			    path);
+die(_("failed to finish 'show' for object '%s'"),
+		    sha1_to_hex(object));

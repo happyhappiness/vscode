@@ -1,2 +1,1 @@
-fprintf(rej, "diff a/%s b/%s\t(rejected hunks)\n",
-		patch->new_name, patch->new_name);
+die("--cached and --3way cannot be used together.");

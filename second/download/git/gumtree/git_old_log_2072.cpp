@@ -1,1 +1,1 @@
-fputs(c_plain, stdout);
+die("unknown line in '%s': %s", merge_head_file, line.buf);

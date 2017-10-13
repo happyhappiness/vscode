@@ -1,2 +1,1 @@
-die(_("Branch %s is being bisected at %s"),
-			    target, wt->path);
+error_errno("copy-fd: write returned");

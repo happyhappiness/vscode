@@ -1,2 +1,2 @@
-die("Duplicate entry when writing index: %s",
-			    sha1_to_hex(object->sha1));
+error("couldn't write %s: %s", log_file,
+					strerror(errno));

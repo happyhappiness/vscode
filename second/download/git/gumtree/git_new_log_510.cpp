@@ -1,1 +1,1 @@
-err = error("external filter '%s' failed", cmd);
+die("unexpected filter type");

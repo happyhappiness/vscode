@@ -1,1 +1,1 @@
-failure |= error("%s", err.buf);
+die("unable to mark recent objects");

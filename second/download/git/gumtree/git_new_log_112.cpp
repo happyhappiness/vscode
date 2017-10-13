@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("update %s: extra input: %s", refname, next);

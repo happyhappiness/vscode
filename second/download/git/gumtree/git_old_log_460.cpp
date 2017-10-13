@@ -1,3 +1,2 @@
-printf("%06o #%d %s %.8s\n",
-		       ce->ce_mode, ce_stage(ce), ce->name,
-		       sha1_to_hex(ce->sha1));
+packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);

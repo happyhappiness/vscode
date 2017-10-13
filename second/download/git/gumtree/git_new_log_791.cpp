@@ -1,0 +1,1 @@
+error("%s: object missing", sha1_to_hex(sha1));

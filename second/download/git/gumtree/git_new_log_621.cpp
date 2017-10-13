@@ -1,2 +1,1 @@
-error(_("could not parse commit %s\n"),
-			     oid_to_hex(&commit->object.oid));
+error(_("revision walk setup failed"));

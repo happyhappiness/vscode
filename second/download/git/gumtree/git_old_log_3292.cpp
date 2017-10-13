@@ -1,1 +1,0 @@
-fprintf(opt->file, "%s ", diff_unique_abbrev(p->two->sha1, opt->abbrev));

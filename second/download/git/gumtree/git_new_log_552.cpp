@@ -1,2 +1,1 @@
-print_verbose(args, _("Marking %s as complete"),
-			      oid_to_hex(&complete->item->object.oid));
+die(_("fetch-pack: unable to fork off %s"), cmd_name);

@@ -1,1 +1,0 @@
-fprintf(stderr, _("Applied autostash.\n"));

@@ -1,2 +1,1 @@
-error(_("Cannot get commit message for %s"),
-			sha1_to_hex(commit->object.sha1));
+die(_("bad config file line %d in %s"), cf->linenr, cf->name);

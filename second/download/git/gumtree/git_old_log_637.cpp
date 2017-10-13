@@ -1,1 +1,0 @@
-error(_("Could not parse line %d."), i);

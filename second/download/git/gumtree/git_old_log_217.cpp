@@ -1,1 +1,0 @@
-printf("  %s\n", needs_pushing->items[i].string);

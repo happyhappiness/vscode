@@ -1,1 +1,1 @@
-die("BUG: unhandled push situation");
+die("unable to generate diffstat for %s", one->path);

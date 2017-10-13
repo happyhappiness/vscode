@@ -1,1 +1,1 @@
-fprintf(stderr, "%s: %s:%d\n", err.buf, src, lineno);
+die(_("--broken is incompatible with commit-ishes"));

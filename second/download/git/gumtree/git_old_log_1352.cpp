@@ -1,1 +1,1 @@
-error("%s %s", sha1_to_hex(e->sha1), e->name);
+packet_buf_write(&req_buf, "deepen-since %lu", max_age);

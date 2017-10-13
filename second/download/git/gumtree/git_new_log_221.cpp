@@ -1,2 +1,1 @@
-logerror("interpolated path too large: %s",
-				 interp_path);
+die("BUG: init_apply_state() failed");

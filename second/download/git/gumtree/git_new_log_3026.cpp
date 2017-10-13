@@ -1,1 +1,0 @@
-error_errno(_("'%s': short read"), filename);

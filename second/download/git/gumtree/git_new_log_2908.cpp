@@ -1,1 +1,1 @@
-warning("could not mark '%s' as hidden.", filename);
+error_errno("lstat(%s)", ce->name);

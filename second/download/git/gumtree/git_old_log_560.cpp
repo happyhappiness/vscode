@@ -1,1 +1,1 @@
-die("Server does not support shallow clients");
+fprintf(stderr, "Server supports side-band\n");

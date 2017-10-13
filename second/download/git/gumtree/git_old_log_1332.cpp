@@ -1,1 +1,1 @@
-error("corrupt packed object for %s", sha1_to_hex(entry->idx.sha1));
+fprintf(rpt, "  tip commit  : %s\n", sha1_to_hex(b->sha1));

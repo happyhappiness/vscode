@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);
+die(_("--3way outside a repository"));

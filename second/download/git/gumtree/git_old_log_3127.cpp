@@ -1,1 +1,1 @@
-printf("Launching default browser to display HTML ...\n");
+printf("\n");

@@ -1,1 +1,1 @@
-die("%s", unable_to_lock_message(path, err));
+die_errno("index file open failed");

@@ -1,1 +1,2 @@
-die(_("insanely long template path %s"), template_dir);
+die("cannot read commit object %s",
+			    sha1_to_hex(commit->object.sha1));

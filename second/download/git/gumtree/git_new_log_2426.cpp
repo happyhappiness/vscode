@@ -1,1 +1,0 @@
-fprintf(f, "%s\n", oid_to_hex(&obj->oid));

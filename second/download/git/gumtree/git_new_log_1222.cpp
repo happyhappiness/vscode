@@ -1,1 +1,0 @@
-error(_("invalid mode on line %d: %s"), linenr, line);

@@ -1,1 +1,2 @@
-error_code = READ_GITFILE_ERR_READ_FAILED;
+error("unable to write reflog %s: %s",
+					log_file, strerror(errno));

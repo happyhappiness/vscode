@@ -1,1 +1,2 @@
-die(_("no such path %s in %s"), path, final_commit_name);
+die(_("unable to start 'show' for object '%s'"),
+		    sha1_to_hex(object));

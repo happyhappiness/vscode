@@ -1,1 +1,1 @@
-die("The remote end hung up upon initial contact");
+die("strange port '%s' blocked", port);

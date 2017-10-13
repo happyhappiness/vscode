@@ -1,1 +1,1 @@
-fputs(sb.buf, opt->diffopt.file);
+die("BUG: trailer.c: unhandled type %d", type);

@@ -1,2 +1,1 @@
-error("cannot fdopen %s (%s)",
-			      get_lock_file_path(&reflog_lock), strerror(errno));
+die("unable to generate checkdiff for %s", one->path);

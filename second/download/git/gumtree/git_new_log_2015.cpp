@@ -1,1 +1,1 @@
-error_buf(err, _("HEAD does not point to a branch"));
+die("unable to generate diff");

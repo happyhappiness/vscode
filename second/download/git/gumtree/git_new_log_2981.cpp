@@ -1,1 +1,1 @@
-die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
+error_errno("unable to write sha1 filename %s", filename);

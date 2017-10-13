@@ -1,1 +1,1 @@
-warning("Unexpected sha1 when deleting %s", pseudoref);
+die_errno(_("could not open '%s' for writing"), path);

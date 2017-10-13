@@ -1,2 +1,1 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    sha1_to_hex(sha1));
+packet_buf_write(sb, "shallow %s\n", sha1_to_hex(graft->sha1));

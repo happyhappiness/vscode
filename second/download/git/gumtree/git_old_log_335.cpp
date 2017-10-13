@@ -1,1 +1,1 @@
-die_errno(_("closing file '%s'"), path);
+fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);

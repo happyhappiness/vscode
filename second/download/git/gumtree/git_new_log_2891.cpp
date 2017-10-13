@@ -1,2 +1,3 @@
-fprintf(stderr, "Skipping account %s@%s, server forbids LOGIN\n",
-					srvc->user, srvc->host);
+fprintf(stderr,
+				_("Submodule '%s' (%s) registered for path '%s'\n"),
+				sub->name, url, displaypath);

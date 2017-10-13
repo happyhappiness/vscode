@@ -1,1 +1,2 @@
-printf("%s\n", sha1_to_hex(result->item->object.sha1));
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

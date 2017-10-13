@@ -1,1 +1,1 @@
-die(_("invalid unshallow line: %s"), line);
+packet_buf_write(&req_buf, "deepen-since %lu", max_age);

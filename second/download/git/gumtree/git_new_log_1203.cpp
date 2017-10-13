@@ -1,1 +1,0 @@
-error(_("could not close '%s'"), tempfile->filename.buf);

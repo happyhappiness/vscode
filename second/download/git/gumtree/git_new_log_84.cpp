@@ -1,1 +1,1 @@
-die("whitespace before command: %s", next);
+die("badly quoted argument: %s", orig);

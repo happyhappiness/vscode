@@ -1,1 +1,1 @@
-error(_("%s: patch does not apply"), name);
+printf("%d\t%d\t", patch->lines_added, patch->lines_deleted);

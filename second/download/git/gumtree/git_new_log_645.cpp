@@ -1,2 +1,1 @@
-error(_("git %s: failed to refresh the index"),
-				_(action_name(opts)));
+error_errno(_("could not lock '%s'"), todo_path);

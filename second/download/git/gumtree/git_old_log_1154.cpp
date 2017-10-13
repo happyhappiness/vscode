@@ -1,1 +1,1 @@
-packet_buf_write(&sb, "%s", item->string);
+printf_ln(_("Patch is empty. Was it split wrong?"));

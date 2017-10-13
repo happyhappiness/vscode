@@ -1,2 +1,1 @@
-die(_("unable to start 'show' for object '%s'"),
-		    sha1_to_hex(object));
+die(_("unknown error occurred while reading the configuration files"));

@@ -1,1 +1,2 @@
-die_errno("unable to overwrite old ref-pack file");
+printf("Removing %s from .git/shallow\n",
+				       sha1_to_hex(c->object.sha1));

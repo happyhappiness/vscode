@@ -1,2 +1,2 @@
-ret = error("could not write config file %s: %s",
-			    config_filename, strerror(errno));
+fputs("fatal: recursion detected in die_errno handler\n",
+			stderr);

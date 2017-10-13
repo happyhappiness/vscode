@@ -1,1 +1,2 @@
-packet_buf_write(sb, "shallow %s\n", oid_to_hex(&graft->oid));
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

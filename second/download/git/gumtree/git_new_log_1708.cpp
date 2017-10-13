@@ -1,1 +1,1 @@
-die("BUG: commit called for transaction that is not open");
+die("BUG: unable to parse our own ident: %s", buf->buf);

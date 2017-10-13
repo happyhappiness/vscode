@@ -1,1 +1,1 @@
-die(_("submodule--helper: unspecified or empty --path"));
+error_errno("Could not close %s", filename);

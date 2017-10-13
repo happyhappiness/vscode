@@ -1,1 +1,1 @@
-die_errno(_("Could not open file '%s'"), filename);
+printf("num get patch: %d\n", num_get_patch);

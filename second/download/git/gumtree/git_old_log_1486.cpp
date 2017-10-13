@@ -1,1 +1,1 @@
-error("external filter '%s' does not support filter protocol version 2", cmd);
+die(_("invalid commit: %s"), author_message);

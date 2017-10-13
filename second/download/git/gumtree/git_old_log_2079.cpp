@@ -1,2 +1,1 @@
-error("Could not read %s",
-			     sha1_to_hex(item->object.sha1));
+die_errno("unable to overwrite old ref-pack file");

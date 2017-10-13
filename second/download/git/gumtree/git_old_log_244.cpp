@@ -1,2 +1,2 @@
-die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
-			    *name, state->linenr);
+fprintf(stderr, "%s:%d: %s.\n%.*s\n",
+		state->patch_input_file, linenr, err, len, line);

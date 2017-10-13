@@ -1,2 +1,2 @@
-NORETURN void bad_object(off_t offset, const char *format,
-		       ...) __attribute__((format (printf, 2, 3)));
+printf("              to %7s %s\n",
+				 typename(obj->type), describe_object(obj));

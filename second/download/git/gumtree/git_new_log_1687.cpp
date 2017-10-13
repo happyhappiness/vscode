@@ -1,1 +1,1 @@
-die("Reference has invalid name: '%s'", refname);
+die("The empty string is not a valid path");

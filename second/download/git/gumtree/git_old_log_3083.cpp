@@ -1,3 +1,6 @@
-die("Invalid commit %s in submodule path %s%s",
-				    sha1_to_hex(entry.sha1),
-				    base->buf, entry.path);
+die(Q_("git diff header lacks filename information when removing "
+					       "%d leading pathname component (line %d)",
+					       "git diff header lacks filename information when removing "
+					       "%d leading pathname components (line %d)",
+					       p_value),
+					    p_value, linenr);

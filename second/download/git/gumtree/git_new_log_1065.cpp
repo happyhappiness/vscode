@@ -1,2 +1,1 @@
-error(_("splitIndex.maxPercentChange value '%d' "
-			       "should be between 0 and 100"), val);
+die("unable to join lazy_name_thread");

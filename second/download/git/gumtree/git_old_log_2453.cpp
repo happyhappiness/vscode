@@ -1,2 +1,1 @@
-die("cannot convert from %s to %s",
-		    charset, metainfo_charset);
+printf(format, sha1_to_hex(list->item->object.sha1));

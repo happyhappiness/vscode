@@ -1,1 +1,1 @@
-warning(_(msg_warn_remove_failed), quoted.buf);
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

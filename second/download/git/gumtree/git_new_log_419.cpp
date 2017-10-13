@@ -1,1 +1,2 @@
-die(_("could not parse object '%s'"), argv[i]);
+error(_("the note contents have been left in %s"),
+				d->edit_path);

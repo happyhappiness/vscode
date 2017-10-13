@@ -1,1 +1,1 @@
-die(_("expected format: %%(align:<width>,<position>)"));
+warning(_(no_split_warning));

@@ -1,1 +1,1 @@
-die(_("cannot get patch id"));
+error_errno("Couldn't create temporary file %s", freq->tmpfile);

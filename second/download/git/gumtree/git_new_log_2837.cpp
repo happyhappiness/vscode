@@ -1,1 +1,1 @@
-fprintf(outfile, "%s", lines[i]->buf);
+die_errno("could not read file '%s'", filename);

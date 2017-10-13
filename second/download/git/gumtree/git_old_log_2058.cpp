@@ -1,1 +1,1 @@
-error("there are still refs under '%s'", orig_refname);
+die("closing file %s: %s", filename, strerror(errno));

@@ -1,1 +1,1 @@
-die(_("Bad value '%s' in environment '%s'"), e, name);
+die("Cannot read blob %s", oid_to_hex(&spec->oid));

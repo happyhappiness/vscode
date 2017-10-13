@@ -1,1 +1,1 @@
-die("HEAD does not match the named branch in the superproject");
+warning(_("Failed to update main cache tree"));

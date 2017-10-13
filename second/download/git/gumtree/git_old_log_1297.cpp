@@ -1,1 +1,2 @@
-die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+warning("object %s cannot be read",
+						sha1_to_hex(src_entry->idx.sha1));

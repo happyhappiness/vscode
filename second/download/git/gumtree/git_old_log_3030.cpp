@@ -1,2 +1,1 @@
-warning("cannot open /etc/mailname: %s",
-				strerror(errno));
+fprintf(stderr, "%s\n", buf);

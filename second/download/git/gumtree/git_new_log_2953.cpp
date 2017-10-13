@@ -1,1 +1,1 @@
-die(_("refusing to merge unrelated histories"));
+die("corrupt MERGE_RR");

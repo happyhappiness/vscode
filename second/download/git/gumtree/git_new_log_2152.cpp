@@ -1,1 +1,1 @@
-die("%s", err.buf);
+fputs(output, stderr);

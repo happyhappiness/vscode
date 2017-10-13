@@ -1,2 +1,1 @@
-warning("Log for ref %s has gap after %s.",
-					cb->refname, show_date(cb->date, cb->tz, DATE_RFC2822));
+for_each_reflog_ent_reverse(refname, read_ref_at_ent, &cb);

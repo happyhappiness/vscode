@@ -1,1 +1,1 @@
-printf("%s %s^{}\n", hex, refname);
+die(_("%%(trailers) does not take arguments"));

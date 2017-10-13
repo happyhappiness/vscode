@@ -1,2 +1,2 @@
-error("unable to open mailmap at %s: %s",
-			     filename, strerror(errno));
+fprintf(stderr, "%s: protocol error: bad band #%d\n",
+				me, band);

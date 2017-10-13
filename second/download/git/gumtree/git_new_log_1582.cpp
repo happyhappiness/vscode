@@ -1,1 +1,1 @@
-result |= error("%s", err.buf);
+die_errno("unable to point stderr to /dev/null");

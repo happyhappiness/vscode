@@ -1,1 +1,1 @@
-die("BUG: commit called for transaction that is not open");
+die("submodule--helper push-check requires at least 1 argument");

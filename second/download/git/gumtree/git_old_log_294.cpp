@@ -1,2 +1,1 @@
-error("cannot read the current contents of '%s'",
-				     patch->old_name);
+error(_("%s: does not match index"), old_name);

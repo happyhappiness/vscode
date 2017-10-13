@@ -1,1 +1,1 @@
-die_errno(_("unable to write file '%s' mode %o"), path, mode);
+fprintf(rej, "%.*s", frag->size, frag->patch);

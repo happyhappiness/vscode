@@ -1,1 +1,1 @@
-printf("%s\n", sb.buf);
+error("copy-fd: read returned %s", strerror(errno));

@@ -1,1 +1,1 @@
-warning_errno("failed utime() on %s", pack_tmp_name);
+fprintf(stderr, "Recorded preimage for '%s'\n", path);

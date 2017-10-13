@@ -1,1 +1,0 @@
-error("cannot feed the input to external filter %s", params->cmd);

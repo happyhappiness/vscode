@@ -1,1 +1,1 @@
-error("%s", err.buf);
+error("couldn't set %s", lock->ref_name);

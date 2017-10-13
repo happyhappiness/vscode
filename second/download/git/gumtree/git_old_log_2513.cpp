@@ -1,1 +1,1 @@
-die("sent error to the client: %s", buf);
+die("Reference has invalid format: '%s'", refname);

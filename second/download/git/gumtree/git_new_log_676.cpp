@@ -1,2 +1,2 @@
-error("unable to normalize alternate object path: %s",
-		      pathbuf.buf);
+print_ref_status('X', "[no match]", ref, NULL, NULL,
+				 porcelain, summary_width);

@@ -1,1 +1,2 @@
-error(_("Could not parse object '%s'."), sha1_to_hex(index));
+die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
+			    *name, state->linenr);

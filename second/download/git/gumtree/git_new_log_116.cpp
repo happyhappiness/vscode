@@ -1,1 +1,1 @@
-die("create %s: extra input: %s", refname, next);
+die("create %s: zero <newvalue>", refname);

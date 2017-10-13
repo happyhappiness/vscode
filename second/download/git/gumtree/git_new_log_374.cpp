@@ -1,2 +1,1 @@
-error(_("cannot read object %s '%s'"),
-			     oid_to_hex(oid), path);
+die("missing path for '%s'", oid_to_hex(oid));

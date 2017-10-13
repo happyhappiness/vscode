@@ -1,1 +1,1 @@
-warning_errno("failed to stat %s", pack_tmp_name);
+die_errno("cannot unlink stray '%s'", path);

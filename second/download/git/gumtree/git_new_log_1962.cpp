@@ -1,1 +1,1 @@
-die_errno(_("failed to stat %s"), mtime_dir.buf);
+die("invalid object type");

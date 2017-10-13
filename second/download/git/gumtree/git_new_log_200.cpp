@@ -1,1 +1,1 @@
-status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
+fprintf(file, "\nbase-commit: %s\n", oid_to_hex(&bases->base_commit));

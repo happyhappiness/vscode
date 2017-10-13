@@ -1,1 +1,1 @@
-fprintf(outfile, "%s", lines[i]->buf);
+error("key does not contain variable name: %s", key);

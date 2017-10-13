@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system."));
+strbuf_addf(err, "unable to create directory for %s", ref_file);

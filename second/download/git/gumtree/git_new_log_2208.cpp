@@ -1,1 +1,1 @@
-fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));
+die(_("Error wrapping up %s."), git_path_head_file());

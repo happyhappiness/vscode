@@ -1,1 +1,1 @@
-die("helper %s does not support --signed", name);
+die("--reverse --first-parent together require range along first-parent chain");

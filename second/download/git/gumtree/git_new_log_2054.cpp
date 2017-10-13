@@ -1,4 +1,1 @@
-error(remote_branch
-			      ? _("Error deleting remote-tracking branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
+error(_("You have not concluded your merge (MERGE_HEAD exists)."));

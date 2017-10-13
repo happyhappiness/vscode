@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports multi_ack\n");
+fprintf(stderr, "Server supports ofs-delta\n");

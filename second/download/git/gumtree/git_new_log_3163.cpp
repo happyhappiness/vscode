@@ -1,1 +1,1 @@
-write_file_buf(filename, state->msg, state->msg_len);
+die(_("--keep-unreachable and -A are incompatible"));

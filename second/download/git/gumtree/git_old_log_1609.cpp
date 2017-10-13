@@ -1,1 +1,1 @@
-die("Invalid mode for object creation: %s", value);
+warning("%s: symlink too long", p);

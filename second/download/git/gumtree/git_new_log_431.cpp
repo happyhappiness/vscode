@@ -1,1 +1,1 @@
-die(_("failed to resolve '%s' as a valid ref."), split[0]->buf);
+die(_("failed to resolve '%s' as a valid ref."), argv[0]);

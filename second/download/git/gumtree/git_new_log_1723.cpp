@@ -1,1 +1,2 @@
-error("unable to update %s: %s", path, strerror(errno));
+die("credential helper '%s' told us to quit",
+			    c->helpers.items[i].string);

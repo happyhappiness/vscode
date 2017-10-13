@@ -1,1 +1,1 @@
-e(_("--author '%s' is not 'Name <email>' and matches no existing author"), name);
+die(_("the receiving end does not support --atomic push"));

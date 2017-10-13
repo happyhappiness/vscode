@@ -1,1 +1,0 @@
-die("strange hostname '%s' blocked", host);

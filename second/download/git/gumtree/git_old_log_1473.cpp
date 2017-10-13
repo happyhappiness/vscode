@@ -1,1 +1,1 @@
-error("Could not stat %s", filename);
+die("The empty string is not a valid path");

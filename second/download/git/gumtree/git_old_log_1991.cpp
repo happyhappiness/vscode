@@ -1,0 +1,1 @@
+error("'%s' exists; cannot create '%s'", entry->name, refname);

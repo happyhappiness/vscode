@@ -1,1 +1,1 @@
-die("helper %s does not support dry-run", data->name);
+error("%s", err.buf);

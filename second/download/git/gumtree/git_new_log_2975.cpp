@@ -1,2 +1,1 @@
-fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
-				sub->name);
+strbuf_write(&pp->children[i].err, stderr);

@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("unknown repository extensions found:"));
+die(_("bad value for update parameter"));

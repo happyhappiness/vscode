@@ -1,1 +1,1 @@
-error("no remembered resolution for %s", path);
+die("strange hostname '%s' blocked", ssh_host);

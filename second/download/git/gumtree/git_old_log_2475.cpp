@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt->long_name, arg);
+die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);

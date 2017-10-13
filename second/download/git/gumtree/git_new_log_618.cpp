@@ -1,2 +1,3 @@
-error(_("%s: Unable to write new index file"),
-			_(action_name(opts)));
+error(_("%s: cannot parse parent commit %s"),
+			command_to_string(command),
+			oid_to_hex(&parent->object.oid));

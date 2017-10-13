@@ -1,2 +1,2 @@
-warning("adding alternate object store: %s",
-					target.buf);
+die_errno("Invalid path '%s'",
+						  resolved->buf);

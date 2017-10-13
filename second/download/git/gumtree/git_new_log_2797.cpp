@@ -1,1 +1,0 @@
-die("BUG: unknown %%(objectname) option");

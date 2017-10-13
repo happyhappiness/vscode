@@ -1,1 +1,1 @@
-die(_("unable to read tree (%s)"), oid_to_hex(&obj->oid));
+die("sent error to the client: %s", buf.buf);

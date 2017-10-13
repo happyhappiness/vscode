@@ -1,1 +1,1 @@
-die("invalid shallow line: %s", line);
+die("expected shallow/unshallow, got %s", line);

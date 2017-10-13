@@ -1,1 +1,0 @@
-die("Log %s is corrupt.", logfile);

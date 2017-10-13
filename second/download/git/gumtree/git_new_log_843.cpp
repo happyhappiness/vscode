@@ -1,2 +1,2 @@
-die(_("Invalid pathspec magic '%.*s' in '%s'"),
-			    (int) len, pos, elem);
+fprintf(stderr, "Could not apply %s... %.*s\n",
+			short_commit_name(commit), subject_len, subject);

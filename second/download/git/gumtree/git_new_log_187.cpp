@@ -1,2 +1,1 @@
-trace_printf_key(&pack_access, "%s %"PRIuMAX"\n",
-			 p->pack_name, (uintmax_t)obj_offset);
+hashcpy(p->parent[i].sha1, sha1_i ? sha1_i : null_sha1);

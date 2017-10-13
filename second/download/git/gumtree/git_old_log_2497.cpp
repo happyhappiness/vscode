@@ -1,2 +1,2 @@
-die("an empty %s object %s?",
-		    typename(type), oid_to_hex(oid));
+die("Duplicate entry when writing index: %s",
+			    sha1_to_hex(object->sha1));

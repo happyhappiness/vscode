@@ -1,1 +1,1 @@
-vreportf("error: ", err, params);
+die("BUG: get_locked_file_path() called for malformed lock object");

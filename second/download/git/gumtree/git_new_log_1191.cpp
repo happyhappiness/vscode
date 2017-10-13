@@ -1,2 +1,1 @@
-ret = error("could not write '%s'",
-						    dst_path);
+error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));

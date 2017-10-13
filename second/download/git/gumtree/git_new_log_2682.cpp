@@ -1,2 +1,1 @@
-error(_("Cannot get commit message for %s"),
-			oid_to_hex(&commit->object.oid));
+die(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);

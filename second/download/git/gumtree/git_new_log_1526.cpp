@@ -1,1 +1,1 @@
-free(*buf);
+die("unable to add recent objects");

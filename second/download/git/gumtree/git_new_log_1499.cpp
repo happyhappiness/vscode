@@ -1,2 +1,1 @@
-error("Unexpected line '%s', expected %s-server",
-			     line ? line : "<flush packet>", welcome_prefix);
+anonymize_ident_line(&committer, &committer_end);

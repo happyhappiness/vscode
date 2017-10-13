@@ -1,1 +1,1 @@
-die("BUG: initial ref transaction with old_sha1 set");
+die("unable to generate diffstat for %s", one->path);

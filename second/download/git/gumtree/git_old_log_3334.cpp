@@ -1,1 +1,1 @@
-fputs("commit ", stdout);
+fprintf(stderr, fmt, hex);

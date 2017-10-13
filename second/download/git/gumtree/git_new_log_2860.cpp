@@ -1,1 +1,1 @@
-keep_name = derive_filename(pack_name, ".keep", &keep_name_buf);
+die(_("revision walk setup failed"));

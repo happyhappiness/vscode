@@ -1,1 +1,1 @@
-error("object file %s is empty", path);
+error(ERRORMSG(o, e), super_prefixed(path.buf));

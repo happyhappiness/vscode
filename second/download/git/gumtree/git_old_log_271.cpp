@@ -1,2 +1,2 @@
-error(_("while searching for:\n%.*s"),
-			      (int)(old - oldlines), oldlines);
+error(_("binary patch to '%s' creates incorrect result (expecting %s, got %s)"),
+				name, patch->new_sha1_prefix, sha1_to_hex(sha1));

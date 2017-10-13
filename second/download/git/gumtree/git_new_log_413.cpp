@@ -1,5 +1,6 @@
-printf("%s%06o %s %d\t",
-			       tag,
-			       ce->ce_mode,
-			       find_unique_abbrev(ce->oid.hash, abbrev),
-			       ce_stage(ce));
+warning(Q_("cannot handle more than %d base. "
+				   "Ignoring %s.",
+				   "cannot handle more than %d bases. "
+				   "Ignoring %s.",
+				    (int)ARRAY_SIZE(bases)-1),
+				(int)ARRAY_SIZE(bases)-1, argv[i]);

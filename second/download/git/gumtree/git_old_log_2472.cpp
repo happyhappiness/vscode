@@ -1,1 +1,2 @@
-printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
+fprintf(stderr, "    sent %s\n",
+					sha1_to_hex(request->obj->sha1));

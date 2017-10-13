@@ -1,1 +1,2 @@
-die("BUG: Added a new grep pattern type without updating switch statement");
+die(_("unable to read %s"),
+				    oid_to_hex(&entry->idx.oid));

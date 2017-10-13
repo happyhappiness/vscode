@@ -1,1 +1,1 @@
-die("Too large to be a .git file: '%s'", path);
+fprintf(outfile, "%s", lines[i]->buf);

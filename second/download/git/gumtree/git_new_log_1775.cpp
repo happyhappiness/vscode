@@ -1,1 +1,1 @@
-printf_ln(_("Pruning %s"), remote);
+error("file/directory conflict: %s, %s", name1, name2);

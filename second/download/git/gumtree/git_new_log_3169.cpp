@@ -1,2 +1,1 @@
-die("git diff header lacks filename information "
-				    "(line %d)", state->linenr);
+die(_("No such ref: %s"), "HEAD");

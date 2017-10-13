@@ -1,1 +1,1 @@
-printf("would prune %s", message);
+die("unable to generate diff for %s", name);

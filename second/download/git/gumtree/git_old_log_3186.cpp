@@ -1,3 +1,1 @@
-fprintf(stderr, " x %-*s %-*s -> %s\n",
-				TRANSPORT_SUMMARY(_("[deleted]")),
-				REFCOL_WIDTH, _("(none)"), prettify_refname(ref->name));
+error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);

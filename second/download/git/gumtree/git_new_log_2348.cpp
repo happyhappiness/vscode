@@ -1,1 +1,2 @@
-die("--contents and --reverse do not blend well.");
+printf("dangling %s %s\n", typename(obj->type),
+			       oid_to_hex(&obj->oid));

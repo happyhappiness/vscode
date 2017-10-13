@@ -1,1 +1,1 @@
-die("BUG: unknown header field %d", p->field);
+die_errno("poll failed");

@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die(_("revision walk setup failed"));

@@ -1,1 +1,1 @@
-die(_("pack has bad object at offset %lu: %s"), offset, buf);
+printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));

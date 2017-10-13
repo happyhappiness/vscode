@@ -1,1 +1,1 @@
-die("BUG: %s called for a submodule", caller);
+die("impossibly large verbosity value");

@@ -1,1 +1,1 @@
-printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));
+ref_array_clear(&array);

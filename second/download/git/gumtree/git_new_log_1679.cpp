@@ -1,1 +1,3 @@
-add_recent_object(sha1, st.st_mtime, data);
+die("Not a git repository (or any parent up to mount point %s)\n"
+				"Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).",
+				    cwd.buf);

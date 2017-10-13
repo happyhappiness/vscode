@@ -1,1 +1,1 @@
-diff_two(rerere_path(name, "preimage"), path, path, path);
+error_buf(err, _("push has no destination (push.default is 'nothing')"));

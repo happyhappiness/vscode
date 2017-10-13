@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing "));
+die_errno ("Could not make temporary directory");

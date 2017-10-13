@@ -1,2 +1,1 @@
-die(_("Not tracking: ambiguous information for ref %s"),
-		    orig_ref);
+die(_("unrecognized %%(align) argument: %s"), s);

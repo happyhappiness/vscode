@@ -1,2 +1,2 @@
-fprintf(stderr, "got ack %d %s\n", ack,
-							sha1_to_hex(result_sha1));
+fprintf(stderr, "Marking %s as complete\n",
+				oid_to_hex(&complete->item->object.oid));

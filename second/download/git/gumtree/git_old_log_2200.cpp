@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename.buf, strerror(errno));
+die_errno(_("Could not open '%s' for writing"), filename);

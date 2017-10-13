@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+fprintf(stderr, _("Testing "));

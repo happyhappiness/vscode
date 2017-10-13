@@ -1,1 +1,1 @@
-die_errno("Could not open '%s'", path);
+die(_("unrecognized %%(objectname) argument: %s"), arg);

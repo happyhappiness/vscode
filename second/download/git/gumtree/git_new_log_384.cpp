@@ -1,1 +1,3 @@
-die("BUG: invalid cmdmode: %c", opt->cmdmode);
+fprintf(stderr,
+				_("info: Could not add alternate for '%s': %s\n"),
+				item->string, err.buf);

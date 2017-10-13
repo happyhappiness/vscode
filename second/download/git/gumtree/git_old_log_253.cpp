@@ -1,1 +1,1 @@
-error(_("new file depends on old contents"));
+die(_("patch with only garbage at line %d"), state->linenr);

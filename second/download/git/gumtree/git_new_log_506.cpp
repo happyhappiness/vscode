@@ -1,1 +1,1 @@
-error("cannot feed the input to external filter '%s'", params->cmd);
+error("cannot fork to run external filter '%s'", cmd);

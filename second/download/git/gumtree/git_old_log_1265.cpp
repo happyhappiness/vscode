@@ -1,1 +1,0 @@
-die("Non commit %s?", revs->pending.objects[i].name);

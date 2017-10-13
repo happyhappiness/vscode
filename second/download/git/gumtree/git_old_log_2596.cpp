@@ -1,2 +1,2 @@
-die("conflict between reference and directory: %s",
-				    e1->name);
+error(_("Could not parse commit %s\n"),
+			     sha1_to_hex(commit->object.sha1));

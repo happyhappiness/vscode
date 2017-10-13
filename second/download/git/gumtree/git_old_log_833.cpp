@@ -1,1 +1,0 @@
-e("BUG: invalid grep_source type");

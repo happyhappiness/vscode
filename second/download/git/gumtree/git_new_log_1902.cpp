@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+die_errno(_("failed to delete file %s"), path);

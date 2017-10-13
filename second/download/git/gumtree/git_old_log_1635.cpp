@@ -1,1 +1,0 @@
-failure |= error("Unable to update %s", ref_name.buf);

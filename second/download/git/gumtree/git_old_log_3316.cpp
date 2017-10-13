@@ -1,1 +1,1 @@
-fputs(reset, stdout);
+die_errno("Unable to read current working directory");

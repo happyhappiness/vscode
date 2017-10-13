@@ -1,1 +1,1 @@
-die("BUG: current_config_name called outside config callback");
+err(o, _("cannot read object %s"), oid_to_hex(oid));

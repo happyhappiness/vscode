@@ -1,1 +1,2 @@
-die("Reference directory conflict: %s", ref1->name);
+error(_("could not copy '%s' to '%s'"),
+			     rebase_path_message(), git_path("MERGE_MSG"));

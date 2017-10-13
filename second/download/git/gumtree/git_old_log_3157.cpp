@@ -1,1 +1,0 @@
-die_errno("could not read file '%s'", filename);

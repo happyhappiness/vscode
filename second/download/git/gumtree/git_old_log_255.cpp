@@ -1,1 +1,1 @@
-die(_("corrupt patch at line %d"), state->linenr);
+printf(" %-*s |", max, qname.buf);

@@ -1,1 +1,1 @@
-fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));

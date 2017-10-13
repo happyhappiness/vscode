@@ -1,1 +1,2 @@
-die(_("corrupt patch for submodule %s"), path);
+warning(_("truncating .rej filename to %.*s.rej"),
+			cnt - 1, patch->new_name);

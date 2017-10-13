@@ -1,1 +1,1 @@
-printf(" %s mode %06o %s\n", newdelete, mode, name);
+die(_("corrupt patch for submodule %s"), path);

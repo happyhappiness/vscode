@@ -1,2 +1,2 @@
-error("unable to stat %s: %s",
-			     sha1_to_hex(sha1), strerror(errno));
+die("attempting to mmap %"PRIuMAX" over limit %"PRIuMAX,
+		    (uintmax_t)length, (uintmax_t)limit);

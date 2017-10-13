@@ -1,2 +1,1 @@
-die_errno(_("could not open '%s' for reading"),
-				  filename);
+error("Can't verify ref %s", lock->ref_name);

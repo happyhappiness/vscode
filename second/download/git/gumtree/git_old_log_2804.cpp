@@ -1,1 +1,0 @@
-die(_("improper format entered align:%s"), s[0]->buf);

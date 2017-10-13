@@ -1,1 +1,1 @@
-error("malformed format string %s", sp);
+error("cannot open '%s' for copying", path);

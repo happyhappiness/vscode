@@ -1,1 +1,1 @@
-warning(_(msg_warn_remove_failed), quoted.buf);
+warning(_("insanely long object directory %.*s"), 50, objdir);

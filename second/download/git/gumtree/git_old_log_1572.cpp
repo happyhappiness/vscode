@@ -1,1 +1,0 @@
-printf("rm -f %s\n", pathname->buf);

@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die(_("Unusable instruction sheet: %s"), todo_file);

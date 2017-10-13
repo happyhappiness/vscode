@@ -1,2 +1,1 @@
-fprintf(log_file, "%s %"PRIuMAX"\n",
-		p->pack_name, (uintmax_t)obj_offset);
+die("corrupt tree sha %s", sha1_to_hex(sha1));

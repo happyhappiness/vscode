@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt->long_name, arg);
+die("transport '%s' not allowed", type);

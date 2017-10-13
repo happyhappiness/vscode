@@ -1,1 +1,3 @@
-printf("%s ", caller_name ? caller_name : oid_to_hex(oid));
+fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
+				oid_to_hex(&request->obj->oid),
+				request->curl_result, request->http_code);

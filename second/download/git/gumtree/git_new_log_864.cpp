@@ -1,1 +1,1 @@
-error(_("no commits parsed."));
+error(_("could not remove CHERRY_PICK_HEAD"));

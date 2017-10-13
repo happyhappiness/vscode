@@ -1,1 +1,1 @@
-("No commit to dig down to?";
+die("file %s has only %lu lines", path, lno);

@@ -1,1 +1,1 @@
-warning_errno(_("unable to access '%s'"), path);
+error(_("index file corrupt"));

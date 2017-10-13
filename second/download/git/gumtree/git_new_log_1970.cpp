@@ -1,2 +1,1 @@
-fprintf_ln(stderr, _("directory stat info changes "
-				     "after updating a file"));
+die("BUG: incompatible flags for get_sha1_with_context");

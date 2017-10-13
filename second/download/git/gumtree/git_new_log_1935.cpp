@@ -1,1 +1,0 @@
-error("%s: invalid sha1 pointer %s", refname, oid_to_hex(oid));

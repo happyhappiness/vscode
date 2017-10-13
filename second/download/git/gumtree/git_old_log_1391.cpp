@@ -1,1 +1,2 @@
-die("Can't load object %s", sha1_to_hex(sha1));
+die(_("missing object %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);

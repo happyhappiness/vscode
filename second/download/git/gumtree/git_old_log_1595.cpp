@@ -1,1 +1,1 @@
-error(_("unrecognized argument: %s"), argv[1]);
+die("bad pack compression level %d", level);

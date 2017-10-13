@@ -1,1 +1,2 @@
-die("bad color value '%.*s' for variable '%s'", value_len, value, var);
+fprintf(stderr,
+						"Also look at %s\n", target);

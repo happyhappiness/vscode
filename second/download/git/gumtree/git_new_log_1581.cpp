@@ -1,1 +1,2 @@
-result |= error("%s", err.buf);
+error("copy-fd: write returned %s",
+				     strerror(errno));

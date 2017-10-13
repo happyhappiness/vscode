@@ -1,2 +1,2 @@
-die("BUG: counted %d != ended at %d",
-			    check->nr, cnt);
+error("Object %s is a %s, not a commit or tree",
+	      oid_to_hex(&oid), typename(obj->type));

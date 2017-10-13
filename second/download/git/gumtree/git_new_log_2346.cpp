@@ -1,1 +1,1 @@
-die("transport '%s' not allowed", type);
+printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));

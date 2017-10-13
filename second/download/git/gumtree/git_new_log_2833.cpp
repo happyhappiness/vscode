@@ -1,1 +1,1 @@
-die("index file corrupt");
+die("strange port '%s' blocked", port);

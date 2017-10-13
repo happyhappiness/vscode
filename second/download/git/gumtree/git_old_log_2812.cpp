@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s", refname);
+warning("Please upgrade Git");

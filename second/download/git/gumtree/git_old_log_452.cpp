@@ -1,1 +1,1 @@
-error(_("Must specify a notes ref to merge"));
+error(_("Cannot pull with rebase: Your index contains uncommitted changes."));

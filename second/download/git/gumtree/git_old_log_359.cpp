@@ -1,1 +1,1 @@
-die(_("Unable to write new index file"));
+die("--contents and --reverse do not blend well.");

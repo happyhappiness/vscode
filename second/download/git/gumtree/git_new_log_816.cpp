@@ -1,2 +1,2 @@
-usage_msg_opt(_("--abort expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
+die(_("Unimplemented pathspec magic '%c' in '%s'"),
+			    ch, elem);

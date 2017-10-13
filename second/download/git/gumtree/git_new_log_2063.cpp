@@ -1,1 +1,1 @@
-error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
+die("a %s revision is needed", term_bad);

@@ -1,1 +1,1 @@
-die("BUG: %s: not a valid attribute name", param);
+die ("Could not read blob %s", oid_to_hex(oid));

@@ -1,1 +1,2 @@
-fprintf(stderr, "Invalid pattern: %s\n", regex_);
+die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

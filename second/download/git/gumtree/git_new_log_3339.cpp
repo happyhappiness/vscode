@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "---");
+die("BUG: unhandled diff status %c", status);

@@ -1,1 +1,1 @@
-printf(" %s", oid_to_hex(&parents->item->object.oid));
+printf("%s ", find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV));

@@ -1,1 +1,1 @@
-die("BUG: reference backend %s is unknown", be_name);
+error(_("could not resolve HEAD commit\n"));

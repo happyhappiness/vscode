@@ -1,0 +1,1 @@
+die("BUG: unknown binary handling mode");

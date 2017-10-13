@@ -1,2 +1,2 @@
-error("failed to redirect stderr to /dev/null: "
-				     "%s", strerror(errno));
+error("Failed to flush %s: %s",
+				      path, strerror(errno));

@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), new_name);
+error("invalid pattern: %s", regex_);

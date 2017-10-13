@@ -1,2 +1,2 @@
-die("cannot read commit object %s",
-			    sha1_to_hex(commit->object.sha1));
+error("internal error: %s is not a valid packed reference!",
+		      entry->name);

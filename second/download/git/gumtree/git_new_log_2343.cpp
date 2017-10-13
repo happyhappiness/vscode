@@ -1,2 +1,2 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+printf("broken link from %7s %s\n",
+			   typename(parent->type), oid_to_hex(&parent->oid));

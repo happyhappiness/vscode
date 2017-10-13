@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+die("socket directory must be an absolute path");

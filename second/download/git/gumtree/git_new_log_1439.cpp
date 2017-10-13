@@ -1,1 +1,1 @@
-die("BUG: packed-refs not locked");
+fprintf(stderr, "cannot chmod %cx '%s'\n", flip, ce->name);

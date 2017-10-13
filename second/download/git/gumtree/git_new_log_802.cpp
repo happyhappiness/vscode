@@ -1,1 +1,1 @@
-printf(_("Bye.\n"));
+die("BUG: cannot have prefix and superprefix");

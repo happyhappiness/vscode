@@ -1,1 +1,1 @@
-strbuf_swap(&sb, &next_sb);
+die(_("Not a valid object name %s"), obj_name);

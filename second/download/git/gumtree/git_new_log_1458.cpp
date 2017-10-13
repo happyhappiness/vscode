@@ -1,1 +1,2 @@
-die("git-cvsserver only handles server: %s", arg);
+error("Unexpected line '%s', expected %s-server",
+			     line ? line : "<flush packet>", welcome_prefix);

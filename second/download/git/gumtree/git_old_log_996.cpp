@@ -1,1 +1,1 @@
-die("git_all_attrs died");
+error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));

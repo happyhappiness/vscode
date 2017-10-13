@@ -1,1 +1,1 @@
-die("not in a git directory");
+die(_("malformed field name: %.*s"), (int)(ep-atom), atom);

@@ -1,2 +1,1 @@
-warning(_("Missing author: %s"),
-		    oid_to_hex(&commit->object.oid));
+die("BUG: pack_name does not end in .pack");

@@ -1,1 +1,1 @@
-die("BUG: bookkeeping is hard");
+error("could not unhide %s", filename);

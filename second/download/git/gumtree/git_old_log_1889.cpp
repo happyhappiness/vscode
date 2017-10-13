@@ -1,1 +1,1 @@
-error("%s does not point to a valid object!", entry->name);
+die("unable to generate diff");

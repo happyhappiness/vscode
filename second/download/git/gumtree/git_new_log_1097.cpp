@@ -1,1 +1,1 @@
-die(_("invalid attribute name %s"), attr_name);
+opterror(opt, "is incompatible with --merged", 0);

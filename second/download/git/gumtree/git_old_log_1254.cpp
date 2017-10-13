@@ -1,1 +1,1 @@
-die("no such path '%s' in HEAD", path);
+die(_("cannot read existing object info %s"), sha1_to_hex(sha1));

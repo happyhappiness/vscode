@@ -1,3 +1,2 @@
-die(Q_("only %d entry can be shown at one time.",
-			       "only %d entries can be shown at one time.",
-			       MAX_REVS), MAX_REVS);
+die(_("submodule '%s' cannot add alternate: %s"),
+				    sas->submodule_name, err.buf);

@@ -1,1 +1,1 @@
-fputs("\\ No newline at end of file\n", stdout);
+die_errno("Cannot come back to cwd");

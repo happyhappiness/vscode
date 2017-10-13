@@ -1,1 +1,1 @@
-die("Can't load tree %s", sha1_to_hex(sha1));
+error("sha1 mismatch %s", sha1_to_hex(repl));

@@ -1,1 +1,2 @@
-("BUG: caller miscounted postlen: asked %d, orig = %d, used = %d";
+error("atomic push failed for ref %s. status: %d\n",
+		     failing_ref->name, failing_ref->status);

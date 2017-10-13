@@ -1,1 +1,1 @@
-die("BUG: finalize_deferred_config() should have been called");
+printf_ln(_("`git %s' is aliased to `%s'"), argv[0], alias);

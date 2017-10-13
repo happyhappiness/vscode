@@ -1,2 +1,2 @@
-fprintf(opt->file, ":%06o %06o %s ", p->one->mode, p->two->mode,
-			diff_aligned_abbrev(&p->one->oid, opt->abbrev));
+error("unable to read sha1 file of %s (%s)",
+				path, oid_to_hex(&ce->oid));

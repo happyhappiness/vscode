@@ -1,1 +1,1 @@
-printf("reset %s\n", refname);
+xgetcwd();

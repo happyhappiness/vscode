@@ -1,1 +1,2 @@
-die_errno(_("could not create file '%s'"), path);
+error("cannot rename %s to %s",
+					newlog_path, log_file);

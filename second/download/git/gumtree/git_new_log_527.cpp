@@ -1,2 +1,1 @@
-error("unknown value after ws-error-highlight=%.*s",
-		      -1 - val, arg);
+warning(_(rename_limit_advice), varname, needed);

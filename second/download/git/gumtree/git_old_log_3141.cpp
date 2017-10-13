@@ -1,1 +1,1 @@
-die("Option --exec can only be used together with --remote");
+die_errno(_("Could not write to '%s'"), filename);

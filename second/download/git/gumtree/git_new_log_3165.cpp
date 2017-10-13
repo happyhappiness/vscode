@@ -1,3 +1,2 @@
-die((side == DIFF_NEW_NAME) ?
-			    _("git apply: bad git-diff - inconsistent new filename on line %d") :
-			    _("git apply: bad git-diff - inconsistent old filename on line %d"), state->linenr);
+fprintf(log->file, "%6d\t%s\n",
+				(int)UTIL_TO_INT(item), item->string);

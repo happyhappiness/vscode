@@ -1,2 +1,2 @@
-status_printf_ln(s, color,
-					_("  (use \"git rebase --edit-todo\" to view and edit)"));
+warning ("Exporting signed tag %s",
+					 oid_to_hex(&tag->object.oid));

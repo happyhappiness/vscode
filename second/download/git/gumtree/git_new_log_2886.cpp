@@ -1,1 +1,1 @@
-fputs(env_hint, stderr);
+die("resolve-relative-url-test only accepts three arguments: <up_path> <remoteurl> <url>");

@@ -1,1 +1,2 @@
-die("unable to generate diff for %s", pair->one->path);
+printf("              to %7s %s\n",
+				 typename(obj->type), oid_to_hex(&obj->oid));

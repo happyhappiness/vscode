@@ -1,1 +1,0 @@
-printf("%s %s\n", sha1_to_hex(result), name);

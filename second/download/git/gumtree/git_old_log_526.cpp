@@ -1,1 +1,1 @@
-die("Option '--stat-count' requires a value");
+warning(rename_limit_warning);

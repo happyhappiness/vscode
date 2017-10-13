@@ -1,1 +1,1 @@
-err = error("read from external filter '%s' failed", cmd);
+error("initialization for external filter '%s' failed", cmd);

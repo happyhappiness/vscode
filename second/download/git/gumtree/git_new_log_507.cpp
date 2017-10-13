@@ -1,1 +1,1 @@
-error("external filter '%s' failed %d", params->cmd, status);
+error("external filter '%s' does not support filter protocol version 2", cmd);

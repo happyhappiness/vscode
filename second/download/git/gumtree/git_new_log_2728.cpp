@@ -1,2 +1,2 @@
-die(_("offset before start of pack index for %s (corrupt index?)"),
-		    p->pack_name);
+die(_("missing object %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);

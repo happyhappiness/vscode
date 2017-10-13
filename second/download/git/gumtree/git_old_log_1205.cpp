@@ -1,1 +1,1 @@
-die_errno(_("open /dev/null failed"));
+die("internal error in blame::origin_decref");

@@ -1,1 +1,1 @@
-die("object %s disappeared", oid_to_hex(oid));
+die("BUG: invalid cmdmode: %c", opt->cmdmode);

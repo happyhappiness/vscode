@@ -1,1 +1,1 @@
-error("Unexpected line '%s', expected flush", line);
+printf("reset %s\n", refname);

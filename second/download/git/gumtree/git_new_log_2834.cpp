@@ -1,1 +1,1 @@
-fprintf(outfile, "%s%s\n", tok, val);
+die("strange pathname '%s' blocked", path);

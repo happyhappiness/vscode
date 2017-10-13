@@ -1,1 +1,1 @@
-die("corrupt tree sha %s", sha1_to_hex(sha1));
+status_printf_ln(s, GIT_COLOR_NORMAL, "");

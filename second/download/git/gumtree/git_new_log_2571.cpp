@@ -1,1 +1,0 @@
-die("Object not in bitmap: %s\n", oid_to_hex(&object->oid));

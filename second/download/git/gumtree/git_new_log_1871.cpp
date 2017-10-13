@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), old_name);
+error("invalid key pattern: %s", key_);

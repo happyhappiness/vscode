@@ -1,2 +1,2 @@
-die(_("configuration fetch.output contains invalid value %s"),
-		    format);
+xstrfmt(_("bad config line %d in blob %s"),
+				      cf->linenr, cf->name);

@@ -1,1 +1,1 @@
-die("cannot run browser");
+printf("%s\n", sb.buf);

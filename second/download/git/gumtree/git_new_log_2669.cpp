@@ -1,1 +1,1 @@
-die("bad object %s", oid_to_hex(&tag->tagged->oid));
+printf("i/%-5s w/%-5s attr/%-17s\t", i_txt, w_txt, a_txt);

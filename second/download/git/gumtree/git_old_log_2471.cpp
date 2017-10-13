@@ -1,1 +1,3 @@
-printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
+fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);

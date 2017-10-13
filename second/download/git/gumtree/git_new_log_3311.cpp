@@ -1,2 +1,3 @@
-die("BUG: curl_easy_getinfo for HTTP code failed: %s",
-				curl_easy_strerror(c));
+die(_("%s: no such path in the working tree.\n"
+		      "Use 'git <command> -- <path>...' to specify paths that do not exist locally."),
+		    arg);

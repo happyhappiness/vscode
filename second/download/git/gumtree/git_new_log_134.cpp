@@ -1,2 +1,2 @@
-ret = error("chmod on %s failed: %s",
+error("chmod on %s failed: %s",
 				lock->filename, strerror(errno));

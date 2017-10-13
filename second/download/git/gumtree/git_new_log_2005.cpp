@@ -1,1 +1,1 @@
-die("packed refname is dangerous: %s", refname);
+fputs(c_context, stdout);

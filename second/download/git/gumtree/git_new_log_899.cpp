@@ -1,1 +1,1 @@
-die("No path in gitfile: %s", path);
+die(_("could not lookup name for submodule '%s'"), path);

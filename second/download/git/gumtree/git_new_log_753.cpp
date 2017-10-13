@@ -1,1 +1,2 @@
-error(_("cannot %s: You have unstaged changes."), _(action));
+warning("adding alternate object store: %s",
+					target.buf);

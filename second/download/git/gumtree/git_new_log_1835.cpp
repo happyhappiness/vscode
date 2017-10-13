@@ -1,1 +1,2 @@
-flags |= REF_HAVE_NEW;
+die("the receiving end asked to sign an invalid nonce <%.*s>",
+		    len, nonce);

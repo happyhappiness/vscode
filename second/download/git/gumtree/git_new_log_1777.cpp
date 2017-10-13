@@ -1,2 +1,2 @@
-die("credential helper '%s' told us to quit",
-			    c->helpers.items[i].string);
+die("-L argument '%s' not of the form start,end:file",
+			    item->string);

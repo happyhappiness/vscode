@@ -1,1 +1,1 @@
-error_errno("error while reading from stdin");
+die(_("unknown error occurred while reading the configuration files"));

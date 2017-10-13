@@ -1,2 +1,1 @@
-error("poll failed, resuming: %s",
-				      strerror(errno));
+die(_("corrupt patch at line %d"), linenr);

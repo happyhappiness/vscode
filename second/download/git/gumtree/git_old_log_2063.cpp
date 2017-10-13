@@ -1,1 +1,1 @@
-error("unable to lock %s for update", newrefname);
+die("a bad revision is needed");

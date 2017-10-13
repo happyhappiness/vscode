@@ -1,1 +1,1 @@
-die(_("failed to resolve '%s' as a valid ref."), object_ref);
+error(_("failed to remove 'git notes merge' worktree"));

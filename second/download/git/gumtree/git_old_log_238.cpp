@@ -1,1 +1,1 @@
-die(_("unrecognized whitespace ignore option '%s'"), option);
+die(_("git apply: bad git-diff - expected /dev/null on line %d"), state->linenr);

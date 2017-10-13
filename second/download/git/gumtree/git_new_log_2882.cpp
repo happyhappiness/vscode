@@ -1,1 +1,1 @@
-die(_("could not set '%s' to '%s'"), key, value);
+die(_("No such ref: %s"), "HEAD");

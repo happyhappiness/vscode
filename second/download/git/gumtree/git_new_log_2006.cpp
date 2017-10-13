@@ -1,1 +1,2 @@
-die("loose refname is dangerous: %s", refname.buf);
+error("unable to mmap '%s': %s",
+			      config_filename, strerror(errno));

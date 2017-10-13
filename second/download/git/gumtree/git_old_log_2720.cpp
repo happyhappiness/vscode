@@ -1,1 +1,1 @@
-die("remote-ext command has too many arguments");
+die(_("expected format: %%(color:<color>)"));

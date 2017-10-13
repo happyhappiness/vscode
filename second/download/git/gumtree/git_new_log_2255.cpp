@@ -1,2 +1,2 @@
-strbuf_addf(err, "unable to append to %s: %s",
-				    logfile->buf, strerror(errno));
+status_printf_ln(s, color,
+					_("  (see more in file %s)"), git_path("rebase-merge/done"));

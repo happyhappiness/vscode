@@ -1,1 +1,1 @@
-die("destination '%s' is not a directory", dest_path[0]);
+die("Failed to expand user dir in: '%s'", value);

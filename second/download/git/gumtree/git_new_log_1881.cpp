@@ -1,1 +1,0 @@
-warning("--no-curl not supported in this build");

@@ -1,2 +1,2 @@
-die("Failed to read notes tree referenced by %s (%s)",
-		    notes_ref, oid_to_hex(&object_oid));
+printf("Using remote notes for %s\n",
+						oid_to_hex(&p->obj));

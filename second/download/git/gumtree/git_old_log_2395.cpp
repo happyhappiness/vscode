@@ -1,1 +1,1 @@
-warning(_("--dissociate given, but there is no --reference"));
+die("cannot describe '%s'", sha1_to_hex(sha1));

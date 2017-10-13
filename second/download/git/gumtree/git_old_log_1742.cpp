@@ -1,1 +1,2 @@
-error("Can't lock ref %s", write_ref[i]);
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

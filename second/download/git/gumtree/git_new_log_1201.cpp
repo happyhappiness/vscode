@@ -1,1 +1,1 @@
-die(_("--local can only be used inside a git repository"));
+warning(_("adding embedded git repository: %s"), name.buf);

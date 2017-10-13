@@ -1,1 +1,1 @@
-die("bad tree %s", oid_to_hex(&obj->oid));
+die(_("no input file given for in-place editing"));

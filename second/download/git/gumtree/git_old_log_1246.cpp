@@ -1,1 +1,2 @@
-die("internal error in blame::find_origin");
+error("%s: invalid sha1 pointer in cache-tree",
+			      sha1_to_hex(it->sha1));

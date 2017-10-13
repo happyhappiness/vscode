@@ -1,1 +1,1 @@
-fprintf(stderr, "fixed %s\n", sb.buf);
+fprintf(f, "%s\n", describe_object(obj));

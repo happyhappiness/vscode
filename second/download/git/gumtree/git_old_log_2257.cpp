@@ -1,1 +1,0 @@
-error("Unable to append to %s", log_file);

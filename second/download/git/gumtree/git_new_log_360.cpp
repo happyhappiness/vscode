@@ -1,1 +1,1 @@
-packet_write_fmt(fd[1], "argument --format=%s\n", format);
+die(_("cannot use --contents with final commit object name"));

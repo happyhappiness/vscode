@@ -1,1 +1,1 @@
-fprintf(opt->file, "%s", diff_line_prefix(opt));
+error(_("could not read HEAD's commit message"));

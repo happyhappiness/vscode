@@ -1,1 +1,1 @@
-error_errno("could not write config file %s", config_filename);
+error_errno("cannot stat '%s'", ce->name);

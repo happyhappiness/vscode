@@ -1,1 +1,1 @@
-die(_("invalid reference: %s"), refname);
+die("BUG: initial ref transaction with old_sha1 set");

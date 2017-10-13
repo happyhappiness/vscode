@@ -1,1 +1,3 @@
-fprintf(opt->file, "%s%s+++ b/%s%s\n", prefix, c_meta, pair->two->path, c_reset);
+die(_("Problem with core.sharedRepository filemode value "
+		    "(0%.3o).\nThe owner of files must always have "
+		    "read and write permissions."), i);

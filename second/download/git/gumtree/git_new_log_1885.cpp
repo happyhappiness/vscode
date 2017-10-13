@@ -1,1 +1,1 @@
-die_errno("unable to open '%s'", name);
+die_errno(_("could not close '%s'"), filename);

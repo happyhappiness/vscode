@@ -1,1 +1,0 @@
-die(_("expected format: %%(color:<color>)"));

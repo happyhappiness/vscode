@@ -1,1 +1,1 @@
-printf("previous %s ", oid_to_hex(&prev->commit->object.oid));
+argv_array_push(argv, sha1_to_hex(sha1));

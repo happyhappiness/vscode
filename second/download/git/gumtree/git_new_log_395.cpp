@@ -1,1 +1,1 @@
-die("unsupported porcelain version '%s'", arg);
+die(_("--deepen and --depth are mutually exclusive"));

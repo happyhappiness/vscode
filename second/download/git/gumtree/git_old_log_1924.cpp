@@ -1,1 +1,1 @@
-printf("%s missing\n", obj_name);
+die_errno("failed to write pid file '%s'", path);

@@ -1,1 +1,1 @@
-error("'%s' was not filtered properly", path->string);
+ref_transaction_free(transaction);

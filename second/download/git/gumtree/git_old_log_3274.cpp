@@ -1,2 +1,1 @@
-die(_("bad numeric config value '%s' for '%s' in %s %s: %s"),
-		    value, name, cf->origin_type, cf->name, reason);
+die(_("cannot read object %s '%s'"), sha1_to_hex(sha), path);

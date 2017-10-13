@@ -1,1 +1,1 @@
-diagnose_missing_default(revs->def);
+objreport(obj, (type == FSCK_WARN) ? "warning" : "error", message);

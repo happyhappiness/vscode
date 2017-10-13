@@ -1,2 +1,2 @@
-die_errno(_("could not open '%s' for reading"),
-				  git_path("MERGE_HEAD"));
+die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
+		    path);

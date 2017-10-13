@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+error("Could not write client identification");

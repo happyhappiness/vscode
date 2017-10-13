@@ -1,1 +1,1 @@
-die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);
+packet_write_fmt(1, "ACK\n");

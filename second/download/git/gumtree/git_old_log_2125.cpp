@@ -1,1 +1,0 @@
-fprintf(out, "%s ", sha1_to_hex(obj->sha1));

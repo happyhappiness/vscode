@@ -1,2 +1,1 @@
-error(_("affected file '%s' is beyond a symbolic link"),
-			     patch->new_name);
+error("%s: invalid sha1 pointer %s", refname, oid_to_hex(oid));

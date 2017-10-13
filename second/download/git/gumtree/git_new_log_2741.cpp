@@ -1,1 +1,1 @@
-die(_("stage should be between 1 and 3 or all"));
+fputs(pp->buffered_output.buf, stderr);

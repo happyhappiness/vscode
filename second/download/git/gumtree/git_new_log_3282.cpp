@@ -1,1 +1,1 @@
-die("BUG: current_config_origin_type called outside config callback");
+die("BUG: ren1_src != ren2_src");

@@ -1,0 +1,1 @@
+err(o, _("addinfo_cache failed for path '%s'"), path);

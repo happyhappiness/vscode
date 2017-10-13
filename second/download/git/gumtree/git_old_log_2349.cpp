@@ -1,0 +1,1 @@
+fprintf(f, "%s\n", sha1_to_hex(obj->sha1));

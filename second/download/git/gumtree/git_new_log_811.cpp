@@ -1,1 +1,1 @@
-die("BUG: read_loose_object streamed a non-blob");
+warning("ignoring alternate with unknown protocol: %s", url);

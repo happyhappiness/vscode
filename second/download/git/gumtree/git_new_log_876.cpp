@@ -1,1 +1,1 @@
-ret = error(_("cannot store %s"), stash_sha1.buf);
+die("BUG: unknown error code");

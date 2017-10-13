@@ -1,1 +1,1 @@
-die("Unknown archive format '%s'", format);
+die_errno(_("Could not write to '%s'"), filename);

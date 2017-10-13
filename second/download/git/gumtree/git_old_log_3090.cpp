@@ -1,1 +1,1 @@
-error("seek error: %s", strerror(errno));
+error(_("read of %s failed"), name);

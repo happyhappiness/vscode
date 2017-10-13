@@ -1,1 +1,2 @@
-printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(oid->hash, DEFAULT_ABBREV));
+die("Object %s is a %s but a blob was expected.",
+		    oid_to_hex(oid), typename(type));

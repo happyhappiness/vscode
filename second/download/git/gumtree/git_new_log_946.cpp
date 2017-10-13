@@ -1,1 +1,1 @@
-error("key does not contain a section: %s", key);
+(_("no name was given and auto-detection is disabled");

@@ -1,1 +1,1 @@
-strbuf_release(&buf);
+die(_("'%s' not recognized as a git repository"), git_dir);

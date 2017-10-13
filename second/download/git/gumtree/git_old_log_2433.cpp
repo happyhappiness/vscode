@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s/%s\n", path, de->d_name);
+die("Whoops! Cannot find object '%s'", sha1_to_hex(obj->sha1));

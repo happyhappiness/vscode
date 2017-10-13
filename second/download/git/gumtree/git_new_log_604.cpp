@@ -1,1 +1,1 @@
-error("packet write failed - data exceeds max packet size");
+error_errno(_("could not write to '%s'"), filename);

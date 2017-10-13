@@ -1,0 +1,1 @@
+die("unknown date format %s", format);

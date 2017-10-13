@@ -1,1 +1,2 @@
-die("Too large to be a .git file: '%s'", path);
+die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

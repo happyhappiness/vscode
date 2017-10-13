@@ -1,1 +1,1 @@
-warning(_("ignoring ref with broken name %s"), refname);
+_("Expected git repo version <= %d, found %d");

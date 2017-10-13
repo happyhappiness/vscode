@@ -1,1 +1,1 @@
-transaction = ref_transaction_begin(&err);
+usage_with_options(usage, options);

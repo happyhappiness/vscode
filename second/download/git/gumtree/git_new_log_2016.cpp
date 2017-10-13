@@ -1,3 +1,1 @@
-error_buf(err,
-				 _("branch '%s' has no remote for pushing"),
-				 branch->name);
+die("unable to generate diff for %s", name);

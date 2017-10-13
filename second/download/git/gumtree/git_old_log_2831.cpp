@@ -1,1 +1,1 @@
-die("index file corrupt");
+fprintf(stderr, "Aborting\n");

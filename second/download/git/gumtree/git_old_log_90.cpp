@@ -1,1 +1,1 @@
-die("create %s missing <newvalue>", ref.buf);
+die("create line missing <ref>");

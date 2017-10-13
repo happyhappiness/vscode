@@ -1,1 +1,1 @@
-ret = error_errno("Could not write to %s", filename);
+error_errno("Could not open %s", path);

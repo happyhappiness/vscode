@@ -1,1 +1,1 @@
-error(_("failed to close rev-list's stdin: %s"), strerror(errno));
+error("error reading delta: %s", strerror(errno));

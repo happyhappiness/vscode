@@ -1,2 +1,1 @@
-fprintf_or_die(submodule_dot_git, "gitdir: %s\n",
-		       relative_path(sm_gitdir, path, &rel_path));
+warning_errno("failed to stat %s", pack_tmp_name);

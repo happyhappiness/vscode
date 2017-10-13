@@ -1,3 +1,3 @@
-warning("Not updating %s"
-				" (new tip %s does not contain %s)",
-				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
+error("cannot unpack %s from %s at offset %"PRIuMAX"",
+				    sha1_to_hex(entries[i].sha1), p->pack_name,
+				    (uintmax_t)entries[i].offset);

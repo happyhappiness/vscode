@@ -1,1 +1,1 @@
-die("Unable to write new index file");
+init_split_index(&the_index);

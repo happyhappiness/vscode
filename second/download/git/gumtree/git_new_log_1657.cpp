@@ -1,1 +1,1 @@
-error("cannot fix permission bits on %s", lk->filename.buf);
+die("BUG: create ref with null new_sha1");

@@ -1,2 +1,1 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    oid_to_hex(oid));
+die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");

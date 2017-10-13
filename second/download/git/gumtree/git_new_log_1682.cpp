@@ -1,1 +1,1 @@
-die("unable to mark recent objects");
+error("unable to open %s: %s", path->buf, strerror(errno));

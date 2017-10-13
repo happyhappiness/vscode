@@ -1,1 +1,1 @@
-die("empty ident name (for <%s>) not allowed", email);
+die("git_all_attrs died");

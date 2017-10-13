@@ -1,2 +1,2 @@
-die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
-		    path);
+die_errno("failed to write to %s",
+				  shallow_lock->filename.buf);

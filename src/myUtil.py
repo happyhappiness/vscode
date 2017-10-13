@@ -213,6 +213,19 @@ def save_file(content, file_name):
 
 
 """
+@ param old file name and new file name
+@ return
+@ involve copy file from old file to new file
+"""
+def copy_file(old_file_name, new_file_name):
+    read_file = open(old_file_name, 'rb')
+    content = read_file.read()
+    write_file = open(new_file_name, 'wb')
+    write_file.write(content)
+    read_file.close()
+    write_file.close()
+
+"""
 @ param joernIndex parent dir
 @ return
 @ involve rm old joernIndex file, and build new one. restart neo4j server

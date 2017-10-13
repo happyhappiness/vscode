@@ -1,2 +1,2 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"),
-			    oid_to_hex(&data->entry->idx.oid));
+error("delta base offset overflow in pack for %s",
+					      oid_to_hex(&entry->idx.oid));

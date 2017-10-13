@@ -1,1 +1,1 @@
-fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
+die("BUG: verify called with old_sha1 set to NULL");

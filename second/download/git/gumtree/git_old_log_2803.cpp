@@ -1,1 +1,1 @@
-die(_("expected format: %%(align:<width>,<position>)"));
+die("user.useConfigOnly set but no mail given");

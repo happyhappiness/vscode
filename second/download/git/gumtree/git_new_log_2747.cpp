@@ -1,2 +1,1 @@
-die(_("invalid number of threads specified (%d) for %s"),
-			    num_threads, var);
+fputs(pp->buffered_output.buf, stderr);

@@ -1,0 +1,1 @@
+fprintf(stderr, "Checking %s\n", sha1_to_hex(obj->sha1));

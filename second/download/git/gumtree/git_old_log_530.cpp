@@ -1,1 +1,1 @@
-warning(degrade_cc_to_c_warning);
+die("git fetch-pack: expected ACK/NAK, got EOF");

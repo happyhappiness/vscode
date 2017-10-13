@@ -1,1 +1,0 @@
-die("'git status --porcelain' failed in submodule %s", path);

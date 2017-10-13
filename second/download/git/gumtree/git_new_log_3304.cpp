@@ -1,1 +1,1 @@
-die("BUG: a non-header pattern in grep header list.");
+die("BUG: REF_ISPRUNING set without REF_NODEREF");

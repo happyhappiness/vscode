@@ -1,1 +1,1 @@
-die("Whoops! Cannot find object '%s'", oid_to_hex(&obj->oid));
+die(_("malformed object name %s"), arg);

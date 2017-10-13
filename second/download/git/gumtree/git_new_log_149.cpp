@@ -1,1 +1,1 @@
-srvc->user = xstrdup(cred.username);
+error("%s", buf.buf);

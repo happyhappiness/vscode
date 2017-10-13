@@ -1,1 +1,1 @@
-die("'git status --porcelain=2' failed in submodule %s", path);
+error(_("could not close '%s'"), tempfile->filename.buf);

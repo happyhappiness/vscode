@@ -1,1 +1,1 @@
-die_errno("can't find the current directory");
+die("bad tree object %s", sha1_to_hex(obj->sha1));

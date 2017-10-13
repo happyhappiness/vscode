@@ -1,1 +1,1 @@
-die("cannot start proxy %s", argv[0]);
+error("cannot delete '%s' from packed refs", refnames[i]);

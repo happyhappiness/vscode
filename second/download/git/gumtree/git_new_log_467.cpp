@@ -1,2 +1,3 @@
-packet_write_fmt(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+die(Q_("only %d entry can be shown at one time.",
+			       "only %d entries can be shown at one time.",
+			       MAX_REVS), MAX_REVS);

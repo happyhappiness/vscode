@@ -1,1 +1,1 @@
-die("Can't read object %s", sha1_to_hex(sha1));
+die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");

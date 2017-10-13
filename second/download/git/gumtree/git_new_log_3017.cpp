@@ -1,1 +1,0 @@
-error_errno("unable to create file %s", path);

@@ -1,1 +1,1 @@
-die("Can't read object %s", oid_to_hex(oid));
+die ("BUG: error initializing pathspec_item");

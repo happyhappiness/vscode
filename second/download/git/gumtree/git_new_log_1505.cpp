@@ -1,2 +1,1 @@
-warning("subprocess '%s' requested unsupported capability '%s'",
-				process->argv[0], p);
+die("BUG: couldn't parse 'reset' as a color");

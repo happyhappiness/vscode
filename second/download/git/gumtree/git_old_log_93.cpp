@@ -1,1 +1,1 @@
-die("delete line missing <ref>");
+die("create %s has extra input: %s", ref.buf, next);

@@ -1,1 +1,1 @@
-printf(_("Final output: %d %s\n"), nr, stage);
+die("strange hostname '%s' blocked", ssh_host);

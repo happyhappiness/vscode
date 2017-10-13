@@ -1,1 +1,1 @@
-free(to_free);
+die(_("expected format: %%(color:<color>)"));

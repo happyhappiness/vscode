@@ -1,1 +1,1 @@
-die(str, updates[i]->ref_name);
+fprintf(stderr, "Unexpected end of command stream\n");

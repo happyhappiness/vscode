@@ -1,1 +1,0 @@
-die("badly quoted argument: %s", orig);

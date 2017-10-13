@@ -1,1 +1,2 @@
-error("tag '%s' not found.", name);
+error("open(\"%s\"): %s", path,
+				     strerror(errno));

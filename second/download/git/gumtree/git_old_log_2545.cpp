@@ -1,3 +1,1 @@
-fprintf(stderr,
-				"Resuming fetch of pack %s at byte %ld\n",
-				sha1_to_hex(target->sha1), prev_posn);
+error("unable to write current sha1 into %s: %s", newrefname, err.buf);

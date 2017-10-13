@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "Message-Id: <%s>\n", opt->message_id);
+die(_("transport: invalid depth option '%s'"), value);

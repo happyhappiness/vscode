@@ -1,1 +1,1 @@
-error(_("%s: does not exist in index"), old_name);
+error(_("%s: already exists in index"), new_name);

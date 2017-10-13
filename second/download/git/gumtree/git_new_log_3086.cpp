@@ -1,1 +1,1 @@
-error_errno("poll failed, resuming");
+die(_("corrupt patch at line %d"), state->linenr);

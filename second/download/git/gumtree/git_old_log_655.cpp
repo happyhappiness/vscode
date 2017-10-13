@@ -1,1 +1,3 @@
-die_errno(_("Could not write to %s"), git_path_head_file());
+error("object directory %s does not exist; "
+		      "check .git/objects/info/alternates.",
+		      ent->base);

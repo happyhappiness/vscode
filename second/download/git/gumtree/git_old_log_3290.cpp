@@ -1,1 +1,2 @@
-die("unable to read %s", sha1_to_hex(s->sha1));
+error(_("Could not parse object '%s'"),
+					sha1_to_hex(base_list[i]));

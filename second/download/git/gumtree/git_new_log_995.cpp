@@ -1,2 +1,1 @@
-printf(": %s: %s\n",
-			       git_attr_name(check->items[j].attr), value);
+error("Object %s already has a mark", oid_to_hex(&oid));

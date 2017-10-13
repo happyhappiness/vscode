@@ -1,1 +1,1 @@
-printf("root %s\n", sha1_to_hex(commit->object.sha1));
+die(_("--sort and -n are incompatible"));

@@ -1,1 +1,1 @@
-error("could not unhide %s", filename);
+warning_errno("malloc failed");

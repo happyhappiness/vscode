@@ -1,1 +1,0 @@
-die(_("positive value expected contents:lines=%s"), valp);

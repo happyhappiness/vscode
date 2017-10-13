@@ -1,1 +1,1 @@
-die(_("no such path %s in %s"), path, final_commit_name);
+die("object %s disappeared", oid_to_hex(oid));

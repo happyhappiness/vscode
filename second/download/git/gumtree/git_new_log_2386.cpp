@@ -1,1 +1,1 @@
-die("--reverse and --first-parent together require specified latest commit");
+printf("%s\n", oid_to_hex(&result->item->object.oid));

@@ -1,2 +1,1 @@
-error("cannot stat '%s': %s", path,
-					strerror(errno));
+die("unable to generate diff for %s", one->path);

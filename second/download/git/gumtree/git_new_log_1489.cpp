@@ -1,2 +1,1 @@
-error("external filter '%s' is not available anymore although "
-		      "not all paths have been filtered", cmd);
+printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");

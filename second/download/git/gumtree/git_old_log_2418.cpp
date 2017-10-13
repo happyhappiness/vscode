@@ -1,2 +1,1 @@
-printf("%s %s\n",
-		       sha1_to_hex(ref->old_sha1), ref->name);
+die_errno("unable to read object %s", oid_to_hex(oid));

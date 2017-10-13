@@ -1,2 +1,1 @@
-error_errno("unable to create symlink %s",
-						   path);
+error(_("cannot abort from a branch yet to be born"));

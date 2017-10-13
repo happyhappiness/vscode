@@ -1,3 +1,6 @@
-print_ref_status('!', "[rejected]", ref, NULL,
-				 "remote does not support deleting refs",
-				 porcelain, summary_width);
+fprintf(o, "%s%06o %s %d\t%s\n",
+			label,
+			ce->ce_mode,
+			oid_to_hex(&ce->oid),
+			ce_stage(ce),
+			ce->name);

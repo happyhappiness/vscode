@@ -1,1 +1,1 @@
-die("BUG: attempt to commit unlocked object to \"%s\"", path);
+die("helper %s does not support --signed", data->name);

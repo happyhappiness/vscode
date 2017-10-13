@@ -1,1 +1,0 @@
-error("unable to lock %s for rollback", oldrefname);

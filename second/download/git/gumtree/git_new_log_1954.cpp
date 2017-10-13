@@ -1,2 +1,3 @@
-printf("%s (%s) -> %s (%s)\n", refname, typename(obj_type),
-			       oid_to_hex(oid), typename(repl_type));
+error_buf(err,
+					 _("push refspecs for '%s' do not include '%s'"),
+					 remote->name, branch->name);

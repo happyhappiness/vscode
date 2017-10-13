@@ -1,1 +1,1 @@
-xalloca_free(tptree);
+fputs("", s->fp);

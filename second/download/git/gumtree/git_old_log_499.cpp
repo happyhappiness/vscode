@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("LF would be replaced by CRLF in %s", path);

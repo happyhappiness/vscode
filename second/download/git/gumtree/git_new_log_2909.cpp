@@ -1,1 +1,1 @@
-error("could not unhide %s", filename);
+error_errno("readlink(%s)", elem->path);

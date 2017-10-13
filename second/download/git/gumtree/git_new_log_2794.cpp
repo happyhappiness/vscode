@@ -1,1 +1,1 @@
-die(_("positive width expected with the %%(align) atom"));
+error("could not expand include path '%s'", path);

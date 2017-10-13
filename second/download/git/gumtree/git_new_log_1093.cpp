@@ -1,2 +1,2 @@
-die(_("Escape character '\\' not allowed as "
-				      "last character in attr value"));
+strbuf_addf(&desc, _("(HEAD detached at %s)"),
+				state.detached_from);

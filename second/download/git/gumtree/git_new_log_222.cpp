@@ -1,1 +1,1 @@
-logerror("base-path too large: %s", rpath);
+die("unknown option passed through to git apply");

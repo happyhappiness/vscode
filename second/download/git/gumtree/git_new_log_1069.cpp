@@ -1,0 +1,1 @@
+die("cannot use '%c' for value matching", *src);

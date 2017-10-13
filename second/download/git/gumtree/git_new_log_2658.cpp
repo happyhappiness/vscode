@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(&posn->old_oid), posn->name);
+die("--progress can't be used with --incremental or porcelain formats");

@@ -1,2 +1,2 @@
-die("-L argument '%s' not of the form start,end:file",
-			    item->string);
+die("cannot find commit %s (%s)",
+			    ref_name[num_rev], revkey);

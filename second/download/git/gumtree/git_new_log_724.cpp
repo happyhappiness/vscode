@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s continue\n", last_hex);
+fprintf(s->fp, "# branch.upstream %s%c", base, eol);

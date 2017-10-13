@@ -1,1 +1,3 @@
-printf("%s -> %s\n", refname, oid_to_hex(oid));
+error_buf(err,
+				 _("branch '%s' has no remote for pushing"),
+				 branch->name);

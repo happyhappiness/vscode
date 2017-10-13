@@ -1,1 +1,1 @@
-die("%s", err.buf);
+diagnose_missing_default(revs->def);

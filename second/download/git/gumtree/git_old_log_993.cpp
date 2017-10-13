@@ -1,1 +1,1 @@
-printf("%s\n", out.buf);
+die("object not found: %s", sha1_to_hex(sha1));

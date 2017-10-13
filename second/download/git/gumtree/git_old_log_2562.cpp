@@ -1,1 +1,2 @@
-printf(" %s", find_unique_abbrev(p->item->object.sha1, abbrev));
+error("cannot read %d bytes from reflog for %s: %s",
+				     cnt, refname, strerror(errno));

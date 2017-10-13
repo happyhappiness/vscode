@@ -1,1 +1,1 @@
-warning(_(rename_limit_advice), varname, needed);
+die(_("--stateless-rpc requires multi_ack_detailed"));

@@ -1,1 +1,1 @@
-printf("#unmatched\n");
+error("cannot create pipe: %s", strerror(errno));

@@ -1,2 +1,1 @@
-die(_("packfile name '%s' does not end with '.pack'"),
-		    pack_name);
+die(_("base commit should be the ancestor of revision list"));

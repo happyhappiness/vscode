@@ -1,1 +1,1 @@
-printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
+sha1_to_hex(r->list[i].sha1);

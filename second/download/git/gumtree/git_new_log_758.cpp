@@ -1,1 +1,1 @@
-die("unable to read blob object %s", oid_to_hex(oid));
+warning(_("redirecting to %s"), url.buf);

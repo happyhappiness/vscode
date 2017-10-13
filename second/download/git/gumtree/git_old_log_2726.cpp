@@ -1,2 +1,2 @@
-error("RPC failed; result=%d, HTTP code = %ld",
-		      results->curl_result, results->http_code);
+die("missing object %s for %s",
+		    sha1_to_hex(ref->objectname), ref->refname);

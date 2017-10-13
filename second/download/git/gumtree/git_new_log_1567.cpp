@@ -1,2 +1,1 @@
-error(_("The note contents have been left in %s"),
-				      path);
+die("failed to parse %s", k);

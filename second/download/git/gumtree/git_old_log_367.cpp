@@ -1,1 +1,0 @@
-die("--contents and --reverse do not blend well.");

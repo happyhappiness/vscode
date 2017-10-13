@@ -1,1 +1,1 @@
-printf(format, oid_to_hex(&list->item->object.oid));
+error(_("addinfo_cache failed for path '%s'"), path);

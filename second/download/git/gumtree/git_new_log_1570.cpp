@@ -1,1 +1,1 @@
-error("Could not stat '%s'", fullpath);
+git_die_config(key, NULL);

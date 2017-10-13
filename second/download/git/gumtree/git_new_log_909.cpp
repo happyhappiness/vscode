@@ -1,1 +1,3 @@
-error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));
+error(ERRORMSG(o, ERROR_BIND_OVERLAP),
+			      super_prefixed(a->name),
+			      super_prefixed(old->name));

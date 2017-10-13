@@ -1,1 +1,1 @@
-die("update %s: missing <newvalue>", refname);
+die("update: missing <ref>");

@@ -1,1 +1,1 @@
-packet_buf_write(req_buf, "push-cert-end\n");
+die_errno(_("could not create file '%s'"), d->edit_path);

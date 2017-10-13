@@ -1,2 +1,1 @@
-ret = error("unable to move logfile logs/%s to logs/"TMP_RENAMED_LOG": %s",
-			    oldrefname, strerror(errno));
+die("BUG: could not get submodule information for '%s'", path);

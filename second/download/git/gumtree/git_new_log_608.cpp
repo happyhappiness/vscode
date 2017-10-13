@@ -1,2 +1,2 @@
-die("BUG: ref_store for submodule '%s' initialized twice",
-			    submodule);
+error(_("%s: Unable to write new index file"),
+			_(action_name(opts)));

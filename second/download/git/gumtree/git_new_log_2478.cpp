@@ -1,1 +1,1 @@
-die(_("no URLs configured for remote '%s'"), remotename);
+error("Remote branch %s resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", remote_ref->name, oid_to_hex(&remote_ref->old_oid));

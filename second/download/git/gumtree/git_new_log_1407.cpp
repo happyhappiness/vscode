@@ -1,1 +1,1 @@
-error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", oid_to_hex(&head_oid));
+die("BUG: %s ref_store '%s' initialized twice", type, name);

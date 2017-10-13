@@ -1,1 +1,1 @@
-die("invalid shallow object %s", oid_to_hex(&oid));
+die_errno("BUG: unexpected fast_export_ls error");

@@ -1,1 +1,1 @@
-error("duplicate parent %s ignored", oid_to_hex(oid));
+die("%s missing parameter", opt->long_name);

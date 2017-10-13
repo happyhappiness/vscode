@@ -1,1 +1,3 @@
-fputs(sha1_to_hex(commit->object.sha1), stdout);
+printf(" (from %s)",
+			       find_unique_abbrev(parent->object.sha1,
+						  abbrev_commit));

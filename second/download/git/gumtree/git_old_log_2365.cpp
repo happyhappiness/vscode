@@ -1,1 +1,1 @@
-die("unable to auto-detect email address (got '%s')", email);
+die_errno(_("cannot stat '%s'"), path);

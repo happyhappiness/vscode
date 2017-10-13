@@ -1,1 +1,2 @@
-printf("%s\n", sha1_to_hex(bad));
+printf(" %s", diff_unique_abbrev(p->parent[i].sha1,
+							 opt->abbrev));

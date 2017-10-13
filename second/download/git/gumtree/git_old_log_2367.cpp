@@ -1,0 +1,1 @@
+die(_("insanely long template path %s"), template_dir);

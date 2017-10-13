@@ -1,1 +1,0 @@
-error("cannot open %s", name);

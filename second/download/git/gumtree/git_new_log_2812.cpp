@@ -1,1 +1,1 @@
-warning(_("ignoring broken ref %s"), refname);
+memset(format, 0, sizeof(*format));

@@ -1,1 +1,1 @@
-die("object not found: %s", oid_to_hex(&oid));
+opterror(opt, "expects a number greater than zero", 0);

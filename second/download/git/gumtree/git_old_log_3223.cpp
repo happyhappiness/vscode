@@ -1,2 +1,1 @@
-die_errno(_("Could not open '%s' for writing"),
-			  filename);
+not_found("Cannot open '%s': %s", p, strerror(errno));

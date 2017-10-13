@@ -1,1 +1,1 @@
-fprintf(stderr, "cannot chmod '%s'", ce->name);
+fputs("~\n", o->file);

@@ -1,1 +1,2 @@
-error("unable to delete existing %s", newrefname);
+packet_write(1, "shallow %s",
+						sha1_to_hex(object->sha1));

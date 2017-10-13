@@ -1,2 +1,1 @@
-error(_("please fix this using "
-				       "'git rebase --edit-todo'."));
+error(_("cannot rebase: You have unstaged changes."));

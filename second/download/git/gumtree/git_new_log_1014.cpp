@@ -1,1 +1,1 @@
-die("Could not read blob %s", oid_to_hex(oid));
+die("unable to get object type for %s", oid_to_hex(&old));

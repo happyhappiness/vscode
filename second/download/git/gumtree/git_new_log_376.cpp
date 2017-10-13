@@ -1,1 +1,2 @@
-die("unable to stream %s to stdout", oid_to_hex(oid));
+die("could not convert '%s' %s",
+					    oid_to_hex(oid), data->rest);

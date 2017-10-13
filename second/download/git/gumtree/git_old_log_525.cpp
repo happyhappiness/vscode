@@ -1,1 +1,1 @@
-die("Option '--stat-graph-width' requires a value");
+warning(degrade_cc_to_c_warning);

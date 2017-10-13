@@ -1,1 +1,1 @@
-die(_("failed to expand user dir in: '%s'"), value);
+git_die_config("imap.host", "Missing value for 'imap.host'");

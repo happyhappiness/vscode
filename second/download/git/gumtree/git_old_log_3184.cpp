@@ -1,4 +1,2 @@
-printf("M %06o %s ", spec->mode,
-				       sha1_to_hex(anonymize ?
-						   anonymize_sha1(spec->sha1) :
-						   spec->sha1));
+die(include_depth_advice, MAX_INCLUDE_DEPTH, path,
+			    cf && cf->name ? cf->name : "the command line");

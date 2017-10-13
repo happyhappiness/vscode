@@ -1,1 +1,2 @@
-die(_("%%(body) does not take arguments"));
+error(_("HEAD of working tree %s is not updated"),
+			      worktrees[i]->path);

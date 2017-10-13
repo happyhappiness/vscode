@@ -1,1 +1,1 @@
-fputs(color, file);
+(_("Cannot come back to cwd");

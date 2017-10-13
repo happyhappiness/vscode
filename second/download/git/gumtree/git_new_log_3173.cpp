@@ -1,1 +1,1 @@
-error(_("unrecognized binary patch at line %d"), state->linenr-1);
+die("submodule %s doesn't exist", argv[1]);

@@ -1,1 +1,1 @@
-die(_("git show %s: bad file"), obj_name);
+error(_("unrecognized argument: %s"), argv[1]);

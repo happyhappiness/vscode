@@ -1,2 +1,2 @@
-printf("Concatenating local and remote notes for %s\n",
-							oid_to_hex(&p->obj));
+die("BUG: ref_store is type \"%s\" not \"files\" in %s",
+		    ref_store->be->name, caller);

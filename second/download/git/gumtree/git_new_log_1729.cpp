@@ -1,1 +1,1 @@
-core_worktree = xgetcwd();
+die("curl_easy_init failed");

@@ -1,1 +1,1 @@
-die(_("--progress can't be used with --incremental or porcelain formats"));
+die("%s not a valid tag", oid_to_hex(&oid));

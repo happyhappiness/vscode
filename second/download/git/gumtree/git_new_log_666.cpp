@@ -1,2 +1,1 @@
-error(_("%s: can't cherry-pick a %s"),
-					name, typename(type));
+die("git-cvsserver only handles server: %s", arg);

@@ -1,1 +1,2 @@
-die_errno(_("could not read '%s'"), filename);
+die("internal error peeling reference %s (%s)",
+		    entry->name, oid_to_hex(&entry->u.value.oid));

@@ -1,1 +1,1 @@
-die(_("Expecting a full ref name, got %s"), refname);
+error_errno("waitpid for %s failed", argv0);

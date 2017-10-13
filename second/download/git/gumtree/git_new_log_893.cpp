@@ -1,4 +1,2 @@
-error(_("\nYou have uncommitted changes in your "
-				       "working tree. Please, commit them\n"
-				       "first and then run 'git rebase "
-				       "--continue' again."));
+die(_("could not start 'git status in submodule '%s'"),
+				path);

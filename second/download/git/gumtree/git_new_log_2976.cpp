@@ -1,1 +1,1 @@
-die(_("Failed to register update mode for submodule path '%s'"), displaypath);
+strbuf_write(&pp->buffered_output, stderr);

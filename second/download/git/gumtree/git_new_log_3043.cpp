@@ -1,1 +1,1 @@
-die_errno("cannot unlink stray '%s'", path);
+die("strange hostname '%s' blocked", host);

@@ -1,1 +1,2 @@
-rollback_lock_file(&index_lock);
+error(_("invalid line %d: %.*s"),
+				i, (int)(eol - p), p);

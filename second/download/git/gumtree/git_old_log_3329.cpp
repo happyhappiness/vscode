@@ -1,1 +1,2 @@
-printf("In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
+die("Bug detected: Taking over transport requires non-NULL "
+		    "smart_options field.");

@@ -1,2 +1,1 @@
-die(_("could not start 'git status in submodule '%s'"),
-				path);
+die(_("Failed to parse gc.logexpiry value %s"), gc_log_expire);

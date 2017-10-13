@@ -1,1 +1,1 @@
-error(_("could not read '%s'."), todo_file);
+error(_("failed to finalize '%s'."), todo_path);

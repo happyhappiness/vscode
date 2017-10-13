@@ -1,1 +1,1 @@
-die("BUG: state->lock_file should not be NULL");
+die(_("'%s' is already locked"), av[0]);

@@ -1,2 +1,1 @@
-error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
+printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);

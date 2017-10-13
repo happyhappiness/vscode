@@ -1,0 +1,1 @@
+die(_("bad zlib compression level %d"), level);

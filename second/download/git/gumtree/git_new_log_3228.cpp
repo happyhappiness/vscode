@@ -1,0 +1,1 @@
+die("BUG: buffer too small. Please report a bug.");

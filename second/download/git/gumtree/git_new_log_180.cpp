@@ -1,1 +1,0 @@
-error("remote-curl: error reading command stream from git");

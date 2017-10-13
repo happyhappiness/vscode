@@ -1,1 +1,1 @@
-fputs("", s->fp);
+die("deleting '%s' is not allowed", argv[0]);

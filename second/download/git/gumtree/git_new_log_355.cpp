@@ -1,0 +1,1 @@
+die("no such commit %s", oid_to_hex(oid));

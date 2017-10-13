@@ -1,1 +1,1 @@
-die("%s failed", cmd_name);
+fprintf(stderr, "Server supports multi_ack\n");

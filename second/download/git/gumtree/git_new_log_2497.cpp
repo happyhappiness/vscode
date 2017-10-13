@@ -1,1 +1,2 @@
-memset(&array, 0, sizeof(array));
+die("Duplicate entry when writing index: %s",
+			    oid_to_hex(&object->oid));

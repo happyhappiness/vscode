@@ -1,2 +1,1 @@
-warning ("Stripping signature from tag %s",
-					 sha1_to_hex(tag->object.sha1));
+printf(" %s", sha1_to_hex(children->item->object.sha1));

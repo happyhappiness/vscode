@@ -1,1 +1,1 @@
-die("unable to read %s", oid_to_hex(&s->oid));
+get_ref(base_list[i], oid_to_hex(base_list[i]));

@@ -1,1 +1,1 @@
-die("%s", err.buf);
+fprintf(o->file, "%s", header.buf);

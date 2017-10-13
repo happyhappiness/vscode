@@ -1,1 +1,3 @@
-die(_("positive value expected contents:lines=%s"), arg);
+error(_("Cannot delete branch '%s' "
+					"checked out at '%s'"),
+				      bname.buf, worktree);

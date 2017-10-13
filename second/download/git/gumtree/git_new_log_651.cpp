@@ -1,1 +1,1 @@
-error(_("invalid key: %s"), key);
+error("BUG: expected exactly one commit from walk");

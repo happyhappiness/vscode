@@ -1,1 +1,1 @@
-die(_("file %s is not writable by user"), file);
+error_errno(_("could not open '%s' for reading"), *paths);

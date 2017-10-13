@@ -1,1 +1,4 @@
-die("unable to generate diff for %s", one->path);
+error(remote_branch
+			      ? _("Error deleting remote branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);

@@ -1,1 +1,0 @@
-printf("%s (%d):\n", item->string, onelines->nr);

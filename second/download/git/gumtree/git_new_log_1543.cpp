@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die("%s", err.buf);

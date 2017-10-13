@@ -1,1 +1,1 @@
-warning("loose object at %s could not be examined", path);
+fprintf(file, " %s", find_unique_abbrev(parent->object.oid.hash, abbrev));

@@ -1,1 +1,1 @@
-error_errno(_("cannot open %s"), git_path_head_file());
+printf("%s\n", oid_to_hex(&tried->item->object.oid));

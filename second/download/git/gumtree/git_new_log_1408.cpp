@@ -1,2 +1,1 @@
-die("Could not read %s for notes-index",
-		     oid_to_hex(&subtree->val_oid));
+die("BUG: ref_update_reject_duplicates() received unsorted list");

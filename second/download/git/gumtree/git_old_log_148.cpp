@@ -1,1 +1,1 @@
-fprintf(stderr, "Skipping server %s, no user\n", srvc->host);
+fprintf(stderr, "Skipping account %s@%s, no password\n", srvc->user, srvc->host);

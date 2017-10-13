@@ -1,1 +1,2 @@
-argv_array_push(argv, sha1_to_hex(sha1));
+printf("unreachable %s %s\n", printable_type(obj),
+			describe_object(obj));

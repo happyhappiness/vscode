@@ -1,2 +1,1 @@
-error_buf(err, _("no such branch: '%s'"),
-					 branch->name);
+error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));

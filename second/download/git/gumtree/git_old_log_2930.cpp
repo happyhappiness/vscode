@@ -1,1 +1,1 @@
-error(_("cannot open %s: %s\n"), filename, strerror(errno));
+warning("dup failed: %s", strerror(errno));

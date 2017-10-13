@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("CRLF would be replaced by LF in %s.", path);

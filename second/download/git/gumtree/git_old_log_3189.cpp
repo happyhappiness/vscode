@@ -1,2 +1,2 @@
-printf("broken link from %7s %s\n",
-			   typename(parent->type), oid_to_hex(&parent->oid));
+die(_("bad numeric config value '%s' for '%s' in %s %s: %s"),
+		    value, name, cf->origin_type, cf->name, reason);

@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+warning_errno("unable to set SO_KEEPALIVE on socket");

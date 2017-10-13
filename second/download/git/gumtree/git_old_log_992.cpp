@@ -1,7 +1,4 @@
-printf(remote_branch
-			       ? _("Deleted remote-tracking branch %s (was %s).\n")
-			       : _("Deleted branch %s (was %s).\n"),
-			       bname.buf,
-			       (flags & REF_ISBROKEN) ? "broken"
-			       : (flags & REF_ISSYMREF) ? target
-			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
+printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(anonymize ?
+						   anonymize_sha1(spec->oid.hash) :
+						   spec->oid.hash));

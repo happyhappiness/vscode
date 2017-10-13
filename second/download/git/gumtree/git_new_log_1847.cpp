@@ -1,2 +1,2 @@
-error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

@@ -1,1 +1,0 @@
-warning("dup failed: %s", strerror(errno));

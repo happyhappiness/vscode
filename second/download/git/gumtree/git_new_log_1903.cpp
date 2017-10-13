@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die_errno(_("failed to delete directory %s"), path);

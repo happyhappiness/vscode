@@ -1,1 +1,1 @@
-die("BUG: packed refs not locked");
+die("strange port '%s' blocked", port);

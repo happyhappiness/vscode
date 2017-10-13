@@ -1,1 +1,1 @@
-warning("--use-curl not supported in this build");
+printf("keep %s", message);

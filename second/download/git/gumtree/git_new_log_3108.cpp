@@ -1,2 +1,2 @@
-die(_("pack has bad object at offset %"PRIuMAX": %s"),
-	    (uintmax_t)offset, buf);
+printf("missing %s %s\n", typename(obj->type),
+			describe_object(obj));

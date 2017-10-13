@@ -1,3 +1,3 @@
-error_buf(err,
-				 _("upstream branch '%s' not stored as a remote-tracking branch"),
-				 branch->merge[0]->src);
+die("unable to generate diff (%s -> %s)",
+		    sha1_to_hex(parent->commit->object.sha1),
+		    sha1_to_hex(target->commit->object.sha1));

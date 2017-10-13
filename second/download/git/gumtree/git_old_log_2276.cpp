@@ -1,1 +1,0 @@
-die_errno(_("Could not open %s"), todo_file);

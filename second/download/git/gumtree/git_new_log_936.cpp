@@ -1,2 +1,2 @@
-status_printf_ln(s, color,
-				_("git-rebase-todo is missing."));
+warning("Invalid parameter '%s' for config option "
+					"'submodule.%s.ignore'", value, name.buf);

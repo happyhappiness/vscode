@@ -1,1 +1,2 @@
-printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+error_errno("Couldn't truncate temporary file %s",
+					    freq->tmpfile);

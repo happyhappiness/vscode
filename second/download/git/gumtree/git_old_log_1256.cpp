@@ -1,1 +1,1 @@
-die("cannot open '%s' for reading", git_path_merge_head());
+die(_("cannot read existing object %s"), sha1_to_hex(sha1));

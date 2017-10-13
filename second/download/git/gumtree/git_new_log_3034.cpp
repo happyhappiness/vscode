@@ -1,1 +1,1 @@
-die("unable to read tree (%s)", oid_to_hex(hash));
+fprintf(porcelain ? stdout : stderr, "To %s\n", url);

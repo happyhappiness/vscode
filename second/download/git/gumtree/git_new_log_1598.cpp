@@ -1,1 +1,1 @@
-error(_("unrecognized argument: %s"), argv[1]);
+die("curl_easy_init failed");

@@ -1,1 +1,0 @@
-fprintf_ln(stderr, "    git pull %s %s", _("<remote>"), _("<branch>"));

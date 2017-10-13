@@ -1,2 +1,3 @@
-write_file(file_name.buf, 1, "gitdir: %s\n",
-		   relative_path(git_dir, real_work_tree, &rel_path));
+die("unable to generate diff (%s -> %s)",
+		    sha1_to_hex(parent->commit->object.sha1),
+		    sha1_to_hex(target->commit->object.sha1));

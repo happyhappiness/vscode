@@ -1,1 +1,1 @@
-error("Could not write requested capability");
+die(_("unable to parse format"));

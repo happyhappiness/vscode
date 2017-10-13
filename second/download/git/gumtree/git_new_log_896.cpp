@@ -1,1 +1,1 @@
-die("Too large to be a .git file: '%s'", path);
+die(_("could not lookup name for submodule '%s'"), path);

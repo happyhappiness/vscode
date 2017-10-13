@@ -1,1 +1,1 @@
-die(_("Unknown commit %s"), base_commit);
+error_errno("can't write crash report %s", loc);

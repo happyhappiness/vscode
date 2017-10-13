@@ -1,1 +1,1 @@
-die("helper %s does not support --signed", data->name);
+die(_("malformed object name %s"), arg);

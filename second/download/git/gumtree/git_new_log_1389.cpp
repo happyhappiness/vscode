@@ -1,2 +1,2 @@
-die("Object %s is a %s but a blob was expected.",
-		    oid_to_hex(oid), typename(type));
+die(_("missing object %s for %s"),
+		    oid_to_hex(&ref->objectname), ref->refname);

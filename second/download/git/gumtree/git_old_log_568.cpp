@@ -1,1 +1,0 @@
-fprintf(stderr, "Server supports ofs-delta\n");

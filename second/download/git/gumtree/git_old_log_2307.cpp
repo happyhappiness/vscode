@@ -1,1 +1,3 @@
-warning("Invalid parameter \"%s\" for config option \"submodule.%s.ignore\"", value, var);
+die("More than one commit to dig from %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);

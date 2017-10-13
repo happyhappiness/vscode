@@ -1,1 +1,1 @@
-printf_ln(_("Huh (%s)?"), (*ptr)->buf);
+printf("%s %s^{}\n", hex, refname);

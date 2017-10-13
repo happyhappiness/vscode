@@ -1,3 +1,1 @@
-fprintf(stderr,
-				"Resolved '%s' using previous resolution.\n",
-				path);
+die(_("unable to update HEAD"));

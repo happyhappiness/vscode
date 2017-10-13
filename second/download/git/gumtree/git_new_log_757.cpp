@@ -1,1 +1,1 @@
-fprintf(stderr, "BUG: %s\n", msg);
+error_buf(err, _("HEAD does not point to a branch"));

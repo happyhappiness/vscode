@@ -1,1 +1,2 @@
-warning(_("Failed to update main cache tree"));
+error(_("The note contents have been left in %s"),
+				      path);

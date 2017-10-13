@@ -1,0 +1,1 @@
+die("Bad type of menu_staff when print menu");

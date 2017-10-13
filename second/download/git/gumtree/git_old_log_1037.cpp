@@ -1,1 +1,0 @@
-die("replace ref '%s' already exists", ref);

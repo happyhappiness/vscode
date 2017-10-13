@@ -1,1 +1,1 @@
-error(_("path %s has been renamed/deleted"), old_name);
+die(_("invalid path '%s'"), old_name);

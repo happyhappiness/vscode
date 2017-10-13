@@ -1,1 +1,0 @@
-die("unable to get object type for %s", sha1_to_hex(old));

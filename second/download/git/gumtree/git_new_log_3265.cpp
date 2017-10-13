@@ -1,1 +1,1 @@
-die(_("The main working tree cannot be locked or unlocked"));
+strbuf_addf(&o->obuf, _("(bad commit)\n"));

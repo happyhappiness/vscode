@@ -1,1 +1,0 @@
-fputs(pp->children[i].err.buf, stderr);

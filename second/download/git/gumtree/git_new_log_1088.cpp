@@ -1,1 +1,1 @@
-die("unable to join lazy_dir_thread");
+die(_("format: %%(then) atom used more than once"));

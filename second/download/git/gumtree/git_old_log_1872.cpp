@@ -1,0 +1,1 @@
+fprintf(stderr, "Invalid pattern: %s\n", regex_);

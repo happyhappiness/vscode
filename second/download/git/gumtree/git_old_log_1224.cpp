@@ -1,0 +1,1 @@
+die_errno("failed to read from stdin");

@@ -1,1 +1,0 @@
-error_errno("Could not open %s", path);

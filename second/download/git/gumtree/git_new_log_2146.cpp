@@ -1,1 +1,1 @@
-die_errno("unable to write to stdout");
+error("object %s: %s", sha1_to_hex(obj->sha1), message);

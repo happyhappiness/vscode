@@ -1,0 +1,1 @@
+die(_("No such branch: '%s'"), branch);

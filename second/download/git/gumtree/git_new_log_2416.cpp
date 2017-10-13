@@ -1,1 +1,1 @@
-die(_("object %s not found"), oid_to_hex(&ref->new_oid));
+die("no branches given, and HEAD is not valid");

@@ -1,1 +1,0 @@
-die("BUG: command is empty");

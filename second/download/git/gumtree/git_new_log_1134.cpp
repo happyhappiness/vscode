@@ -1,1 +1,1 @@
-die("error while iterating over references");
+die("Could not run 'git status --porcelain=2' in submodule %s", path);

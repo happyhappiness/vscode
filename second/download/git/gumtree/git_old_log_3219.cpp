@@ -1,1 +1,1 @@
-die("bug in show-killed-files");
+die("bug: a non-header pattern in grep header list.");

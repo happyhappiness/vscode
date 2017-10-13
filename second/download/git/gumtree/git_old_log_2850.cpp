@@ -1,1 +1,1 @@
-error("Could not get ref %s", refspec[i]);
+warning(_("failed to exec '%s': %s"), path, strerror(errno));

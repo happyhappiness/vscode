@@ -1,1 +1,1 @@
-warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
+die(_("--contains option is only allowed with -l."));

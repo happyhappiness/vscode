@@ -1,1 +1,1 @@
-die("failed to prepare '%s' for appending", path);
+die_errno("error reading request body");

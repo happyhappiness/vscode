@@ -1,2 +1,2 @@
-packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+die("Only %d entries can be shown at one time.",
+			    MAX_REVS);

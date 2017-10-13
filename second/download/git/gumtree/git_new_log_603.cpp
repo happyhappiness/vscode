@@ -1,1 +1,1 @@
-error("packet write with format failed");
+die("dumb http transport does not support shallow capabilities");

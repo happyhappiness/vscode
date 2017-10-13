@@ -1,1 +1,1 @@
-die(_("cannot repack to clean up"));
+execute_commands_non_atomic(commands, si);

@@ -1,1 +1,1 @@
-die("submodule--helper push-check requires at least 1 argument");
+die(_("could not stat file '%s'"), ce->name);

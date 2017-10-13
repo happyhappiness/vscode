@@ -1,1 +1,1 @@
-die("Could not resolve ref '%s'", o.branch2);
+die(_("Malformed input line: '%s'."), buf.buf);

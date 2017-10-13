@@ -1,0 +1,1 @@
+die_errno("Unable to read log '%s'", logfile);

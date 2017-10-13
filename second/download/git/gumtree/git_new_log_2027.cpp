@@ -1,2 +1,1 @@
-status = error("unable to unpack %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
+die("Could not read ref %s", private);

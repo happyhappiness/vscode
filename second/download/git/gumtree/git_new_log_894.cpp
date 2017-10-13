@@ -1,1 +1,2 @@
-error(_("could not commit staged changes."));
+die(_("could not run 'git status in submodule '%s'"),
+				path);

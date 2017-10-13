@@ -1,1 +1,1 @@
-die("cannot use Perl-compatible regexes when not compiled with USE_LIBPCRE");
+die("BUG: free called on a prepared reference transaction");

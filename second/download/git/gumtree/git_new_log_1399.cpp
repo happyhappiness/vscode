@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE2 match data");
+die("BUG: packed-refs not locked");

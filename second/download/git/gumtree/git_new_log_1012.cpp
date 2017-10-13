@@ -1,1 +1,1 @@
-die ("Could not read blob %s", oid_to_hex(oid));
+die("'%s' is not a valid ref name.", ref->buf);

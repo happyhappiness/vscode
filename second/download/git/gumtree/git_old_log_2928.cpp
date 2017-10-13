@@ -1,2 +1,1 @@
-error(_("could not write branch description template: %s"),
-			     strerror(errno));
+error("%s: close error: %s", dst, strerror(errno));

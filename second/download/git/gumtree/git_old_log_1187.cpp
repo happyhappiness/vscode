@@ -1,1 +1,1 @@
-die(_("invalid ident line: %s"), sb.buf);
+die_errno("could not move to %s", orig_cwd);

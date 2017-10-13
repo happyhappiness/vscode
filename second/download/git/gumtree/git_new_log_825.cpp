@@ -1,2 +1,2 @@
-die(_("%s doesn't support --super-prefix"),
-				    commands[i].cmd);
+error(_("could not read '%s'"),
+				rebase_path_squash_msg());

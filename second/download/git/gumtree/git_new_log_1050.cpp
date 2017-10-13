@@ -1,1 +1,0 @@
-die("submodule--helper is-active takes exactly 1 argument");

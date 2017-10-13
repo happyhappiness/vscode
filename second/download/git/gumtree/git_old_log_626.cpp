@@ -1,2 +1,3 @@
-error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
+error((opts->action == REPLAY_REVERT)
+			    ? _("Cannot cherry-pick during a revert.")
+			    : _("Cannot cherry-pick during another cherry-pick."));

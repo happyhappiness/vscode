@@ -1,1 +1,0 @@
-die("Could not read ref %s", private);

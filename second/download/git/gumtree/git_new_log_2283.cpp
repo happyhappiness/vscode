@@ -1,2 +1,2 @@
-error(_("cannot open %s: %s"), git_path_head_file(),
-						strerror(errno));
+die("unknown repository extension: %s",
+			    unknown_extensions.items[0].string);

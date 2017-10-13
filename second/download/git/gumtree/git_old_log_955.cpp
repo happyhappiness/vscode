@@ -1,1 +1,0 @@
-error("did not receive remote status");

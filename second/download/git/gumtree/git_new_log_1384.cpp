@@ -1,2 +1,2 @@
-fprintf(f, ":%" PRIuMAX " %s\n", base + k,
-					oid_to_hex(&m->data.marked[k]->idx.oid));
+error("packed %s from %s is corrupt",
+				    oid_to_hex(entries[i].oid.oid), p->pack_name);

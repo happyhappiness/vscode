@@ -1,1 +1,1 @@
-warning_errno(_("failed to stat '%s'"), ce->name);
+error("no remembered resolution for '%s'", path);

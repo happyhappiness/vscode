@@ -1,1 +1,1 @@
-die(_("git fetch-pack: expected ACK/NAK, got '%s'"), line);
+die(_("error in object: %s"), line);

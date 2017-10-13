@@ -1,1 +1,0 @@
-die(_("no tag exactly matches '%s'"), oid_to_hex(&cmit->object.oid));

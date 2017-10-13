@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s common\n", last_hex);
+fprintf(s->fp, "# branch.head %s%c", branch_name, eol);

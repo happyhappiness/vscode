@@ -1,1 +1,1 @@
-die("bad zlib compression level %d", level);
+error("%s: lacks value", var);

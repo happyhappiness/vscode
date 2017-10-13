@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+error("%s is broken!", entry->name);

@@ -1,1 +1,1 @@
-die(_("format: %%(else) atom used more than once"));
+warning("ignoring dangling symref %s.", fullref.buf);

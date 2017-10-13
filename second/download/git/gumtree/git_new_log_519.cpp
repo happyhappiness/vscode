@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ERR %s: %s", msg, dir);
+die_want_option("--stat-name-width");

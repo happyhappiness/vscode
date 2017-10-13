@@ -1,0 +1,1 @@
+die_errno("cannot exec '%s'", cmd->argv[0]);

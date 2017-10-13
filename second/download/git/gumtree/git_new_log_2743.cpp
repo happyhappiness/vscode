@@ -1,1 +1,1 @@
-die(_("unable to update %s"), head_ref.buf);
+die_errno("poll");

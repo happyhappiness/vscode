@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s.", fullref.buf);
+die("bad %s argument: %s", opt, arg);

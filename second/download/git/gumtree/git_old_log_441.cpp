@@ -1,1 +1,1 @@
-die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+die("Could not find commit from NOTES_MERGE_PARTIAL.");

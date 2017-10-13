@@ -1,1 +1,2 @@
-printf("Auto-merging notes for %s\n", oid_to_hex(&p->obj));
+warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
+				  "please use . instead if you meant to match all paths"));

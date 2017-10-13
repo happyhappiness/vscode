@@ -1,1 +1,1 @@
-(_("bad config line %d in blob %s");
+err(o, msg, path, _(": perhaps a D/F conflict?"));

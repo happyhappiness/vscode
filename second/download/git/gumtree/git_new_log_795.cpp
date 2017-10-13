@@ -1,2 +1,2 @@
-die_errno("Invalid symlink '%s'",
-						  resolved->buf);
+usage_msg_opt(_("--continue expects no arguments"),
+			      builtin_merge_usage, builtin_merge_options);

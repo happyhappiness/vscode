@@ -1,1 +1,1 @@
-die("invalid date format: %s", date_str);
+warning(_(msg_warn_remove_failed), quoted.buf);

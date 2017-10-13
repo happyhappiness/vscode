@@ -1,1 +1,1 @@
-die_errno(_("could not write to %s"), path);
+die("transport '%s' not allowed", type);

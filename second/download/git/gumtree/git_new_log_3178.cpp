@@ -1,4 +1,2 @@
-die(Q_("%d line adds whitespace errors.",
-			       "%d lines add whitespace errors.",
-			       state->whitespace_error),
-			    state->whitespace_error);
+die(_("'%s' is already locked, reason: %s"),
+			    av[0], old_reason);

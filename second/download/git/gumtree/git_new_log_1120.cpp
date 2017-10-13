@@ -1,1 +1,1 @@
-die("BUG: unhandled RR_* enum");
+hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);

@@ -1,1 +1,1 @@
-die("unknown mode for %s", arg);
+die("BUG: non-INDEX attr direction in a bare repo");

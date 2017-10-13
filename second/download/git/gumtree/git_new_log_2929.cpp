@@ -1,1 +1,1 @@
-error_errno(_("cannot open %s"), filename);
+warning_errno("accept failed");

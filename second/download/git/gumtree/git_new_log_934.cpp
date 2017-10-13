@@ -1,1 +1,1 @@
-fprintf(fh, "%s%s\n", prefix, msg);
+error(_("unable to parse remote unpack status: %s"), line);

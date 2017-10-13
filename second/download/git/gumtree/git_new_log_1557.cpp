@@ -1,0 +1,1 @@
+die("index cache-tree records empty sub-tree");

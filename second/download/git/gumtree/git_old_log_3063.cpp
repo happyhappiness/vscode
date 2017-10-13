@@ -1,1 +1,1 @@
-error("unable to update %s: %s", path, strerror(errno));
+die("Not a valid commit name %s", sha1_to_hex(sha1));

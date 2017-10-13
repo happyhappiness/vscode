@@ -1,1 +1,1 @@
-die(_("--reverse and --first-parent together require specified latest commit"));
+die("unable to stream %s to stdout", oid_to_hex(oid));

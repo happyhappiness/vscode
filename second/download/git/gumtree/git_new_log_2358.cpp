@@ -1,2 +1,1 @@
-warning("unknown repository extension: %s",
-				unknown_extensions.items[i].string);
+die(_("unable to read tree (%s)"), oid_to_hex(&obj->oid));

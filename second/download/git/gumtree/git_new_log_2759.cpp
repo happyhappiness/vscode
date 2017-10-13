@@ -1,1 +1,1 @@
-insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");
+die_errno(_("could not open temporary file"));

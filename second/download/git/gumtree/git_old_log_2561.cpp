@@ -1,1 +1,2 @@
-printf(" %s", find_unique_abbrev(parent->object.sha1, abbrev));
+error("cannot seek back reflog for %s: %s",
+				     refname, strerror(errno));

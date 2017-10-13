@@ -1,1 +1,1 @@
-die_errno ("Could not write blob '%s'", sha1_to_hex(sha1));
+error("new object is the same as the old one: '%s'", sha1_to_hex(old));

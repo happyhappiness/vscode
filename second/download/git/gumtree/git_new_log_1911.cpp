@@ -1,2 +1,2 @@
-die("-L argument not 'start,end:file' or ':funcname:file': %s",
-			    item->string);
+fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a directory"));

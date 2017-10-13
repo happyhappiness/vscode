@@ -1,1 +1,0 @@
-die_errno("Could not rewind output message file");

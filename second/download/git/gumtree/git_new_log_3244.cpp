@@ -1,1 +1,1 @@
-printf_ln(_("  Push  URL: %s"), _("(no URL)"));
+fprintf(opt->diffopt.file, "Message-Id: <%s>\n", opt->message_id);

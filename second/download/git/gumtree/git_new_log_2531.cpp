@@ -1,1 +1,0 @@
-printf(format, oid_to_hex(&list->item->object.oid));

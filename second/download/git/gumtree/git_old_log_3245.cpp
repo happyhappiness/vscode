@@ -1,1 +1,1 @@
-printf_ln(_("  HEAD branch: %s"), "(not queried)");
+printf("In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);

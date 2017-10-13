@@ -1,1 +1,1 @@
-fputs(pp->buffered_output.buf, stderr);
+warning("could not mark '%s' as hidden.", filename);

@@ -1,1 +1,1 @@
-die(_("unable to parse commit %s"), sha1_to_hex(commit->object.sha1));
+die_errno("Could not truncate output message file at scissors");

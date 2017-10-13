@@ -1,1 +1,1 @@
-error(_("Could not append '%s'"), buf.buf);
+die(":strip= requires a positive integer argument");

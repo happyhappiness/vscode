@@ -1,2 +1,2 @@
-res = error(_("could not update HEAD to %s"),
-					head_ref.buf);
+error("garbage at end of loose object '%s'",
+		      sha1_to_hex(expected_sha1));

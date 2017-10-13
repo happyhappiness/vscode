@@ -1,1 +1,2 @@
-die("BUG: ref_update_reject_duplicates() received unsorted list");
+error("external filter '%s' is not available anymore although "
+		      "not all paths have been filtered", cmd);

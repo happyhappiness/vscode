@@ -1,1 +1,0 @@
-die_errno("Could not truncate output message file at scissors");

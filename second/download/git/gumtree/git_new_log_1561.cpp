@@ -1,1 +1,2 @@
-die(_("Please stage your changes to .gitmodules or stash them to proceed"));
+die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);

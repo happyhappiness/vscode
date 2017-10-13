@@ -1,2 +1,1 @@
-die(_("could not start 'git status in submodule '%s'"),
-				path);
+die_errno(_("dup2(%d,%d) failed"), fd, to);

@@ -1,2 +1,1 @@
-error("open(\"%s\"): %s", path,
-				     strerror(errno));
+die_errno("could not read file '%s'", filename);

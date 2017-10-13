@@ -1,1 +1,1 @@
-error(_("read of %s failed"), name);
+die("Bug: bad untracked_cache value: %d", untracked_cache);

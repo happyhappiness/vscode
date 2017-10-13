@@ -1,1 +1,1 @@
-die_errno("Could not read '%s'", path);
+die(_("Could not format %s."), git_path_todo_file());

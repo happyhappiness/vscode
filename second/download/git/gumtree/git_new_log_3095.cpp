@@ -1,1 +1,1 @@
-error_errno("cannot open fd %d", in_fd);
+die("BUG: state->lock_file should not be NULL");

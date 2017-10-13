@@ -1,1 +1,2 @@
-die_errno(_("Could not write to %s"), git_path_todo_file());
+error("could not write config file %s: %s",
+			    config_filename, strerror(errno));

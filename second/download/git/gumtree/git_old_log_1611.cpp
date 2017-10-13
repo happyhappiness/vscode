@@ -1,1 +1,1 @@
-die("unable to parse command-line config");
+warning("%s: symlink too long", p);

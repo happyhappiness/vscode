@@ -1,1 +1,2 @@
-strbuf_addf(&buf, "%s/", get_object_directory());
+print_ref_status('-', "[deleted]", ref, NULL, NULL,
+				 porcelain, summary_width);

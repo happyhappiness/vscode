@@ -1,2 +1,1 @@
-die("BUG: ref_store for submodule '%s' initialized twice",
-		    submodule);
+error("external filter '%s' failed", cmd);

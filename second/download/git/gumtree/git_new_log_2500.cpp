@@ -1,1 +1,1 @@
-verify_ref_format(format);
+die(_("format: %%(end) atom used without corresponding atom"));

@@ -1,4 +1,2 @@
-fprintf(rev.diffopt.file, "%stag %s%s\n",
-					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
-					t->tag,
-					diff_get_color_opt(&rev.diffopt, DIFF_RESET));
+fprintf(opt->file, ":%06o %06o %s ", p->one->mode, p->two->mode,
+			diff_unique_abbrev(p->one->oid.hash, opt->abbrev));

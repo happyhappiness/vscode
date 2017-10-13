@@ -1,1 +1,2 @@
-strbuf_write(&pp->children[i].err, stderr);
+die(_("Badly quoted content in file '%s': %s"),
+			    filename, str.buf);

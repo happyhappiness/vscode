@@ -1,1 +1,2 @@
-die("--git-path requires an argument");
+error_buf(err,
+						 _("cannot resolve 'simple' push to a single destination"));

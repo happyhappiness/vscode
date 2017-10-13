@@ -1,1 +1,1 @@
-printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
+die("object %s tried to add buffer twice!", sha1_to_hex(object->sha1));

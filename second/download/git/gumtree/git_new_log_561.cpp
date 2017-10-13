@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports multi_ack_detailed"));
+die(_("Server does not support --shallow-since"));

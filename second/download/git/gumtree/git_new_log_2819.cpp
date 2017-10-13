@@ -1,2 +1,2 @@
-error("unable to fdopen %s: %s",
-			     lock->lk->tempfile.filename.buf, strerror(errno));
+fprintf_ln(stderr, "    git branch --set-upstream-to=%s/%s %s\n",
+				remote_name, _("<branch>"), curr_branch->name);

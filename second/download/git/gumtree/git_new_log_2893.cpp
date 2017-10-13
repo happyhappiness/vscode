@@ -1,1 +1,1 @@
-ret = error("unable to block SIGPIPE in async thread");
+die(_("Failed to register update mode for submodule path '%s'"), displaypath);

@@ -1,2 +1,1 @@
-die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
-		    path);
+die("BUG: have_old is true but old_sha1 is NULL");

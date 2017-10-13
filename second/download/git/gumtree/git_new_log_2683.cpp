@@ -1,2 +1,1 @@
-(fprintf(fp, "%s	%s^{}\n",
-				oid_to_hex(&o->oid), path) < 0;
+error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);

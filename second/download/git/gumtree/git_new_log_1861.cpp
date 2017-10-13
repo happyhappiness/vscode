@@ -1,0 +1,1 @@
+die("git cat-file: could not get object info");

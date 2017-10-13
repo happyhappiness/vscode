@@ -1,2 +1,1 @@
-warning("recursive delta detected for object %s",
-			sha1_to_hex(e->idx.sha1));
+fprintf(rpt, "  old tree    : %s\n", sha1_to_hex(b->branch_tree.versions[0].sha1));

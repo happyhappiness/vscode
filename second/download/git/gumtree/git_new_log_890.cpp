@@ -1,1 +1,1 @@
-error(_("cannot amend non-existing commit"));
+error("unable to unpack contents of %s", path);

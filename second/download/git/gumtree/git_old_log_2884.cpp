@@ -1,1 +1,0 @@
-error("Missing value for '%s'", var);

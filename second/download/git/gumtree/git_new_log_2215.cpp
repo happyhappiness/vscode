@@ -1,1 +1,0 @@
-die("Unhandled message id: %s", msg_id);

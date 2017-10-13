@@ -1,2 +1,1 @@
-warning("Invalid parameter '%s' for config option "
-					"'submodule.%s.ignore'", value, name.buf);
+report_invalid_attr(cp, len, src, lineno);

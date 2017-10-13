@@ -1,1 +1,1 @@
-cb->ret = error(_("branch '%s' does not point at a commit"), refname);
+printf("%s\n", sha1_to_hex(bases->item->object.sha1));

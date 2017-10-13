@@ -1,2 +1,1 @@
-die("ref '%s' does not have %ld components to :strip",
-			    refname, nr);
+error("Missing value for '%s'", var);

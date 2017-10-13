@@ -1,1 +1,1 @@
-die(_("--stateless-rpc requires multi_ack_detailed"));
+die(_("no shallow found: %s"), line);

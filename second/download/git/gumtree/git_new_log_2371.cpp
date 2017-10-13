@@ -1,2 +1,2 @@
-die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+printf("%c %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev));

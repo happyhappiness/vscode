@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", pair->one->path);
+die("BUG: attempt to create two temporary shallow files");

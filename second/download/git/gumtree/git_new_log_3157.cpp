@@ -1,1 +1,1 @@
-die_errno(_("could not read file '%s'"), filename);
+die(_("push options must not have new line characters"));

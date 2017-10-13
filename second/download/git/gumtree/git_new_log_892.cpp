@@ -1,2 +1,1 @@
-error(_("invalid contents: '%s'"),
-				rebase_path_amend());
+die("git-cvsserver only handles server: %s", arg);

@@ -1,1 +1,1 @@
-error(_("failed to read %s"), name);
+printf("%s", ret);

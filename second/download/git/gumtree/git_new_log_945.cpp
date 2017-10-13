@@ -1,1 +1,1 @@
-die(_("could not unset '%s'"), buf.buf);
+warning("alternate disabled by http.followRedirects: %s", url);

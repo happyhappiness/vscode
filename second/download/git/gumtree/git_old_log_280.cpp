@@ -1,1 +1,1 @@
-error(_("patch failed: %s:%ld"), name, frag->oldpos);
+error(_("%s: does not exist in index"), name);

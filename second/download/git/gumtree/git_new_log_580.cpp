@@ -1,1 +1,1 @@
-warning(_("Delegation control is not supported with cURL < 7.22.0"));
+error(_("unable to write new index file"));

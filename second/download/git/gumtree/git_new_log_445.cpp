@@ -1,1 +1,1 @@
-ret += error(_("failed to delete ref NOTES_MERGE_REF"));
+error(_("must specify a notes ref to merge"));

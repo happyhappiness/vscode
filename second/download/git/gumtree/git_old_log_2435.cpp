@@ -1,1 +1,1 @@
-die(_("unable to read tree (%s)"), sha1_to_hex(obj->sha1));
+die("sent error to the client: %s", buf);

@@ -1,1 +1,1 @@
-packet_write(fd[1], "argument %s\n", argv[i]);
+die("--reverse and --first-parent together require specified latest commit");

@@ -1,1 +1,0 @@
-die(_("The remote end hung up upon initial contact"));

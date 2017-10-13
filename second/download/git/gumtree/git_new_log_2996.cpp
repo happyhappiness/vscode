@@ -1,1 +1,1 @@
-error_errno("could not lock config file %s", config_filename);
+error_errno("%s process failed to wait", name);

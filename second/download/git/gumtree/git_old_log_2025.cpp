@@ -1,1 +1,0 @@
-die("Too long path: %.*s", 60, suspect);

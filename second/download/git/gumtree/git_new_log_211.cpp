@@ -1,1 +1,1 @@
-fprintf(o->file, "%s", ecbdata->header->buf);
+error("packfile %s cannot be accessed", p->pack_name);

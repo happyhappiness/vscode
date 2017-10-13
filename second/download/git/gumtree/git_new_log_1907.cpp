@@ -1,2 +1,2 @@
-warning("protocol restrictions not applied to curl redirects because\n"
-			"your curl version is too old (>= 7.19.4)");
+fprintf_ln(stderr, _("directory stat info does not change "
+				     "after adding a new directory"));

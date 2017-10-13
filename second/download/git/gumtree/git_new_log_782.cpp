@@ -1,1 +1,2 @@
-die_errno(_("could not read '%s'"), git_path_abort_safety_file());
+printf("broken link from %7s %s\n",
+			   printable_type(parent), describe_object(parent));

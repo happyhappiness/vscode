@@ -1,1 +1,0 @@
-printf("worktree %s\n", wt->path);

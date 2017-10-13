@@ -1,1 +1,1 @@
-die("%s not a valid tag", sha1_to_hex(sha1));
+printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));

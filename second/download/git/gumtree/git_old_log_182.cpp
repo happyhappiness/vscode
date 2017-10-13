@@ -1,1 +1,1 @@
-die("Fetch attempted without a local repo");
+fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);

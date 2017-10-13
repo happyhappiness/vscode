@@ -1,1 +1,1 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+die(_("unable to write index file"));

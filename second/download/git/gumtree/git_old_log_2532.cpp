@@ -1,1 +1,1 @@
-die_errno(_("failed to unlink '%s'"), path);
+error(_("could not remove reference %s"), refname);

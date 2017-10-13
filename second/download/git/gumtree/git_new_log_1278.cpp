@@ -1,1 +1,2 @@
-printf("num read blob: %d\n", sb.num_read_blob);
+error(_("no note found for object %s."),
+				       oid_to_hex(&object));

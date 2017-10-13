@@ -1,2 +1,1 @@
-error(_("cannot overwrite multiple values with a single value\n"
-			"       Use a regexp, --add or --replace-all to change %s."), argv[0]);
+die("failed to set up refs db: %s", err.buf);

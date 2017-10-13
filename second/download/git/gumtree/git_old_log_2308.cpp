@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+die("combining --first-parent and --reverse is not supported");

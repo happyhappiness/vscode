@@ -1,1 +1,0 @@
-printf_ln(_("Pruning %s"), remote);

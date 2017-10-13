@@ -1,1 +1,1 @@
-error(_("cannot checkout %s"), ce->name);
+error(_("%s: %s"), name, strerror(errno));

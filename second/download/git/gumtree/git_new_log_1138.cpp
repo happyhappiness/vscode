@@ -1,1 +1,2 @@
-die_errno("unable to overwrite old ref-pack file");
+die(_("could not start 'git status' in submodule '%s'"),
+				path);

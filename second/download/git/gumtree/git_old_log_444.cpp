@@ -1,1 +1,1 @@
-ret += error("Failed to delete ref NOTES_MERGE_PARTIAL");
+die("Failed to finalize notes merge");

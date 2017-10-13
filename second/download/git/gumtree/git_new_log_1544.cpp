@@ -1,1 +1,1 @@
-die(_("unable to parse format"));
+strbuf_release(&err);

@@ -1,1 +1,1 @@
-error("Could not write flush packet");
+warning("ignoring ref with broken name %s", refname);

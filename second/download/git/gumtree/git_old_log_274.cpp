@@ -1,2 +1,1 @@
-error("cannot apply binary patch to '%s' "
-			     "without full index line", name);
+error(_("failed to read %s"), name);

@@ -1,1 +1,1 @@
-die("BUG: create called for transaction that is not open");
+error("file/directory conflict: %s, %s", name1, name2);

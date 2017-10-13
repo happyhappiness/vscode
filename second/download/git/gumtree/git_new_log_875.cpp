@@ -1,1 +1,1 @@
-printf(_("Applied autostash."));
+die("Not a git repository: %s", dir);

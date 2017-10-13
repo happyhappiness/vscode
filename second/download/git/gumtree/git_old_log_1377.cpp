@@ -1,1 +1,2 @@
-fprintf(pack_edges, " %s", sha1_to_hex(b->sha1));
+printf("Finalized notes merge commit: %s\n",
+			sha1_to_hex(result_sha1));

@@ -1,1 +1,1 @@
-error(_("index file corrupt"));
+die(_("'%s' is not a working tree"), av[0]);

@@ -1,2 +1,2 @@
-die ("Can't find replacement commit for tag %s\n",
-					     sha1_to_hex(tag->object.sha1));
+warning(_("Missing author: %s"),
+		    sha1_to_hex(commit->object.sha1));

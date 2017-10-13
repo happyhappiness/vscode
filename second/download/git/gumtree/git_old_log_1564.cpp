@@ -1,1 +1,1 @@
-die (_("Huh? Directory %s is in index and no submodule?"), src);
+die("bad zlib compression level %d", level);

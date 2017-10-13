@@ -1,1 +1,2 @@
-die("The commit %s is corrupt", sha1_to_hex(b->sha1));
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+		    item->original, ce_len, ce->name);

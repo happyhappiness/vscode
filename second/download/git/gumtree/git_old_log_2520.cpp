@@ -1,0 +1,1 @@
+die("packed refname is dangerous: %s", refname);

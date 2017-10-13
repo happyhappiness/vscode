@@ -1,2 +1,3 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+printf("%c %s %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev),
+		       buf.buf);

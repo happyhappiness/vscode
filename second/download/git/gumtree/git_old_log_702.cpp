@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "needs force", porcelain);
+packet_write(1, "ACK %s continue\n", hex);

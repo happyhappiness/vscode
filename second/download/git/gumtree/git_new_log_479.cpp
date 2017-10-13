@@ -1,2 +1,3 @@
-die(_("submodule '%s' cannot add alternate: %s"),
-				    sas->submodule_name, err.buf);
+warning(_("core.untrackedCache is set to false; "
+				  "remove or change it, if you really want to "
+				  "enable the untracked cache"));

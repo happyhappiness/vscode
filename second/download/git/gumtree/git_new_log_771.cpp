@@ -1,0 +1,1 @@
+!strcmp(next.buf, ".");

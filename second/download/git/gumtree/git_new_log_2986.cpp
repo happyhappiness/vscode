@@ -1,0 +1,1 @@
+error_errno("open(\"%s\")", path);

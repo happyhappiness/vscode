@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+error("ftell error: %s", strerror(errno));

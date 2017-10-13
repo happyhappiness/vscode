@@ -1,1 +1,0 @@
-(_("-n option is only allowed with -l.");

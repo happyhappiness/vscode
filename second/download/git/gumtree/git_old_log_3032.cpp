@@ -1,1 +1,1 @@
-warning("cannot get host name: %s", strerror(errno));
+fprintf(stderr, "%.*s", l, b);

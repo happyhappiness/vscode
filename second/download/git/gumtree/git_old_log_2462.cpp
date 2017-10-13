@@ -1,1 +1,1 @@
-fprintf(fout, "%s: %s\n", header[i], hdr->buf);
+error("object %s: %s", sha1_to_hex(obj->sha1), message);

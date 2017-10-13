@@ -1,1 +1,1 @@
-opterror(opt, "must point to a commit", 0);
+die("update_treesame %s", oid_to_hex(&commit->object.oid));

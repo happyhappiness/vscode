@@ -1,1 +1,2 @@
-die_errno("could not move to %s", orig_cwd);
+die("More than one commit to dig from %s and %s?",
+			    revs->pending.objects[i].name, name);

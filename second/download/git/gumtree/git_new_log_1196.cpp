@@ -1,1 +1,1 @@
-die("you must specify at least one tree to merge");
+die("strange pathname '%s' blocked", path);

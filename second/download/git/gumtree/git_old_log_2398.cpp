@@ -1,1 +1,2 @@
-die(_("no tag exactly matches '%s'"), sha1_to_hex(cmit->object.sha1));
+die("option %s needs an argument (check|on-demand)",
+				opt->long_name);

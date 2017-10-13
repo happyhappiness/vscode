@@ -1,1 +1,1 @@
-die("could not reset submodule index");
+die_errno("BUG: %s", msg);

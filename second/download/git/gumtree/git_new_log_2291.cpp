@@ -1,1 +1,1 @@
-error_code = READ_GITFILE_ERR_INVALID_FORMAT;
+fputs(env_hint, stderr);

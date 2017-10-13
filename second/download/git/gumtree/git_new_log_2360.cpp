@@ -1,1 +1,2 @@
-status_printf(s, color(WT_STATUS_HEADER, s), "%s", "");
+die(_("did not receive expected object %s"),
+			      oid_to_hex(&obj->oid));

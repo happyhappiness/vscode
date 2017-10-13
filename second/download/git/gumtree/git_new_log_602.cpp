@@ -1,1 +1,1 @@
-die_errno("packet write with format failed");
+die("BUG: %s called for a submodule", caller);

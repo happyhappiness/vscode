@@ -1,1 +1,2 @@
-die("object not found: %s", oid_to_hex(oid));
+die(_("parse_object_buffer failed on %s for %s"),
+		    oid_to_hex(&ref->objectname), ref->refname);

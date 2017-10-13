@@ -1,2 +1,2 @@
-warning(_("%s %s is not a commit!"),
-			ref_name, oid_to_hex(oid));
+die("BUG: The pcre1_jit_on variable should be 0 or 1, not %d",
+		    p->pcre1_jit_on);

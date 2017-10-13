@@ -1,1 +1,1 @@
-die(_("a %s revision is needed"), term_bad);
+warning(_("ignoring --verify-signatures for rebase"));

@@ -1,1 +1,0 @@
-res = error(_("could not read orig-head"));

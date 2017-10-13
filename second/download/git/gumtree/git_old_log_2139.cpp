@@ -1,1 +1,0 @@
-printf("%s is the first bad commit\n", bisect_rev_hex);

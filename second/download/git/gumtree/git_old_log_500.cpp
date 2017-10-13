@@ -1,1 +1,1 @@
-("strange hostname '%s' blocked";
+error("cannot fork to run external filter %s", params->cmd);

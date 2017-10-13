@@ -1,1 +1,0 @@
-warning("%s: symlink too long", p);

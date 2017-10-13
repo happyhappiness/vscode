@@ -1,1 +1,1 @@
-printf("-- \n%s", signature);
+error("unable to read files to diff");

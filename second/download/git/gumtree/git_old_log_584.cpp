@@ -1,1 +1,1 @@
-fputs(env_hint, stderr);
+printf("Auto-merging notes for %s\n", sha1_to_hex(p->obj));

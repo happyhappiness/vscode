@@ -1,1 +1,1 @@
-error_errno("cannot create pipe");
+(_("Unexpected option --remote");

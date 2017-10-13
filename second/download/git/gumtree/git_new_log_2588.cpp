@@ -1,1 +1,1 @@
-die(_("format: %%(end) atom missing"));
+die("bad tree %s", oid_to_hex(&obj->oid));

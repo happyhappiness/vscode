@@ -1,2 +1,2 @@
-die("BUG: pool size too small for %d in paint_alloc()",
-			    size);
+printf("              to %7s %s\n",
+				 printable_type(obj), describe_object(obj));

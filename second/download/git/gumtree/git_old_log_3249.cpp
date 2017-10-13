@@ -1,1 +1,1 @@
-printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);
+fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);

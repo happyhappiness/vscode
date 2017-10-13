@@ -1,1 +1,1 @@
-error("object %s: %s", oid_to_hex(&obj->oid), message);
+error("bad ref for %s", name->buf);

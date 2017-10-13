@@ -1,1 +1,2 @@
-packet_buf_write(&preamble, "%s\n", specs[i]);
+die_errno(_("cannot write keep file '%s'"),
+					  keep_name);

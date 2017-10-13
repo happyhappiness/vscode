@@ -1,1 +1,1 @@
-die("BUG: %s ref_store '%s' initialized twice", type, name);
+)subprocess_find_entry(&subprocess_map, cmd);

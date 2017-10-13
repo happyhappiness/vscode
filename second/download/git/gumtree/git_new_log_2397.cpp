@@ -1,1 +1,1 @@
-die("BUG: cannot normalize type %d", types);
+parse_push_recurse_submodules_arg(opt->long_name, arg);

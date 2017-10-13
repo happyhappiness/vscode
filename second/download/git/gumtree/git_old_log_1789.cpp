@@ -1,1 +1,0 @@
-fprintf(stderr, "failed to open store\n");

@@ -1,1 +1,1 @@
-die_errno(_("Could not write to '%s'"), filename);
+die("Fatal: buffer too small. Please report a bug.");

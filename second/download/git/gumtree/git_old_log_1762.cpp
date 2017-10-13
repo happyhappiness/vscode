@@ -1,1 +1,1 @@
-fputs(line->buf, cmitmsg);
+printf("prune %s", message);

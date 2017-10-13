@@ -1,1 +1,1 @@
-error(_("could not remove CHERRY_PICK_HEAD"));
+error("unable to parse header of %s", path);

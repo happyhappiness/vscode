@@ -1,0 +1,1 @@
+die_errno(_("Could not write to %s"), todo_file);

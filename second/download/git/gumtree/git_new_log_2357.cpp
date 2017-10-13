@@ -1,2 +1,1 @@
-die("unknown repository extension: %s",
-			    unknown_extensions.items[0].string);
+fprintf(stderr, "bad sha1 file: %s\n", path);

@@ -1,0 +1,1 @@
+die("process for submodule '%s' failed", path);

@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports ofs-delta"));
+warning(_("no common commits"));

@@ -1,1 +1,1 @@
-die(_("push options must not have new line characters"));
+fprintf(opt->diffopt.file, "\t%s", (char *) commit->util);

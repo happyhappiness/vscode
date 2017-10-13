@@ -1,0 +1,1 @@
+error(_("Invalid %s: '%s'"), var, value);

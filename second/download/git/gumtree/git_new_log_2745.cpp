@@ -1,1 +1,1 @@
-die(_("unable to write parameters to config file"));
+fputs(pp->children[i].err.buf, stderr);

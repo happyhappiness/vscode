@@ -1,1 +1,1 @@
-die("delete %s given zero old value", ref.buf);
+die("delete %s missing [<oldvalue>] NUL", ref.buf);

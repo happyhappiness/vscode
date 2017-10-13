@@ -1,1 +1,2 @@
-die("object not found: %s", sha1_to_hex(sha1));
+die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(ref->objectname), ref->refname);

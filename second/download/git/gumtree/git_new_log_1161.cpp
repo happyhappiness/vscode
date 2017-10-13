@@ -1,1 +1,4 @@
-die(_("Cannot change to '%s'"), dir.buf);
+fprintf_ln(stderr,
+			   Q_("\nThe most similar command is",
+			      "\nThe most similar commands are",
+			   n));

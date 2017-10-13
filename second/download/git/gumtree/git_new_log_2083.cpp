@@ -1,3 +1,2 @@
-die("unable to generate diff (%s -> %s)",
-		    sha1_to_hex(parent->commit->object.sha1),
-		    sha1_to_hex(target->commit->object.sha1));
+die_errno(_("could not open '%s' for reading"),
+				  git_path_merge_head());

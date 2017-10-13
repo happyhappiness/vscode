@@ -1,2 +1,1 @@
-fprintf(log->file, "%s (%d):\n",
-				item->string, onelines->nr);
+fputs("commit ", opt->diffopt.file);

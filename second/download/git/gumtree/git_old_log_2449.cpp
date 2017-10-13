@@ -1,2 +1,1 @@
-printf("%c %s\n", sign,
-		       find_unique_abbrev(commit->object.sha1, abbrev));
+error("bad parents in commit %s", sha1_to_hex(item->object.sha1));

@@ -1,1 +1,1 @@
-die("BUG: attempt to commit unlocked object");
+die("helper %s does not support dry-run", data->name);

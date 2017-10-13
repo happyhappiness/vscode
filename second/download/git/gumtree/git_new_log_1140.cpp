@@ -1,1 +1,1 @@
-ret = error("refname %s not found", oldrefname);
+die("could not recurse into submodule '%s'", sub->path);

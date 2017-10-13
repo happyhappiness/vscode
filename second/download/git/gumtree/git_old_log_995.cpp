@@ -1,1 +1,1 @@
-printf(": %s: %s\n", git_attr_name(check[j].attr), value);
+error("Object %s already has a mark", sha1_to_hex(sha1));

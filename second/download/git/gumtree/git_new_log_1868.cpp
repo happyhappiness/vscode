@@ -1,1 +1,1 @@
-die("BUG: config_buf can only ungetc the same character");
+die("git cat-file --allow-unknown-type: use with -s or -t");

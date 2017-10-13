@@ -1,1 +1,1 @@
-die("delete: missing <ref>");
+die("create %s: extra input: %s", refname, next);

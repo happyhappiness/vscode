@@ -1,0 +1,1 @@
+die(_("no such path %s in %s"), path, final_commit_name);

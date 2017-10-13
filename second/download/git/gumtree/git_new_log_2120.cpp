@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", pair->one->path);
+print_signature_buffer(&signature_check, flags);

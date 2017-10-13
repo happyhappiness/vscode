@@ -1,3 +1,2 @@
-error("the necessary postimage %s for "
-				     "'%s' cannot be read",
-				     patch->new_sha1_prefix, name);
+error(_("path %s has been renamed/deleted"),
+			     patch->old_name);

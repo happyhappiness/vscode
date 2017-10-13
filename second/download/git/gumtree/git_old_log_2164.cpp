@@ -1,2 +1,1 @@
-die("missing object %s for %s",
-		    sha1_to_hex(ref->objectname), ref->refname);
+die("BUG: get_locked_file_path() called for unlocked object");

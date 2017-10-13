@@ -1,1 +1,2 @@
-error(_("failed to read %s"), patch->old_name);
+error("cannot read the current contents of '%s'",
+				     patch->old_name);

@@ -1,1 +1,1 @@
-die("unable to generate diff");
+die("transport '%s' not allowed", type);

@@ -1,1 +1,2 @@
-error(_("short SHA1 %s is ambiguous"), ds.hex_pfx);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "needs force", porcelain, summary_width);

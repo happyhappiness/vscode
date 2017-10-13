@@ -1,1 +1,0 @@
-die("unknown option %s", a);

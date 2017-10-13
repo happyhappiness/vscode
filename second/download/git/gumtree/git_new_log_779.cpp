@@ -1,1 +1,1 @@
-error_buf(err, _("HEAD does not point to a branch"));
+printf(_("Huh (%s)?\n"), (*ptr)->buf);

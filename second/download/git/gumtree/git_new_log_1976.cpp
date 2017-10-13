@@ -1,1 +1,2 @@
-die("object '%s' is not a blob!", oid_to_hex(oid));
+error("problems writing temporary file %s: %s",
+			     buf->buf, strerror(errno));

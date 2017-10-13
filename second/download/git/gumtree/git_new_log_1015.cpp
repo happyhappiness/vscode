@@ -1,1 +1,1 @@
-die_errno ("Could not write blob '%s'", oid_to_hex(oid));
+error("new object is the same as the old one: '%s'", oid_to_hex(&old));

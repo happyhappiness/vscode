@@ -1,2 +1,2 @@
-die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
-		    path);
+die_errno("failed to write to %s",
+				  temporary_shallow.buf);

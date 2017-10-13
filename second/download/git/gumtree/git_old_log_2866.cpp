@@ -1,1 +1,1 @@
-die("not a gitdir '%s'", argv[i]);
+error("cannot read mail %s (%s)", file, strerror(errno));

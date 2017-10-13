@@ -1,1 +1,1 @@
-error("bogus format in " CONFIG_DATA_ENVIRONMENT);
+die(_("error building trees"));

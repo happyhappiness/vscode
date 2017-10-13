@@ -1,2 +1,1 @@
-die_errno(_("cannot symlink '%s' '%s'"),
-					  lnk.buf, path->buf);
+die("BUG: color parsing ran out of space");

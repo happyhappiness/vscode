@@ -1,1 +1,1 @@
-error(_("empty mbox: '%s'"), file);
+die("strange hostname '%s' blocked", host);

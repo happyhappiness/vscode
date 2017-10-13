@@ -1,1 +1,2 @@
-die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);
+fprintf(stderr, "%s: unmerged (%s)\n",
+				ce->name, oid_to_hex(&ce->oid));

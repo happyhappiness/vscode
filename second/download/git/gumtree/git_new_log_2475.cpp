@@ -1,1 +1,1 @@
-*recurse_submodules = parse_push_recurse_submodules_arg(opt->long_name, arg);
+die("unknown pending object %s (%s)", oid_to_hex(&obj->oid), name);

@@ -1,1 +1,1 @@
-error("cannot create thread: %s", strerror(err));
+die("Unknown archive format '%s'", format);

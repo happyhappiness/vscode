@@ -1,1 +1,1 @@
-die_errno("couldn't read %s", packed_refs_file);
+error_errno("Could not open %s", filename);

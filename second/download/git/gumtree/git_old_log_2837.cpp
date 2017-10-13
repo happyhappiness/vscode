@@ -1,1 +1,2 @@
-printf("%s", lines[i]->buf);
+die("could not read file '%s': %s", filename,
+				strerror(errno));

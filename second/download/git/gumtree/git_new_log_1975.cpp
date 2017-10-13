@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _(" OK"));
+write_file(buf->buf, 0, "%s\n", oid_to_hex(oid));

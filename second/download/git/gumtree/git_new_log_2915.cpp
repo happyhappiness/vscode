@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+error_errno("unable to mmap '%s'", config_filename);

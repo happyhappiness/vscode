@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("git upload-pack: deepen and deepen-since (or deepen-not) cannot be used together");

@@ -1,2 +1,2 @@
-die("git diff header lacks filename information "
-				    "(line %d)", state->linenr);
+error(_("corrupt binary patch at line %d: %.*s"),
+	      state->linenr-1, llen-1, buffer);

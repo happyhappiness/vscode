@@ -1,2 +1,4 @@
-error("unable to open object pack directory: %s: %s",
-			      path.buf, strerror(errno));
+fprintf(stderr, "The merge base %s is new.\n"
+				"The property has changed "
+				"between %s and [%s].\n",
+				bad_hex, bad_hex, good_hex);

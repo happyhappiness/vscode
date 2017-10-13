@@ -1,1 +1,1 @@
-die(_("cannot use --contents with final commit object name"));
+printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);

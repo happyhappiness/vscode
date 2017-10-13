@@ -1,1 +1,1 @@
-packet_write(1, "NAK\n");
+wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");

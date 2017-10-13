@@ -1,2 +1,1 @@
-warning("object %s cannot be read",
-						sha1_to_hex(src_entry->idx.sha1));
+die("Not a tree: %s", sha1_to_hex(sha1));

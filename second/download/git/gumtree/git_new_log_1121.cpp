@@ -1,0 +1,1 @@
+die("BUG: error while iterating over references");

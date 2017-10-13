@@ -1,2 +1,2 @@
-error(_("Could not parse commit %s\n"),
-			     sha1_to_hex(commit->object.sha1));
+warning(_("Missing author: %s"),
+		    oid_to_hex(&commit->object.oid));

@@ -1,1 +1,1 @@
-printf("reset %s\n", (const char*)commit->util);
+die("%s: cannot update the ref", ref);

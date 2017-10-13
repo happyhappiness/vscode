@@ -1,1 +1,1 @@
-error(_("Failed to find tree of %s."), oid_to_hex(oid));
+die(_("no such ref %s"), *av);

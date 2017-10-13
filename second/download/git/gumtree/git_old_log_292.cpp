@@ -1,1 +1,1 @@
-fprintf(stderr, "Falling back to three-way merge...\n");
+error(_("%s: %s"), old_name, strerror(errno));

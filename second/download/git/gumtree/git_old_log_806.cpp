@@ -1,2 +1,1 @@
-printf("              to %7s %s\n",
-				 typename(obj->type), describe_object(obj));
+die("strange pathname '%s' blocked", path);

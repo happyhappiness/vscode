@@ -1,2 +1,1 @@
-die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
-			    *name, state->linenr);
+warning(_("failed to remove '%s'"), fname);

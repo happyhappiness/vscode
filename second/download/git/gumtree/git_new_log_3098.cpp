@@ -1,1 +1,0 @@
-die(_("--chmod param '%s' must be either -x or +x"), chmod_arg);

@@ -1,1 +1,2 @@
-die(_("Failed to parse gc.logexpiry value %s"), gc_log_expire);
+die("BUG: confusing delta dfs state in second pass: %d",
+			    cur->dfs_state);

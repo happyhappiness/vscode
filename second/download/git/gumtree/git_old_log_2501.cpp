@@ -1,1 +1,0 @@
-printf("%s\n", filter.tags.items[i].string);

@@ -1,1 +1,1 @@
-set_common_push_options(transport, data->name, flags);
+memset(&array, 0, sizeof(array));

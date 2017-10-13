@@ -1,3 +1,1 @@
-error(ERRORMSG(o, ERROR_BIND_OVERLAP),
-			      super_prefixed(a->name),
-			      super_prefixed(old->name));
+error("pack-objects died of signal %d", rc - 128);

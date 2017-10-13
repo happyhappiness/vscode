@@ -1,4 +1,2 @@
-fprintf(stderr, "%s in %s has negative refcnt %d\n",
-				ent->suspect->path,
-				oid_to_hex(&ent->suspect->commit->object.oid),
-				ent->suspect->refcnt);
+die(_("SHA1 COLLISION FOUND WITH %s !"),
+		    sha1_to_hex(entry->idx.sha1));

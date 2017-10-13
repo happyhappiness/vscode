@@ -1,1 +1,1 @@
-die("BUG: unknown binary handling mode");
+packet_buf_write(&sb, "%s", item->string);

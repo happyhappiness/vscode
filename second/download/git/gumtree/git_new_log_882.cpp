@@ -1,1 +1,0 @@
-res = error(_("cannot read HEAD"));

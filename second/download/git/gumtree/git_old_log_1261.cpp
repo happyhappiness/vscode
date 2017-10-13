@@ -1,1 +1,1 @@
-die_errno("cannot open or read '%s'", read_from);
+error(_("Cannot open patch file %s"), filename.buf);

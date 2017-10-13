@@ -1,1 +1,2 @@
-die(_("negative values not allowed for submodule.fetchJobs"));
+fprintf(stderr, _("No testable commit found.\n"
+			"Maybe you started with bad path parameters?\n"));

@@ -1,1 +1,1 @@
-error_errno("failed to redirect stderr to /dev/null");
+error_errno("Failed to flush %s", path);

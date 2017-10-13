@@ -1,1 +1,2 @@
-die("object %s changed type!?", oid_to_hex(oid));
+die("--batch-all-objects cannot be combined with "
+			    "--textconv nor with --filters");

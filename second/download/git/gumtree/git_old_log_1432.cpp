@@ -1,2 +1,1 @@
-die(_("parse_object_buffer failed on %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
+status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));

@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s\n", path);
+die("Error on reachable objects of %s", oid_to_hex(&obj->oid));

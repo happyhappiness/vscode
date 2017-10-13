@@ -1,2 +1,2 @@
-warning(_("ignore invalid color '%.*s' in log.graphColors"),
-				(int)(comma - start), start);
+error(_("could not read commit message of %s"),
+			     oid_to_hex(&commit->object.oid));

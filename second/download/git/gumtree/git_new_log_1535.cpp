@@ -1,1 +1,1 @@
-die(_("unable to parse default color value"));
+die("'%s' does not appear to be a git repository", service_dir);

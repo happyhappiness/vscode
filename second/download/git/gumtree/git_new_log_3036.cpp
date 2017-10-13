@@ -1,1 +1,0 @@
-error_errno("unable to stat %s", sha1_to_hex(sha1));

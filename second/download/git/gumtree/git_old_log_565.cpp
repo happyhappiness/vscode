@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports side-band\n");
+warning("no common commits");

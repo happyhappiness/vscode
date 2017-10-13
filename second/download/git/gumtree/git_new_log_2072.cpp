@@ -1,1 +1,1 @@
-fputs(c_context, stdout);
+die("unknown line in '%s': %s", git_path_merge_head(), line.buf);

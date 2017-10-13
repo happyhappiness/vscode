@@ -1,1 +1,1 @@
-die(_("unrecognized argument: %s"), argv[1]);
+write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));

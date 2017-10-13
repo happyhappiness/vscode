@@ -1,1 +1,1 @@
-die(_("internal error"));
+die(_("unrecognized input"));

@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that has been committed"));
+die("helper %s does not support dry-run", data->name);

@@ -1,1 +1,1 @@
-fputs("fatal: not enough memory for initialization", stderr);
+die("%s", err.buf);

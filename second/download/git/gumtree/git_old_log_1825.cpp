@@ -1,2 +1,2 @@
-die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
+error("pathspec '%s' did not match any file(s) known to git.",
+		      pathspec->items[num].original);

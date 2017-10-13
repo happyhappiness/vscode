@@ -1,3 +1,1 @@
-warning("failed utime() on %s: %s",
-			rerere_path(id, "postimage"),
-			strerror(errno));
+die(_("unable to update %s"), head_ref.buf);

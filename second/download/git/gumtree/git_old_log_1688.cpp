@@ -1,2 +1,1 @@
-error("'%s' exists; cannot create '%s'",
-		      data.conflicting_refname, refname);
+die("Unable to get current working directory");

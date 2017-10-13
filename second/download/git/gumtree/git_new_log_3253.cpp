@@ -1,1 +1,1 @@
-die(_("No such ref: %s"), "HEAD");
+fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), opt->diffopt.file);

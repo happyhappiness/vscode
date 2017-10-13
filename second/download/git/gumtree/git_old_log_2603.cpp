@@ -1,1 +1,2 @@
-die_errno("unable to fdopen packed-refs descriptor");
+(fprintf(fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path);

@@ -1,1 +1,1 @@
-packet_write_fmt(1, "NAK\n");
+wt_longstatus_print_other(s, &s->ignored, _("Ignored files"), "add -f");

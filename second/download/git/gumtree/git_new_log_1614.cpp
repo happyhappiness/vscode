@@ -1,1 +1,2 @@
-git_die_config(key, NULL);
+die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
+		    path);

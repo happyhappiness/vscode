@@ -1,1 +1,2 @@
-error("unable to unpack header of %s", path);
+status_printf_ln(s, color,
+				_("git-rebase-todo is missing."));

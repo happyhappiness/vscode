@@ -1,1 +1,1 @@
-die("no name was given and auto-detection is disabled");
+die("resolve-relative-url only accepts one or two arguments");

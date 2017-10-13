@@ -1,1 +1,1 @@
-die(_("object type mismatch at %s"), oid_to_hex(&obj->oid));
+printf("worktree %s\n", wt->path);

@@ -1,1 +1,1 @@
-vwritef(child_err, "fatal: ", err, params);
+die("unable to generate diff");

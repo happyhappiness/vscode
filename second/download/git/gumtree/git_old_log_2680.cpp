@@ -1,2 +1,1 @@
-error(_("Mainline was specified but commit %s is not a merge."),
-			sha1_to_hex(commit->object.sha1));
+printf("%s (%d):\n", log->list.items[i].string, onelines->nr);

@@ -1,4 +1,2 @@
-fprintf(rev.diffopt.file, "%stree %s%s\n\n",
-					diff_get_color_opt(&rev.diffopt, DIFF_COMMIT),
-					name,
-					diff_get_color_opt(&rev.diffopt, DIFF_RESET));
+fprintf(opt->file, "%s ",
+			diff_unique_abbrev(p->two->oid.hash, opt->abbrev));

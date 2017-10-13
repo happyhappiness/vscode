@@ -1,1 +1,1 @@
-printf("%s (%d):\n", item->string, onelines->nr);
+fputs("commit ", stdout);

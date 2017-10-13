@@ -1,2 +1,1 @@
-error("%s: object corrupt or missing: %s",
-		      oid_to_hex(oid), path);
+die("submodule--helper push-check requires at least 1 argument");

@@ -1,1 +1,2 @@
-error("new object is the same as the old one: '%s'", oid_to_hex(&old));
+error(_("unknown core.untrackedCache value '%s'; "
+			"using 'keep' default value"), v);

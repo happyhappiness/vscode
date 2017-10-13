@@ -1,1 +1,1 @@
-die(_("unable to add cache entry for %s"), path);
+fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);

@@ -1,1 +1,2 @@
-fprintf(s->fp, "%c %s%c", prefix, path, eol_char);
+die("BUG: update_url_from_redirect: %s is not a superset of %s",
+		    asked, base->buf);

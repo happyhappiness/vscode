@@ -1,1 +1,0 @@
-die("Comammand input error");

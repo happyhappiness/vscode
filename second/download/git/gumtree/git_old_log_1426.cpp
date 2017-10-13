@@ -1,2 +1,2 @@
-die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+die("git upload-pack: not our ref %s",
+			    sha1_to_hex(sha1_buf));

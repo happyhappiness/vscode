@@ -1,1 +1,1 @@
-die_errno("read");
+error("could not unhide %s", filename);

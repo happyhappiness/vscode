@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+fprintf(stderr, "%s:%d: %s.\n%.*s\n",
+		patch_input_file, linenr, err, len, line);

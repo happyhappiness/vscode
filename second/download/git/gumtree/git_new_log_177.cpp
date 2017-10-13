@@ -1,1 +1,1 @@
-error("unable to rewind rpc post data - try increasing http.postBuffer");
+error("remote-curl: unknown command '%s' from git", buf.buf);

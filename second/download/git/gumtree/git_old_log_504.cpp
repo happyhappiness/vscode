@@ -1,1 +1,1 @@
-die("LF would be replaced by CRLF in %s", path);
+error("read from external filter %s failed", cmd);

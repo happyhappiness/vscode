@@ -1,1 +1,1 @@
-die("user.useConfigOnly set but no mail given");
+printf("#unmatched\n");

@@ -1,2 +1,2 @@
-fprintf(pack_edges, " %s",
-							oid_to_hex(&b->oid));
+printf("Finalized notes merge commit: %s\n",
+			oid_to_hex(result_oid));

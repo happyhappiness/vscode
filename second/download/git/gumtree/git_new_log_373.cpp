@@ -1,1 +1,2 @@
-die("%s not a valid tag", oid_to_hex(&oid));
+printf("%s missing\n",
+		       obj_name ? obj_name : oid_to_hex(&data->oid));

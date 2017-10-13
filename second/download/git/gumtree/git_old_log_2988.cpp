@@ -1,1 +1,1 @@
-error("%s: unable to read file.", name);
+error("unable to open %s: %s", path->buf, strerror(errno));

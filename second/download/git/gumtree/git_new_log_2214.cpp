@@ -1,1 +1,1 @@
-die("Unknown fsck message type: '%s'", str);
+die(_("Error wrapping up %s."), git_path_todo_file());

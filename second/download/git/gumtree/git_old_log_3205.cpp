@@ -1,1 +1,1 @@
-printf("%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");
+die("unable to read %s", sha1_to_hex(s->sha1));

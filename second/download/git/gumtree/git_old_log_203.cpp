@@ -1,1 +1,1 @@
-f(s, color(WT_STATUS_HEADER, s), "");
+fprintf(ecbdata->opt->file, "%s", ecbdata->header->buf);

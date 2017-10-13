@@ -1,1 +1,1 @@
-git_die_config(key, "unknown notes merge strategy %s", value);
+error("unable to write current sha1 into %s: %s", newrefname, err.buf);

@@ -1,1 +1,2 @@
-die("BUG: delete called for transaction that is not open");
+die("sha1 information is lacking or useless for submodule %s",
+				    name);

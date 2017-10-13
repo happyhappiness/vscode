@@ -1,1 +1,2 @@
-fprintf(stderr, "Server supports side-band-64k\n");
+fprintf(stderr, "Server version is %.*s\n",
+				agent_len, agent_feature);

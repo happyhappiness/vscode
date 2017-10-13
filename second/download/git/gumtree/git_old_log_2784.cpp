@@ -1,0 +1,1 @@
+die("BUG: startup_info struct is not initialized.");

@@ -1,1 +1,1 @@
-fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit), stdout);
+die("BUG: reverse reflog parser had leftover data");

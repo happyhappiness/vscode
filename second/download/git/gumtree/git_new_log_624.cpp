@@ -1,1 +1,1 @@
-die("Unknown command: %d", command);
+rollback_lock_file(&index_lock);

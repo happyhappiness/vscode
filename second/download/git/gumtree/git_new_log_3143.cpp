@@ -1,1 +1,0 @@
-die(_("Unknown archive format '%s'"), format);

@@ -1,1 +1,1 @@
-fprintf(outfile, "%s%c %s\n", tok, separators[0], val);
+die("strange hostname '%s' blocked", ssh_host);

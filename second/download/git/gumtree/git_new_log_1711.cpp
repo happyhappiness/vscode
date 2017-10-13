@@ -1,1 +1,1 @@
-die(_("failed to sign the push certificate"));
+fprintf(cmitmsg, "Message-Id: %s\n", message_id);

@@ -1,2 +1,2 @@
-warning(_("%s has type %o, expected %o"),
-			old_name, st_mode, patch->old_mode);
+error(_("affected file '%s' is beyond a symbolic link"),
+			     patch->new_name);

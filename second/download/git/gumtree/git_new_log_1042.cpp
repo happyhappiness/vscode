@@ -1,1 +1,0 @@
-opterror(opt, "expects a number greater than zero", 0);

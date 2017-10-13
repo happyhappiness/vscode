@@ -1,1 +1,1 @@
-printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+(format(printf, 2, 3);

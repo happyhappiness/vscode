@@ -1,2 +1,1 @@
-die("fetch-pack: unable to fork off sideband"
-			    " demultiplexer");
+die("Server does not support shallow clients");

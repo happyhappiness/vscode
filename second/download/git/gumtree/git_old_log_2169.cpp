@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s", refname);
+die("BUG: lockfile filename corrupt");

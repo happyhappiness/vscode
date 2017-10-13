@@ -1,0 +1,1 @@
+error(_("could not verify the tag '%s'"), name);

@@ -1,2 +1,2 @@
-die("attempting to mmap %"PRIuMAX" over limit %"PRIuMAX,
-		    (uintmax_t)length, (uintmax_t)limit);
+fprintf(stderr, "curl_easy_perform() failed: %s\n",
+					curl_easy_strerror(res));

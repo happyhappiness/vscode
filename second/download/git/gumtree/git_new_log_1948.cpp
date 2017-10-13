@@ -1,2 +1,2 @@
-die("not something we can merge in %s: %s",
-			    filename, merge_names->buf + pos);
+error_buf(err, _("no such branch: '%s'"),
+					 branch->name);

@@ -1,2 +1,4 @@
-printf("%5d %.*s%.*s\n", patch->lines_added + patch->lines_deleted,
-		add, pluses, del, minuses);
+error(_("missing binary patch data for '%s'"),
+			     patch->new_name ?
+			     patch->new_name :
+			     patch->old_name);

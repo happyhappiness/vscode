@@ -1,1 +1,2 @@
-error("%s: invalid sha1 pointer %s", refname, sha1_to_hex(sha1));
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

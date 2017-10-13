@@ -1,2 +1,1 @@
-error(_("could not delete reference %s: %s"),
-			      refnames->items[0].string, err.buf);
+die_errno(_("could not open '%s' for reading"), path);

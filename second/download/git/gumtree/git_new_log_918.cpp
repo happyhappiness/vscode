@@ -1,2 +1,1 @@
-die(_("could not run 'git status in submodule '%s'"),
-				path);
+die(_("--no-index or --untracked cannot be used with revs"));

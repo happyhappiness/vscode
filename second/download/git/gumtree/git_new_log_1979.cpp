@@ -1,1 +1,1 @@
-printf(" %s ", diff_unique_abbrev(p->oid.hash, opt->abbrev));
+fprintf(fp, "--shallow %s\n", oid_to_hex(&graft->oid));

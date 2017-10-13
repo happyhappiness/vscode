@@ -1,2 +1,1 @@
-die("unable to get type of object %s",
-				    sha1_to_hex(entry->idx.sha1));
+die("Corrupt mode in %s", sha1_to_hex(sha1));

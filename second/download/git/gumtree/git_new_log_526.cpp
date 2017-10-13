@@ -1,1 +1,1 @@
-die_want_option("--stat-count");
+warning(_(rename_limit_warning));

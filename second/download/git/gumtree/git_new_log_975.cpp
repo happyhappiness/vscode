@@ -1,1 +1,1 @@
-die(_("name consists only of disallowed characters: %s"), name);
+warning_errno(_(msg_warn_remove_failed), quoted.buf);

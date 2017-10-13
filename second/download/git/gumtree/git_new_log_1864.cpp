@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", path,
-					strerror(errno));
+printf("loop %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);

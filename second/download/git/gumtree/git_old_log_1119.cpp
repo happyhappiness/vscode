@@ -1,2 +1,1 @@
-die(_("ref '%s' does not have %ld components to :strip"),
-			    refname, nr);
+die("BUG: main_ref_store initialized twice");

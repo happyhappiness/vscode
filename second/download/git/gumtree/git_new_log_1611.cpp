@@ -1,1 +1,1 @@
-(_("unable to parse command-line config");
+strbuf_reset(&link);

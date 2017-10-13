@@ -1,1 +1,2 @@
-error("unable to write current sha1 into %s: %s", newrefname, err.buf);
+fprintf(stderr, "Cannot obtain needed %s %s\n",
+		obj->type ? typename(obj->type): "object", missing_hex);

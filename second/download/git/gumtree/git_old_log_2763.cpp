@@ -1,1 +1,1 @@
-(_("bad config file line %d in %s");
+die ("Could not run rsync to get refs");

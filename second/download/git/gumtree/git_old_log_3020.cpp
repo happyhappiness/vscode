@@ -1,2 +1,1 @@
-failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(errno));
+die_errno(_("could not open '%s'"), git_path(commit_editmsg));

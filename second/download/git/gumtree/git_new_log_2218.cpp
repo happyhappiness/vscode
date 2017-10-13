@@ -1,1 +1,0 @@
-die("Missing '=': '%s'", buf);

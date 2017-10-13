@@ -1,2 +1,2 @@
-die(_("unable to read %s"),
-			    oid_to_hex(&data->entry->idx.oid));
+warning("recursive delta detected for object %s",
+			oid_to_hex(&e->idx.oid));

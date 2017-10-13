@@ -1,1 +1,1 @@
-die(_("git fetch-pack: fetch failed."));
+die("%s doesn't support --super-prefix", argv[0]);

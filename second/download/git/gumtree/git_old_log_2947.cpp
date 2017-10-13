@@ -1,1 +1,2 @@
-error("cannot opendir %s (%s)", name, strerror(errno));
+warning("cannot read /etc/mailname: %s",
+				strerror(errno));

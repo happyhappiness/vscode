@@ -1,1 +1,1 @@
-die(_("Expecting a full ref name, got %s"), refname);
+fprintf(opt->diffopt.file, "---");

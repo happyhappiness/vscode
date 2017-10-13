@@ -1,1 +1,1 @@
-die_errno("unable to read object %s", oid_to_hex(oid));
+(fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) <;

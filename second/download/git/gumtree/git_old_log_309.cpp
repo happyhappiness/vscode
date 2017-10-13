@@ -1,1 +1,2 @@
-error(_("%s: already exists in index"), new_name);
+die("sha1 information is lacking or useless "
+			    "(%s).", name);

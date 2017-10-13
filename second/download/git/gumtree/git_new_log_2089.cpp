@@ -1,1 +1,0 @@
-die("unable to generate diff for %s", one->path);

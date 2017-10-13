@@ -1,2 +1,2 @@
-printf("broken link from %7s %s\n",
-				 typename(parent->type), describe_object(parent));
+die(_("bad numeric config value '%s' for '%s': %s"),
+		    value, name, error_type);

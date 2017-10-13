@@ -1,1 +1,2 @@
-error(_("running trailer command '%s' failed"), cmd.buf);
+warning_errno("could not create file '%s'",
+			      filename);

@@ -1,4 +1,4 @@
-printf("Automatic notes merge failed. Fix conflicts in %s and "
-		       "commit the result with 'git notes merge --commit', or "
-		       "abort the merge with 'git notes merge --abort'.\n",
-		       git_path(NOTES_MERGE_WORKTREE));
+printf("%s%s@@ -%ld,%ld +%ld,%ld @@%s\n",
+		       prefix, c_frag,
+		       p_start+1, p_end-p_start, t_start+1, t_end-t_start,
+		       c_reset);

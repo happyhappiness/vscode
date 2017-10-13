@@ -1,1 +1,1 @@
-error(_("could not read index"));
+die("Error reading %s", path);

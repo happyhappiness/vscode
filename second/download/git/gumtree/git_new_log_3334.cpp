@@ -1,1 +1,1 @@
-fputs("commit ", opt->diffopt.file);
+vfprintf(stderr, fmt, ap);

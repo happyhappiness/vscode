@@ -1,1 +1,1 @@
-die(_("could not create directory '%s'"), new_git_dir);
+die(_("could not unset '%s'"), buf.buf);

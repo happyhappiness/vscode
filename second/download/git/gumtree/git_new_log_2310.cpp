@@ -1,1 +1,1 @@
-die("helper %s does not support dry-run", name);
+die("BUG: not unique item in first-parent chain");

@@ -1,1 +1,3 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"), oid_to_hex(oid));
+die("object %s inconsistent object length (%lu vs %lu)",
+			    oid_to_hex(&trg_entry->idx.oid), sz,
+			    trg_size);

@@ -1,0 +1,1 @@
+error(_("Your local changes would be overwritten by revert."));

@@ -1,1 +1,0 @@
-warning("vsnprintf failed: '%s'", strerror(errno));

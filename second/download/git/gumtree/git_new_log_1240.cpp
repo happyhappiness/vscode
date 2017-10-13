@@ -1,2 +1,1 @@
-ret = error(_("HEAD of working tree %s is not updated"),
-				    worktrees[i]->path);
+printf("num commits: %d\n", sb.num_commits);

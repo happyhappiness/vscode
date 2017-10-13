@@ -1,1 +1,1 @@
-die(_("Server does not support shallow clients"));
+print_verbose(args, _("Server supports ofs-delta"));

@@ -1,1 +1,1 @@
-die(_("'%s' is not locked"), av[0]);
+strbuf_addf(&o->obuf, "%.*s\n", len, title);

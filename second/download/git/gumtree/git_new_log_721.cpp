@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s ready\n", hex);
+fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);

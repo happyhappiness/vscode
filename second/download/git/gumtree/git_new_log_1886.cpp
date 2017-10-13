@@ -1,2 +1,2 @@
-error("pathspec '%s' did not match any file(s) known to git.",
-		      pathspec->items[num].original);
+die("not something we can merge in %s: %s",
+			    filename, merge_names->buf + pos);

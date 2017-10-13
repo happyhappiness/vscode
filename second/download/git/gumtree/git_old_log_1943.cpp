@@ -1,1 +1,0 @@
-fprintf(fp, "gitdir: %s\n", git_dir);

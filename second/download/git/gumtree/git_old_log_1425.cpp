@@ -1,2 +1,1 @@
-die("The same object %s appears twice in the pack",
-			    sha1_to_hex(obj->sha1));
+die("invalid shallow object %s", sha1_to_hex(sha1));

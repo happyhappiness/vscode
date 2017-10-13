@@ -1,2 +1,4 @@
-die(_("missing object %s for %s"),
-		    sha1_to_hex(ref->objectname), ref->refname);
+printf("committer %s <%s@%s> %lu +0000\n",
+		   *author ? author : "nobody",
+		   *author ? author : "nobody",
+		   *uuid ? uuid : "local", timestamp);

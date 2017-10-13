@@ -1,1 +1,1 @@
-fprintf(stderr, " which contains %s\n", sha1_to_hex(request->obj->sha1));
+error("unable to write current sha1 into %s: %s", oldrefname, err.buf);

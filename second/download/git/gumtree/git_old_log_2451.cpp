@@ -1,1 +1,2 @@
-printf("%s	%s\n", sha1_to_hex(ref->old_sha1), ref->name);;
+error("Object %s not a commit",
+			     sha1_to_hex(item->object.sha1));

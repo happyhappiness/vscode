@@ -1,1 +1,1 @@
-die("unable to join lazy_name_thread");
+die(_("format: %%(else) atom used without an %%(if) atom"));

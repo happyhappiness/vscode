@@ -1,1 +1,1 @@
-die("can't use --super-prefix from a subdirectory");
+fputs(_(env_hint), stderr);

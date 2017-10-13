@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s."), todo_file);
+die_errno("unable to commit credential store");

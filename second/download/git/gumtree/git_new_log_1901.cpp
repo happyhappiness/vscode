@@ -1,2 +1,1 @@
-die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
+die_errno(_("failed to create file %s"), path);

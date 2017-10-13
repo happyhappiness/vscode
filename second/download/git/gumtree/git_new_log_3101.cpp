@@ -1,1 +1,2 @@
-error(_("cannot abort from a branch yet to be born"));
+die(_("configuration fetch.output contains invalid value %s"),
+		    format);

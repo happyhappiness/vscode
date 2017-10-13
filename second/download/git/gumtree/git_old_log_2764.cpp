@@ -1,1 +1,1 @@
-error(_("bad config file line %d in %s"), cf->linenr, cf->name);
+die ("Could not run rsync to get refs");

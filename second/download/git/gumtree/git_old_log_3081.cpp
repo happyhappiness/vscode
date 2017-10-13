@@ -1,1 +1,1 @@
-error("%s process failed to wait: %s", name, strerror(errno));
+die(_("git apply: bad git-diff - expected /dev/null on line %d"), linenr);

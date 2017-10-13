@@ -1,1 +1,1 @@
-die("transport '%s' not allowed", type);
+die(_("invalid reference: %s"), refname);

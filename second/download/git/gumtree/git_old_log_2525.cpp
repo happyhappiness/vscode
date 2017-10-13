@@ -1,1 +1,1 @@
-error("bogus commit object %s", sha1_to_hex(item->object.sha1));
+die_errno("unable to fdopen packed-refs descriptor");

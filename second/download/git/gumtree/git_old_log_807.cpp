@@ -1,2 +1,1 @@
-printf("unreachable %s %s\n", typename(obj->type),
-			describe_object(obj));
+die("strange hostname '%s' blocked", ssh_host);

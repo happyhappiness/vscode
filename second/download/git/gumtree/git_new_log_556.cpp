@@ -1,1 +1,1 @@
-die(_("protocol error: bad pack header"));
+print_verbose(args, _("Server supports multi_ack_detailed"));

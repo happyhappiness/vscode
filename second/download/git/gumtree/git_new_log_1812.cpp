@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+error(_("reading from '%s' beyond a symbolic link"), name);

@@ -1,1 +1,1 @@
-report_invalid_attr(name, namelen, src, lineno);
+die(_("could not read symlink file %s"), path);

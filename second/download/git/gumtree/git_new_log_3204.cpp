@@ -1,1 +1,2 @@
-fprintf(rev->diffopt.file, "%s", out.buf);
+die("unable to read %s",
+				    oid_to_hex(&s->oid));

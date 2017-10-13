@@ -1,1 +1,1 @@
-die("Unable to get current working directory");
+die("could not read %s%s", prompt, strerror(errno));

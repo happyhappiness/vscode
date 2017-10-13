@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+warning("object %s: %s", oid_to_hex(&obj->oid), message);

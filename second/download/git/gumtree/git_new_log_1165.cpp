@@ -1,1 +1,1 @@
-die("process for submodule '%s' failed", path);
+die(_("--local can only be used inside a git repository"));

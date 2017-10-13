@@ -1,1 +1,1 @@
-fprintf_or_die(fh, "^%s\n", sha1_to_hex(peeled));
+strbuf_addf(&refname, "refs/%s", write_ref[i]);

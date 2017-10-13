@@ -1,1 +1,2 @@
-error(_("revision walk setup failed"));
+error(_("empty trailer token in trailer '%.*s'"),
+			      (int) sb.len, sb.buf);
