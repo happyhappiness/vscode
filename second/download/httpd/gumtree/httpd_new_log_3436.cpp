@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02155)
-                         "getpwuid: couldn't determine user name from uid %ld, "
-                         "you probably need to modify the User directive",
-                         (long)uid);
+ap_remove_output_filter(cache->remove_url_filter);

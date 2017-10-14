@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "AuthUserFile not specified in the configuration");

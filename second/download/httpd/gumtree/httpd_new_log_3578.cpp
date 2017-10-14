@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00745) "distributed scache 'remove' MISS");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01573)
+                                 "Watchdog: Failed to create worker thread.");

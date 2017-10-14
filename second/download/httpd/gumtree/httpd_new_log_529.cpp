@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                             r->server,
-                             "proxy: server %s returned Transfer-Encoding and Content-Length",
-                             p_conn->name);
+printf("Compiled using: APR %s, APR-UTIL %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);

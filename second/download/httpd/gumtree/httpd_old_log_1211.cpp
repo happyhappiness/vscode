@@ -1,2 +1,2 @@
-printf("error reading postfile: %s\n",
-	       apr_strerror(rv, errmsg, sizeof errmsg));
+apr_file_printf(errfile, "%s: password too long (> %d)\n",
+                argv[0], MAX_STRING_LEN);

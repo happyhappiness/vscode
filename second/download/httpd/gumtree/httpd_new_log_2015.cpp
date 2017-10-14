@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                 "proxy: CONNECT: connecting to remote proxy %s on port %d",
-                 connectname, connectport);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                      "proxy: grabbed scoreboard slot %d in child %" APR_PID_T_FMT " for worker %s",
+                      worker->id, getpid(), worker->name);

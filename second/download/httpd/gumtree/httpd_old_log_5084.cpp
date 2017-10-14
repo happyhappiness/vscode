@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server,
-                     "core_filter: sendfile_nonblocking: "
-                     "this should never happen");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         threads_per_child, thread_limit);

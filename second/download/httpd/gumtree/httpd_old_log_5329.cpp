@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG,
-                                 rv, ap_server_conf,
-                                 "accept() failed, retrying.");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);

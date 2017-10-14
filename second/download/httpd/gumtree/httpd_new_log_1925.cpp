@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "[%" APR_PID_T_FMT "] util_ldap: Couldn't "
-                              "retrieve group entry for %s from cache",
-                               getpid(), dn);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_check_msg_header() got bad signature %02x%02x",
+                      head[0], head[1]);

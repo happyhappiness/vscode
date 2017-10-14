@@ -137,22 +137,17 @@ def cluster_record_with_similarity(feature_lists, cluster_similarity = 0.95):
 @ involve compute equality between vectors (the least similar cond_list pairs)
 """
 def compute_equality(vec_a, vec_b, z3_api):
-    check_a = vec_a[0]
-    var_a = vec_a[1]
-
-    check_b = vec_b[0]
-    var_b = vec_b[1]
     if z3_api:
+        check_a = vec_a[0]
+        var_a = vec_a[1]
+        check_b = vec_b[0]
+        var_b = vec_b[1]
         var_a.sort()
         var_b.sort()
         return z3_api.judge_equality_for_statments(check_a, check_b) \
                     and var_a == var_b
     else:
-        check_a.sort()
-        check_b.sort()
-        var_a.sort()
-        var_b.sort()
-        return check_a == check_b and var_a == var_b
+        return vec_a == vec_b
 
 """
 @ param cluster a and b for comparing, similarity_dic

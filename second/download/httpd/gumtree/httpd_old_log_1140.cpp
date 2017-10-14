@@ -1,1 +1,1 @@
-printf("    %s", OP_names[code[1]]);
+printf("    [");

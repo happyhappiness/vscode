@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "proxy: FCGI: Got bogus rid %d, expected %d",
-                             rid, request_id);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));

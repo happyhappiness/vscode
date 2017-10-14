@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                         "Parent: Unable to write duplicated socket %d to the child.", nsd);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "AcceptMutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());

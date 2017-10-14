@@ -1,1 +1,2 @@
-ap_add_output_filter("H2_RESPONSE", task, r, r->connection);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02976)
+                            "Watchdog: Created parent worker thread (%s).", w->name);

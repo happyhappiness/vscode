@@ -1,1 +1,3 @@
-ap_rputs("</dd>", r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01317)
+                     "LDAP cache: LDAPSharedCacheSize is zero, disabling "
+                     "shared memory cache");

@@ -1,4 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
-                          APLOGNO(02954) 
-                          "h2_request(%d): ignoring unknown pseudo header %s",
-                          req->id, buffer);
+ap_add_output_filter(reqtimeout_filter_name, ccfg, NULL, c);

@@ -1,1 +1,0 @@
-ap_rvputs(r, ap_escape_uri(r->pool, action), "\">\n", NULL);

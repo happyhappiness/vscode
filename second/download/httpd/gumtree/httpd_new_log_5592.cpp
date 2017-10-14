@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00007) LOG_PREFIX
-                  "user '%s' set cookie: '%s'", r->user, rfc2109);
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(02810),
+                               "attempt to include NPH CGI script");

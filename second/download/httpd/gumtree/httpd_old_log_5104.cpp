@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "%s: could not open error log file %s.",
-                         ap_server_argv0, fname);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "caught SIGTERM, shutting down");

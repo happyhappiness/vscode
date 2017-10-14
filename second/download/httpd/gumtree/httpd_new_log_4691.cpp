@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                     s, APLOGNO(00960) "%s: an error occurred creating a "
-                     "new connection to %pI (%s)", proxy_function,
-                     backend_addr, conn->hostname);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s, APLOGNO(02252)
+                         "incomplete client cert configured for SSL proxy "
+                         "(missing or encrypted private key?)");

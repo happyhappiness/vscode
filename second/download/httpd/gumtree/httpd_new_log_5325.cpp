@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00339)
-                                     "Child: Encountered too many AcceptEx "
-                                     "faults accepting client connections.");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00374)
+                     "%s: Failed to delete the service.", mpm_display_name);

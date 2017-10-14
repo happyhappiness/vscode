@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
+                                  "h2_session(%ld): waiting on conditional",
+                                  session->id);

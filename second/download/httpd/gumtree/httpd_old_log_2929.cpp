@@ -1,1 +1,2 @@
-printf("Copyright 2006 The Apache Software Foundation, http://www.apache.org/\n");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "not a match");

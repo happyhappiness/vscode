@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00213)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00361)
+                     "Child: %d threads blocked on the completion port",
+                     g_blocked_threads);

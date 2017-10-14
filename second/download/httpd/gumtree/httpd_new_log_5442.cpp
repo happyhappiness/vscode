@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00376)
-                     "%s: Failed to open the service.", mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00570)
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);

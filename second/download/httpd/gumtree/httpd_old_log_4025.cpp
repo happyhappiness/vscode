@@ -1,4 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "util_ldap: Couldn't retrieve group entry "
-                              "for %s from cache",
-                              dn);
+                     "Options FollowSymLinks or SymLinksIfOwnerMatch is off "
+                     "which implies that RewriteRule directive is forbidden: "
+                     "%s", r->filename);

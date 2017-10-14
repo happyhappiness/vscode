@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password\n\n");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "Unable to get upgradeable socket handle");

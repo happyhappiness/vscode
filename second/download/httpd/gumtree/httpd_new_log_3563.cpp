@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00811)
-                         "Cannot open socache DBM file `%s' for "
-                         "scanning",
-                         ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02285)
+                             "slotmem_create for status failed");

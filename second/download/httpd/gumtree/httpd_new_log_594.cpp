@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                             "integer overflow or out of memory condition." );
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Failed to open cgi file %s for testing", *cmd);

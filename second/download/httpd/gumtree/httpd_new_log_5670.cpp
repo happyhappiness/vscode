@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02671)
-                          "ServerSupportFunction "
-                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
-                          r->filename);
+log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, connect_errno, APLOGNO(01258)
+                                   "cgid daemon is gone; is Apache terminating?");

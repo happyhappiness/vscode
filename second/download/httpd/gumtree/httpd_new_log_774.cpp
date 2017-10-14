@@ -1,0 +1,1 @@
+apr_file_printf(out, " %s (static)\n", modi->name);

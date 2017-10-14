@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00763)
-            "cache: running CACHE_OUT filter");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00850)
+                             "shmcb_subcache_retrieve discarding expired entry");

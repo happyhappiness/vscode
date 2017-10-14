@@ -1,7 +1,2 @@
-fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT "\n",
-                tmstring,
-                sttime,
-                stats[i].ctime,
-                diff,
-                stats[i].time,
-                stats[i].waittime);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "index_num = %u", header->index_num);

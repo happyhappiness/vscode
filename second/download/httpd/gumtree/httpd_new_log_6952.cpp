@@ -1,1 +1,0 @@
-ap_assert(stream->state == H2_SS_CLEANUP);

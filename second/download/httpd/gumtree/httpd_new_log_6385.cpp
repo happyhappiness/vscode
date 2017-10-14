@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01973)
-                  "connecting to %s '%s'",
-                  proxy_uri ? "proxy" : "OCSP responder",
-                  uri->hostinfo);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
+                  "h2_mplx(%s): close", task->id);

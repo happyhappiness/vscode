@@ -1,1 +1,0 @@
-ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);

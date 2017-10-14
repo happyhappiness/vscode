@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: still must refresh cached response "
-                         "after obtaining refresh mutex");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02937) 
+                      "h2_stream(%ld-%d): data requested but stream not found",
+                      session->id, (int)stream_id);

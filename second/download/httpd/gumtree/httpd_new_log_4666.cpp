@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00934)
-                      "all workers are busy.  Unable to serve %s", *url);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01902)
+                     "Host %s: X.509 CRL storage locations configured, "
+                     "but CRL checking (%sCARevocationCheck) is not "
+                     "enabled", mctx->sc->vhost_id, cfgp);

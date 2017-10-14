@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                      "Error restoring default privileges");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                         "Restoring request headers.");

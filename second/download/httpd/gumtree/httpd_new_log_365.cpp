@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Usage: htdigest [-c] passwordfile realm username\n");
+apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
+                    "password\n\n");

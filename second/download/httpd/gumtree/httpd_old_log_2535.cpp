@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request failed: malformed request line");
+fprintf(stderr, "Usage: logresolve [-s statfile] [-c] < input > output\n");

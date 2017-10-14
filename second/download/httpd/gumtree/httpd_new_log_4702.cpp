@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01818)
-                          "attempt made to save the session twice, "
-                          "session not saved: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02210)
+                    "Failed to load SSLCACertificateFile: %s", ca_file);

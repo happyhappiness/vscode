@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
-                          "h2_mplx(%ld-%d): write", m->id, io->id);
+ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
+                 "mod_http2 (v%s, nghttp2 %s), initializing...",
+                 MOD_HTTP2_VERSION, ngh2? ngh2->version_str : "unknown");

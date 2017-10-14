@@ -1,1 +1,1 @@
-fprintf(stderr, "pcregrep: malloc failed\n");
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);

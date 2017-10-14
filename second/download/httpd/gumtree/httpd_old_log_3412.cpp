@@ -1,2 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, status, pconf,
-                                 "alloc_listener: failed to set up sockaddr for %s:%d", sl->addr, sl->port);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Cache lock obtained for stale cached URL, "
+                     "revalidating entry: %s",
+                     r->unparsed_uri);

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request failed: URI too long (longer than %d)", r->server->limit_req_line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require user: authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));

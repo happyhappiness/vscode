@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(01031)
-                     "ajp_ilink_receive() received bad header");
+ap_rvputs(r, "<td>On <input name='", name, "' id='", name, "' value='1' type=radio", NULL);

@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unable to get "
-                          "information about \"%s\" in parsed file %s",
-                          tag_val, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "unknown directive \"%s\" in parsed doc %s",
+                                  apr_pstrmemdup(r->pool, intern->directive,
+                                                 intern->directive_len),
+                                                 r->filename);

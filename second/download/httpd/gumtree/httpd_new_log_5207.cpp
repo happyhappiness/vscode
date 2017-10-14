@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
+ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(),
+                             ap_server_conf, APLOGNO(00336)
+                             "winnt_accept: Failed to allocate an accept socket. "
+                             "Temporary resource constraint? Try again.");

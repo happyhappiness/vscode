@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "Init: Generating temporary EC parameters (256 bits)");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
+                              "Failed to read request header line %s", field);

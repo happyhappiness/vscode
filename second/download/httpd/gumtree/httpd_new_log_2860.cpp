@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "ppr: checking balancer: %s",
-                         balancer->name);
+ap_rvputs(r, "</form>\n", NULL);

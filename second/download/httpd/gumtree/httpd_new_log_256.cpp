@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot create SSLMutex with file `%s'",
-                         mc->szMutexFile);
+fprintf(stderr, "%s: wildcard patterns not allowed in Include "
+                    "%s\n", ap_server_argv0, fname);

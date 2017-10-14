@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
-                     "Cache lock file for '%s' too old, removing: %s",
-                     r->uri, lockname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "subcache_size = %u", header->subcache_size);

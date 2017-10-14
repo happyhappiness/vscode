@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "%s: could not determine temp dir\n",
-                        argv[0]);
+apr_file_printf(errfile, "User %s not found\n", user);

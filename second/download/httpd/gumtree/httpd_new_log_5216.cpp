@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00521)
-                     "MaxClients is deprecated, use MaxRequestWorkers "
-                     "instead.");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00345)
+                                     "Child: Encountered too many accept() "
+                                     "resource faults, aborting.");

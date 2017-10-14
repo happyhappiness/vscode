@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "no OCSP responder specified in certificate and "
-                      "no default configured");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server,
+                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Configuring server for SSL protocol");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, "Init: Private key not found");

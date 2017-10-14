@@ -1,7 +1,3 @@
-(!scr->is_proxy &&
-        (where & SSL_CB_HANDSHAKE_START) &&
-        scr->reneg_state == RENEG_REJECT) {
-            scr->reneg_state = RENEG_ABORT;
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02042)
-                          "rejecting client initiated renegotiation");
-    };
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02403)
+                         "grabbing shm[%d] (0x%pp) for worker: %s", i, (void *)shm,
+                         (*runtime)->s->name);

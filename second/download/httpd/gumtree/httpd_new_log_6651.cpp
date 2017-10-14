@@ -1,1 +1,4 @@
-ap_rputs("<th>HC Method</th><th>HC Interval</th><th>Passes</th><th>Fails</th><th>HC uri</th><th>HC Expr</th>", r);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
+                      stream->session->id, stream->id, input_closed(stream),
+                      stream->request != NULL);

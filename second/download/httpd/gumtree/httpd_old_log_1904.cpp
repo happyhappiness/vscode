@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
-                      "Empty response header name, aborting request");
+ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);

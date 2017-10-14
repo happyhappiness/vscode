@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                      "h2_stream(%ld-%d): writing frame header",
-                      session->id, (int)stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03049)
+                              "h2_task(%s): sending trailers", task->id);

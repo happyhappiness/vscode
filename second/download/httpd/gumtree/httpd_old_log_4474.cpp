@@ -1,2 +1,2 @@
-r(APLOG_MARK, APLOG_TRACE2, 0, r,
-                  "proxy: CONNECT: setting up poll()");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: HTTP: declining URL %s", url);

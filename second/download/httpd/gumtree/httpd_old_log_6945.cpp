@@ -1,3 +1,3 @@
-r(APLOG_MARK, APLOG_ERR, 0, task->c, APLOGNO(03467)
-                  "h2_task(%s): unable to parse status line: %s", 
-                  task->id, line);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, 
+                                 workers->s,
+                                 "h2_workers: aborting idle worker");

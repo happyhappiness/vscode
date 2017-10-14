@@ -1,2 +1,4 @@
-apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
-                base, apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, apr_get_os_error(), r,
+                          "ISAPI: unrecognized result code %d "
+                          "from HttpExtensionProc(): %s ", 
+                          rv, r->filename);

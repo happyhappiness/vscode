@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                "log writer isn't correctly setup");
+ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);

@@ -1,5 +1,2 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            "." NL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s failed", r->uri);

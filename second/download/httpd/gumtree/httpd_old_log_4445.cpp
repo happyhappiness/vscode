@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "proxy: TRACE with request body is not allowed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "proxy: could not parse request Content-Length (%s)",
+                          old_cl_val);

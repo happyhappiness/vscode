@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving socache_shmcb_retrieve successfully");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be \"infinity\" when moving a collection.");

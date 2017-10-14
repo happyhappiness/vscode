@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool, APLOGNO(03060)
-                      "h2_request(%d): pseudo header in trailer",
-                      req->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%s): task_done, stream still open", 
+                          task->id);

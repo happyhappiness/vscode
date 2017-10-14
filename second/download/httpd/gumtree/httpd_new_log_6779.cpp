@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c, 
-                              APLOGNO(03365)
-                              "h2_proxy_session(%s): WAIT read, timeout=%fms", 
-                              session->id, (float)session->wait_timeout/1000.0);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, 
+                      H2_STRM_LOG(APLOGNO(10026), stream, "remote close missing"));

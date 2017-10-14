@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_FLAGS, SO_TLS_SERVER)", WSAGetLastError());
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                     "cache: error returned while trying to return %s "
+                     "cached data", 
+                     cache->provider_name);

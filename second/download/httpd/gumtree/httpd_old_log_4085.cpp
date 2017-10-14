@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "handling [%s] in mod_lua",
-                  r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+            MODNAME ": read failed from uncompress of %s", r->filename);

@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, svr->pool,
-                      "DBD: failed to initialise");
+ap_rputs("<h3>Edit balancer settings for ", r);

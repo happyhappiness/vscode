@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);

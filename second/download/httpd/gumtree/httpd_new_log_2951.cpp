@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "could not allocate shared memory for shmcb "
-                     "session cache");
+ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d acquired!", l->file, l->line);

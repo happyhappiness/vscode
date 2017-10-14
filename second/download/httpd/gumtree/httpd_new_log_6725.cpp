@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, task->c, APLOGNO(03467)
-                  "h2_task(%s): unable to parse status line: %s", 
-                  task->id, line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02421)
+                          "HTTP Request Line; URI must not contain a fragment");

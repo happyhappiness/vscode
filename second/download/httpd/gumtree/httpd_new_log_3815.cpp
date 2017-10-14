@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01334)
-                              "Invalid expression \"%s\" in file %s",
-                              expr, r->filename);
+log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   APLOGNO(01255) "unable to create socket to cgi daemon");

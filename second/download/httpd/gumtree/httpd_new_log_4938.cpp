@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02205)
-                     "Init: Wiped out the queried pass phrases from memory");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00120)
+                         "Limiting the subrequest depth to a very low level may"
+                         " cause normal requests to fail.");

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
-                      "h2_stream(%ld-%d): submit %d trailers",
-                      session->id, (int)stream->id,(int) nh->nvlen);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,   
+                      H2_STRM_LOG(APLOGNO(03517), stream, "already in spurge"));

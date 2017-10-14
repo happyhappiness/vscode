@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02212) "Can't open %s", pkcs7);

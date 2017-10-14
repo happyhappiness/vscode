@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, errno, NULL,
-                     "sending signal to server");
+printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring, tdstring, totalposted);

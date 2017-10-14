@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "proxy: *: found reverse proxy worker for %s",
-                               *url);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+            "Fatal error: unable to create global pool for shared slotmem");

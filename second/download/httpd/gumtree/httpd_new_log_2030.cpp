@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "proxy: CONNECT: unknown socket in pollset");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "SSL FIPS mode disabled");

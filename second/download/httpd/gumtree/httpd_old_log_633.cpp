@@ -1,2 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "unable to compile pattern \"%s\"", rexp);
+                        "else directive does not take tags in %s", r->filename);

@@ -1,7 +1,5 @@
-ap_rputs("<hr>\n"
-             "<table cellspacing=0 cellpadding=0>\n"
-             "<tr><td bgcolor=\"#000000\">\n"
-             "<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">"
-             "mod_cache_socache Status:</font></b>\n"
-             "</td></tr>\n"
-             "<tr><td bgcolor=\"#ffffff\">\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                                      APLOGNO(01591) "Read content length of "
+                                      "%" APR_OFF_T_FMT " is larger than the "
+                                      "configured limit of %" APR_OFF_T_FMT,
+                                      ctx->limit_used, ctx->limit);

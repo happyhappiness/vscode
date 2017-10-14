@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
-                              "unable to make listening socket non-blocking");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name            : set service name and use its "
+                 "ServerConfigFile");

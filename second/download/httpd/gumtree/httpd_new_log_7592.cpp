@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                                 APLOGNO(02552) "at EOF... bypassing md5 match check (old persist file?)");
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                 "mod_lua IVM: Failed to find temporary directory");

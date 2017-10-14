@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL, 
-                            "error getting data from UDP!!");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Parent: Could not set child process stdout");

@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                         "proxy: %s: attempt to connect to %pI (%s) failed",
-                         proxy_function,
-                         backend_addr,
-                         worker->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");

@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d), "
+                             "possible coredump in %s",
+                             (long)pid->pid, sigdesc, signum,
+                             ap_coredump_dir);

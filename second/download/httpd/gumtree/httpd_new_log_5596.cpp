@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00011) LOG_PREFIX
-         "client submitted cookie '%s' more than once: %s", v.name, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                      "Error while reading HTTP trailer: %i%s%s",
+                      r->status, error_notes ? ": " : "",
+                      error_notes ? error_notes : "");

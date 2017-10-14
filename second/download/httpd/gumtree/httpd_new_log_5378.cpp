@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00403)
-                     "Child: Waiting for data for listening socket %pI",
-                     lr->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00302)
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);

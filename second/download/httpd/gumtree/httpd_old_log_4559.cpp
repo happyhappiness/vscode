@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);

@@ -1,4 +1,4 @@
 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ServerLimit of %d exceeds compile-time limit "
+                         "MaxClients of %d exceeds ServerLimit value "
                          "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+                         ap_daemons_limit, server_limit);

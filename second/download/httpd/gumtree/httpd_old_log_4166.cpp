@@ -1,7 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                MODNAME ": match conf=%x file=%s m=%s m->next=%s last=%s",
-                conf,
-                conf->magicfile ? conf->magicfile : "NULL",
-                conf->magic ? "set" : "NULL",
-                (conf->magic && conf->magic->next) ? "set" : "NULL",
-                conf->last ? "set" : "NULL");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_handle_cping_cpong: apr_socket_timeout_set failed");

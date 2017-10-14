@@ -1,1 +1,2 @@
-ap_rputs(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n", r);
+ap_log_error(APLOG_MARK, APLOG_CRIT, result, s,
+                         "LDAP cache: failed to set mutex permissions");

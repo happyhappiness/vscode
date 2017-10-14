@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, task->c,
-                      APLOGNO(02957) "h2_task(%s): error setting up h2_task", 
-                      task->id);
+ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
+                  "h2_push_diary_digest_set: diary now with %d entries, mask_bits=%d", 
+                  (int)diary->entries->nelts, diary->mask_bits);

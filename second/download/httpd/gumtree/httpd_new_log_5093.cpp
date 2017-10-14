@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p, APLOGNO(00075)
-                          "Failed to enable the '%s' Accept Filter",
-                          accf);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00515)
+                         "WARNING: MaxRequestWorkers of %d would require %d "
+                         "servers and ", max_workers, ap_daemons_limit);

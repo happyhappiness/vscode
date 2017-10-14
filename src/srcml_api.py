@@ -259,9 +259,9 @@ class SrcmlApi:
         call_info = []
         for call_node in node.iterdescendants(tag=call_tag):
             # call --name --argument list ----argument
-            info = self._remove_blank(call_node[0])
+            info = self._get_text_for_nested_name(call_node[0])
             if info not in self.log_functions:
-                call_info.append(self._remove_blank(call_node[0]) + my_constant.FlAG_FUNC_RETURN)
+                call_info.append(info + my_constant.FlAG_FUNC_RETURN)
         return name_nodes, call_info
     """
     @ param ancestor and node

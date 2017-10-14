@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "SSL proxy client cert chain verification failed for %s: %s",
-                         cert_dn, X509_verify_cert_error_string(err));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters, only 256 bits supported", bits);

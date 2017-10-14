@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
-                             "proxy: HTTP: 100-Continue failed to %pI (%s)",
-                             worker->cp->addr, worker->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01655)
+                      "A prepared statement could not be found for "
+                      "AuthDBDUserPWQuery with the key '%s'", conf->user);

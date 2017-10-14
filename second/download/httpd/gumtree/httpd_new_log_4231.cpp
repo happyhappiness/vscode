@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
-               "ajp_unmarshal_response: Header[%d] [%s] = [%s]",
-                       i, stringname, value);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01171)
+                              "%s: No workers in balancer",
+                              (*balancer)->s->name);

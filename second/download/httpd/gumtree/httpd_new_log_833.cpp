@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: *: found reverse proxy worker for %s",
-                               *url);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to set session id context to `%s'", vhost_md5);

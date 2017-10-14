@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01792)
-                          "user %s: password mismatch: %s", r->user,
-                          r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01735)
+                              "auth_ldap authorize: "
+                              "require attribute: authorization successful");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01313)
-                 "ldap connection: Setting op timeout to %ld seconds.",
-                 timeout);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01511)
+                      MODNAME ": unexpected state %d; could be caused by bad "
+                      "data in magic file",
+                      state);

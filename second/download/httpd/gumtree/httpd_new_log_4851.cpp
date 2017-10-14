@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02028)
-                  "upgrading connection to TLS");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01975)
+                 "sending request to OCSP responder");

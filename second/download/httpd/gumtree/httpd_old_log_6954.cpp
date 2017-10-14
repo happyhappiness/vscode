@@ -1,7 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%s): %s %s %s"
-                      "[orph=%d/started=%d/done=%d/frozen=%d]", 
-                      task->id, task->request->method, 
-                      task->request->authority, task->request->path,
-                      (stream? 0 : 1), task->worker_started, 
-                      task->worker_done, task->frozen);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
+                     "h2_workers: freed %d tx handles, %d/%d left", 
+                     (int)count, (int)workers->spare_tx_handles,
+                     (int)workers->max_tx_handles);

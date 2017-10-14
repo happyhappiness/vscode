@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
-                          " util_ldap: Found user %s in a subgroup (%s) at"
-                          " level %d of %d.", getpid(), r->user, group,
-                          cur_subgroup_depth+1, max_subgroup_depth);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: uri mismatch - <%s> does not match "
+                          "request-uri <%s>", resp->uri, resp->raw_request_uri);

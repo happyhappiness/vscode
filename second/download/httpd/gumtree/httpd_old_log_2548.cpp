@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "[strict] purely numeric host names not allowed: %s",
-                         src);
+fprintf(stderr,
+            "Usage: %s [-l] [-f] <logfile> "
+            "{<rotation time in seconds>|<rotation size in megabytes>} "
+            "[offset minutes from UTC]\n\n",
+            argv0);

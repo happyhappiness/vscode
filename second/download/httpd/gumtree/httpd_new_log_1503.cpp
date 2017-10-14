@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-            "The SHA algorithm does not use a salt and is less secure than "
-            "the MD5 algorithm." NL);
+ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);

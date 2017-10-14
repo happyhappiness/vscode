@@ -1,1 +1,2 @@
-ap_rputs(ap_psignature("",r), r);
+printf("                        %.2f kb/s sent\n",
+               (float) (totalposted / timetaken / 1024));

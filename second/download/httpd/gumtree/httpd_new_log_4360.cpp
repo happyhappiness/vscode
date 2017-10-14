@@ -1,1 +1,2 @@
-ap_rvputs(r, "<td>On <input name='", name, "' id='", name, "' value='1' type=radio", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01020)
+                      "error apr_pollset_create()");

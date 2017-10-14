@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01457)
+                                  "rl: brigade pass failed.");

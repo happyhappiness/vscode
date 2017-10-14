@@ -1,2 +1,3 @@
-fprintf(stderr,
-                "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv[0]);
+printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%ld bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00839)
-                 "leaving socache_shmcb_remove successfully");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00597)
+                          "The request body does not contain "
+                          "a \"version-control\" element.");

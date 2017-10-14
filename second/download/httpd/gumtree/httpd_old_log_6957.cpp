@@ -1,5 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03198)
-                              "h2_mplx(%ld): release, waiting for %d seconds now for "
-                              "%d h2_workers to return, have still %d tasks outstanding", 
-                              m->id, i*wait_secs, m->workers_busy,
-                              (int)h2_ihash_count(m->tasks));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
+                          "not complete, was touched",
+                          ctx->engine_id, task_id, uri);

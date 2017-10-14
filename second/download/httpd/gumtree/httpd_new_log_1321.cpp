@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring TLS extension handling");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Re-negotiation handshake failed: "
+                              "Client verification failed");

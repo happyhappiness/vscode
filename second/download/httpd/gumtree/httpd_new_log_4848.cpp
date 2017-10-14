@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c, APLOGNO(02020)
-                          "could not split line from buffered SSL brigade");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01972)
+                      "could not resolve address of OCSP responder %s",
+                      uri->hostinfo);

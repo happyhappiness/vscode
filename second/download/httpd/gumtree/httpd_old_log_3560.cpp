@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot store socache object to DBM file `%s'",
-                     ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
+                         "Heartmonitor: stopping %s listener.",
+                         HM_WATHCHDOG_NAME);

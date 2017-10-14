@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Failed to bind on socket.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "%s", lookup.err.desc);

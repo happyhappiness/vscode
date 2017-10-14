@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "They don't match, sorry.\n");
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");

@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00768)
-                "cache: %s not cached for request %s. Reason: %s",
-                cache->key, r->unparsed_uri, reason);
+ap_add_output_filter("H2_SLAVE_OUT", NULL, NULL, c);

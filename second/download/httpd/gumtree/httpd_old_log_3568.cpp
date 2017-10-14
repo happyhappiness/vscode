@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s,
-                         "dbm `%s' entry iterated", ctx->data_file);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
+                          cmd->pool, "module %s is already loaded, skipping",
+                          modname);

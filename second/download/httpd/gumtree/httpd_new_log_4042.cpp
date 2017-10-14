@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01309)
-                 "ldap connection: Setting connection timeout to %ld seconds.",
-                 st->connectionTimeout);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, r, APLOGNO(01507)
+                    MODNAME ": request config should not be NULL");

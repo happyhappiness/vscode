@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                  "h2_stream(%ld-%d): reset, error=%d", 
-                  stream->session->id, stream->id, error_code);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
+                 "Accepting new connections again: "
+                 "%u active conns, %u idle workers",
+                 apr_atomic_read32(&connection_count),
+                 ap_queue_info_get_idlers(worker_queue_info));

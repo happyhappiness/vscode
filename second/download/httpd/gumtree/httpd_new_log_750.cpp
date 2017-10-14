@@ -1,1 +1,0 @@
-ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01538)
-                    MODNAME ": invalid type %d in mconvert().", m->type);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01214)
+                      "lb_heartbeat: No server for worker %s", (*worker)->s->name);

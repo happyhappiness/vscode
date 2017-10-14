@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                             ap_server_conf,
-                             "removed PID file %s (pid=%ld)",
-                             pidfile, (long)getpid());
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);

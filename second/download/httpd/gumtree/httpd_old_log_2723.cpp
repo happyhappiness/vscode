@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
-                      "DBD[%s] Error: %s", svr->name, errmsg );
+ap_rputs("></td><tr>\n<tr><td>Timeout:</td><td><input name=\"tm\" type=text ", r);

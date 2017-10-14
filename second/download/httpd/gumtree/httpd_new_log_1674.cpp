@@ -1,3 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header value is malformed: "
-                                  "%.*s", (int)LOG_NAME_MAX_LEN, value);
+                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                              "authorization successful (attribute %s) [%s][%d - %s]",
+                              getpid(), ent[i].name, ldc->reason, result, ldap_err2string(result));

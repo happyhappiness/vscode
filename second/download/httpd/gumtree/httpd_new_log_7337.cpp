@@ -1,1 +1,1 @@
-ap_rputs("Stopped", r);
+apr_file_printf(errfile, "Password for user %s correct." NL, user);

@@ -1,1 +1,0 @@
-ap_rputs("CacheType: SHMCB\n", r);

@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(03257)
-                         "Somehow tried to use unimplemented hcheck method: %d",
-                         (int)worker->s->method);
+ap_rvputs(r, "<tr>\n<td><a href='", r->uri, "?b=",
+                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->s->name),
+                          "&nonce=", balancer->s->nonce,
+                          "'>", NULL);

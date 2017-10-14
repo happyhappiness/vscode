@@ -1,2 +1,2 @@
-fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");

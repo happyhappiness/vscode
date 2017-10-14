@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01022)
-                      "pre_connection setup failed (%d)", rc);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, status, r, APLOGNO(01115)
+                              "HTTP: 100-Continue failed to %pI (%s)",
+                              worker->cp->addr, worker->s->hostname);

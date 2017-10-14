@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Could not find a command associated with the %s extension", ext);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
+                                     "cache: attempt to remove url from cache unsuccessful.");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "Zlib: Invalid flags %02x", ctx->zlib_flags);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, 
+                              "Error writing request body to script %s", 
+                              r->filename);

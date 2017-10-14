@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL support unavailable" );
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed");

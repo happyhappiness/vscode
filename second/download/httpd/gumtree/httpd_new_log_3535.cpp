@@ -1,3 +1,2 @@
-cache_run_cache_status(cache->handle, r, r->headers_out,
-                    AP_CACHE_REVALIDATE,
-                    "conditional cache hit: entity refresh failed");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, APLOGNO(02099) "Heartbeat: apr_socket_sendto failed");

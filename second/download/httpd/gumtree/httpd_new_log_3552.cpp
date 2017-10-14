@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00801)
-                 "unable to cache file: %s. MMAP is not supported by this OS", filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02084)
+                     "Unable to set file permissions on %s",
+                     path);

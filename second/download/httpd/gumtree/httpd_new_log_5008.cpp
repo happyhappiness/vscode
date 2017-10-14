@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01947)
-                         "Cannot reinit %s mutex", SSL_STAPLING_MUTEX_TYPE);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -S                 : a synonym for -t -D DUMP_VHOSTS -D DUMP_RUN_CFG");

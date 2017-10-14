@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             r->server, "proxy: bad HTTP/%d.%d status line "
-                             "returned by %s (%s)", major, minor, r->uri,
-                             r->method);
+fprintf(stderr, "%s: must include a wildcard pattern "
+                        "for Include %s\n", ap_server_argv0, fname);

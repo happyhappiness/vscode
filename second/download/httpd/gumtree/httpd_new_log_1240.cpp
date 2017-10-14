@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d" NL, rv);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create thread mutex");

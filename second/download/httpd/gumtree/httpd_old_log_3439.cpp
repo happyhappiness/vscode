@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "Cannot chroot when not started as root");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: Removing CACHE_REMOVE_URL filter.");

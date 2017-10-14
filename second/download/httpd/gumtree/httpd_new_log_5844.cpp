@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01947)
-                         "Cannot reinit %s mutex", type);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): free()",
+                  session->id);

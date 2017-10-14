@@ -1,1 +1,1 @@
-ap_rputs("<hr />\n", r);
+fprintf(stderr, "    -T content-type Content-type header for POSTing\n");

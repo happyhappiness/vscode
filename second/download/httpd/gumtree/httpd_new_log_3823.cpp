@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, expr,r->filename);
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01263)
+                "attempt to include NPH CGI script");

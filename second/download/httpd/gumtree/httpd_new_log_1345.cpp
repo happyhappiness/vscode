@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Awaiting re-negotiation handshake");
+fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");

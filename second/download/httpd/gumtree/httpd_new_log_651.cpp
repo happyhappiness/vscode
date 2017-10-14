@@ -1,4 +1,7 @@
 ap_log_rerror(APLOG_MARK,
-                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "else directive does not take tags in %s",
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, (ctx->argc)
+                                ? "too many arguments for if element in %s"
+                                : "missing expr argument for if element in %s",
                       r->filename);

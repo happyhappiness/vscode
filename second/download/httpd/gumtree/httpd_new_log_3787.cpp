@@ -1,7 +1,2 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
-                    time_str,
-                    r->useragent_ip,
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-                    description);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, data->r, APLOGNO(01221)
+                          "poll failed waiting for CGI child");

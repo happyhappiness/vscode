@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01376)
-                          "%s: type: %s, length: %" APR_SIZE_T_FMT,
-                          fname, b->type->name ? b->type->name : "(unknown)",
-                          b->length);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, APLOGNO(01245)
+                     "Couldn't listen on unix domain socket");

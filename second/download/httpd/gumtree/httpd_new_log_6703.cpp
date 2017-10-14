@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, beam->send_pool, 
-                              APLOGNO(03384) "h2_beam(%d-%s): emitted bucket not "
-                              "in hold, n=%d", beam->id, beam->tag, 
-                              (int)proxy->n);
+ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                                 "%u/%u workers shutdown",
+                                 apr_atomic_read32(&threads_shutdown),
+                                 threads_per_child);

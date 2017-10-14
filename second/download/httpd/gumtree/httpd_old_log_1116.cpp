@@ -1,1 +1,1 @@
-printf("%3d-", i-8);
+printf("    %s", OP_names[code[1]]);

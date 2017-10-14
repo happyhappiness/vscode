@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                              "request authorized without authentication by "
-                              "access_checker_ex hook: %s", r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
+                      session->id, stream->id);

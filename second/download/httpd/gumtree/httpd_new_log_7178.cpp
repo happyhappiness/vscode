@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00269)
-                     "sigaction(SIGPIPE)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02334)
+                 "storing %s", storename);

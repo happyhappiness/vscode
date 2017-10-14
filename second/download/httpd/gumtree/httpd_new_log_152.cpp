@@ -1,4 +1,5 @@
-printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
-	   "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
-	   trstring, tdstring, tdstring, apr_time_sec(timetaken),
-           (long)apr_time_usec(timetaken));
+ap_fputstrs(output, bb,
+                  "<D:status>HTTP/1.1 ",
+                  ap_get_status_line(response->status),
+                  "</D:status>" DEBUG_CR,
+                  NULL);

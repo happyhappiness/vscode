@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00819)
-                     "Could not allocate shared memory segment for shmcb "
-                     "socache");
+ap_log_error(APLOG_MARK, APLOG_WARNING, err->aprerr, ap_server_conf,
+                         APLOGNO(00577) "Error writing propdb: %s", err->desc);

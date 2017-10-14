@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                 "proxy: FTP: canonicalising URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "proxy: *: found reverse proxy worker for %s",
+                               *url);

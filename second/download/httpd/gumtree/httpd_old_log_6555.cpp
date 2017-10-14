@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03063)
-                      "h2_session(%ld): recv unknown FRAME[%s], frames=%ld/%ld (r/s)",
-                      session->id, buffer, (long)session->frames_received,
-                     (long)session->frames_sent);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);

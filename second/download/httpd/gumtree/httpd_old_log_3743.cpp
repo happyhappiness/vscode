@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "ProtocolEcho: Failure writing to %s",
-                         c->remote_ip);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag if in %s", tag, r->filename);

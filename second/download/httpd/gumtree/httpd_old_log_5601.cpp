@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                     "apr_SHA1InitEBCDIC() failed");
+ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(01026)
+                                       "err/hup on backconn");

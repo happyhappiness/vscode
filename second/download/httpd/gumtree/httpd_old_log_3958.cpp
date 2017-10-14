@@ -1,1 +1,0 @@
-ap_rputs("\"<b><code>W</code></b>\" Sending Reply, \n", r);

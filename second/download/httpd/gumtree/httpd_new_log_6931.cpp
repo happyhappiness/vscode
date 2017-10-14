@@ -1,2 +1,2 @@
-r(APLOG_MARK, level, 0, c, "h2_session(%ld)-%s: %s", 
-                  c->id, tag, line);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                          H2_STRM_MSG(stream, "prepare, no data"));

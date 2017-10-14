@@ -1,1 +1,1 @@
-fprintf(stderr, "Rotation based on localtime: %12s\n", config->use_localtime ? "yes" : "no");
+printf("%s \n", ap_get_server_description());

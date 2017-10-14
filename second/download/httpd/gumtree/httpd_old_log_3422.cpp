@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "parent waiting for child");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);

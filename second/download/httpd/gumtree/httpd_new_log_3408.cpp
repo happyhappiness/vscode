@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02125)
-                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+ap_log_rerror(APLOG_MARK, APLOG_INFO, status, r, APLOGNO(00780)
+                "Cache lock file for '%s' too old, removing: %s",
+                r->uri, lockname);

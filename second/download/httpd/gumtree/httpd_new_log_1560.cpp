@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
-                           "proxy client certificate and "
-                           "private key do not match");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "Zlib error %d inflating data (%s)", zRC,
+                              ctx->stream.msg);

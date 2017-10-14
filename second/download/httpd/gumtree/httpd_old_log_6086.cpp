@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                            "asynchronous I/O not supported: %s",
-                            r->filename);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                                      "h2_session(%ld): terminating",
+                                      session->id);

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01754)
-                      "could not open dbm (type %s) auth file: %s",
-                      conf->dbmtype, conf->pwfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01630)
+                          "client denied by server configuration: %s%s",
+                          r->filename ? "" : "uri ",
+                          r->filename ? r->filename : r->uri);

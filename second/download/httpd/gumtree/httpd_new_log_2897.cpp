@@ -1,1 +1,3 @@
-printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);

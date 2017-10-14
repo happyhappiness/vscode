@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %d: Unable to retrieve the start_mutex from the parent", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                 "apr_pollset_poll: (listen)");

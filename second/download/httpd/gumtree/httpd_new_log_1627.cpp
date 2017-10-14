@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
-                     "Failed to read %d bytes from %s: (%d) %pm",
-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "Request header exceeds LimitRequestFieldSize%s"
+                              "%.*s",
+                              (field && *field) ? ": " : "",
+                              (field) ? field_name_len(field) : 0,
+                              (field) ? field : "");

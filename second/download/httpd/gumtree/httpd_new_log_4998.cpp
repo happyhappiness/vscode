@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01937)
-                             "stapling_check_response: cached response expired");
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
+                     NULL, APLOGNO(00101) "Invalid PID file path %s, ignoring.", filename);

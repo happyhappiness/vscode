@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02641)
-                              "unable to control socket non-blocking status");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                          "h2_h2, processing request directly");

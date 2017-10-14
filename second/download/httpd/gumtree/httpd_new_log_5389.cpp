@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00418)
-                 "Parent: Created child process %d", new_child.pid);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00313)
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);

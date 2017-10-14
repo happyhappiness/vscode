@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02238)
-                "Unable to configure %s server private key", type);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01922)
+                         "OCSP response not successful: %d", rc);

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "changing ThreadLimit to %d from original value "
-                         "of %d not allowed during restart",
-                         thread_limit, first_thread_limit);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "cannot send signal %d to pid %ld (non-child or "
+                     "already dead)", sig, (long)pid);

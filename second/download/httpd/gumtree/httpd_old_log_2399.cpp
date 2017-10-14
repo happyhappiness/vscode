@@ -1,2 +1,3 @@
-fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
-               signal ? "restarting" : "stopping");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " for a maximum of %d child processes,",
+                    ap_daemons_limit);

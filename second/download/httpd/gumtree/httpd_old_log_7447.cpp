@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
+ap_rvputs(r, "          <httpd:name>", worker->s->name,
+                          "</httpd:name>\n", NULL);

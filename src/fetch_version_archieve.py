@@ -11,7 +11,7 @@ def download_file(main_url, file_name):
     file_url = main_url + file_name
     file_content = urllib2.urlopen(file_url)
 
-    download_tar_file = open(file_name, 'wb')
+    download_tar_file = open('second/download/mutt/repos/' + file_name, 'wb')
     block_size = 8192
     while True:
         cache = file_content.read(block_size)
@@ -30,8 +30,9 @@ def download_file(main_url, file_name):
 def analyze_html(url):
     # fetch html
     response = urllib2.urlopen(url)
-    html = response.read().split("\n")
-    target_href_pattern = r'(?:href|HREF)="(git-2\..*\.tar\.gz)"'
+    html = response.read()
+    html = html.split("\n")
+    target_href_pattern = r'(mutt-1\..*\.tar\.gz)'
     count = 0
     # check html content against git-2.*.tar.gz
     for line in html:
@@ -46,4 +47,5 @@ def analyze_html(url):
 main function
 """
 if __name__ == "__main__":
-    analyze_html("https://www.kernel.org/pub/software/scm/git/")
+    repos_mutt = "ftp://ftp.mutt.org/pub/mutt/"
+    analyze_html(repos_mutt)

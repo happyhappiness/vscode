@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s, APLOGNO(01751)
-                     "could not open charset conversion config file %s.",
-                     charset_confname);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02160)
+                         "Can't chroot to %s", ap_unixd_config.chroot_dir);

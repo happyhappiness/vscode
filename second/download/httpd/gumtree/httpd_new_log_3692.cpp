@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00582)
-                      "Depth must be \"infinity\" for DELETE of a collection.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01459)
+                      "couldn't find definition of filter '%s'",
+                      f->frec->name);

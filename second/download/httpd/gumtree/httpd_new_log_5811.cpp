@@ -1,3 +1,3 @@
-r(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                  "ldap_compare_s(%pp, %s, %s, %s) = %s", 
-                  ldc->ldap, dn, attrib, value, ldap_err2string(result));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
+                                  "h2_mplx(%ld-%d): close, no response, no rst", 
+                                  m->id, io->id);

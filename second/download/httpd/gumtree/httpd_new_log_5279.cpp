@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf, APLOGNO(00157)
-                         "Couldn't add listener to pollset; check system or user limits");
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00425)
+                         "Parent: ResetEvent(restart_event) failed.");

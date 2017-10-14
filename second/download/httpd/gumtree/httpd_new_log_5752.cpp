@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00371) "Failed to store ConfigArgs for the "
-                     "'%s' service in the registry.", mpm_display_name);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02638)
+                          "make_sock: for address %pI, apr_socket_opt_set: "
+                          "(SO_REUSEPORT)",
+                          server->bind_addr);

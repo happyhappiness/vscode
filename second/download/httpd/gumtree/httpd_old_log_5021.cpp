@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "OCSP stapling initialized");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

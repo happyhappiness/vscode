@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "mime type is %s; no translation selected",
-                          mime_type);
+ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "\">", NULL);

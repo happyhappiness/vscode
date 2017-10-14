@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03238)
-                         "stapling_cb: still must refresh cached response "
-                         "after obtaining refresh mutex");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                              "h2_mplx(%s): task_done, stream in hold", 
+                              task->id);

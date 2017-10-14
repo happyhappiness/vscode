@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require user: authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "proxy: HTTP: failed to make connection to backend: %s",
+                         backend->hostname);

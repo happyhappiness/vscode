@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, level, 0, r, APLOGNO(03222)
-                              "%d:  unknown: [%s]", i, lua_typename(L, i));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03391)
+                                  "h2_conn_io(%ld): pass bucket(%ld)", 
+                                  io->c->id, (long)b->length);

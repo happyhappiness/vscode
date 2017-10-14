@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 
-                     apr_get_os_error(), NULL, 
-                     APLOGNO(00365) "Failure registering service handler");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                          "%s: Exit: error in %s",
+                          MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                      "require ldap-attribute: user's DN has not been defined; failing authorization",
-                      getpid());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

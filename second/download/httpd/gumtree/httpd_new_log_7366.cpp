@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                  "connected data socket to %pI", &epsv_addr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                        "Websocket: Writing raw message to client");

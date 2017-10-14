@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(00739) "distributed scache context initialised");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, APLOGNO(01577)
+                 "WARNING: LoadFile not supported on this platform");

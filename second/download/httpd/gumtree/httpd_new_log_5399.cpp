@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(00427)
-                         "Parent: child process exited with status %lu -- Aborting.", exitcode);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00321)
+                         "StartServers of %d not allowed, increasing to 1",
+                         ap_daemons_to_start);

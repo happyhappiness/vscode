@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02163)
-                         "set dumpable failed - this child will not coredump"
-                         " after software errors");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(00774)
+                "cache: store_headers failed");

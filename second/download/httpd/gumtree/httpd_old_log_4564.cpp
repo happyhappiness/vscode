@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: search for temporary directory failed");
+ap_log_error(APLOG_MARK, loglevel, rv, s,
+                         "proxy: %s: error creating fam %d socket for target %s",
+                         proxy_function,
+                         backend_addr->family,
+                         worker->hostname);

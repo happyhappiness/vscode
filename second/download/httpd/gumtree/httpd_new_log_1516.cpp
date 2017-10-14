@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                                  "Request header exceeds LimitRequestFieldSize "
-                                  "after folding: %.*s",
-                                  field_name_len(last_field), last_field);
+fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");

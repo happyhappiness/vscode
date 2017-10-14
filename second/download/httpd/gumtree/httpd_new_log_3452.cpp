@@ -1,2 +1,2 @@
-apr_file_printf(out, "Group: name=\"%s\" id=%lu%s\n",
-                    ap_unixd_config.group_name, (unsigned long)gid, no_root);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00797)
+                     "%s is too large to cache, skipping", fspec);

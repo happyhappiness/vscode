@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          APLOGNO(03057)
-                          "h2_session(%ld): push diary set from Cache-Digest: %s", 
-                          session->id, cache_digest);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03265)
+                 "watchdog callback registered (%s)", HCHECK_WATHCHDOG_NAME);

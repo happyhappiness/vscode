@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                              "SNI extension for SSL Proxy request set to '%s'",
-                              hostname_note);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01971)
+                              "Found an extension '%s', but failed to "
+                              "create a string from it", extension);

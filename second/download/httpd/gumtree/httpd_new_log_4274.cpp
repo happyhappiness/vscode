@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
-                         "ajp_handle_cping_cpong: Done");
+ap_rvputs(r, "<a href='", r->uri, "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&nonce=", balancer->s->nonce,
+                      "'>", NULL);

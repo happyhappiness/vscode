@@ -1,1 +1,1 @@
-apr_file_printf(out, "Loaded Modules:\n");
+ap_rputs("</table>\n", r);

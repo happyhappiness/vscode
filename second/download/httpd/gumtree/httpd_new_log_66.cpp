@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                         "cache: not caching streamed response for "
-                                         "%s because length %s", url,
-                                          "> CacheMaxStreamingBuffer");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);

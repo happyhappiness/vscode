@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01572)
-                     "Spawned %d parent worker threads.",
-                     wd_server_conf->parent_workers);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
+                                  "Zlib error %d inflating data (%s)", zRC,
+                                  ctx->stream.msg);

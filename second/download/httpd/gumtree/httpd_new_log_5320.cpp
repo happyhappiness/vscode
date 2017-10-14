@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(00335)
-                                     "winnt_accept: Too many failures grabbing a "
-                                     "connection ctx.  Aborting.");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00369)
+                     "Failed to open the WinNT service manager, perhaps "
+                     "you forgot to log in as Adminstrator?");

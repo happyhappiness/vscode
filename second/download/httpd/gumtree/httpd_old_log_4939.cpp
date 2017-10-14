@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                             "Init: Creating pass phrase dialog pipe child "
-                             "'%s'", sc->server->pphrase_dialog_path);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01012)
-               "ajp_handle_cping_cpong: ajp_ilink_receive failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01202)
+                                          "%s: Unlock failed for adding worker",
+                                          bsel->s->name);

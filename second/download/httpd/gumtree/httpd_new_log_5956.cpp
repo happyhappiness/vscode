@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                              "h2_mplx(%ld-%d): write with trailers=%s", 
-                              m->id, io->id, trailers? "yes" : "no");
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02993)
+                     "Failed to create shared memory segment on file %s",
+                     shmfilename);

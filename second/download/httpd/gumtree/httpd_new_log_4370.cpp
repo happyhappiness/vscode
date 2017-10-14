@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01194)
-                                  "%s: Lock failed for adding worker",
-                                  bsel->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01027)
+                                  "client was readable");

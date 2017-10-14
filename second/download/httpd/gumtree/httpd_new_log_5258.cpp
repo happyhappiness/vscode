@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
-                         "MaxThreads of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         ap_threads_limit, HARD_THREAD_LIMIT);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00400)
+                     "Parent: Unable to duplicate the scoreboard handle to the child");

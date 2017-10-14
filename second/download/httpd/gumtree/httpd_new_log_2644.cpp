@@ -1,1 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv2, s,
+                          "DBD: Failed to create thread mutex");

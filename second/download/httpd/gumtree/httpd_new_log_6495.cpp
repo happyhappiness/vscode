@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
-                              "access to %s failed (filesystem path '%s')", 
-                              r->uri, r->filename);
+ap_rputs("\n\n<table><tr>"
+                "<th>Worker URL</th>"
+                "<th>Route</th><th>RouteRedir</th>"
+                "<th>Factor</th><th>Set</th><th>Status</th>"
+                "<th>Elected</th><th>Busy</th><th>Load</th><th>To</th><th>From</th>", r);

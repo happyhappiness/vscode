@@ -1,1 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, "h2_h2, task, declined");
+ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03208)
+                              "h2_util_move: %s, passed setaside bucket %ld-%ld "
+                              "from=%lx(p=%lx) to=%lx(p=%lx)",
+                              msg, (long)b->start, (long)b->length, 
+                              (long)from, (long)from->p, 
+                              (long)to, (long)to->p);

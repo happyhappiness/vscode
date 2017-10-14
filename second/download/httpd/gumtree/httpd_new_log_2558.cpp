@@ -1,2 +1,1 @@
-printf("INFO: %s header == \n---\n%s\n---\n", 
-               method_str[method], request);
+fprintf(stderr, "Rotation file date pattern:  %12s\n", config->use_strftime ? "yes" : "no");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO()
-                "too short to decrypt, aborting");
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+                                      H2_SSSN_LOG(APLOGNO(02950), session, 
+                                      "error reading, terminating"));

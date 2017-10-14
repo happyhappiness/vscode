@@ -1,1 +1,3 @@
-ap_rvputs(r, "</td><td>", worker->s->route, NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connected %s to %s:%d", *url, conn->hostname,
+                 conn->port);

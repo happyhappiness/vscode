@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02823)
-                         "%s: connection established with Unix domain socket "
-                         "%s (%s)",
-                         proxy_function,
-                         conn->uds_path,
-                         worker->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02903)
+                      "No db handle available for dbd-query! "
+                      "Check your database access");

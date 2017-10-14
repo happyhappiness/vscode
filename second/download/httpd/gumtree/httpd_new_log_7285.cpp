@@ -1,3 +1,4 @@
-ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE1, 0, r,
-                              "Status line from script '%s': %s",
-                              apr_filepath_name_get(r->filename), l);
+ap_register_output_filter("CACHE_INVALIDATE",
+                                  cache_invalidate_filter,
+                                  NULL,
+                                  AP_FTYPE_PROTOCOL);

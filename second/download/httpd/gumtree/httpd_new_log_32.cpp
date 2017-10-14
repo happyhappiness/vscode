@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
-                     0, NULL, "Unable to open logs\n");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
+                 "Writing message to %d, passing sd:  %d", sconf->output, sfd);

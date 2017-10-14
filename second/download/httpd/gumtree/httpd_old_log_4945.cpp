@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "%sPRNG still contains insufficient entropy!", prefix);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                         "Cannot map %s to file", r->the_request);

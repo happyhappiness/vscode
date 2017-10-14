@@ -1,1 +1,2 @@
-ap_log_rerror(file, line, APLOG_MODULE_INDEX, level, rv, r, "%s", buf);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01958)
+                     "SSLStapling: no stapling cache available");

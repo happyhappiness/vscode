@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                                 "Child %d: Encountered too many errors accepting client connections. "
-                                 "Possible causes: Unknown. "
-                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %u -- Aborting.", exitcode);

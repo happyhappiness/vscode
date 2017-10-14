@@ -1,5 +1,2 @@
-fprintf(stderr,
-            "Usage: %s [-l] [-f] <logfile> "
-            "{<rotation time in seconds>|<rotation size in megabytes>} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short session_id provided "
+                "(%u bytes)", idlen);

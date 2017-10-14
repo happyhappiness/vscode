@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02133)
-                     "Upgradeable socket handle not found");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r, APLOGNO(00750) "Adding CACHE_SAVE filter for %s",
+                                r->uri);

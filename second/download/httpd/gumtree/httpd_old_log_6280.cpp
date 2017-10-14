@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                              "session proessed, unexpected status");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the HARD_THREAD_LIMIT"
+                         "define in");

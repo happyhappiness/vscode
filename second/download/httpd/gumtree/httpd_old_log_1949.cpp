@@ -1,2 +1,3 @@
-ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
-               "</a></pre>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bybusyness for BALANCER (%s)",
+                 balancer->name);

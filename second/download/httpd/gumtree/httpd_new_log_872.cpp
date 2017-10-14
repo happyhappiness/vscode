@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
-                                  "SSL input filter read failed.");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary %d bit DH key", keylen);

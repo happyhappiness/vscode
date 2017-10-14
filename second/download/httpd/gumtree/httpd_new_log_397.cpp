@@ -1,0 +1,1 @@
+apr_table_get(r->headers_in, "Cache-Control");

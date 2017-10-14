@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
-                     "Error: %d with WSAIoctl(flag SO_TLS_ENABLE)",
-                     WSAGetLastError());
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
+                                "lua: Failed to obtain lua interpreter for %s %s",
+                                function_name, filename);

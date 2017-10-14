@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01459)
-                      "couldn't find definition of filter '%s'",
-                      f->frec->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01223)
+                      "couldn't spawn child process: %s", r->filename);

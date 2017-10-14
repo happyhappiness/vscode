@@ -1,1 +1,2 @@
-ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">", NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");

@@ -1,2 +1,3 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
-                      "Acquiring mutex %s:%d", l->file, l->line);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         HARD_THREAD_LIMIT, HARD_THREAD_LIMIT);

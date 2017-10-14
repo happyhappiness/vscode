@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %ld exiting.", my_pid, thread_num);
+ap_log_rerror(APLOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+			  "Premature end of script headers: %s", 
+                          apr_filename_of_pathname(r->filename));

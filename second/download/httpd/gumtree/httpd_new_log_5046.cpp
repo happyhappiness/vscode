@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
-                          cmd->pool, APLOGNO(00112)
-                          "Warning: DocumentRoot [%s] does not exist",
-                          arg);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00474)
+                     "apr_thread_create: unable to create listener thread");

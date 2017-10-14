@@ -1,2 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog, APLOGNO(02130)
-                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00783)
+                "Cache already locked for stale cached URL, "
+                "pretend it is fresh: %s",
+                r->unparsed_uri);

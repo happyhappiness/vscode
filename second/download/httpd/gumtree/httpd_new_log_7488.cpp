@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
-                                  "rl: partition failed.");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02564)
+                             "Failed to configure encrypted (?) private key %s,"
+                             " check %s", key_id, keyfile);

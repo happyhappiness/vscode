@@ -1,1 +1,1 @@
-ap_rputs(" -D NO_LINGCLOSE\n", r);
+ap_rputs("</dl><hr />", r);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(00766)
-                        "cache: Cache provider's store_body returned an "
-                        "empty brigade, but didn't consume all of the "
-                        "input brigade, standing down to prevent a spin");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02598)
+                     "apr_shm_attach() succeeded");

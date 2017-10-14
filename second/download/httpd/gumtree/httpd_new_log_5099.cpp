@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL, APLOGNO(00086)
-                     "%s: could not open error log file %s.",
-                     ap_server_argv0, fname);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);

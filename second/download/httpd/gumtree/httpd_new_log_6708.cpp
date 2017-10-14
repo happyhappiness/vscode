@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "status_handler(%s): checking for incoming trailers", 
-                      task->id);
+ap_log_error(APLOG_MARK, APLOG_TRACE5, 0, ap_server_conf,
+                             "Spawning new child: slot %d active / "
+                             "total daemons: %d/%d",
+                             free_slots[i], active_daemons,
+                             retained->total_daemons);

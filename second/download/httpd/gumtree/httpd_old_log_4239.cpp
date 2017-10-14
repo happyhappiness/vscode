@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "ajp_read_header: ajp_ilink_received %02x", result);
+ap_rvputs(r, "          <httpd:hostname>", worker->hostname,
+                          "</httpd:hostname>\n", NULL);

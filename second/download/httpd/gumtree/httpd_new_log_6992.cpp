@@ -1,1 +1,2 @@
-h2_stream_recv_frame(stream, NGHTTP2_HEADERS, frame->hd.flags);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring Trusted OCSP certificates");

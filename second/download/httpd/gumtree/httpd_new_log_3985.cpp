@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01591)
-                          "Read content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
+                          "lua: Unable to find function %s in %s",
+                          "handle",
+                          spec->file);

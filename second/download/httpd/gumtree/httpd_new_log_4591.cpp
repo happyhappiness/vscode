@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01113) "HTTP: declining URL %s",
-                      url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01824)
+                "cipher '%s' not recognised by crypto driver. "
+                "session encryption not possible, options: %s", dconf->cipher, options);

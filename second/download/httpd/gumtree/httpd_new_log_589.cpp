@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "copy_brigade_range() failed [%" APR_OFF_T_FMT
-                          "-%" APR_OFF_T_FMT ",%" APR_OFF_T_FMT "]",
-                          range_start, range_end, clength);
+apr_bucket_file_create(fd, tf->Offset, (apr_size_t)fsize,
+                                       r->pool, c->bucket_alloc);

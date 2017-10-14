@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00178)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00443)
+                         "changing ThreadLimit to %d from original value "
+                         "of %d not allowed during restart",
+                         thread_limit, first_thread_limit);

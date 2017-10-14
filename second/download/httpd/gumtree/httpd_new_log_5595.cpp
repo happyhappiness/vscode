@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00010) LOG_PREFIX
-                  "user '%s' removed cookie2: '%s'", r->user, rfc2965);
+log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(02813),
+                               "AcceptPathInfo off disallows user's path");

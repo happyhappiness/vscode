@@ -1,1 +1,2 @@
-ap_rputs("<tr><td>Expr</td><td><select name='w_he'>\n", r);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, task->c, 
+                  "h2_slave_out(%s): slave_out leave", task->id);

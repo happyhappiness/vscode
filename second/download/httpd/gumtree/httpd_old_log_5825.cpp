@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(01026)
-                                  "err on client");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, session->c,
+                  APLOGNO(02918) 
+                  "h2_session: stream(%ld-%d): unable to create",
+                  session->id, stream_id);

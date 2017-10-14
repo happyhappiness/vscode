@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, f->r, "apr_sleep()");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01228) "exec used but not allowed "
+                      "in %s", r->filename);

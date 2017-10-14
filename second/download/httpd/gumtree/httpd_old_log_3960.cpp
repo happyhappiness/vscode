@@ -1,1 +1,0 @@
-ap_rputs("\"<b><code>D</code></b>\" DNS Lookup,<br />\n", r);

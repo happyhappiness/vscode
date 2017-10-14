@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile ? lua_ivm_shmfile : "(anonymous)");
+ap_rvputs(r, "          <httpd:route>",
+                          ap_escape_html(r->pool, worker->s->route),
+                          "</httpd:route>\n", NULL);

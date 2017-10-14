@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "division_mask = 0x%02X", header->division_mask);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                          "require user: authorization successful", getpid());

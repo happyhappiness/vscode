@@ -1,1 +1,3 @@
-ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: initialized plain memory for worker %s",
+              worker->name);

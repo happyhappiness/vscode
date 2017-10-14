@@ -1,4 +1,3 @@
-fprintf(stderr, "%s: Directory %s exceeds the maximum include "
-                    "directory nesting level of %u. You have probably a "
-                    "recursion somewhere.\n", ap_server_argv0, path,
-                    AP_MAX_INCLUDE_DIR_DEPTH);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server,
+                                "cache_select_url(): Vary header mismatch.");

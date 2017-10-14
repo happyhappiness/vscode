@@ -1,3 +1,3 @@
-apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-                    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01969)
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);

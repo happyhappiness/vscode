@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: read timeout");
+memcpy(ctx->header + ctx->header_len, data, len);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->name, name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r, APLOGNO(01672)
+                          "Anonymous: Passwd <%s> Accepted",
+                          sent_pw ? sent_pw : "\'none\'");

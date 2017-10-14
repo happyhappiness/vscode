@@ -1,1 +1,0 @@
-fprintf(output, "    Resolves    : %d\n", resolves);

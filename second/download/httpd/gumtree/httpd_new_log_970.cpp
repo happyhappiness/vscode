@@ -1,0 +1,1 @@
+printf("yes (fixed thread count)\n");

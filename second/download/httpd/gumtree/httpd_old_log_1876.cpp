@@ -1,1 +1,0 @@
-ap_rputs(time_str, r);

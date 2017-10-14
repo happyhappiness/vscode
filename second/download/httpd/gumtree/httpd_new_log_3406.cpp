@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf, APLOGNO(02123)
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00778)
+                "Could not create a cache lock directory: %s",
+                path);

@@ -1,1 +1,2 @@
-fprintf(out, "%d,%.3f\n", i, t);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "shmcb_subcache_retrieve found no match");

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, inctx->rc, c->base_server,
-                                "SSL input filter read failed.");
+ap_add_input_filter(ssl_io_filter, inctx, NULL, c);

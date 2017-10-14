@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
-                         ap_server_conf, APLOGNO(02181) "ufork: Possible mis-configuration "
-                         "for user %s - Aborting.", user);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(00470)
+                          "network write failure in core output filter");

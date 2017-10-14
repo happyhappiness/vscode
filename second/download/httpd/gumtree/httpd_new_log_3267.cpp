@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(01674)
-                      "Please select a socache provider with AuthnCacheSOCache "
-                      "(no default found on this platform). Maybe you need to "
-                      "load mod_socache_shmcb or another socache module first");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01647)
+                          "authz_dbd in get_row; action=%s user=%s [%s]",
+                          action, r->user, message?message:noerror);

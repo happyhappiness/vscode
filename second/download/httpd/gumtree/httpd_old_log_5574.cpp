@@ -1,4 +1,7 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Forbidden: %s doesn't point to "
-                              "a file or directory",
-                              r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
+                             0, NULL,
+                             "macro '%s' (%s): "
+                            "argument name prefix conflict (%s #%d and %s #%d),"
+                             " be careful about your macro definition!",
+                             macro->name, macro->location,
+                             tab[i], i + 1, tab[j], j + 1);

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01975)
-                 "sending request to OCSP responder");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, c->base_server, APLOGNO(00006)
+                     "core_filter: sendfile_nonblocking: "
+                     "this should never happen");

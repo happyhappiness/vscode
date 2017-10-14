@@ -1,1 +1,1 @@
-s(ap_psignature("",r), r);
+fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");

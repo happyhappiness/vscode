@@ -1,1 +1,1 @@
-ap_rvputs(r, "      <httpd:name>", balancer->name, "</httpd:name>\n", NULL);
+ap_rvputs(r, "<td>", balancer->sticky, NULL);

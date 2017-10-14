@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): malloc(%ld)",
+                  session->id, (long)size);

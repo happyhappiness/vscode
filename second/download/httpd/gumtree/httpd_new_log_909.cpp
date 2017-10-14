@@ -1,2 +1,1 @@
-apr_file_printf(writetty, "\n"
-                            "OK: Pass Phrase Dialog successful.\n");
+ap_rputs("<table cellspacing=0 cellpadding=0>\n", r);

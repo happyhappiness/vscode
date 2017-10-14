@@ -1,1 +1,1 @@
-ap_fatal_signal_setup(ap_server_conf, pconf);
+decl_die(access_status, "check access", r);

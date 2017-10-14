@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00854)
-                         "iterating idx=%d, data=%d", pos, idx->data_pos);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00612)
+                      "The label command element does not contain "
+                      "a \"label-name\" element.");

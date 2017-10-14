@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00397)
-                     "Parent: Unable to duplicate the start mutex to the child");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00296)
+                         "caught " AP_SIG_GRACEFUL_STOP_STRING
+                         ", shutting down gracefully");

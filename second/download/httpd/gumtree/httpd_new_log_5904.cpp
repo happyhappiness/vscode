@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(02964)
-                     "Parent: Unable to send its generation to the child");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_input(%s): mplx in read returned",
+                      input->task->id);

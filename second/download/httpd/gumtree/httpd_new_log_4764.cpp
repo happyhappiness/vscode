@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01881)
-                     "Init: Failed to generate temporary "
-                     "%d bit DH parameters", bits);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO(02037)
+                      "Certificate Verification: Verifiable Issuer is "
+                      "configured as optional, therefore we're accepting "
+                      "the certificate");

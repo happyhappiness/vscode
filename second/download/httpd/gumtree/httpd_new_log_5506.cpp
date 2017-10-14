@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00314)
-                         "WARNING: MaxRequestWorkers of %d is less than "
-                         "ThreadsPerChild of", max_workers);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00540)
+                      "XML parser error (at end). status=%d", status);

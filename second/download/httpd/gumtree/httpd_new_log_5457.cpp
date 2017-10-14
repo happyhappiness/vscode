@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00270)
-                     "sigaction(SIGHUP)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00037)
+                                  "Symbolic link not allowed "
+                                  "or link target not accessible: %s",
+                                  r->filename);

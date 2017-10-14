@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                              "h2_mplx(%ld): decrease worker limit to %d",
-                              m->id, m->limit_active);
+ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, r->server, "%.*s",
+                     len, buffer);

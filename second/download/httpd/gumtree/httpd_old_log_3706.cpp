@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Unlock failed (%s):  "
-                      "No Lock-Token specified in header", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
+                          "can't initialise input filter %s: %s",
+                          f->frec->name,
+                          (ctx->dc->onfail == 1) ? "removing" : "aborting");

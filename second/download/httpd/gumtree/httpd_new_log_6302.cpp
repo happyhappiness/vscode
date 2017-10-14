@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, output->task->c,
-                      "h2_task(%s): could not write all, saving brigade", 
-                      output->task->id);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03141)
+                     "ap_queue_info_create() failed");

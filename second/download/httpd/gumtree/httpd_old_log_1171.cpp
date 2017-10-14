@@ -1,1 +1,1 @@
-printf("%s", OP_names[*code]);
+printf("SSL read failed - closing connection\n");

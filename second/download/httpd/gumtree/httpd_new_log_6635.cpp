@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                     "h2_worker(%d): looking for work", worker->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  "h2_stream(%ld-%d): unpexected header status %d, stream rst", 
+                  session->id, stream->id, headers->status);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01098)
-                                      "Starting body due to bogus non-header "
-                                      "in headers returned by %s (%s)",
-                                      r->uri, r->method);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00962)
+                 "%s: connection complete to %pI (%s)",
+                 proxy_function, backend_addr, conn->hostname);

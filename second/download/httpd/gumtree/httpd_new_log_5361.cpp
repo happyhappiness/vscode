@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00392)
-                     "Parent: Unable to duplicate the ready event handle for the child");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00287)
+                                     "server is within MinSpareThreads of "
+                                     "MaxRequestWorkers, consider raising the "
+                                     "MaxRequestWorkers setting");

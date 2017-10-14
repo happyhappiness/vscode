@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "This resource does not accept the %s method.",
-                              r->method);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");

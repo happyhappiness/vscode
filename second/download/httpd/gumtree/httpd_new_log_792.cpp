@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL, "%s", desc);
+ap_rvputs(r, "</td><td>", worker->s->redirect, NULL);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00564)
-                                  "Request header field is missing ':' "
-                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
-                                  last_field);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02672)
+                           "ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
+                           "is not supported: %s", r->filename);

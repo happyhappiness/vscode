@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01468)
-                      "ef_unified_filter() failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, APLOGNO(01241) "%s", description);

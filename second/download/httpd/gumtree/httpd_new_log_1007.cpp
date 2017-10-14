@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -R directory       : specify an alternate location for "
-                 "shared object files");
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);

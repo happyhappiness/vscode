@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01690)
-                      "auth_ldap authenticate: no sec->host - weird...?");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01668)
+                        "No group file was specified in the configuration");

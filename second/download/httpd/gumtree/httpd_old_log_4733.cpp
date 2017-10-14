@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, LOG_PREFIX
-                "The crypto library '%s' was loaded successfully",
-                conf->library);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                  "upgrading connection to TLS");

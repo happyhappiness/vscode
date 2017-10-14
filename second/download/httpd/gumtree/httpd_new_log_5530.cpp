@@ -1,6 +1,9 @@
-ap_log_error(APLOG_MARK, APLOG_ERR,
-                     0, ap_server_conf, APLOGNO(00047)
-                     "could not make child process %" APR_PID_T_FMT
-                     " exit, "
-                     "attempting to continue anyway",
-                     pid);
+fprintf(stderr,
+#if APR_FILES_AS_SOCKETS
+            "Usage: %s [-v] [-l] [-L linkname] [-p prog] [-f] [-t] [-e] [-c] <logfile> "
+#else
+            "Usage: %s [-v] [-l] [-L linkname] [-p prog] [-f] [-t] [-e] <logfile> "
+#endif
+            "{<rotation time in seconds>|<rotation size>(B|K|M|G)} "
+            "[offset minutes from UTC]\n\n",
+            argv0);

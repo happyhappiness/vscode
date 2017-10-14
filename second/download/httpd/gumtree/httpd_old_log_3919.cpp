@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
-                               "Options ExecCGI is off in this directory");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "no cached SGL for %s, retrieving from LDAP", dn);

@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_TRACE3, 0, task->pool,
-                  "h2_conn(%ld): created from master", master->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "protocol propose: connection requirements not met");

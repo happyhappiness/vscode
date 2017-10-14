@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                      "h2_from_h1(%d): err bucket status=%d", 
-                      from_h1->stream_id, st);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02986)
+                              "asynchronous I/O not supported: %s",
+                              r->filename);

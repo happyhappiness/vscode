@@ -1,1 +1,2 @@
-ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Cannot chroot when not started as root");

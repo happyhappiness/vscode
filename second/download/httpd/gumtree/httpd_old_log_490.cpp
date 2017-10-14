@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf,
-                 "Child %d: Worker thread %d starting.", my_pid, thread_num);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to connect child stdout to NUL.\n");

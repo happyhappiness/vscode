@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00393)
-                     "Parent: Unable to send the exit event handle to the child");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             ap_server_conf, APLOGNO(00288)
+                             "scoreboard is full, not at MaxRequestWorkers");

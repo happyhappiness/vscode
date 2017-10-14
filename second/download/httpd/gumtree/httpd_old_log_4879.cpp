@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_check_response: certificate ID not present in response!");

@@ -1,1 +1,4 @@
-fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
+                                    "Inflated content ratio is larger than the "
+                                    "configured limit %i by %i time(s)",
+                                    dc->ratio_limit, dc->ratio_burst);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: origin server sent 401 without WWW-Authenticate header");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "data size too large for DBM session cache: %d >= %d",
+                 (idlen + nData), PAIRMAX);

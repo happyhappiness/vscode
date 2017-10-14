@@ -1,1 +1,0 @@
-ret = mkhash(ctx);

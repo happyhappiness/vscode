@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                  "proxy: ap_get_scoreboard_lb(%d) failed in child %" APR_PID_T_FMT " for worker %s",
-                  worker->id, getpid(), worker->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "can't initialise output filter %s: %s",
+                          f->frec->name,
+                          (ctx->dc->onfail == 1) ? "removing" : "aborting");

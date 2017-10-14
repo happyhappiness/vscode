@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: connected %s to %s:%d", *url, conn->hostname,
-                 conn->port);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");

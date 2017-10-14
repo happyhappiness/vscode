@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                    MODNAME ": subrequest %s got %s",
-                    sub_filename, r->content_type);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: read zero bytes, expecting"
+                         " %" APR_OFF_T_FMT " bytes",
+                         content_length);

@@ -1,1 +1,0 @@
-fprintf(stderr, "Could not open log file '%s' (%s)\n", buf2, error);

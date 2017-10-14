@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                      H2_SSSN_LOG(APLOGNO(02935), session, 
-                      "nghttp2_submit_settings: %s"), nghttp2_strerror(*rv));
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(10010) "Failed to open the '%s' service",
+                     mpm_display_name);

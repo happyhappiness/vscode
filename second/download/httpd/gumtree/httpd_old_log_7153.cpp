@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03254)
-            "%s", buffer);
+ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);

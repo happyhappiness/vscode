@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
-                     "mod_rewrite: Parent could not create RewriteLock "
-                     "file %s", lockname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+         "proxy: CONNECT: connecting to remote proxy %s on port %d", connectname, connectport);

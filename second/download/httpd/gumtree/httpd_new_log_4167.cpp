@@ -1,7 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01530)
-                        MODNAME ": match: POINTER CLOBBERED! "
-                        "m=\"%c%c%c%c\"",
-                        (((unsigned long) m) >> 24) & 255,
-                        (((unsigned long) m) >> 16) & 255,
-                        (((unsigned long) m) >> 8) & 255,
-                        ((unsigned long) m) & 255);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
+                         "ajp_handle_cping_cpong: Done");

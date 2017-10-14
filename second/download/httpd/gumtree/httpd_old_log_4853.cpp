@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "TLS upgrade handshake failed: not accepted by client!?");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
+                      "failed reading line from OCSP server");

@@ -1,0 +1,1 @@
+ap_check_cmd_context(cmd, GLOBAL_ONLY);

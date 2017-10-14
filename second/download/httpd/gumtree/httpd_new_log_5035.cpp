@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(00525)
-                         "Cannot remove module %s: not found in module list",
-                         m->name);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                     ap_server_conf, APLOGNO(00471) "push2worker: ap_queue_push failed");

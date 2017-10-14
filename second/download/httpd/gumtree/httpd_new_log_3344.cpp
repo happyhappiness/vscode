@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01748)
-                  "auth_ldap authorize filter: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02158)
+                         "Cannot chroot when not started as root");

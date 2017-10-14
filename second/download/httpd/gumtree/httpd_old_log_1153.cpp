@@ -1,1 +1,1 @@
-(isprint(c = *(++code));
+printf("matching subject <null> against pattern ");

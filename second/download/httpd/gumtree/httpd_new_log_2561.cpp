@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation file name: %21s\n", config->szLogRoot);

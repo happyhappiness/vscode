@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01895)
-                    "Unable to configure verify locations "
-                    "for client authentication");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02043)
+                              "SSL virtual host for servername %s found",
+                              servername);

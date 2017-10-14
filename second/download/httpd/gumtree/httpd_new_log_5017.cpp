@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
-                     "stapling_cb: setting response");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL,
+                         APLOGNO(00019) "Unable to open logs, exiting");

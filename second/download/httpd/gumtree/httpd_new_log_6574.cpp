@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03074)
-                      "h2_stream(%ld-%d): RST_STREAM, err=%d",
-                      session->id, stream->id, err);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "h2_task(%s): receiving trailers", task->id);

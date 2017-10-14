@@ -1,1 +1,7 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1373084 $");
+apr_file_printf(stderr_log,
+                    "[%s] [client %s] mod_ext_filter (%d)%pm: %s\n",
+                    time_str,
+                    r->useragent_ip,
+                    err,
+                    &err,
+                    description);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00922)
-                         "can not create balancer thread mutex");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01865)
+               "peruser sessions can only be saved if a user is logged in, "
+                          "session not saved: %s", r->uri);

@@ -1,1 +1,1 @@
-printf("%s", OP_names[*code++]);
+printf("-");

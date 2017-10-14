@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r, APLOGNO(00694) "cache_select(): Vary header mismatch.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00925)
+                     "initializing worker %s shared",
+                     ap_proxy_worker_name(p, worker));

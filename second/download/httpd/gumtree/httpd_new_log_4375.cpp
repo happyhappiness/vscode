@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_EMERG, rv, r, APLOGNO(01199)
-                                      "Cannot share worker");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01060)
+                  "set r->filename to %s", r->filename);

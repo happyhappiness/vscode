@@ -1,0 +1,1 @@
+printf("%d}", (code[1] << 8) + code[2]);

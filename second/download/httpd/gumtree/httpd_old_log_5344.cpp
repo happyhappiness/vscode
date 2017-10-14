@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %d: Process exiting because it reached "
-                         "MaxRequestsPerChild. Signaling the parent to "
-                         "restart a new child process.", my_pid);
+ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                 "apr_proc_mutex_%s failed. Attempting to "
+                 "shutdown process gracefully.", func);

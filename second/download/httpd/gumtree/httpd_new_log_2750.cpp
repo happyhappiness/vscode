@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: %s: backend socket is disconnected.",
-                         proxy_function);
+fprintf(stderr,
+            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);

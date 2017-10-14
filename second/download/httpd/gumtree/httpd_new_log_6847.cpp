@@ -1,2 +1,3 @@
-ap_register_output_filter("H2_PARSE_H1", h2_filter_parse_h1,
-                              NULL, AP_FTYPE_NETWORK);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      H2_SSSN_LOG(APLOGNO(02935), session, 
+                      "nghttp2_submit_settings: %s"), nghttp2_strerror(*rv));

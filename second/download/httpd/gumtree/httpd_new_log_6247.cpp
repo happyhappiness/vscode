@@ -1,3 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
-                                      "h2_session(%ld): idle, no data, error", 
-                                      session->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                         ap_server_conf, APLOGNO(03097)
+                                         "Failed to create transaction pool");

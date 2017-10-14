@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01084)
-                      "pass request body failed to %pI (%s)",
-                      p_conn->addr, p_conn->hostname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00948)
+                 "CONNECT: sending the CONNECT request for %s:%d "
+                 "to the remote proxy %pI (%s)",
+                 forward->target_host, forward->target_port,
+                 backend->addr, backend->hostname);

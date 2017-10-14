@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                     "Cannot get media parameter.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Negotiation: discovered file(s) matching request: %s"
+                      " (None could be negotiated).",
+                      r->filename);

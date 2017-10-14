@@ -1,1 +1,0 @@
-printf("Total PUT:              %" APR_INT64_T_FMT "\n", totalposted);

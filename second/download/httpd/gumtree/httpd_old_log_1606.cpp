@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Custom error page caused AP_FILTER_ERROR");
+printf(" Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/<br>\n");

@@ -1,1 +1,3 @@
-ap_rputs("<h2><a name=\"startup_hooks\">Startup Hooks</a></h2>\n<dl>", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "mod_rewrite: can't access DBM RewriteMap file %s",
+                          s->checkfile);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00430)
-                             "Parent: Child process exited successfully.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, status, ap_server_conf, APLOGNO(00542)
+                     "apr_socket_opt_set: (TCP_NODELAY)");

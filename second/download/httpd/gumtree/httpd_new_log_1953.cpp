@@ -1,2 +1,1 @@
-ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+ap_rvputs(r, "<td>", (*worker)->hostname, "</td><td>", NULL);

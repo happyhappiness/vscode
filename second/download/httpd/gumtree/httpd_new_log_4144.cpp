@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv, APLOGNO(01498)
-                         "read: rfc1413: error reading response");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL, APLOGNO(01030)
+                     "ajp_ilink_receive() can't receive header");

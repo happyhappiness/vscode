@@ -1,2 +1,4 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %lu: retrieved %d listeners from parent", my_pid, lcnt);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                                  "Request header exceeds LimitRequestFieldSize "
+                                  "after folding: %.*s",
+                                  field_name_len(last_field), last_field);

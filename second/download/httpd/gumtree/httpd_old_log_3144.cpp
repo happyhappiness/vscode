@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
-                     "Failed to initialise global mutex %s in child process %"
-                     APR_PID_T_FMT ".",
-                     ldap_cache_mutex_type, getpid());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: internal error: couldn't find session "
+                              "info for user %s", resp->username);

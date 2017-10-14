@@ -1,2 +1,4 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): input gone", session->id);
+ap_rputs("<a href=\"?config\">Configuration Files</a>, "
+                     "<a href=\"?server\">Server Settings</a>, "
+                     "<a href=\"?list\">Module List</a>,  "
+                     "<a href=\"?hooks\">Active Hooks</a>", r);

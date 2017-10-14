@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
-                                 "%u/%u workers shutdown",
-                                 apr_atomic_read32(&threads_shutdown),
-                                 threads_per_child);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                          H2_SSSN_LOG(APLOGNO(03401), session, 
+                          "conn error -> shutdown"));

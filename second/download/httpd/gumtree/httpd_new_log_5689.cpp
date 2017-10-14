@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                         "%s on line %d of %s: %s",
-                         what, cfg->line_number, cfg->name, ptr);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                              "ldap_compare_s(%pp, %s, %s, %s) = %s (cached)", 
+                              ldc->ldap, dn, attrib, value, ldap_err2string(result));

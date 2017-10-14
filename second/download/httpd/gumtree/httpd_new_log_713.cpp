@@ -1,1 +1,1 @@
-ap_rputs("<h2><a name=\"server\">Server Settings</a></h2>", r);
+ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);

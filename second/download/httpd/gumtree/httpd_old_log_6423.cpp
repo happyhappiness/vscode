@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                          "h2_session(%ld): conn error -> shutdown", session->id);

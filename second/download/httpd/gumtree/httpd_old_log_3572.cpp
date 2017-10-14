@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "distributed scache 'store' failed");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool,
+                 "WARNING: LoadModule not supported on this platform");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                          "Error setting permitted privileges");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                 "cache: running CACHE_OUT filter");

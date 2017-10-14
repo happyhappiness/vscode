@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  Server: %s",
-                          server);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02477)
+                         "mod_proxy must be loaded for mod_proxy_http");

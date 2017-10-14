@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Depth must be zero for UPDATE with a version");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Missing '}' on "
+                                  "variable \"%s\" in %s", p, r->filename);

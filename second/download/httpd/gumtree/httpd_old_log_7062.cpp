@@ -1,3 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): idle(1 sec timeout) "
-                                      "read failed", session->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01298)
+                 "LDAP cache: Setting shared memory cache file to %s bytes.",
+                 st->cache_file);

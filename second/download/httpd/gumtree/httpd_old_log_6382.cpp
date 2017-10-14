@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02254)
-                     "Reduced client verification depth will force "
-                     "renegotiation");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                          "h2_mplx(%ld-%d): open response: %d, rst=%d",
+                          m->id, stream_id, response->http_status, 
+                          response->rst_error);

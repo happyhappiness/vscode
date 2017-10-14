@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
-                     "Unable to initialize TLS session ticket key callback "
-                     "(incompatible OpenSSL version?)");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "Line folding encountered before first"
+                              " header line");

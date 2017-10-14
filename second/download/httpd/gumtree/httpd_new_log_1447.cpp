@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "Incoming request is asking for an uncached version of "
-                         "%s, but we have been configured to ignore it and serve "
-                         "cached content anyway", r->unparsed_uri);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "Child %lu: Unable to retrieve the scoreboard from the parent", my_pid);

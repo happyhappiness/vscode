@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01078) "serving URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
+                                 "connect to remote machine %s blocked: "
+                                 "IP %s matched", uri_addr->hostname, conf_ip);

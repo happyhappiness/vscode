@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "Timeout during reading request entity data");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "[%" APR_PID_T_FMT "] ldap cache: Setting operation cache TTL"
+                 " to %ld microseconds.", getpid(), st->compare_cache_ttl);

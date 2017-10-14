@@ -1,3 +1,3 @@
-ssl_log_xerror(SSLLOG_MARK, APLOG_ERR, 0, ptemp, s, x,
-                       APLOGNO(02218) "ssl_stapling_init_cert: no OCSP URI "
-                       "in certificate and no SSLStaplingForceURL set");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Read: %s",
+                      MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));

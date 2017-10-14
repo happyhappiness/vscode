@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01056)
-                             "proxy: readbytes: %#x", readbytes);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00938)
+                              "%s: failed to bind socket to local address",
+                              proxy_function);

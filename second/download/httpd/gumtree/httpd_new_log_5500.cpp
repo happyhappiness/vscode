@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00309)
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
+ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE4, 0, r,
+                              "Headers from script '%s':",
+                              apr_filepath_name_get(r->filename));

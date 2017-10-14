@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    " for a maximum of %d child processes,",
-                    ap_daemons_limit);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);

@@ -1,1 +1,1 @@
-printf(" */\n  ");
+printf("    \\x%02x", c);

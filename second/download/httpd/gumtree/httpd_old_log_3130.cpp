@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "[%" APR_PID_T_FMT "] cache_compare: Cache"
-                                  " insertion failure.", getpid());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: client used wrong authentication scheme "
+                          "`%s': %s", resp->scheme, r->uri);

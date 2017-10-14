@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                     "Parent: Duplicating socket %d and sending it to child process %lu",
-                     nsd, dwProcessId);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);

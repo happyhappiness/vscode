@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                         "Couldn't change owner of unix domain socket %s",
-                         sockname);
+ap_rputs("<body><h1 style=\"text-align: center\">"
+             "Apache Server Information</h1>\n", r);

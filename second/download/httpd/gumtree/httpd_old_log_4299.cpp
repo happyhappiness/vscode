@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got %" APR_SIZE_T_FMT " bytes of data", bufsiz);
+ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
+                      "\">\n", NULL);

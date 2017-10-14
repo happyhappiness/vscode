@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-                                  "h2_session(%ld): waiting on conditional",
-                                  session->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%ld): start release_join with %d streams to purge", 
+                          m->id, (int)h2_ihash_count(m->spurge));

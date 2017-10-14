@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-               "ajp_unmarshal_response: Header[%d] [%s] = [%s]",
-                       i, stringname, value);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                            "proxy: BALANCER: (%s). No workers in balancer",
+                            (*balancer)->name);

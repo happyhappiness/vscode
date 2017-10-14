@@ -1,1 +1,0 @@
-ap_rvputs(r, balancer->s->name, "</h1>\n\n", NULL);

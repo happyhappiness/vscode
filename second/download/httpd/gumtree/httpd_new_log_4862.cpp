@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02221)
-                      "Requesting connection re-negotiation");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01986)
+                          "OCSP response size exceeds %u byte limit",
+                          MAX_CONTENT);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "auth phase '%s' gave status %d: %s", phase,
-                      status, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01621)
+                      "AuthUserFile not specified in the configuration");

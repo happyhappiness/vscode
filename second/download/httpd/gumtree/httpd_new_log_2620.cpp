@@ -1,1 +1,1 @@
-fprintf(stderr, "Rotation time interval:      %12d\n", config->tRotation);
+printf("Server version: %s\n", ap_get_server_description());

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00384)
-                     "Child: Unable to retrieve the ready event from the parent");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00281)
+                     "Couldn't initialize signal thread");

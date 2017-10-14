@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02993)
-                     "Failed to create shared memory segment on file %s",
-                     shmfilename);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03082)
+                  "h2_stream(%ld-%d): opened", session->id, stream->id);

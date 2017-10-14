@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "proxy: error processing body.%s",
-                                      r->connection->aborted ?
-                                      " Client aborted connection." : "");
+apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename, 
+                            apr_strerror(status, errmsg, sizeof errmsg));

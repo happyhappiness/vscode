@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                     "proxy: CONNECT: declining URL %s", url);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
+                                      "proxy: error reading response");

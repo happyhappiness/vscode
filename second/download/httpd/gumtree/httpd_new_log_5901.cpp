@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not open pipe-of-death");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_input(%s): is aborted", input->task->id);

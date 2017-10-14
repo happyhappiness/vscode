@@ -1,7 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%s): %s %s %s"
-                      "[orph=%d/started=%d/done=%d/frozen=%d]", 
-                      task->id, task->request->method, 
-                      task->request->authority, task->request->path,
-                      (stream? 0 : 1), task->worker_started, 
-                      task->worker_done, task->frozen);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1757674 $");

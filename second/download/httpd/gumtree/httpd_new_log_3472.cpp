@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
-                          " is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(00816)
+                         "dbm `%s' entry iterated", ctx->data_file);

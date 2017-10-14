@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02408) "balancer slotmem_fgrab failed");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, status, NULL, APLOGNO(00103)
+                     "piped_log_spawn: unable to setup child process '%s'",
+                     pl->program);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                         "MCacheMaxStreamingBuffer must be less than or equal to MCacheMaxObjectSize. "
-                         "Resetting MCacheMaxStreamingBuffer to MCacheMaxObjectSize.");
+ap_log_error(APLOG_MARK, APLOG_ERR, stat,
+                         main_server,
+                         "Error reading request on cgid socket");

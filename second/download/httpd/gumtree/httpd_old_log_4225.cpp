@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                "ajp_unmarshal_response: Null status");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
+                         balancer->name, (*worker)->hostname);

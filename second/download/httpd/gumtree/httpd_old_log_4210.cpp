@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                       "ajp_marshal_into_msgb: "
-                       "Error appending the header name");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: got response from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

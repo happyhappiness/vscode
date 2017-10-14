@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "Failed to cache authn credentials for %s in %s",
-                      module, dcfg->context);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Authorization of user %s to access %s failed, reason: "
+                          "user doesn't appear in DBM group file (%s).", 
+                          r->user, r->uri, conf->grpfile);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "failed to send 101 interim response for connection "
-                      "upgrade");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, ap_server_conf,
+                             "apr_socket_accept failed for inactive listener");

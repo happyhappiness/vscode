@@ -1,2 +1,1 @@
-fprintf(stderr,
-		"overlay_tables: base's pool is not an ancestor of p\n");
+printf("%3d ", code - code_base);

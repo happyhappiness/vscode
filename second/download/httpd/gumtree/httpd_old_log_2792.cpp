@@ -1,1 +1,1 @@
-ap_rputs("<h3>Edit balancer settings for ", r);
+printf("Total of %ld requests completed\n" , done);

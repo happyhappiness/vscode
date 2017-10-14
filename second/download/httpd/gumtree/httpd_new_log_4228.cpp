@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00984)
-                       "ajp_unmarshal_response: "
-                       "No such sc (%08x)",
-                       name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01168)
+                              "%s: Unlock failed for pre_request",
+                              (*balancer)->s->name);

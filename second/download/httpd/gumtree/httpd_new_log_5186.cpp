@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00494)
-                     "SIGHUP received.  Attempting to restart");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00178)
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);

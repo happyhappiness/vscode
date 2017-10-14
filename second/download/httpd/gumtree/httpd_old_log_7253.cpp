@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01474) "got a vm!");
+apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);

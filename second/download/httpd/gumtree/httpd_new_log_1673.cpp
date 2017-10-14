@@ -1,3 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header field name is malformed: "
-                                  "%.*s", (int)LOG_NAME_MAX_LEN, last_field);
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
+                          "user's DN has not been defined; failing authorization for user %s",
+                          getpid(), r->user);

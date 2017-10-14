@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S]",
-                 pad_len, " ");
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);

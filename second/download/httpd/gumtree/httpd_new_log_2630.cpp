@@ -1,1 +1,1 @@
-fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);
+fprintf(stderr, "Could not open log file '%s' (%s)\n", buf2, error);

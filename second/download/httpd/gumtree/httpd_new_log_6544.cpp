@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                              "h2_mplx(%ld-%d): on_resume", 
-                              m->id, stream->id);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, beam->send_pool, 
+                              APLOGNO(03384) "h2_beam(%d-%s): emitted bucket not "
+                              "in hold, n=%d", beam->id, beam->tag, 
+                              (int)proxy->n);

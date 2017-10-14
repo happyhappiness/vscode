@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "RewriteCond: NoCase option for non-regex pattern '%s' "
-                     "is not supported and will be ignored.", a2);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_unmarshal_response: Header[%d] [%s] = [%s]",
+                       i, stringname, value);

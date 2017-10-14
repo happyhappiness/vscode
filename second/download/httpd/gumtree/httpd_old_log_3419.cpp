@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Error restoring default userid");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                 r->server, "Restoring request headers for %s",
+                                 r->uri);

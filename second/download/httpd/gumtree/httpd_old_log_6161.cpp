@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
-                          "h2_mplx(%ld): release_join, refs=%d, waiting...", 
-                          m->id, m->refs);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, 
+                                         workers->s,
+                                         "h2_workers: aborting idle worker");

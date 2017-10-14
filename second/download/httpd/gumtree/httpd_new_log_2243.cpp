@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                     "Child %d: Encountered too many AcceptEx "
+                                     "faults accepting client connections. "
+                                     "Possible causes: dynamic address renewal, "
+                                     "or incompatible VPN or firewall software. ",
+                                     my_pid);

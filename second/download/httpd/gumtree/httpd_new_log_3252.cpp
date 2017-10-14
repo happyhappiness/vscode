@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01655)
-                      "A prepared statement could not be found for "
-                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, s, APLOGNO(01751)
+                     "could not open charset conversion config file %s.",
+                     charset_confname);

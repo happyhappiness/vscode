@@ -1,1 +1,2 @@
-ap_rvputs(r, "</table>\n<input type=hidden name='b' id='b' ", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01156)
+                      "ap_pass_brigade failed:");

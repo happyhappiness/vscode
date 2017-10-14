@@ -1,2 +1,2 @@
-fprintf(stderr, "suexec policy violation: see suexec log for more "
-                        "details\n");
+printf("Server loaded:  APR %s, APR-Util %s\n",
+           apr_version_string(), apu_version_string());

@@ -1,2 +1,2 @@
-fprintf(stderr,
-                "Warning: SuexecUserGroup directive requires SUEXEC wrapper.\n");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request_rec->dispatching %s -> int", name);

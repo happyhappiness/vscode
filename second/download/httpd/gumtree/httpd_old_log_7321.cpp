@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d",
-                         balancer->s->name, balancer->s->sname,
-                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
-                         (int)balancer->max_workers);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s_main,
-                         "unable to replace stderr with error_log");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          PARTITION_ERR_FMT, range_start, clength);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed group(s).",
-                  r->user, r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server, "Replacing CACHE with CACHE_SAVE "
+                            "filter for %s", r->uri);

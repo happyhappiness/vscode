@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_os_error(),
-                                 ap_server_conf, APLOGNO(00329)
-                                 "mpm_get_completion_context: "
-                                 "CreateEvent failed.");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00456)
+                     "Server built: %s", ap_get_server_built());

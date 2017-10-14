@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, APLOGNO(02097) "Heartbeat: apr_socket_create failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00615)
+                      "The request body does not contain "
+                      "a \"mkworkspace\" element.");

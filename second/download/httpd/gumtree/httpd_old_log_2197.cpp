@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv,
-                                          c, "core_output_filter:"
-                                          " Error reading from bucket.");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");

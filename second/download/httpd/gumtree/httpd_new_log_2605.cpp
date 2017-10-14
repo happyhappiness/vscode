@@ -1,2 +1,2 @@
-apr_file_printf(output, "    - No reverse : %d" NL,
-                        noreverse);
+ap_rvputs(r, "<dl><dt>Server Version: ",
+                  ap_get_server_description(), "</dt>\n", NULL);

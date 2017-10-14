@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_STARTUP, rv, NULL,
-                "Could not open pipe-of-death.");
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);

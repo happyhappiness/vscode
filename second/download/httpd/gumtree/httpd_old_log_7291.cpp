@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);
+ap_rputs("<hr />\n<table>\n\
+<tr><th>Vhost</th><th>Seconds since last used</th></tr>\n", r);

@@ -1,5 +1,2 @@
-r(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "Incoming request is asking for a uncached version of "
-                     "%s, but we have been configured to ignore it and "
-                     "serve a cached response anyway",
-                     r->unparsed_uri);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %lu: Unable to reopen the scoreboard from the parent", my_pid);

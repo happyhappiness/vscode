@@ -1,5 +1,1 @@
-apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-#if defined(WIN32) || defined(TPF) || defined(NETWARE)
-        " (default)"
-#endif
-        "." NL);
+apr_file_printf(errfile, "User %s not found" NL, user);

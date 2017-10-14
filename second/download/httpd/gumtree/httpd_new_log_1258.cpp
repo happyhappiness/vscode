@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: can't find driver for %s", svr->name);
+fprintf(stderr, "Warning: Plain text passwords aren't supported by the "
+                    "server on this platform!\n");

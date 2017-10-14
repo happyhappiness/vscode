@@ -1,1 +1,1 @@
-printf("\n");
+fprintf(stderr, "    -s              Use httpS instead of HTTP (SSL)\n");

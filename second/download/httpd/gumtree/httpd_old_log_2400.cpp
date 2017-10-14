@@ -1,2 +1,3 @@
-fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
-               signal ? "restarted" : "stopped");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: MaxClients of %d would require %d servers,",
+                    max_clients, ap_daemons_limit);

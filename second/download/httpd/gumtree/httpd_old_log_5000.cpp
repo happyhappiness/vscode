@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "stapling_renew_response: Error parsing uri %s",
-                      ocspuri);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));

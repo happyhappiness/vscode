@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02654)
-                     "not configured");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
+                      "declining URL %s  (not WebSocket)", url);

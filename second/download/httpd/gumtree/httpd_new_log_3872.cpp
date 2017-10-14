@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01233)
-                    "File does not exist: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                      "Sum of ranges larger than file, ignoring.");

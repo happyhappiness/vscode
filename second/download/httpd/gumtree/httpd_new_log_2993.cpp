@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "shmcb_subcache_retrieve internal error");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: "
+                          "require dn: authorization successful");

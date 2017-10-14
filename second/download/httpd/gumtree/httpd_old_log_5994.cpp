@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                              "session(%ld): aborting session, reason=%d %s",
-                              session->id, reason, err);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                          "h2_from_h1(%d): eoc bucket passed", 
+                          from_h1->stream_id);

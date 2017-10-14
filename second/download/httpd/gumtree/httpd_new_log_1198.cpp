@@ -1,1 +1,5 @@
-apr_err("apr_socket_recv", status);
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            "." NL);

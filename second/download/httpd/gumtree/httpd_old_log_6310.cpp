@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                      "h2_workers: cleanup zombie %d", zombie->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");

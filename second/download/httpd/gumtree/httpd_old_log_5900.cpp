@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00165)
-                "Accept mutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
-                apr_proc_mutex_defname());
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                  "h2_task_input(%s): read, block=%d, mode=%d, readbytes=%ld", 
+                  input->env->id, block, mode, (long)readbytes);

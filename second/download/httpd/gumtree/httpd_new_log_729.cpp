@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_HAS_SENDFILE\n", r);
+ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);

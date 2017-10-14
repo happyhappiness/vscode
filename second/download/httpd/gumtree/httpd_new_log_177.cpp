@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
-                          "[%d] auth_ldap authorise: require group: testing for group membership in \"%s\"", 
-		          getpid(), t);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, cmd->server, 
+                 "LDAP cache: Setting shared memory cache file to %s bytes.", 
+                 st->cache_file);

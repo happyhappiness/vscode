@@ -1,1 +1,1 @@
-ap_rputs("'></td></tr>\n", r);
+APR_BRIGADE_FIRST(bb);

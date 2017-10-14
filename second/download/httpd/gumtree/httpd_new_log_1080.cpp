@@ -1,1 +1,1 @@
-printf("%s\n", status);
+fprintf(f, "0x%02x", *tables++);

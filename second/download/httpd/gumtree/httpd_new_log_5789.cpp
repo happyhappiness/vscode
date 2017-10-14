@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01409)
-                              "Zlib error %d inflating data (%s)", zRC,
-                              ctx->stream.msg);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                      "h2_conn_io(%ld): init, buffering=%d, warmup_size=%ld, cd_secs=%f",
+                      io->connection->id, io->buffer_output, (long)io->warmup_size,
+                      ((float)io->cooldown_usecs/APR_USEC_PER_SEC));

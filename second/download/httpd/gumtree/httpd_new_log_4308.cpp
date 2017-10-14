@@ -1,0 +1,1 @@
+ap_rputs("<tr><td>LBmethod:</td>", r);

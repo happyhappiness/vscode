@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
-                              "h2_mplx(%ld-%d): close with trailers=%s", 
-                              m->id, io->id, trailers? "yes" : "no");
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, r->server, APLOGNO(02995)
+                             "Child %ld failed to acquire lock",
+                             (long int)getpid());

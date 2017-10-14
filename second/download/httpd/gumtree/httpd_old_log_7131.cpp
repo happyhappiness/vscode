@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, workers->s,
-                     APLOGNO(02962) "h2_workers: max_worker_idle_sec value of %d"
-                     " is not valid, ignored.", idle_secs);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d",
+                         balancer->s->name, balancer->s->sname,
+                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                         (int)balancer->max_workers);

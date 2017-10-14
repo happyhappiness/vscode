@@ -1,2 +1,3 @@
-printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_recv, err_length, err_except);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "ssl_scache_shmcb_store (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));

@@ -1,3 +1,6 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                      "h2_push_diary_digest_get: golomb compressed hashes, %d bytes",
-                      (int)encoder.offset + 1);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03210)
+                    "Websocket: Reading %" APR_SIZE_T_FMT " (%s) bytes, masking is %s. %s", 
+                    plen,
+                    (payload >= 126) ? "extra payload" : "no extra payload", 
+                    mask ? "on" : "off", 
+                    fin ? "This is a final frame" : "more to follow");

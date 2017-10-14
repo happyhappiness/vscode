@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02423)
-                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
-                      "(disallowed by RegisteredMethods)",
-                      field_name_len(r->method), r->method);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c, 
+                      H2_STRM_LOG(APLOGNO(03081), stream, "invalid transition"));

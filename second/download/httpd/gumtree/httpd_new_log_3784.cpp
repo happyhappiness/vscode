@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01407)
-                              "Zlib: %d bytes of garbage at the end of "
-                              "compressed stream.", ctx->stream.avail_in);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01218)
+                     "apr_pollset_add(); check system or user limits");

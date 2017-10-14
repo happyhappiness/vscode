@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                          "h2_task_input(%s): serialize request %s %s", 
-                          task->id, task->request->method, task->request->path);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool, APLOGNO(03060)
+                      "h2_request(%d): pseudo header in trailer",
+                      req->id);

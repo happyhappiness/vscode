@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00895) "serving URL %s", url);
+ap_rputs("<tr><td colspan=2><input type=submit value='Submit'></td></tr>\n", r);

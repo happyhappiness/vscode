@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "Statistics:" APR_EOL_STR);

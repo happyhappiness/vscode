@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      input->env->id, block, 
-                      (long)readbytes, (long)bblen);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                      "h2_session: callback on_invalid_frame_recv error=%d %s",
+                      error, buffer);

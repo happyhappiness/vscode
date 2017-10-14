@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, result, s, 
-                         "LDAP cache: failed to set mutex permissions");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv,
+                                          c, "core_output_filter:"
+                                          " Error reading from bucket.");

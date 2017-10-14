@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %lu: Child process is running", my_pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "loaded %i intermediate CA%s for cert %i (%s)",
+                         i, i == 1 ? "" : "s", n, cert_dn);

@@ -1,1 +1,3 @@
-printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default." NL);

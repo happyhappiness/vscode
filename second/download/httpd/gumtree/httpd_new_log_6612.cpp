@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
-                  task->id, mode, block, (long)readbytes);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_proxy_stream(%s-%d): resuming", 
+                  session->id, stream->id);

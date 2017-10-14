@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, APLOGNO(00061) "sigaction(SIGSEGV)");
+fprintf(stderr, "Could not open log file '%s' (%s)\n", newlog.name, error);

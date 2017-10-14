@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                                 (const server_rec *) ap_server_conf,
-                                 "apr_pollset_poll: (listen)");
+fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");

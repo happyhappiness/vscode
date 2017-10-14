@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                                      0, r, "Missing '}' on variable \"%s\"",
-                                      expansion);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "Invalid expression \"%s\" in file %s",
+                            expr, r->filename);

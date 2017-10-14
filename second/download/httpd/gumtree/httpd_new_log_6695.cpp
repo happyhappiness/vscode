@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                        APLOGNO(03485) "rl: burst %d; len %"APR_OFF_T_FMT, ctx->burst, len);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03463)
+                              "proxying is explicitly disabled for URI path "
+                              "'%s'; declining", r->uri);

@@ -1,1 +1,1 @@
-printf("\n");
+apr_file_printf(errfile, "\thtpasswd -n[mdps] username\n");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                     "%s: apr_gethostname() failed to determine ServerName",
+                     ap_server_argv0);

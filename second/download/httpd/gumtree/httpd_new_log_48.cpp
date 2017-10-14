@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, APR_SUCCESS, ap_server_conf,
-                     "WARNING: Attempt to change ThreadLimit ignored "
-                     "during restart");
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.120 $");

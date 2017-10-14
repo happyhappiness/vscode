@@ -1,3 +1,3 @@
 ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the auth type");
+                         "proxy: AJP: failed to make connection to backend: %s",
+                         backend->hostname);

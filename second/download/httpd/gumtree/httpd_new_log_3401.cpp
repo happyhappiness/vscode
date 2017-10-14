@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01663)
-                  "access to %s failed, reason: user '%s' does not meet "
-                  "'require'ments for user to be allowed access",
-                  r->uri, r->user);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00695)
+                        "Cached response for %s isn't fresh.  Adding/replacing "
+                        "conditional request headers.", r->uri);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01959)
-                     "SSLStapling: cannot initialise stapling mutex");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00459)
+                     "sigaction(SIGTERM)");

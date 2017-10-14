@@ -1,4 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, process_conn, "
-                          "new connection using protocol '%s', direct=%d, "
-                          "tls acceptable=%d", proto, h2_allows_h2_direct(c), 
-                          h2_is_acceptable_connection(c, 1));
+ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03209)
+                                      "h2_util_copy: %s, copied bucket %ld-%ld "
+                                      "from=%lx(p=%lx) to=%lx(p=%lx)",
+                                      msg, (long)b->start, (long)b->length, 
+                                      (long)from, (long)from->p, 
+                                      (long)to, (long)to->p);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01883)
-                 "Init: Initialized %s library", SSL_LIBRARY_NAME);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn, APLOGNO(02039)
+                          "Certificate Verification: Error (%d): %s",
+                          errnum, X509_verify_cert_error_string(errnum));

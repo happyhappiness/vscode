@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00832) "unusably short id provided "
-                "(%u bytes)", idlen);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00590)
+                          "Invalid Content-Length %s", lenp);

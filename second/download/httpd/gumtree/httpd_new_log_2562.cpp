@@ -1,1 +1,1 @@
-err("Cannot mix HEAD with other methods\n");
+fprintf(stderr, "File rotation needed, reason: %s\n", ROTATE_REASONS[status->rotateReason]);

@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                          "h2_session(%ld): proto error -> shutdown", session->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");

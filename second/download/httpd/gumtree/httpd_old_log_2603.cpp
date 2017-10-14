@@ -1,2 +1,2 @@
-fprintf(stderr, "logresolve: could not open statistics file '%s'\n"
-                    ,statfile);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: lock");

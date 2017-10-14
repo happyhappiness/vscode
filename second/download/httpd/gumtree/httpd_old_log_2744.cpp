@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "unable to create scoreboard \"%s\" "
+                     "(name-based shared memory failure)", fname);

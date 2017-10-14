@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "proxy: FD: ap_pass_brigade failed:");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "proxy: *: found forward proxy worker for %s",
+                              *url);

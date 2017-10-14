@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                     (startup ? NULL : s),
-                     "could not duplicate listeners");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_task_input(%s): getline: %s",
+                              input->task->id, buffer);

@@ -1,1 +1,1 @@
-apr_file_printf(f, "%16s alias %s\n", "", name[i]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01683) "Failed to release mutex!");

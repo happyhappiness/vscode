@@ -1,1 +1,1 @@
-printf("%3d ", code - code_base);
+printf("%s", OP_names[*code++]);

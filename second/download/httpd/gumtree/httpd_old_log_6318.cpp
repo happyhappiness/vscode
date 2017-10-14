@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " would exceed ServerLimit of %d, decreasing to %d.",
+                         server_limit, server_limit * threads_per_child);

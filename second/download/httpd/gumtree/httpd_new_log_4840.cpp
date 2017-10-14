@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c, APLOGNO(02013)
-                                  "coalesce failed to read from data bucket");
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, 0, p,
+                      APLOGNO(02185) "Failed to allocate dynamic lock structure");

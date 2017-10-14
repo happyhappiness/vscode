@@ -1,1 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");
+ap_rputs("<table><tr><td>StickySession Identifier:</td><td><input name=\"ss\" type=text ", r);

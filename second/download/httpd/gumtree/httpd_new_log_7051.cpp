@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                          H2_SSSN_MSG(session, "unknown event %d"), ev);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool, APLOGNO(01575)
+                 "loaded module %s from %s", modname, module_file);

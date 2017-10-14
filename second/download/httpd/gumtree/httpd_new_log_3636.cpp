@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02072)
-                     "Failed to join multicast group");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00622)
+                     "buggy client used un-escaped hash in Request-URI");

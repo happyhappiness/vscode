@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03010)
-                              "%d:  unknown: -[%s]-", i, lua_typename(L, i));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02299)
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters", bits);

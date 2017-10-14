@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                         elts[i].key, elts[i].val, worker->name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "proxy: no HTTP 0.9 request (with no host line) "
+                          "on incoming request and preserve host set "
+                          "forcing hostname to be %s for uri %s",
+                          hostname,
+                          r->uri );

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00593)
-                      "Depth must be \"0\" or \"infinity\" for COPY or MOVE.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01467)
+                          "can't initialise output filter %s: %s",
+                          f->frec->name,
+                          (ctx->dc->onfail == 1) ? "removing" : "aborting");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00850)
-                             "shmcb_subcache_retrieve discarding expired entry");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00608)
+                      "A \"label-name\" or \"href\" element does not contain "
+                      "any content.");

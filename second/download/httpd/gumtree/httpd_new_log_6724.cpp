@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
-                  APLOGNO(03197) "h2_task(%s): passed response %d", 
-                  task->id, response->status);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03450)
+                      "HTTP Request Line; Unable to parse URI: '%.*s'",
+                      field_name_len(r->uri), r->uri);

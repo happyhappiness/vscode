@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
-                          "make_sock: failed to set ReceiveBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_clients, threads_per_child);

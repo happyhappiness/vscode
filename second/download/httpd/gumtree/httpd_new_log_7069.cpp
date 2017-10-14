@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c, 
-                      H2_STRM_LOG(APLOGNO(03081), stream, "invalid transition"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02314)
+                      "Unable to compile VM for authz provider %s", prov_spec->name);

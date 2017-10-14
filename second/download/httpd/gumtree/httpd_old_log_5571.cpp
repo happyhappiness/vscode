@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "access to %s denied", r->uri);
+ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
+                                 0, NULL,
+                                 "bad (negative) nesting on line %d of %s",
+                                 config_file->line_number - line_number_start,
+                                 where);

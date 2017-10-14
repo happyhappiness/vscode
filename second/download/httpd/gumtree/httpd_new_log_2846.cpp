@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "client denied by server configuration: %s%s",
-            r->filename ? "" : "uri ",
-            r->filename ? r->filename : r->uri);
+fprintf(stderr, "only simple translation is supported (%d/%"
+                        APR_SIZE_T_FMT "/%" APR_SIZE_T_FMT ")\n",
+                        status, inbytes_left, outbytes_left);

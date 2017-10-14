@@ -1,4 +1,3 @@
-decl_die(access_status, ap_auth_type(r)
-                                  ? "check user.  Check your authn provider!"
-                                  : "perform authentication. AuthType not set!",
-                                  r);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
+                            obj->key, mobj->m_len);

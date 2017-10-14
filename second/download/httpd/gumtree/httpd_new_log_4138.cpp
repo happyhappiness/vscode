@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv, APLOGNO(01492)
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->local_ip);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00997)
+               "ajp_parse_data: wrong type %s (0x%02x) expecting %s (0x%02x)",
+               ajp_type_str(result), result,
+               ajp_type_str(CMD_AJP13_SEND_BODY_CHUNK), CMD_AJP13_SEND_BODY_CHUNK);

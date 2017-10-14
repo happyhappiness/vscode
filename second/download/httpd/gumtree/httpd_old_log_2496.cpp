@@ -1,1 +1,1 @@
-printf("httpd not running, trying to start\n");
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");

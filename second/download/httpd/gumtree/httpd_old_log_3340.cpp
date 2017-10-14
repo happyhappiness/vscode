@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: checking dn match %s", dn);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, ptemp,
+                      "mod_privileges is not compatible with a threaded MPM.");

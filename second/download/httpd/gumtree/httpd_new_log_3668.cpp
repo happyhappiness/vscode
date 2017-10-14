@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, APLOGNO(01578)
-                 "WARNING: LoadModule not supported on this platform");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387) "Zlib: Invalid header");

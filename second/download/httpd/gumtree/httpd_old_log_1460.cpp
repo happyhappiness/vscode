@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
-                     "Child %d: Failed to acquire the start_mutex. Process will exit.", my_pid);
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);

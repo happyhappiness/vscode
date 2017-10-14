@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                     "Parent: Duplicating socket %d and sending it to child process %d",
-                     nsd, dwProcessId);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);

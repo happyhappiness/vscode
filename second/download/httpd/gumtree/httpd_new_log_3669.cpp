@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
-                     "%sWatchdog (%s) running",
-                     w->singleton ? "Singleton" : "", w->name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
+                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);

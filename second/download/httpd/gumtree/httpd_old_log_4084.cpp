@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, r->pool, "Lua error: %s",
-                  lua_response);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                    MODNAME ": couldn't spawn uncompress process: %s", r->uri);

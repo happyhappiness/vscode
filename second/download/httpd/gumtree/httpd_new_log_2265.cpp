@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Child %d: %d threads blocked on the completion port",
+                     my_pid, g_blocked_threads);

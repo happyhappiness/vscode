@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                     apr_get_os_error(), ap_server_conf,
-                             "winnt_accept: Asynchronous AcceptEx failed.");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "%s: Failed to open the service.", mpm_display_name);

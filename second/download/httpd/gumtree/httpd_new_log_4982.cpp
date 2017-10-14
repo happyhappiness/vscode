@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01989)
-                      "could not serialize OCSP request");
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
+                     APR_EBADPATH, NULL, APLOGNO(00085) "Invalid -E error log file %s",
+                     fname);

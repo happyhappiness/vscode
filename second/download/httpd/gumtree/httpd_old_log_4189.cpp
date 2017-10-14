@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
-                          MODNAME ": could not execute `%s'.",
-                          compr[parm->method].argv[0]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: APR_BUCKET_IS_EOS");

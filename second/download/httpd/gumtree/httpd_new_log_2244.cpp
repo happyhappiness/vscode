@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_threads_min_free);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Accept thread exiting.", my_pid);

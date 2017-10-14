@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "cannot redirect '%s' to '%s'; "
-                              "target is not a valid absoluteURI or abs_path",
-                              r->uri, ret);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: bytraffic selected worker \"%s\" : busy %" APR_SIZE_T_FMT,
+                     mycandidate->name, mycandidate->s->busy);

@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01880)
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, APLOGNO(02246)
+                                     "Init: Unable to read pass phrase "
+                                     "[Hint: key introduced or changed "
+                                     "before restart?]");

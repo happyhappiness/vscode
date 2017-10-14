@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "mod_include: Options +Includes (or IncludesNoExec) "
-                      "wasn't set, INCLUDES filter removed");
+ap_rputs("\"<b><code>C</code></b>\" Closing connection, \n", r);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S] [-X]",
-                 pad_len, " ");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01620)
+                      "Could not open password file: %s", conf->pwfile);

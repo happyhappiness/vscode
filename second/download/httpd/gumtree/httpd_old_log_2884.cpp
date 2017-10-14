@@ -1,2 +1,2 @@
-printf("Time per request:       %.3f [ms] (mean)\n",
-               (float) (1000 * concurrency * timetaken / done));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "shared memory segment too small");

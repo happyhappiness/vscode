@@ -1,1 +1,0 @@
-fprintf(output, "Cache hits      : %d\n", cachehits);

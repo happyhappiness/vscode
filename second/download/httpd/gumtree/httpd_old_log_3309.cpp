@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize: require group: testing for group "
-                  "membership in \"%s\"",
-                  t);
+ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);

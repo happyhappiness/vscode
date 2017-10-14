@@ -1,6 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                  req->proxy_ips
-                      ? "Using %s as client's IP by proxies %s"
-                      : "Using %s as client's IP by internal proxies%s",
-                  req->useragent_ip,
-                  (req->proxy_ips ? req->proxy_ips : ""));
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02411)
+                              "SSL Proxy: Peer certificate does not match "
+                              "for hostname %s", hostname_note);

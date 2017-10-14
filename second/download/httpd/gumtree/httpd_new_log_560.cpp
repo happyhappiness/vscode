@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "filling buffer");
+fprintf(stderr, "table_set: val not in ancestor pool of t\n");

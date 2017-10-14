@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Init: Generating temporary DH parameters (512/1024 bits)");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Loop: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));

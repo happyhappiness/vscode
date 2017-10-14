@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00431)
-                             "Parent: Forcing termination of child process %pp",
-                             event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00322)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1", min_spare_threads);

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): 2. release_join with %d streams to purge", 
-                          m->id, (int)h2_ihash_count(m->spurge));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00768)
+                "cache: %s not cached for request %s. Reason: %s",
+                cache->key, r->unparsed_uri, reason);

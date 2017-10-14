@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ctx->s, APLOGNO(02087)
-                     "malformed message from %pI",
-                     from);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01449)
+                          "can't open translation %s->%s",
+                          dc->charset_default, dc->charset_source);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require attribute: "
-                              "authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "fixups hook gave %d: %s",
+                      access_status, r->uri);

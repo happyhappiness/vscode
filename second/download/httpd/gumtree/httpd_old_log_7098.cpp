@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_stream(%ld-%d): add %ld input bytes", 
-                  stream->session->id, stream->id, (long)len);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1178079 $");

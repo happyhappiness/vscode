@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, log_level, rv, ap_server_conf,
-                     "connect to listener");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: pass request data failed to %pI (%s)",
+                         p_conn->addr, p_conn->name);

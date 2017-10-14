@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r->server, "Adding CACHE_SAVE filter for %s",
-                                r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving socache_shmcb_store successfully");

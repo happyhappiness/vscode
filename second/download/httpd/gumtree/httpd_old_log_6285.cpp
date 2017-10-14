@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
-                      "h2_task(%s), serialized handling", ctx->task->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);

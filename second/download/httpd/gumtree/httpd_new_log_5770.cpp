@@ -1,3 +1,5 @@
-fprintf(stderr, signal ? "The '%s' service has restarted.\n"
-                               : "The '%s' service has stopped.\n",
-                        mpm_display_name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
+                          "select protocol, proposals=%s preferences=%s configured=%s", 
+                          apr_array_pstrcat(pool, proposals, ','),
+                          apr_array_pstrcat(pool, prefs, ','),
+                          apr_array_pstrcat(pool, conf->protocols, ','));

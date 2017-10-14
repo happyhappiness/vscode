@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, APLOGNO(03461)
-                  "attempting to match URI path '%s' against %s '%s' for "
-                  "proxying", r->uri, (ent->regex ? "pattern" : "prefix"),
-                  fake);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_STRM_LOG(APLOGNO(10025), stream, "invalid response"));

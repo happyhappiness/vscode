@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590) "Error reading chunk %s ",
-                                  (ctx->remaining < 0) ? "(overflow)" : "");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01474) "got a vm!");

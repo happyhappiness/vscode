@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
-                      c->log_id, len? buffer : line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01476)
+                          "request details scope:%u, filename:%s, function:%s",
+                          spec->scope,
+                          spec->file,
+                          hook_spec->function_name ? hook_spec->function_name : "-");

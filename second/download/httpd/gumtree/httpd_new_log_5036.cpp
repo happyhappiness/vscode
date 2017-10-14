@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, parms->temp_pool,
-                          APLOGNO(02295)
-                          "%s in .htaccess forbidden by AllowOverride",
-                          cmd->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf, APLOGNO(00472)
+                     "ap_queue_info_wait_for_idler failed.  "
+                     "Attempting to shutdown process gracefully");

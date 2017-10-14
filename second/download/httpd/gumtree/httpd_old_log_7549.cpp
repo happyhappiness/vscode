@@ -1,4 +1,2 @@
-r(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01671)
-                  "Authorization of user %s to access %s failed, reason: "
-                  "user is not part of the 'require'ed file group.",
-                  r->user, r->uri);
+apr_file_printf(errfile, "Could not remove file %s: %s" APR_EOL_STR,
+                        remove, apr_strerror(status, errmsg, sizeof errmsg));

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01278)
-                "LDAP: Setting referrals to %s.",
-                ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, s, APLOGNO(00654)
+                         "mod_rewrite: could not start RewriteMap "
+                         "program %s", map->checkfile);

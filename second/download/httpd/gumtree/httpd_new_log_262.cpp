@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "data size too large for DBM session cache: %d >= %d",
-                 (idlen + nData), 950);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");

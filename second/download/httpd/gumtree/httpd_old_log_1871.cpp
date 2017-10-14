@@ -1,1 +1,0 @@
-ap_rputs("<td valign=\"top\">", r);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01461)
-                          "apr_file_write(child input), len %" APR_SIZE_T_FMT,
-                          tmplen);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01226)
+                      "don't know how to spawn cmd child process: %s",
+                      r->filename);

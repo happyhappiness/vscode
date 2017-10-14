@@ -1,4 +1,4 @@
-apr_file_printf(errfile, "%d entries deleted (%d from future, %d "
-                              "expired, %d fresh)" APR_EOL_STR,
-                     (int)(s->etotal - s->entries), (int)(s->dfuture),
-                     (int)(s->dexpired), (int)(s->dfresh));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                              "ISAPI: ServerSupport function "
+                              "HSE_REQ_SEND_RESPONSE_HEADER "
+                              "ap_pass_brigade failed: %s", r->filename);

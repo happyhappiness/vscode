@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-            "On Windows, NetWare and TPF systems the '-m' flag is used by "
-            "default.\n");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: driver for %s not available", svr->name);

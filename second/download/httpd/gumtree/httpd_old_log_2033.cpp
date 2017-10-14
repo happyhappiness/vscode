@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy:<FTP: %3.3u %s", rc, message);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Configuring client authentication");

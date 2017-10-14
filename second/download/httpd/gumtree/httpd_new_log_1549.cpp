@@ -1,1 +1,2 @@
-ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Encountered extra data after compressed data");

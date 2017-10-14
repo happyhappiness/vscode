@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, main_s, APLOGNO(00549)
-                                 "Failed to resolve server name "
-                                 "for %s (check DNS) -- or specify an explicit "
-                                 "ServerName",
-                                 ipaddr_str);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(00371) "Failed to store ConfigArgs for the "
+                     "'%s' service in the registry.", mpm_display_name);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: ap_get_brigade failed");
+ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r,
+                                       "proxy: CONNECT: err/hup on backconn");

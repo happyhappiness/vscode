@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ISAPI: return code %d from HttpExtensionProc() "
-                           "was not not recognized", rv);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown value "
+                              "\"%s\" to parameter \"encoding\" of tag echo in "
+                              "%s", tag_val, r->filename);

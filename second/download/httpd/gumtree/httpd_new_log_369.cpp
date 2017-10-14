@@ -1,3 +1,2 @@
-apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
-		    argv[2],
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
+                        argv[0], dirname);

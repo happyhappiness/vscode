@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Cached authn credentials for %s in %s",
-                      user, dcfg->context);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                          "could not open dbm (type %s) group access "
+                          "file: %s", conf->dbmtype, conf->grpfile);

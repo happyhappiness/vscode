@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_headers", session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, slave,
+                                  H2_STRM_LOG(APLOGNO(02941), stream, 
+                                  "create task"));

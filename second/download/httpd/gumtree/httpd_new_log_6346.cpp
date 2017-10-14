@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, level, 0, r, APLOGNO(03212)
-                              "%d:  '%s'", i, lua_tostring(L, i));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03388)
+                          "h2_conn_io(%ld): read_to_scratch(%ld)", 
+                          io->c->id, (long)b->length);

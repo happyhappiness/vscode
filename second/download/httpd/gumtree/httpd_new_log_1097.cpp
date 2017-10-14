@@ -1,0 +1,1 @@
+fprintf(stderr, "dftables: one filename argument is required\n");

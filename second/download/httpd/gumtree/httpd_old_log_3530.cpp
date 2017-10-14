@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                         "cache: Cache provider's store_body failed!");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "iterating idx=%d, data=%d", pos, idx->data_pos);

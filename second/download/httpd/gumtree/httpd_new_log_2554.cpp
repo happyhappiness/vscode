@@ -1,0 +1,1 @@
+fprintf(stderr, "Rotation time interval:      %12d\n", config->tRotation);

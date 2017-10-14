@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03155) 
-                      "select protocol from %s, choices=%s for server %s", 
-                      p, apr_array_pstrcat(pool, choices, ','),
-                      s->server_hostname);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03407) 
+                      "h2_task(%s), thawed", task->id);

@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool, APLOGNO(00079)
-                          "unable to control socket non-blocking status");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);

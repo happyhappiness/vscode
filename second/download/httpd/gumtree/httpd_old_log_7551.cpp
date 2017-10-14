@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00770)
-                "cache: Removing CACHE_REMOVE_URL filter.");
+apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename,
+                            apr_strerror(status, errmsg, sizeof errmsg));

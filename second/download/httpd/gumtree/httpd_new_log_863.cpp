@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                  "Connection to child %ld established "
-                  "(server %s)", c->id, sc->vhost_id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                  "read from buffered SSL brigade, mode %d, "
+                  "%" APR_OFF_T_FMT " bytes",
+                  mode, bytes);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02463)
-                "PUT/POST/DELETE: Adding CACHE_INVALIDATE filter for %s",
-                r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02603)
+                                 "create found %s in global list", fname);

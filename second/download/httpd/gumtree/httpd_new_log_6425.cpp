@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
-                         "caught %s, shutting down",
-                         (rc == DONE) ? "SIGTERM" : "error");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session(%ld): NO_IO event, %d streams open", 
+                          session->id, session->open_streams);

@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03141)
-                     "ap_queue_info_create() failed");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): prepare, len=%ld eos=%d, trailers=%s",
+                  c->id, stream->id, (long)*plen, *peos,
+                  (stream->response && stream->response->trailers)? 
+                  "yes" : "no");

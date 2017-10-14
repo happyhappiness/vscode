@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, 
-                         "Parent: child process exited with status %u -- Aborting.", exitcode);
+fprintf(stderr,
+                "apr_hash_overlay: overlay's pool is not an ancestor of p\n");

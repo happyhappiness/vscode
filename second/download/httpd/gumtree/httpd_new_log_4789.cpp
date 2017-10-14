@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02232)
-                 "Configuring %s server certificate", type);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(02026)
+                     "Failed to acquire SSL session cache lock");

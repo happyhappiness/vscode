@@ -1,1 +1,1 @@
-fprintf(stderr, "Rotation file forced open:   %12s\n", config->force_open ? "yes" : "no");
+printf("%s \n", ap_get_server_description());

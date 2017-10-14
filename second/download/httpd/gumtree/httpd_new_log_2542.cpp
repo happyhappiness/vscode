@@ -1,1 +1,1 @@
-decl_die(access_status, "check user", r);
+apr_file_printf(outfile, "%s %s", hostname, space + 1);

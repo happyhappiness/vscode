@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03051)
-                          "h2_h2(%ld): tls protocol is indetermined", (long)c->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, output->task->c,
+                  "h2_task(%s): write response body (%ld bytes)", 
+                  output->task->id, (long)written);

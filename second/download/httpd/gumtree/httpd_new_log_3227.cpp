@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01783)
-                          "invalid uri <%s> in Authorization header",
-                          resp->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01726)
+                          "auth_ldap authorize: "
+                          "require dn: authorization successful");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                         "Cannot reinit %s mutex", SSL_CACHE_MUTEX_TYPE);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);

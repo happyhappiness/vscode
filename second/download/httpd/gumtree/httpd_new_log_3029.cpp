@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short session_id provided "
-                "(%u bytes)", idlen);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "expiring %u and reclaiming %u removed socache entries",
+                 expired, freed);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                     "proxy: FCGI: Failed writing Environment to %s:",
-                     server_portstr);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                             "%s", inet_ntoa(This->mask));

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
-                      "could not connect to OCSP responder '%s'",
-                      uri->hostinfo);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
+                          "h2_mplx(%ld-%d): process", m->c->id, stream_id);

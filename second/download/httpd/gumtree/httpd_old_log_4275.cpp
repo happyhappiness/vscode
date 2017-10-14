@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: Entering bybusyness for BALANCER (%s)",
-                 balancer->name);
+ap_rvputs(r, "<td>", balancer->sticky, " | ",
+                              balancer->sticky_path, NULL);

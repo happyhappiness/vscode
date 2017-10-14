@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving ssl_scache_shmcb_store successfully");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authenticate: no user specified");

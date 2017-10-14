@@ -1,1 +1,1 @@
-fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);

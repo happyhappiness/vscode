@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: MaxClients of %d would require %d servers,",
-                    max_clients, ap_daemons_limit);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field name was empty");

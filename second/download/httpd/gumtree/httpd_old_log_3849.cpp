@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Invalid tag for set "
-                          "directive in %s", r->filename);
+ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head>\n<title>Apache Status</title>\n</head><body>\n",
+                 r);

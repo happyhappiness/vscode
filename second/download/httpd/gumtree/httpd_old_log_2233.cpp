@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "Please read the documentation.");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                         "Child %lu: Listening on port %d.", my_pid, lr->bind_addr->port);

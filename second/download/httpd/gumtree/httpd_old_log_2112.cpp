@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                  "Awaiting re-negotiation handshake");
+ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d acquired!", l->file, l->line);

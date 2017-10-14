@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02245)
-                                 "Init: SSLPassPhraseDialog builtin is not "
-                                 "supported on Win32 (key file "
-                                 "%s)", szPath);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00110)
+                         "ap_get_server_port: Invalid UCN Option somehow");

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                             "proxy: ProxyBlock comparing %s and %s", conf_ip, uri_ip);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, LOG_PREFIX
+                      "query execution error inserting session '%s' "
+                      "in database with '%s': %s", key, conf->insertlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));

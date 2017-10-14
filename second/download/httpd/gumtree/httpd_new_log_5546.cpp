@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, APLOGNO(00066) "sigaction(SIGFPE)");
+fprintf(stderr, "Error truncating the file %s\n", status->current.name);

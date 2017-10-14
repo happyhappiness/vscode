@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00269)
-                     "sigaction(SIGPIPE)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
+                              "access to %s denied because search "
+                              "permissions are missing on a component "
+                              "of the path", r->uri);

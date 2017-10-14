@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "Incoming request is asking for a uncached version of "
+                     "%s, but we know better and are ignoring it",
+                     r->unparsed_uri);

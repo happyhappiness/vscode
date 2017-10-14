@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00323)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         min_spare_threads);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00550)
+                  "Client sent malformed Host header");

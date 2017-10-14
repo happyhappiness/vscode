@@ -1,4 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_ENOTIMPL, r->server,
-                     "proxy: client %s (%s) requested Transfer-Encoding "
-                     "chunked body with Content-Length (C-L ignored)",
-                     c->remote_ip, c->remote_host ? c->remote_host: "");
+ap_log_error(APLOG_MARK, loglevel, rv, s,
+                                 "proxy: %s: attempt to connect to %s:%d "
+                                 "via http CONNECT through %pI (%s) failed",
+                                 proxy_function,
+                                 forward->target_host, forward->target_port,
+                                 backend_addr, worker->hostname);

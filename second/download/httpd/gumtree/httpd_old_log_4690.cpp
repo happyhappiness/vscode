@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-            "ap_proxy_connect_backend disabling worker for (%s)",
-            worker->hostname);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "no client certs found for SSL proxy");

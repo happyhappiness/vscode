@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                      "h2_mplx(%ld): dispatch events", m->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02429)
+                      "Response header name '%s' contains invalid "
+                      "characters, aborting request",
+                      name);

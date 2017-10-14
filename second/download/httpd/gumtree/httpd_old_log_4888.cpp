@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "Found CRL has invalid nextUpdate field");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));

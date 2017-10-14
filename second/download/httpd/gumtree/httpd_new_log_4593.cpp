@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01114)
-                          "HTTP: failed to make connection to backend: %s",
-                          backend->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01827)
+                "the key type is not known");

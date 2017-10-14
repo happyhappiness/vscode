@@ -1,2 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00207)
-                "Server built: %s", ap_get_server_built());
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                             ap_server_conf, APLOGNO(00355)
+                             "Child: CreateThread failed. Unable to "
+                             "create all worker threads. Created %d of the %d "
+                             "threads requested with the ThreadsPerChild "
+                             "configuration directive.",
+                             threads_created, ap_threads_per_child);

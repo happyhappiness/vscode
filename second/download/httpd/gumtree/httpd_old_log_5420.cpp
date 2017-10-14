@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d not allowed, increasing to 1",
-                         ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_NOTICE,
+                             0, ap_server_conf,
+                             "child pid %ld exit signal %s (%d)",
+                             (long)pid->pid, sigdesc, signum);

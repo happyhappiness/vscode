@@ -1,1 +1,1 @@
-ap_rvputs(r, ap_escape_uri(r->pool, action), "\">\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);

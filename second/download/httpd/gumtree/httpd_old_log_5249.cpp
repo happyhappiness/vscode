@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                    "server reached MaxClients setting, consider"
-                    " raising the MaxClients setting");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                     "Parent: Unable to send the exit event handle to the child");

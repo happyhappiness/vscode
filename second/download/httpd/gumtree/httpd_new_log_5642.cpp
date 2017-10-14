@@ -1,2 +1,3 @@
-f(errfile, "size limit %" APR_OFF_T_FMT ".0%c" APR_EOL_STR,
-            s->max, mtype);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                     APLOGNO(00377) "The '%s' service is already started!",
+                     mpm_display_name);

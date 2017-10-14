@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                    "LDAP: Could not set the LDAP library debug level to %d:(%d) %s", 
-                    st->debug_level, result, ldap_err2string(result));
+ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);

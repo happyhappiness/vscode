@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): too many header lines", 
-                      stream->session->id, stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
+                              "Request header exceeds LimitRequestFieldSize: "
+                              "%.*s", field_name_len(field), field);

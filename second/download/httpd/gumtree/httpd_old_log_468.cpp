@@ -1,4 +1,2 @@
-fprintf(stderr,
-                "Usage: %s <logfile> <rotation time in seconds> "
-                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
-                argv[0]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());

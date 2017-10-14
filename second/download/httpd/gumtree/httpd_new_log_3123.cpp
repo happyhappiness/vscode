@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "Response sent with status %d%s",
-		      r->status,
-		      APLOGrtrace4(r) ? ", headers:" : "");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01774)
+                      "Warning, possible replay attack: nonce-count "
+                      "check failed: %lu != %lu", nc,
+                      resp->client->nonce_count);

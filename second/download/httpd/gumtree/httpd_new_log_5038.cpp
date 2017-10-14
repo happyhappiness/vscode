@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, p, APLOGNO(00526)
-                          "Syntax error on line %d of %s:",
-                          parms.err_directive->line_num,
-                          parms.err_directive->filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, ap_server_conf,
+                             "apr_pollset_poll failed.  Attempting to "
+                             "shutdown process gracefully");

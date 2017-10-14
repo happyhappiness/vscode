@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
-                     "h2_workers: reserved %d tx handles, %d/%d left", 
-                     (int)count, (int)workers->spare_tx_handles,
-                     (int)workers->max_tx_handles);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03155) 
+                      "select protocol from %s, choices=%s for server %s", 
+                      p, apr_array_pstrcat(pool, choices, ','),
+                      s->server_hostname);

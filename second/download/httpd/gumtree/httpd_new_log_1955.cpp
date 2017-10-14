@@ -1,2 +1,1 @@
-ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+ap_rvputs(r, "</td><td>", (*worker)->s->route, NULL);

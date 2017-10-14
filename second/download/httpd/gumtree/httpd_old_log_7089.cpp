@@ -1,3 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, c, APLOGNO(03060)
-                      "h2_request(%ld-%d): pseudo header in trailer",
-                      c->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                             "connections: %d (write-completion: %d "
+                             "keep-alive: %d lingering: %d)",
+                             connection_count, write_completion_q.count,
+                             keepalive_q.count,
+                             linger_q.count + short_linger_q.count);

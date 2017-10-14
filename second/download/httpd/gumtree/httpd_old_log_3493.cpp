@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                                r->server,
-                                "cache_select_url(): Vary header mismatch.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s,
+                     "scache_mc: error deleting key '%s' ",
+                     buf);

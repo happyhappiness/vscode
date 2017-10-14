@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00778)
-                "Could not create a cache lock directory: %s",
-                path);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00824)
+                 "shmcb_init_memory choices follow");

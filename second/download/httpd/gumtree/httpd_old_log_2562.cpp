@@ -1,1 +1,0 @@
-err("Cannot mix POST/PUT and HEAD\n");

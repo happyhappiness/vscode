@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00831)
-                 "socache_shmcb_store (0x%02x -> subcache %d)",
-                 SHMCB_MASK_DBG(header, id));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00589)
+                          "Unknown Transfer-Encoding %s", tenc);

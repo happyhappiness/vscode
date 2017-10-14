@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01914)
-                     "Configuring server %s for SSL protocol", sc->vhost_id);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, APLOGNO(02203) "Init: Private key not found");

@@ -1,1 +1,1 @@
-fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+fprintf(stderr, "Rotation verbose:            %12s\n", config->verbose ? "yes" : "no");

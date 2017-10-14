@@ -1,4 +1,2 @@
-ap_rvputs(r, "<a href='", r->uri, "?b=",
-                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
-                      "&nonce=", balancer->s->nonce,
-                      "'>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01065) "HEADER: %s %s",
+                      asc_line, hex_line);

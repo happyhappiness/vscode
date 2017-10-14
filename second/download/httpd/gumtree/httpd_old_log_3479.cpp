@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "distributed scache 'retrieve' OVERFLOW");

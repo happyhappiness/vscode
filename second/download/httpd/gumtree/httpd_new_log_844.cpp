@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "proxy: %s: has acquired connection for (%s)",
-                 proxy_function, worker->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
+                              "SSL library error %d reading data", ssl_err);

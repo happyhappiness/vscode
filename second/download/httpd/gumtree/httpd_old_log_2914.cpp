@@ -1,3 +1,3 @@
-printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
-       "<td colspan=2 %s>%ld bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalbread);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "now only have %u sessions",
+                         shmcb_get_safe_uint(queue->pos_count));

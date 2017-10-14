@@ -1,2 +1,2 @@
-ap_rvputs(r, "<dl><dt>Server Version: ",
-                  ap_get_server_version(), "</dt>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);

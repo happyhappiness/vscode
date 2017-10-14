@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                          APLOGNO(02938) "h2_stream(%ld-%d): reading data",
-                          session->id, (int)stream_id);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
+                     apr_get_os_error(), NULL,
+                     APLOGNO(00373) "Failed to open the '%s' service",
+                     mpm_display_name);

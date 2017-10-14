@@ -1,2 +1,2 @@
-ap_rvputs(r, "          <httpd:hostname>", worker->s->hostname,
-                          "</httpd:hostname>\n", NULL);
+apr_file_printf(errfile, "apr_xlate_open(): %pm (%d)\n",
+                &rv, rv);

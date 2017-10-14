@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02621)
+                     "stapling_renew_response: no uri for responder");

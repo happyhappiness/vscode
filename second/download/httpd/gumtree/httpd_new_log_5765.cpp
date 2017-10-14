@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00369)  "Failed to open the Windows service "
-                     "manager, perhaps you forgot to log in as Adminstrator?");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), NULL, APLOGNO(02965)
+                         "Child: Unable to retrieve my generation from the parent");

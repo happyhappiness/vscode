@@ -1,1 +1,4 @@
-ap_rputs("<hr />\n<h1>Proxy LoadBalancer Status for ", r);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, pool,
+                          APLOGNO(02959) 
+                          "h2_request(%d): content-length value not parsed: %s",
+                          req->id, s);

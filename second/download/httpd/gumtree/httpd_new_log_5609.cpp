@@ -1,5 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(00023)
-                 "Couldn't create the %s mutex %s%s%s", type,
-                 fname ? "(file " : "",
-                 fname ? fname : "",
-                 fname ? ")" : "");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02824)
+                         "%s: connection established with %pI (%s)",
+                         proxy_function,
+                         backend_addr,
+                         worker->s->hostname);

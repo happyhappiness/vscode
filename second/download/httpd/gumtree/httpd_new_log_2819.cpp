@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "Parent: Could not set child process stderr");
+printf("Time per request:       %.3f [ms] (mean)\n",
+               (double) concurrency * timetaken * 1000 / done);

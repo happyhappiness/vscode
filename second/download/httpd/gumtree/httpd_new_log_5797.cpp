@@ -1,2 +1,2 @@
-ap_rvputs(r, "Server Built: ",
-                  ap_get_server_built(), "\n", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                          "h2_h2(%ld): tls protocol is indetermined", (long)c->id);

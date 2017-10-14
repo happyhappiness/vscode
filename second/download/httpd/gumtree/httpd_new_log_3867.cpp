@@ -1,4 +1,8 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01412)
-                          "Requested content-length of %" APR_OFF_T_FMT
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->remaining, dconf->keep_body);
+ap_rputs("\n\n<table rules=\"all\" cellpadding=\"1%\">\n"
+                     "<tr><th rowspan=\"2\">PID</th>"
+                         "<th colspan=\"2\">Connections</th>\n"
+                         "<th colspan=\"2\">Threads</th>"
+                         "<th colspan=\"4\">Async connections</th></tr>\n"
+                     "<tr><th>total</th><th>accepting</th>"
+                         "<th>busy</th><th>idle</th><th>writing</th>"
+                         "<th>keep-alive</th><th>closing</th></tr>\n", r);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-           "ajp_unmarshal_response: Number of headers is = %d",
-           num_headers);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01167)
+                          "%s: All workers are in error state for route (%s)",
+                          (*balancer)->s->name, route);

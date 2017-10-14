@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d not allowed, "
+                         "increasing to 1.", server_limit);

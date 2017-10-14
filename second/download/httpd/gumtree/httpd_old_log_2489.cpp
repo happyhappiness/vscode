@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "set timeout on socket to connect to listener");
+printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);

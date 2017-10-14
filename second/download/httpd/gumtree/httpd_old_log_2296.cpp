@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Ouch!  Out of memory in add_job()!");
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);

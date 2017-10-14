@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                          "SSL Proxy connect failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "Found an extension '%s', but failed to "
+                              "create a string from it", extension);

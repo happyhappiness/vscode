@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                  "handing out temporary 256 bit ECC key");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
+                         "Couldn't start ErrorLog process '%s'.",
+                         s->error_fname + 1);

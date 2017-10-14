@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01503)
-                 "headers: ap_headers_error_filter()");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00993)
+                      "ajp_read_header: ajp_msg_peek_uint8 failed");

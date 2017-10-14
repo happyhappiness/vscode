@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authenticate: no user specified");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "mod_rewrite: can't open text RewriteMap file %s", file);

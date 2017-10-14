@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "proxy: %s: found worker %s for %s",
-                          (*worker)->scheme, (*worker)->name, *url);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                  "read from buffered SSL brigade, mode %d, "
+                  "%" APR_OFF_T_FMT " bytes",
+                  mode, bytes);

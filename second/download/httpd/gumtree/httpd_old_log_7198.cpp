@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00150) "sigaction(SIGXCPU)");
+fprintf(stderr, "    -t timelimit    Seconds to max. wait for responses\n");

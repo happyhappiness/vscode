@@ -1,1 +1,1 @@
-printf("0x%02x", *tables++);
+printf("%s", OP_names[*code++]);

@@ -1,1 +1,3 @@
-ap_rvputs(r, "> <br/> <label for='", name, "0'>Off</label> <input name='", name, "' id='", name, "0' value='0' type=radio", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
+                  session->id, stream->id, (long)len, eos);

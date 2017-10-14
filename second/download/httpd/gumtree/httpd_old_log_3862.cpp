@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                                  "rl: partition failed.");
+ap_rputs("\"<b><code>I</code></b>\" Idle cleanup of worker, \n", r);

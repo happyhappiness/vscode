@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-                         "proxy: unlock");
+fprintf(stderr, "apr_table_mergen: val not in ancestor pool of t\n");

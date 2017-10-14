@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

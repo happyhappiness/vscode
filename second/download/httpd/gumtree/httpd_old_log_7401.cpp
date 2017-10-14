@@ -1,1 +1,2 @@
-fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                  "handing out temporary 256 bit ECC key");

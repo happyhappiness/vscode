@@ -1,1 +1,0 @@
-fprintf (stderr, "Error: state stack now");

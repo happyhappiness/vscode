@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02328)
-                                "lua: Failed to obtain lua interpreter for %s %s",
-                                hook_spec->function_name, hook_spec->file_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
+                     "ECDH curve %s for %s specified in %s",
+                     OBJ_nid2sn(nid), vhost_id, certfile);

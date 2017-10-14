@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG + level, 0, r, logline);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                              "no authn provider configured");

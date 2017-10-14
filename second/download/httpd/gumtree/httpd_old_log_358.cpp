@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121 $");
+fprintf(stderr,
+		"Could not open passwd file %s for reading.\n", argv[1]);

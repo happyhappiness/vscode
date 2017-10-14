@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02533)
-                      "realm mismatch - got `%s' but no realm specified",
-                      resp->realm);
+apr_file_printf(errfile,
+                        "Could not remove file '%s': %pm" APR_EOL_STR, file,
+                        &rv);

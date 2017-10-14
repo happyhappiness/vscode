@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
-        "mod_dumpio: %s - %d", f->frec->name, ret);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");

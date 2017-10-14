@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authorize user: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

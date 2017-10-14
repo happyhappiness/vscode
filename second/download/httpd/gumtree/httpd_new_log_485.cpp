@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: HTTP: pre_connection setup failed (%d)",
-                         rc);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "SSL Re-negotiation in conjunction "
+                     "with POST method not supported! "
+                     "hint: try SSLOptions +OptRenegotiate");

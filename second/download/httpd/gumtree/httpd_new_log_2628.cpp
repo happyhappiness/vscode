@@ -1,1 +1,1 @@
-fprintf(stderr, "File rotation needed, reason: %s\n", ROTATE_REASONS[status->rotateReason]);
+printf("Server version: %s\n", ap_get_server_description());

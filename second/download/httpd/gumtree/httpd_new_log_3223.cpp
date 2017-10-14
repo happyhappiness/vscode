@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01779)
-                          "user %s: one-time-nonce mismatch - sending "
-                          "new nonce", r->user);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01722)
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);

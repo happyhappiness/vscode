@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Zlib: Checksum of inflated stream invalid");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "conflicting SQL statements with label %s", label);

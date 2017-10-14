@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request didn't terminate cleanly");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Cannot find peer certificate chain");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");

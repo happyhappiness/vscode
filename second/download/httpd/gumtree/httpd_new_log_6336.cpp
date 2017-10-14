@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03009)
-                              "%d:  <function>", i);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                 APLOGNO(02303)
+                 "attach found %s: %"APR_SIZE_T_FMT"/%u", fname,
+                 *item_size, *item_num);

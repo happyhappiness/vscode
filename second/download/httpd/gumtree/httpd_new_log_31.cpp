@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                                         c->base_server, "core_output_filter:"
-                                         " Error reading from bucket.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
+                     "Unable to flatten brigade, declining request");

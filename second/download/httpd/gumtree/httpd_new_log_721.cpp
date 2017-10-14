@@ -1,1 +1,1 @@
-ap_rputs("</tt></dt>\n", r);
+ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);

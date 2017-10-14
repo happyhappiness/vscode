@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00268)
-                     "sigaction(SIGXFSZ)");
+fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");

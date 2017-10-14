@@ -1,1 +1,1 @@
-ap_close_listeners();
+(mod_info_has_cmd(cmds, dir);

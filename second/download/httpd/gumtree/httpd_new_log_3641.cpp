@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02077)
-                   "Unable to flush file: %s", path);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE7, rv, c,
+                          "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
+                          (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                          b->type->name, "error reading data");

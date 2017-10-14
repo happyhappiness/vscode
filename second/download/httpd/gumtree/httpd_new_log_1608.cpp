@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
-                         "proxy: ap_get_brigade failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                      "Empty response header name, aborting request");

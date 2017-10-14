@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "%s: unable to create temporary file %s\n", 
-                        argv[0], dirname);
+ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);

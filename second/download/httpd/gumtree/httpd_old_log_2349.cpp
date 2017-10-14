@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %lu: retrieved %d listeners from parent", my_pid, lcnt);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "WARNING: Attempt to change ServerLimit or ThreadLimit "
+                     "ignored during restart");

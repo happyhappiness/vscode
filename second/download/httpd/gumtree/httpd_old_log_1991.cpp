@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failonstatus' parameter being set",
-                       balancer->name, worker->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: FTP: Content-Type set to %s", r->content_type);

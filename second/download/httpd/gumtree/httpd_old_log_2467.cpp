@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    " please see the ServerLimit directive.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field name is malformed: "
+                                  "%.*s", (int)LOG_NAME_MAX_LEN, last_field);

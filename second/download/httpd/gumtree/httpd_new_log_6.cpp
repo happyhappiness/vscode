@@ -1,4 +1,3 @@
-ap_add_output_filter_handle(cache_conditional_filter_handle,
-                                            NULL, 
-                                            r, 
-                                            r->connection);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "Could not create a cache lock directory: %s",
+                     path);

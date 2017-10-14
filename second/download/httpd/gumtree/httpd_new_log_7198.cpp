@@ -1,0 +1,1 @@
+fprintf(stderr, "    -t timelimit    Seconds to max. to spend on benchmarking\n");

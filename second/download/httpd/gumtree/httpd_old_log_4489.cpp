@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
-                 "proxy: FCGI: canonicalising URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "%s", err);

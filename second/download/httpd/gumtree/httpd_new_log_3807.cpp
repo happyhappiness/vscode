@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(01378)
-                              "filter_init for %s failed", p->frec->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno,
+                             (server_rec *)data, APLOGNO(01247)
+                             "Error accepting on cgid socket");

@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03198)
-                              "h2_mplx(%ld): release, waiting for %d seconds now for "
-                              "%d h2_workers to return, have still %d tasks outstanding", 
-                              m->id, i*wait_secs, m->workers_busy,
-                              (int)h2_ihash_count(m->tasks));
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "h2_workers: min=%d max=%d, mthrpchild=%d, idle_secs=%d", 
+                 minw, maxw, max_threads_per_child, idle_secs);

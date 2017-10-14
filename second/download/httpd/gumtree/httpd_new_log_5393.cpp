@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, APLOGNO(00422)
-                     "Parent: Received shutdown signal -- Shutting down the server.");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00316)
+                         "WARNING: MaxRequestWorkers of %d is not an integer "
+                         "multiple of", max_workers);

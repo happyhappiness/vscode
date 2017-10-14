@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Handshake: done", SSL_LIBRARY_NAME);
+printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");

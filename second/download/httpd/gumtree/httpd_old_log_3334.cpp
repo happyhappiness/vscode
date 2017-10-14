@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                      "auth_ldap authorize: no sec->host - weird...?");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
+                      "Error setting effective privileges");

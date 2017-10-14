@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01948)
-                     "Failed to acquire OCSP %s lock", name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): calloc(%ld, %ld)",
+                  session->id, (long)n, (long)size);

@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, diary->entries->pool,
-                  "push_diary_append: %"APR_UINT64_T_HEX_FMT, ne->hash);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03007)
+                              "%d:  %g", i, lua_tonumber(L, i));

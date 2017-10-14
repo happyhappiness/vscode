@@ -1,2 +1,2 @@
-ap_rvputs(r, "          <httpd:name>", worker->s->name,
-                          "</httpd:name>\n", NULL);
+apr_file_printf(errfile, "Empty hash for user %s" NL,
+                                        user);

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                              "session(%ld): aborting session, reason=%d %s",
-                              session->id, reason, err);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "Parsed domain %s", New->name);

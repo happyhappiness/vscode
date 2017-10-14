@@ -1,1 +1,1 @@
-printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");
+apr_file_printf(errfile, "%s: -c and -n options conflict\n", argv[0]);

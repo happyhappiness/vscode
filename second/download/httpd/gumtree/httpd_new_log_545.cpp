@@ -1,2 +1,2 @@
-printf("Compiled using: APR %s, APR-UTIL %s\n",
-           APR_VERSION_STRING, APU_VERSION_STRING);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "could not read request body for SSL buffer");

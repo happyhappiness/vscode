@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation handshake failed: "
-                              "Client verification failed");
+err("Cannot mix PUT and HEAD\n");

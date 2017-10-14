@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, APLOGNO(01615) "need AuthName: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                      "auth_ldap authenticate: final authn filter is %s", filtbuf);

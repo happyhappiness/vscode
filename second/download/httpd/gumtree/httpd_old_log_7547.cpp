@@ -1,1 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01676) "%s", errmsg);
+apr_file_printf(errfile, "Could not remove directory %s: %s" APR_EOL_STR,
+                    dir, apr_strerror(rv, errmsg, sizeof errmsg));

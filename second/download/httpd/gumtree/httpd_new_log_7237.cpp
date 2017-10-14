@@ -1,1 +1,1 @@
-(APLOG_MARK;
+fprintf(stderr, "%s:%s\n", h->username, h->ctx.passwd);

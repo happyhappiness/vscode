@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %s [-w] [-k start|restart|stop|shutdown] [-n service_name]", pad);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "could not open dbm (type %s) auth file: %s",
+                      conf->dbmtype, conf->pwfile);

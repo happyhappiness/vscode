@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00550)
-                  "Client sent malformed Host header");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02299)
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters", bits);

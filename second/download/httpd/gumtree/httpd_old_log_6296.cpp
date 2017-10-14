@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                          "h2_task_input(%s): serialize request %s %s", 
-                          task->id, task->request->method, task->request->path);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);

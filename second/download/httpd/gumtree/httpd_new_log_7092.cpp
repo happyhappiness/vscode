@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      H2_STRM_MSG(stream, "header %s too long"), name);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(02325)
+                         "A resource shortage or other unrecoverable failure "
+                         "was encountered before any child process initialized "
+                         "successfully... httpd is exiting!");

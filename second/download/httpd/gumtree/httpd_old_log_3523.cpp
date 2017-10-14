@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
-                r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "insert happened at idx=%d, data=(%u:%u)", new_idx, 
+                 id_offset, data_offset);

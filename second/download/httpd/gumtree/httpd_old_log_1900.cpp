@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                              "Unknown Transfer-Encoding: %s", tenc);
+ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);

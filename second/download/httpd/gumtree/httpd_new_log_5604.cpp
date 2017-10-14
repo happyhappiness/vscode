@@ -1,2 +1,2 @@
-r(APLOG_MARK, APLOG_ERR, 0, r ? r->connection : c, APLOGNO(00082)
-                  "an unknown filter was not added: %s", name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(02808)
+        "Alert! worker name (%s) too long; truncated to: %s", ptr, wshared->name);

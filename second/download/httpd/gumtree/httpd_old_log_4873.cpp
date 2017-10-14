@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Re-negotiation handshake failed: "
-                                  "Client certificate missing");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "stapling_cache_response: OCSP response session store error!");

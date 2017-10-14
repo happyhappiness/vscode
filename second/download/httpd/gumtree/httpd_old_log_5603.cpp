@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "a protocol filter was added without a request: %s", frec->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", iobuf);

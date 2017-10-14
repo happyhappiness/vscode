@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                  "h2_stream(%ld-%d): reset, error=%d", 
-                  stream->session->id, stream->id, error_code);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);

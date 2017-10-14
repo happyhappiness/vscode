@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
-                      "h2_mplx(%ld-%d): process", m->c->id, stream_id);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, r->server, APLOGNO(03187)
+                     "Child %ld camping out on mutex for %" APR_INT64_T_FMT
+                     " microseconds",
+                     (long int) getpid(), timecamped);

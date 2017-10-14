@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: Include directory '%s' not found",
-                        ap_server_argv0, path);
+ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0,
+                             ap_server_conf, "worker_wakeup_create failed");

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01776)
-                      "invalid nonce %s received - hash is not %s",
-                      resp->nonce, hash);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01719)
+                              "auth_ldap authorize: require group \"%s\": "
+                              "authorization failed [%s][%d - %s]",
+                              t, ldc->reason, result, ldap_err2string(result));

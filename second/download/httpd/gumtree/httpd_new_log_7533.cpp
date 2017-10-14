@@ -1,1 +1,0 @@
-ctx->passwd_src = PW_PROMPT_VERIFY;

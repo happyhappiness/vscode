@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "serving URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01111)
+                                  "readbytes: %#x", readbytes);

@@ -1,5 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                      H2_SSSN_LOG(APLOGNO(03066), session, 
-                      "recv FRAME[%s], frames=%ld/%ld (r/s)"),
-                      buffer, (long)session->frames_received,
-                     (long)session->frames_sent);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: Name-based SSL virtual hosts require "
+                     "an OpenSSL version with support for TLS extensions "
+                     "(RFC 6066 - Server Name Indication / SNI), "
+                     "but the currently used library version (%s) is "
+                     "lacking this feature", MODSSL_LIBRARY_DYNTEXT);

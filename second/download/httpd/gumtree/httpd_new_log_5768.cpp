@@ -1,1 +1,3 @@
-fprintf(stderr, "The '%s' service is not started.\n", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
+                         (startup ? NULL : s),
+                         "could not create accept mutex");

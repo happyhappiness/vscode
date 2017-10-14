@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
-                     "unable to replace stderr with error_log");
+fprintf(stderr,
+                "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+                argv[0]);

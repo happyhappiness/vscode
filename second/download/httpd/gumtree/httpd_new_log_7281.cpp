@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
-                              "Request header exceeds LimitRequestFieldSize%s"
-                              "%.*s",
-                              *field ? ": " : "",
-                              field_name_len(field), field);
+ap_log_rerror(
+                APLOG_MARK, APLOG_INFO, 0, r, APLOGNO() "cache: %s responded with an uncacheable 304, retrying the request. Reason: %s", r->unparsed_uri, reason);

@@ -1,1 +1,2 @@
-h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                  "h2_task(%s): process connection", task->id);

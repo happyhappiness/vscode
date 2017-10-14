@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't create unix domain socket");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                 "Cannot get media parameter.");

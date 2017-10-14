@@ -1,2 +1,2 @@
-ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "initializing post config dry run");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "selected protocol=%s", 
+                      protocol? protocol : "(none)");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02421)
-                          "HTTP Request Line; URI must not contain a fragment");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  H2_STRM_LOG(APLOGNO(03082), stream, "created"));

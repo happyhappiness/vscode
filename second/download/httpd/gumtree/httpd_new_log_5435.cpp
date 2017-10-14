@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00369)
-                     "Failed to open the WinNT service manager, perhaps "
-                     "you forgot to log in as Adminstrator?");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00562)
+                                  "Request header exceeds LimitRequestFieldSize "
+                                  "after folding: %.*s",
+                                  field_name_len(last_field), last_field);

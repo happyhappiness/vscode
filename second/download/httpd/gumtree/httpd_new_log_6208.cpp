@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03068)
-                      "h2_session(%ld): sent FRAME[%s], frames=%ld/%ld (r/s)",
-                      session->id, buffer, (long)session->frames_received,
-                     (long)session->frames_sent);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02826)
+                              "Can't evaluate redirect expression: %s", err);

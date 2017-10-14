@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
-                              "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
-                              (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                              b->type->name, xlatebuf);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01344) "unknown value "
+                                      "\"%s\" to parameter \"decoding\" of tag echo in "
+                                      "%s", token, r->filename);

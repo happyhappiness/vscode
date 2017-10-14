@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Failure reading first/next socache DBM file `%s' record",
-                     ctx->data_file);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01769)
+                      "failed to allocate client entry - ignoring client");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "LDAP: Setting referrals to %s.",
-                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+ap_global_mutex_create(&rewrite_mapr_lock_acquire, NULL,
+                                rewritemap_mutex_type, NULL, s, p, 0);

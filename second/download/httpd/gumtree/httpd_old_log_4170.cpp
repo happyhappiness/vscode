@@ -1,4 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, r,
-                    MODNAME ": rule matched, line=%d type=%d %s",
-                    m->lineno, m->type,
-                    (m->type == STRING) ? m->value.s : "");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering byrequests for BALANCER (%s)",
+                 balancer->name);

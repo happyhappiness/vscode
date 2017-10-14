@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "we now have %u sessions",
-                     shmcb_get_safe_uint(queue->pos_count));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require attribute: authorization successful", 
+                              getpid());

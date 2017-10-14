@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "could not parse OID '%s'", extension);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                         "Cannot map %s to file", r->the_request);

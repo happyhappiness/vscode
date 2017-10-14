@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03055)  
-                          "h2_mplx(%ld-%d): stream timeout expired: %s",
-                          m->id, io->id, 
-                          (io->timed_op == H2_IO_READ)? "read" : "write");
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                      "h2_workers: cleanup zombie %d", zombie->id);

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         threads_per_child, thread_limit);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                                 "mpm_get_completion_context: Failed "
+                                 "to create the transaction pool.");

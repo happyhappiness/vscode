@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
-                         apr_get_os_error(), NULL,
-                         "ChangeServiceConfig failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02298)
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters, only 256 bits supported", bits);

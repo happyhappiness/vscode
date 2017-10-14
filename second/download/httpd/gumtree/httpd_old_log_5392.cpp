@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxClients of %d is less than ThreadsPerChild "
+                         "of %d, increasing to match",
+                         max_clients, threads_per_child);

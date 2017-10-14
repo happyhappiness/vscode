@@ -1,1 +1,1 @@
-fprintf(stderr, "Could not open log file '%s' (%s)\n", newlog.name, error);
+ap_rputs("CacheMaximumSize: unlimited\n", r);

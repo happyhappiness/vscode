@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                      APLOGNO(02925) 
-                      "h2_stream(%ld-%d): failed send_data_cb",
-                      session->id, (int)stream_id);
+ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
+                  c->id, stream_id, tag, line);

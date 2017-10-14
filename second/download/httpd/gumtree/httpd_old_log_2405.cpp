@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
-                         "apr_proc_mutex_lock failed. Attempting to shutdown "
-                         "process gracefully.");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d", ap_threads_per_child,
+                     thread_limit);

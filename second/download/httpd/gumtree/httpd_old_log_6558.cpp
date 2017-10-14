@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02920) 
-                      "h2_session:  stream(%ld-%d): on_header for unknown stream",
-                      session->id, (int)frame->hd.stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_NOTICE, 0, f->c, APLOGNO(03048)
+                      "h2_from_h1(%d): unable to create response", 
+                      from_h1->stream_id);

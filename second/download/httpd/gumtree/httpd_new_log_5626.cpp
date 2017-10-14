@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE|APLOG_STARTUP, APR_SUCCESS, NULL, APLOGNO(00548)
-                     "NameVirtualHost has no effect and will be removed in the "
-                     "next release %s:%d",
-                     cmd->directive->filename,
-                     cmd->directive->line_num);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00367)
+                         "No ConfigArgs registered for the '%s' service, "
+                         "perhaps this service is not installed?",
+                         mpm_service_name);

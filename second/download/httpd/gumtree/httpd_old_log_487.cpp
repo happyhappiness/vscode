@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "no client certs found for SSL proxy");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "Syntax error in -C/-c directive:" APR_EOL_STR "%s",
+                     errmsg);

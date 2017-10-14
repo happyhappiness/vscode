@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                              "Unknown Transfer-Encoding: %s; "
-                              "using read-until-close", tenc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, status, r->server,
+                         "proxy: ap_get_brigade failed");

@@ -1,1 +1,5 @@
-apr_atomic_dec(&obj->refcount);
+ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s,
+                     "Failed to initialise global mutex %s in child process %"
+                     APR_PID_T_FMT
+                     ".",
+                     st->lock_file, getpid());

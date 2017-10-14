@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                 "ldap connection: Setting op timeout to %ld seconds.",
-                 timeout);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01794)
+                          "user %s: password mismatch: %s", r->user,
+                          r->uri);

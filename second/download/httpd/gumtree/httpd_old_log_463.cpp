@@ -1,3 +1,2 @@
-printf("Processing: " CONF_FMT_STRING, mintot - mincon, 
-                   (total / requests) - (totalcon / requests), 
-                   maxtot - maxcon);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                     "disk_cache: Could not store URL %s [%d]", key, rv);

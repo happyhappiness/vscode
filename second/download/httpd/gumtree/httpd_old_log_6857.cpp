@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
-                          APLOGNO(03370)
-                          "h2_proxy_session(%s): finished request %s",
-                          ctx->engine_id, task_id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
+                      session->id, stream->id);

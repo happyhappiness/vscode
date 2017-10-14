@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
-                         NULL, "Heartbeat: apr_mcast_loopback failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body must be present and must be a "
+                      "DAV:merge element.");

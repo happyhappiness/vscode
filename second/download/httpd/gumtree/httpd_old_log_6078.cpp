@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "form parsed, but password field '%s' was missing or empty, unauthorized",
-                      password);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): failed to create stream obj %d",
+                      session->id, is->id, nid);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                    "SSL error on writing data");
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL,
+                     "Error in ssl_hook_CloseConnection");

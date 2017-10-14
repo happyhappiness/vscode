@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf, APLOGNO(00472)
-                     "ap_queue_info_wait_for_idler failed.  "
-                     "Attempting to shutdown process gracefully");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, ap_server_conf, APLOGNO(00145) "%s", msg);

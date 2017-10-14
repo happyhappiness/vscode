@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
-                     "must be loaded in order for mod_authnz_ldap to function properly");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Can't chdir to %s", ap_unixd_config.chroot_dir);

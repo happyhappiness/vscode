@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, r->server, APLOGNO(01278)
-                "LDAP: Setting referrals to %s.",
-                ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                          "h2_mplx(%ld-%d): open response: %d, rst=%d",
+                          m->id, stream_id, response->http_status, 
+                          response->rst_error);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
-                                      "Zlib: Length %ld of inflated data does "
-                                      "not match expected value %ld",
-                                      ctx->stream.total_out, compLen);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01414)
+                      "apr_brigade_partition() failed on kept_body at %" APR_OFF_T_FMT, ctx->offset);

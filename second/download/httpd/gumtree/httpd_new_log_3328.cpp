@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01732)
-                "auth_ldap authorise: User DN not found with filter %s: %s", filtbuf, ldc->reason);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02141) "parent: child %s",
+                          (rv == APR_CHILD_DONE) ? "done" : "notdone");

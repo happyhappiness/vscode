@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing framed message to client");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,  APLOGNO(02651)
+                              "Error writing request body to script %s", 
+                              r->filename);

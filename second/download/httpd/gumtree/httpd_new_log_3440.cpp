@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02159)
-                         "Can't chdir to %s", ap_unixd_config.chroot_dir);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0,
+                r, APLOGNO(00771) "cache: Last modified is in the future, "
+                "replacing with now");

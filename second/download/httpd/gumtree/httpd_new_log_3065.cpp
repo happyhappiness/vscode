@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require user: authorization successful");
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                             "proxy: could not set 100-Continue timeout");

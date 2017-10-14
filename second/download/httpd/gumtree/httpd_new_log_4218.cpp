@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00977)
-                              "ajp_marshal_into_msgb: "
-                              "Error appending the SSL ciphers");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
+                     "Looking at %s -> %s initialized?", balancer->s->name, worker->s->name);

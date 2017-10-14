@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Rejected HTTP/0.9 request");
+apr_file_printf(errfile,
+            "On other systems than Windows, NetWare and TPF the '-p' flag will "
+            "probably not work." NL);

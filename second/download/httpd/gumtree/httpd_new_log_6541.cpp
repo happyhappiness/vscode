@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                              "h2_mplx(%s): task_done, stream not found", 
-                              task->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02428)
+                      "Empty response header name, aborting request");

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02987) 
-                      "Error reading response headers from %s for %s",
-                      dobj->hdrs.file, dobj->name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
+                          "not complete, was touched",
+                          ctx->engine_id, task_id, uri);

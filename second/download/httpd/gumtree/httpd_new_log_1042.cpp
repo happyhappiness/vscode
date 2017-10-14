@@ -1,0 +1,1 @@
+fprintf(stderr,"Testing httpd.conf....\n");

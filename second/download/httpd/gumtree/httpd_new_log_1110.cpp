@@ -1,1 +1,0 @@
-fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");

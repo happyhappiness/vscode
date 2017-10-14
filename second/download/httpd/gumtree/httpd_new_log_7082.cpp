@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                      H2_STRM_MSG(stream, "invalid frame %d recv"), ftype);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02311)
+                     "Fatal error initialising mod_ssl, exiting. "
+                     "See %s for more information",
+                     ap_server_root_relative(s->process->pool,
+                                             s->error_fname));

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02160)
-                         "Can't chroot to %s", ap_unixd_config.chroot_dir);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(00773)
+                        "cache: attempt to remove url from cache unsuccessful.");

@@ -1,1 +1,3 @@
-ap_rvputs(r, "<th", (d->style_sheet != NULL) ? " class=\"indexcolicon\">" : " valign=\"top\">", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "LDAP: Setting referrals to %s.",
+                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));

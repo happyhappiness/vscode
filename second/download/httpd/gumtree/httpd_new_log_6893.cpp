@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02401)
-                          "HTTP Request Line; Rejected HTTP/0.9 request");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c, 
+                  H2_SSSN_MSG(session, "pre_close"));

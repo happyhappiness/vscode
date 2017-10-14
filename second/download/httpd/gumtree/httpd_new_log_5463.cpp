@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00276)
-                         "the listener thread didn't exit");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00004)
+                         "Unable to create or access scoreboard "
+                         "(anonymous shared memory failure)");

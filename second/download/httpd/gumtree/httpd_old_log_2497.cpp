@@ -1,1 +1,1 @@
-printf("httpd not running, trying to start\n");
+err("Cannot mix POST/PUT and HEAD\n");

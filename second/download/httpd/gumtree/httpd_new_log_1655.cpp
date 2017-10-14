@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI incorrectly encoded: '%.*s'",
-                          field_name_len(r->uri), r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Digest: invalid nc %s received - no nonce count allowed when qop=none",
+                          snc);

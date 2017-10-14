@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO()
-                         "scoreboard is full, not at MaxRequestWorkers."
-                         "Increase ServerLimit.");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                          H2_SSSN_MSG(session, "unknown event %d"), ev);

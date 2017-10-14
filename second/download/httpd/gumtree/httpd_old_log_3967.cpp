@@ -1,1 +1,1 @@
-ap_rputs("PID Key: <br />\n", r);
+ap_log_error(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0, cmd->server, msg);

@@ -1,1 +1,0 @@
-fprintf(stderr, "                    Default is 'text/plain'\n");

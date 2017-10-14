@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                      "Status is %d - not sending interim response", r->status);
+printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
+               (double) timetaken * 1000 / done);

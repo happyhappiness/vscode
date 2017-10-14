@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          H2_STRM_MSG(stream, "process, add to readyq"));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03248)
+                     "Creating hc worker %pp for %s://%s:%d",
+                     worker, worker->s->scheme, worker->s->hostname,
+                     (int)port);

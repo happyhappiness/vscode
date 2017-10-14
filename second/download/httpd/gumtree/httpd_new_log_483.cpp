@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: pre_connection setup failed (%d)",
-                     rc);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+	    "Warning: NetMask and IP-Addr disagree in %s/%ld",
+		inet_ntoa(This->addr), bits);

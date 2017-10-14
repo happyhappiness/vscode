@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf, "processor unbind failed");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), 
+                     ap_server_conf,
+                     "Child %d: Failed to create a qwait event.", my_pid);

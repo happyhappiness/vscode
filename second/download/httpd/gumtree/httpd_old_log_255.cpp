@@ -1,3 +1,2 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s",
-                         e, err);
+fprintf(stderr, "%s: must include a wildcard pattern "
+                        "for Include %s\n", ap_server_argv0, fname);

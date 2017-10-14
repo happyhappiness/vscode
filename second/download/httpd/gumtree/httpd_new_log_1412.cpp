@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s:%d", backend->hostname, backend->port);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S]",
+                 pad_len, " ");

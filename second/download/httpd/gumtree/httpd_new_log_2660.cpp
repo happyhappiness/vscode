@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
+ap_rputs(ap_escape_html(r->pool, cmd->errmsg), r);

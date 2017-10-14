@@ -11,9 +11,9 @@
 # USER = 'antirez'
 # REPOS = 'redis'
 
-# REPOS = 'httpd'
+REPOS = 'httpd'
 # REPOS = 'redis'
-REPOS = 'git'
+# REPOS = 'git'
 
 """
 stroed file name prefix
@@ -52,6 +52,7 @@ ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + REPOS + '_clone_statistics.csv'
 CLUSTER_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_feature.csv'
 CLUSTER_EDITION_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition.csv'
+CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition_and_feature.csv'
 STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics_temp.csv'
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
 ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class.csv'

@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rc, c, APLOGNO(02007)
-                          "SSL handshake interrupted by system "
-                          "[Hint: Stop button pressed in browser?!]");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02212) "Can't open %s", pkcs7);

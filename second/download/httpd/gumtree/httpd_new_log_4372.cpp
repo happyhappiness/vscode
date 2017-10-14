@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01196)
-                                          "%s: Unlock failed for adding worker",
-                                          bsel->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "finished with poll() - cleaning up");

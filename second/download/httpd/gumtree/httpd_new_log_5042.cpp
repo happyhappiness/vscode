@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, APLOGNO(00534)
-                     "%s: Configuration error: %s", ap_server_argv0, error);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "All workers busy, not accepting new conns"
+                                 "in this process");

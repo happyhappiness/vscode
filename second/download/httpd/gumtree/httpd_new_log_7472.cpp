@@ -1,2 +1,6 @@
-ap_log_rerror(
-                    APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02469) "cache: Attempted to invalidate cached entity with key: %s", location_key);
+ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00952)
+                             "%s: error creating fam %d socket for "
+                             "target %s",
+                             proxy_function,
+                             backend_addr->family,
+                             worker->s->hostname);

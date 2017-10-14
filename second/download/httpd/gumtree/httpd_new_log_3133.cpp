@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "no subgroups for %s",
-                          dn);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01784)
+                              "applying AuthDigestEnableQueryStringHack "
+                              "to uri <%s>", resp->raw_request_uri);

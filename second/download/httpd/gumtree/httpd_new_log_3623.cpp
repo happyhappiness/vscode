@@ -1,2 +1,2 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00851)
-                 "shmcb_subcache_retrieve found no match");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00609)
+                              "%s", lookup.err.desc);

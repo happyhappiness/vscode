@@ -1,4 +1,4 @@
-fprintf(stderr,
-                "post_rotate: apr_procattr_create failed for '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01667)
+                    "Authorization of user %s to access %s failed, reason: "
+                    "user is not part of the 'require'ed group(s).",
+                    r->user, r->uri);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");

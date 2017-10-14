@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_os_error(),
+                                 ap_server_conf,
+                                 "mpm_get_completion_context: "
+                                 "CreateEvent failed.");

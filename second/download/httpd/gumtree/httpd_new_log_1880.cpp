@@ -1,4 +1,4 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">",
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts,
-                                                        desc_width), NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
+                          " util_ldap: user %s not found in subgroup (%s) at"
+                          " level %d of %d.", getpid(), r->user, group,
+                          cur_subgroup_depth+1, max_subgroup_depth);

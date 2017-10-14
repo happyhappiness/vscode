@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not create accept mutex");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_input(%s): get more data from mplx, block=%d, "
+                      "readbytes=%ld, queued=%ld",
+                      input->task->id, block, 
+                      (long)readbytes, (long)bblen);

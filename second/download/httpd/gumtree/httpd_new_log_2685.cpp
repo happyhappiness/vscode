@@ -1,1 +1,3 @@
-ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "cannot send signal %d to pid %ld (non-child or "
+                     "already dead)", sig, (long)pid);

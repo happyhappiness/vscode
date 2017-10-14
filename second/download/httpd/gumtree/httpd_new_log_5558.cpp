@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, APLOGNO(00571) "need AuthType to note auth failure: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02678)
+                          "ServerSupportFunction "
+                          "HSE_REQ_GET_CERT_INFO_EX "
+                          "is not supported: %s", r->filename);

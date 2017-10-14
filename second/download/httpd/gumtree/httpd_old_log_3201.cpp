@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                 "Digest: generating secret for digest authentication ...");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+            "ldap authorize: Creating LDAP req structure");

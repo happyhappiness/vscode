@@ -1,2 +1,2 @@
-apr_file_printf(out, "User: name=\"%s\" id=%lu%s\n",
-                    ap_unixd_config.user_name, (unsigned long)uid, no_root);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00796)
+                     "%s isn't a regular file, skipping", fspec);

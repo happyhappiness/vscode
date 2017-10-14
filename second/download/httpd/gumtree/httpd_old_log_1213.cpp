@@ -1,1 +1,1 @@
-fprintf(stderr, "SSL not compiled in; no https support\n");
+apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d\n", rv);

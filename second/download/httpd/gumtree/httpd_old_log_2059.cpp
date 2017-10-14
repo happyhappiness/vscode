@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: *: found forward proxy worker for %s",
-                               *url);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                      "buffered SSL brigade exhausted");

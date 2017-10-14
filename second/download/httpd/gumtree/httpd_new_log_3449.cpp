@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02168)
-                    "setuid: unable to change to uid: %ld",
-                    (long) ap_unixd_config.user_id);
+ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server, APLOGNO(00794)
+                     "invalid file path "
+                     "%s, skipping", filename);

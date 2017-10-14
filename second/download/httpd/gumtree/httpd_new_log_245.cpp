@@ -1,2 +1,3 @@
-ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit SSLMutex with file `%s'",
+                         mc->szMutexFile);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: ThreadLimit of %d exceeds compile time limit "
-                    "of %d threads,", thread_limit, MAX_THREAD_LIMIT);
+fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
+               signal ? "restarted" : "stopped");

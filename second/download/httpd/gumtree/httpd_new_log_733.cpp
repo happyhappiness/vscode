@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ", r);
+ap_rputs("<h2><a name=\"startup_hooks\">Startup Hooks</a></h2>\n<dl>", r);

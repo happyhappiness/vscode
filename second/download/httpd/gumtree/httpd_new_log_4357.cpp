@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01186) "worker slotmem_grab failed");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "serving URL %s", url);

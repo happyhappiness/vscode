@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
-                         ap_server_conf, "caught SIGTERM, shutting down");
+fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");

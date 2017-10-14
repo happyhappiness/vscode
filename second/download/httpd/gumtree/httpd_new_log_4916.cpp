@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01924)
-                        "Bad OCSP responder answer (bad nonce)");
+ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         ap_server_conf, APLOGNO(02181) "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);

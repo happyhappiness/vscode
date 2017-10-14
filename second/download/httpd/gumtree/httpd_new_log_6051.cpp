@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, f->c,
-                          APLOGNO(02958) "h2_task_input(%s): brigade length fail", 
-                          input->task->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03062)
+                  "h2_session: send error");

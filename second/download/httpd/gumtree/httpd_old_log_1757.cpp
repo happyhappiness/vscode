@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "Authorization of user %s to access %s failed, reason: %s",
-                  r->user, r->uri,
-                  reason ? reason : "user is not part of the "
-                                    "'require'ed group(s).");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Incoming request is asking for an uncached version of "
+                         "%s, but we have been configured to ignore it and serve "
+                         "cached content anyway", r->unparsed_uri);

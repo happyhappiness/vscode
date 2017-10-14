@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: AJP: request failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

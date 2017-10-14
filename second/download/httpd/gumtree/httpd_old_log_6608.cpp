@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, msos->m->c,
-                      "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
-                      msos->m->id, sos->stream->id, (long)*plen, *peos);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, stream->r, APLOGNO(03359)
+                  "h2_proxy_session(%s): pass response data for "
+                  "stream %d, %d bytes", session->id, stream_id, (int)len);

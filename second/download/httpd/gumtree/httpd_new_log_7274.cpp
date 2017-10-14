@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(02321)
-                      "empty response from OCSP server");
+ap_log_rerror(
+                    APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02470) "cache: Attempted to invalidate cached entity with key: %s", content_location_key);

@@ -1,1 +1,1 @@
-ap_rputs(" -D NO_WRITEV\n", r);
+ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);

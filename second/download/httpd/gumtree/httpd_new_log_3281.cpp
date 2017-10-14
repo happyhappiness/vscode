@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01686)
-                      "Error accessing authentication cache");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01664)
+                        "No group file was specified in the configuration");

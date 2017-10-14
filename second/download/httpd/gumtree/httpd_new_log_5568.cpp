@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00032)
-                                      "Symbolic link not allowed "
-                                      "or link target not accessible: %s",
-                                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02817)
+                    "could not release lock for cache status");

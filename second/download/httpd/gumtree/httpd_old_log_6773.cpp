@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03363)
-                      "h2_proxy_session(%s): submit %s%s -> %d", 
-                      session->id, stream->req->authority, stream->req->path,
-                      rv);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
+                      "h2_mplx(%ld-%d): beaming file %s, tx_avail %d", 
+                      m->id, beam->id, beam->tag, m->tx_handles_reserved);

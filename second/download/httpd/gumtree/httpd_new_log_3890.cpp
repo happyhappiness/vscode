@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01227)
-                      "couldn't spawn child process: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, r, APLOGNO(01581)
+                          "Timeout while writing data for URI %s to the"
+                          " client", r->unparsed_uri);

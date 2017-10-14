@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                          "default_handler: ap_pass_brigade returned %i",
-                          status);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"    : process directive before reading "
+                 "config files");

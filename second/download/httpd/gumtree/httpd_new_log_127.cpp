@@ -1,1 +1,6 @@
-ap_register_input_filter  (ssl_io_filter, ssl_io_filter_input,  NULL, AP_FTYPE_CONNECTION + 5);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                         c->base_server,
+                         "SSL client authentication failed, "
+                         "accepting certificate based on "
+                         "\"SSLVerifyClient optional_no_ca\" "
+                         "configuration");

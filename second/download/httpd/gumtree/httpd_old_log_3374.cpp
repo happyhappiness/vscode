@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in DBM group file (%s).", 
-                      r->user, r->uri, conf->grpfile);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                         "ISAPI: ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
+                         "as HSE_IO_ASYNC is not supported: %s", r->filename);

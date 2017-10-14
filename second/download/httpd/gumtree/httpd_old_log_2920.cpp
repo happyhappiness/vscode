@@ -1,6 +1,3 @@
-printf("<tr %s><th %s>Processing:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot - mincon, tdstring,
-               (total / requests) - (totalcon / requests), tdstring, maxtot - maxcon);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "session_id[0]=%u, idx->s_id2=%u",
+                 session_id[0], session_id[1]);

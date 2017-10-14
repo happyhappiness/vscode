@@ -1,1 +1,2 @@
-rv = copy_brigade_range(bb, tmpbb, range_start, range_end);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01480)
+                      "Failed to init LuaJIT: %s", msg);

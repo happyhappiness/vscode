@@ -1,3 +1,5 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      "h2_session(%ld): [%s] process returns", 
-                      session->id, state_name(session->state));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01473)
+                      "request details scope:%u, filename:%s, function:%s",
+                      spec->scope,
+                      spec->file,
+                      "handle");

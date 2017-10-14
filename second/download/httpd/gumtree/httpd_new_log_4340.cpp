@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
-                      "%s: Lock failed for post_request",
-                      balancer->s->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
+                     "Defining worker '%s' for balancer '%s'",
+                     name, balancer->s->name);

@@ -1,5 +1,1 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            "." NL);
+apr_file_printf(errfile, "password for user %s" NL, user);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                     NULL, APLOGNO(00013) "Pre-configuration failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(00194)
+                             "apr_socket_accept");

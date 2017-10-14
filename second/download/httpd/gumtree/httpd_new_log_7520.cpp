@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                             "[%s] SSL_X509_match_name: expecting name '%s', "
-                             "%smatched by ID '%s'",
-                             (mySrvConfig(s))->vhost_id, name,
-                             matched == TRUE ? "" : "NOT ", id[i]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02582)
+                     "unencrypted %s private key - pass phrase not "
+                     "required", key_id);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, result, s, APLOGNO(01315)
-                         "LDAP cache: could not create shared memory segment");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, result, r, APLOGNO(01513)
+                    MODNAME ": read failed: %s", r->filename);

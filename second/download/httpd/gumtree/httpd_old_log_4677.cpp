@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: connected %s to %s:%d", *url, conn->hostname,
-                 conn->port);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to configure %s server private key", type);

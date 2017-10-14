@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                              "h2_mplx(%ld-%d): incomplete write", 
-                              m->id, io->id);
+ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03089)
+                     "initializing post config dry run");

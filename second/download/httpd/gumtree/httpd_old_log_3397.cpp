@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "cache: Removing url %s from the cache", h->cache_obj->key);

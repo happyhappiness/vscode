@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02235)
-                         "Unable to configure server certificate for stapling");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(01919)
+                      "failed to parse OCSP responder URI '%s'", s);

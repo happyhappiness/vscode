@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(02437)
-               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
-               r->method);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                             "[%s] SSL_X509_match_name: expecting name '%s', "
+                             "%smatched by ID '%s'",
+                             (mySrvConfig(s))->vhost_id, name,
+                             matched == TRUE ? "" : "NOT ", id[i]);

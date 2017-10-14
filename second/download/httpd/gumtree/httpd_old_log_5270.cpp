@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                        "Parent: Unable to create child stdin pipe.");

@@ -1,1 +1,0 @@
-fprintf(output, "    - Not found : %d\n", errors[HOST_NOT_FOUND]);

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
-                         balancer->name, worker->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: read more bytes of request body than expected "
+                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
+                          bytes_streamed, cl_val);

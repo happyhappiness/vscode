@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01365) "unknown value "
-                                      "\"%s\" to parameter \"encoding\" of tag set in "
-                                      "%s", token, r->filename);
+ap_rputs(DOCTYPE_HTML_3_2
+                 "<html><head>\n"
+                 "<title>Apache Status</title>\n"
+                 "</head><body>\n"
+                 "<h1>Apache Server Status for ", r);

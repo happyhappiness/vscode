@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_switch init");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
+                         "caught SIGTERM, shutting down");

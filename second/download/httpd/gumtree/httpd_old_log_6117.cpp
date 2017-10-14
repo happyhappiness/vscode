@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02550) "Failed to flush CGI output to client");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                      "h2_stream(%ld-%d): read_to, saving trailers",
+                      stream->session->id, stream->id);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
-                     "cannot send signal %d to pid %ld (non-child or "
-                     "already dead)", sig, (long)pid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Failed to acquire database connection to look up "
+                      "user '%s'", user);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01832)
-                    "the passphrase '%s' was empty", passphrase);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02006)
+                         "SSL handshake stopped: connection was closed");

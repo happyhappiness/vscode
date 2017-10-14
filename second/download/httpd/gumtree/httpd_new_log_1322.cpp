@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Unable to initialize TLS servername extension "
-                     "callback (incompatible OpenSSL version?)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Re-negotiation handshake failed: "
+                                  "Client certificate missing");

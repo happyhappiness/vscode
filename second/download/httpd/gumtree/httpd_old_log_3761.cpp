@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Zlib: Compressed %ld to %ld : URL %s",
-                          ctx->stream.total_in, ctx->stream.total_out, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "missing closing endif directive in parsed document"
+                          " %s", r->filename);

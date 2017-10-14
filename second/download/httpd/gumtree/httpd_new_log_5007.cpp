@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01946)
-                         "Cannot reinit %s mutex with file `%s'",
-                         SSL_STAPLING_MUTEX_TYPE, lockfile);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -t -D DUMP_RUN_CFG : show parsed run settings");

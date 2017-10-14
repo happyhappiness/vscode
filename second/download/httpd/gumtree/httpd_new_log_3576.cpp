@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00743) "distributed scache 'retrieve' OVERFLOW");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01571)
+                                "Watchdog: Failed to create parent worker thread.");

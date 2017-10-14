@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
-                      "h2_mplx(%ld): release_join -> destroy", m->id);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, status, workers->s,
+                     "h2_workers: register mplx(%ld), idle=%d", 
+                     m->id, workers->idle_workers);

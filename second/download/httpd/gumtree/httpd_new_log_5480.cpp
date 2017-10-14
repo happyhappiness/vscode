@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf, APLOGNO(00290)
-                                 "Ignoring fatal error in child of previous "
-                                 "generation (pid %ld).",
-                                 (long)pid.pid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00011) LOG_PREFIX
+         "client submitted cookie '%s' more than once: %s", v.name, r->uri);

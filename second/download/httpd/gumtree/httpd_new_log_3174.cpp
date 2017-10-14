@@ -1,1 +1,1 @@
-decl_die(access_status, "check user", r);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01676) "%s", errmsg);

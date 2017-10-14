@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "stapling_cb: OCSP Stapling disabled");
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                         NULL, "Configuration check failed");

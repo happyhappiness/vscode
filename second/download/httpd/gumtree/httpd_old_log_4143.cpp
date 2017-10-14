@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv,
-                         "write: rfc1413: error sending request");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, NULL,
+                          "ajp_ilink_send(): send failed");

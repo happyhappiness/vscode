@@ -1,1 +1,1 @@
-printf(" */\n\n/* End of chartables.c */\n");
+printf("    \\x%02x{", c);

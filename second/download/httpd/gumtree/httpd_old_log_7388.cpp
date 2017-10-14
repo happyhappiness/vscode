@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf, APLOGNO(00429)
-                             "Parent: SetEvent for child process %pp failed",
-                             event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01878)
+                         "Init: Failed to generate temporary "
+                         "%d bit RSA private key", bits);

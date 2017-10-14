@@ -1,1 +1,0 @@
-apr_file_printf(out, "(%u)", line_number);

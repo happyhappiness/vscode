@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                     "proxy: CONNECT: sending the CONNECT request"
-                     " to the remote proxy");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "proxy: " PROXY_FUNCTION ": sending data to "
+                          "%s:%u failed", conn->hostname, conn->port);

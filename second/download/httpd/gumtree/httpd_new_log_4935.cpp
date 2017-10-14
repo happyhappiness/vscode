@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                                 pServ, APLOGNO(02250)
-                                 "encrypted %s private key - pass phrase "
-                                 "requested", an);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00117)
+              "Ignoring deprecated use of DefaultType in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);

@@ -1,1 +1,1 @@
-apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");
+fprintf(stderr, "failed to open log file\n");

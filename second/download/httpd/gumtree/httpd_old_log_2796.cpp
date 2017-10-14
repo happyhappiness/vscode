@@ -1,1 +1,2 @@
-ap_rputs("<table><tr><td>StickySession Identifier:</td><td><input name=\"ss\" type=text ", r);
+printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
+            err_conn, err_length, err_except);

@@ -1,2 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "proxy: CONNECT: sock was readable");
+                          "proxy: " PROXY_FUNCTION ": File subrequest to %s",
+                          req_conf->location);

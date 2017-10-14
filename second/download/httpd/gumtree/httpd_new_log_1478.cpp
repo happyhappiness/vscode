@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %lu: Unable to retrieve the scoreboard from the parent", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_reuse: ajp_msg_get_byte failed");

@@ -1,3 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A \"label-name\" or \"href\" element does not contain "
-                      "any content.");
+                      "Unsupported option -%s in file %s",
+                      current->token.value, r->filename);

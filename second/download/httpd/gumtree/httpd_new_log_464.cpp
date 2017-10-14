@@ -1,2 +1,2 @@
-printf("Total:      " CONF_FMT_STRING, 
-                mintot, meantot, maxtot);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Premature end of cache headers.");

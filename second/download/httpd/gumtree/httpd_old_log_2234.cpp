@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-            "AcceptMutex: %s (default: %s)",
-            apr_proc_mutex_name(accept_mutex),
-            apr_proc_mutex_defname());
+ap_log_error(APLOG_MARK, APLOG_INFO, apr_get_netos_error(), ap_server_conf,
+                         "select failed with error %d", apr_get_netos_error());

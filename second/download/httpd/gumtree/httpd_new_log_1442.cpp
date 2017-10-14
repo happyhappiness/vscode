@@ -1,1 +1,3 @@
-n(user, argv[4], sizeof(user));
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %lu: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);

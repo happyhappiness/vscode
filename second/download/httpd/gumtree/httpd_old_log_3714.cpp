@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The request body does not contain "
-                      "an \"update\" element.");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unknown filter %s not added", p->fname);

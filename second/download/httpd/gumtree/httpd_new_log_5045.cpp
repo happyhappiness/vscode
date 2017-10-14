@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(00111)
-                                     "Config variable ${%s} is not defined",
-                                     name);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                             "All workers are busy, will close %d keep-alive "
+                             "connections",
+                             keepalive_q.count);

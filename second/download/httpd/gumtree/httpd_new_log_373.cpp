@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Use -c option to create new one.\n");
+apr_file_printf(errfile, "Deleting ");

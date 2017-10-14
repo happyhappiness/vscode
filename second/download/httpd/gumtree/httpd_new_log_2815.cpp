@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                      "buffered SSL brigade exhausted");
+printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);

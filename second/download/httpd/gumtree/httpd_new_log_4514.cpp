@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01154) "send_socket failed:");
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00922)
+                         "can not create balancer thread mutex");

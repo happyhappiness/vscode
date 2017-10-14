@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);

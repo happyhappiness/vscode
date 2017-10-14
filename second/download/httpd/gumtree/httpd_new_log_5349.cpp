@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00363)
-                     "Child: Terminating %d threads that failed to exit.",
-                     threads_created);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00277)
+                             "apr_thread_join: unable to join listener thread");

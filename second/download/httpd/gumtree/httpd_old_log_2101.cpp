@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
-                     "SSL proxy client cert initialization failed");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit SSLMutex");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             ap_server_conf,
-                             "scoreboard is full, not at MaxClients");
+ap_log_error(APLOG_MARK, APLOG_INFO,
+                                0, ap_server_conf,
+                                "removed PID file %s (pid=%ld)",
+                                pidfile, (long)getpid());

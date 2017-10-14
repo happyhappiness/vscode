@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "proxy: *: found reverse proxy worker for %s",
-                               *url);
+ap_add_output_filter(ssl_io_filter,
+                                                       filter_ctx, r, c);

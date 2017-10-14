@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: table created by %p hit limit of %u\n",
-                func ? func : "table_push", t->creator, t->a.nalloc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "subcache_num = %u", header->subcache_num);

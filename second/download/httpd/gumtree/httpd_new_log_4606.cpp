@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00899) "%s", err);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, res, r, APLOGNO(01840)
+                "decryption failed");

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03445)
-                          "HTTP Request Line; Invalid method token: '%.*s'",
-                          field_name_len(r->method), r->method);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
+                                          H2_SSSN_MSG(session, 
+                                          "keepalive, %f sec left"),
+                                          (session->idle_until - now) / 1000000.0f);

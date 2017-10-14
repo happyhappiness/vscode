@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: detected MinSpareThreads set to non-positive.");
+ap_log_error(APLOG_MARK,APLOG_WARNING, rv, ap_server_conf,
+                                 "mpm_get_completion_context: Failed to create the transaction pool.");

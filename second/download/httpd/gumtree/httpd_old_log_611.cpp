@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "ISAPI: ap_pass_brigade failed to "
-                          "complete the response: %s ", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                            "unknown parameter \"%s\" in tag echo of %s",
+                            tag, r->filename);

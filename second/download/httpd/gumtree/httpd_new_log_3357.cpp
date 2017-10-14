@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01642)
-                      "No query configured for %s!", action);
+apr_file_printf(out, "Group: name=\"%s\" id=%lu%s\n",
+                    ap_unixd_config.group_name, (unsigned long)gid, no_root);

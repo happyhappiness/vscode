@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01366) "Invalid tag for set "
-                          "directive in %s", r->filename);
+ap_rvputs(r, ap_get_server_name(r), " (via ", r->connection->local_ip,
+                  ")</h1>\n\n", NULL);

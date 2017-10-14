@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf, APLOGNO(03093)
-                         "process_socket: apr_pollset_add failure");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c, APLOGNO(03394)
+                  "h2_ngn_shed(%ld): abort", shed->c->id);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGHUP)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s failed", r->uri);

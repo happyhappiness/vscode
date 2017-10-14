@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGSEGV)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "request failed: URI too long");

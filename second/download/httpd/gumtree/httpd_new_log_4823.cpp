@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c, APLOGNO(01992)
-                              "SSL library error %d reading data", ssl_err);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01967)
+                         "Init: Requesting pass phrase via piped dialog");

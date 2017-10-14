@@ -1,2 +1,2 @@
-apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
+apr_file_printf(errfile, "%s: unable to read file %s\n", 
+                            argv[0], pwfilename);

@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on stdout.\n");
+apr_file_printf(errfile, "%s: cannot open file %s for read access\n",
+                    argv[0], pwfilename);

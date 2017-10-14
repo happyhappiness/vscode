@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-                        "%s: cannot modify file %s; use '-c' to create it\n",
-                        argv[0], pwfilename);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          "DBD[%s] Error: %s", svr->name, errmsg);

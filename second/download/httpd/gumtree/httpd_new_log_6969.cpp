@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, m->c, APLOGNO(10021)
-                          "h2_mplx(%ld): register at workers", m->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "fpm:virtual_script: Modified SCRIPT_NAME to: %s",
+                      pend);

@@ -1,1 +1,1 @@
-(isprint(c = code[1]);
+printf(" against pattern ");

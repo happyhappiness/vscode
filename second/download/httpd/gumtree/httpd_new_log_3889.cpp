@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01226)
-                      "don't know how to spawn cmd child process: %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01580)
+                        "Invalid error redirection directive: %s",
+                        custom_response);

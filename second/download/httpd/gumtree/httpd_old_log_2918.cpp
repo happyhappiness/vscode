@@ -1,4 +1,3 @@
-printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (float) (totalread + totalposted) / timetaken);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "storing in index %u, at offset %u",
+                 new_pos, new_offset);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                         "mod_rewrite: Invalid RewriteLog "
-                         "path %s", conf->rewritelogfile);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+         "proxy: CONNECT: canonicalising URL %s", url);

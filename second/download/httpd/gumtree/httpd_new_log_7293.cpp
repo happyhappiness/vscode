@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02340)
-                          "Can't evaluate login required expression: %s", err);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(02332)
+            "(re)loading lua file %s", spec->file);

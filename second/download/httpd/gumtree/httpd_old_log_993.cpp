@@ -1,1 +1,2 @@
-printf(" -D APACHE_MPM_DIR=\"%s\"\n", APACHE_MPM_DIR);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -w                : hold open the console window on error");

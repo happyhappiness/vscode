@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                        "Parent: Unable to connect child stdout to NUL.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "proxy: TRACE with request body is not allowed");

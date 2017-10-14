@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                              "h2_mplx(%ld-%d): on_response", 
-                              m->id, stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
+                      "Response header '%s' value of '%s' contains invalid "
+                      "characters, aborting request",
+                      name, val);

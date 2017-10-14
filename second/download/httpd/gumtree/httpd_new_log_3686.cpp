@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, ap_server_conf, APLOGNO(00576)
-            "The DBM driver could not be loaded");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01406)
+                                 "inflate: extra field too big (not "
+                                 "supported)");

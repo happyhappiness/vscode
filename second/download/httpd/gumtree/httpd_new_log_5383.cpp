@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00412)
-                     "Parent: Failed to get the current path");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00307)
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);

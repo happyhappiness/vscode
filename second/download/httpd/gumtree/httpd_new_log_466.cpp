@@ -1,1 +1,4 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.121.2.12 $");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "disk_cache: Discarding body for URL %s "
+                         "because connection has been aborted.",
+                         h->cache_obj->key);

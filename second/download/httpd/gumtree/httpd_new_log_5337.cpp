@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf, APLOGNO(00351)
-                     "Child: Failed to acquire the start_mutex. "
-                     "Process will exit.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00266)
+                     "sigaction(SIGINT)");

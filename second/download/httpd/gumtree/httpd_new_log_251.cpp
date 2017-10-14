@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                                 "Re-negotiation handshake failed: "
-                                 "Client certificate missing");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "set dumpable failed - this child will not coredump"
+                         " after software errors");

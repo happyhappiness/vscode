@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02101)
-                          "Failed to read cgi file %s for testing", *cmd);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00788)
+                         "Failed to Create memcache Server: %s:%d",
+                         host_str, port);

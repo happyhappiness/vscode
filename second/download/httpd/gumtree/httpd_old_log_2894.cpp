@@ -1,2 +1,2 @@
-printf("Waiting:    " CONF_FMT_STRING,
-                   minwait, (int) (meanwait + 0.5), sdwait, medianwait, maxwait);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "cache_data_size = %u", header->cache_data_size);

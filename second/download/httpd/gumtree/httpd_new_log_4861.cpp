@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02257)
-                          "could not buffer message body to allow "
-                          "SSL renegotiation to proceed");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01985)
+                          "error reading response from OCSP server");

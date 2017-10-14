@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02300)
-                 "create %s: %"APR_SIZE_T_FMT"/%u", fname, item_size,
-                 item_num);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                 "h2_workers: adding worker(%d)", w->id);

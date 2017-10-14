@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-                         "proxy: unlock");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Unable to import %s server private key", type);

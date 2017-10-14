@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03137)
-                                 "apr_pollset_poll: (listen)");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                  "h2_stream(%ld-%d): add %ld input bytes", 
+                  stream->session->id, stream->id, (long)len);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
-                     "failure creating accept mutex, shutting down");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Acquired the start mutex.", my_pid);

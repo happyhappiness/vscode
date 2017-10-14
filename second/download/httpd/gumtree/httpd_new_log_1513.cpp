@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                          "proxy: error processing body.%s",
-                                          r->connection->aborted ?
-                                          " Client aborted connection." : "");
+ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);

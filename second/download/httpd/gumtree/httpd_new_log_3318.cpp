@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01722)
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, plog, APLOGNO(02130)
+                         "No Listen directive found for upgradeable listener %s:%d", slu->addr, slu->port);

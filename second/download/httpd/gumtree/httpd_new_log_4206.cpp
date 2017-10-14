@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "Into ajp_marshal_into_msgb");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00885)
+                                      "ap_proxy_ajp_request: origin server "
+                                      "sent 401 without WWW-Authenticate header");

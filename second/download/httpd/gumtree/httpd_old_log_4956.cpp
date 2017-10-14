@@ -1,2 +1,4 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, dynlockpool,
-                       "Failed to create subpool for dynamic lock");
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                     "Server MUST relinquish startup privileges before "
+                     "accepting connections.  Please ensure mod_unixd "
+                     "or other system security module is loaded.");

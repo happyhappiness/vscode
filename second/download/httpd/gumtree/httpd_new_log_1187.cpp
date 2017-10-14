@@ -1,1 +1,2 @@
-printf("%2d: %.*s\n", i, substring_length, substring_start);
+fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);

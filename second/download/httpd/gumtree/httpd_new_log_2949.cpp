@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: read timeout");
+ap_log_perror(file, line, APLOG_ERR, rv, p, 
+                      "Failed to create thread mutex for dynamic lock");

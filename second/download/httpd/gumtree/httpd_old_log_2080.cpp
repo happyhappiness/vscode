@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "Init: Skipping generating temporary "
-                         "%u bit DH parameters in FIPS mode", bits);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
+                      "Certificate Verification: "
+                      "depth: %d, subject: %s, issuer: %s",
+                      errdepth,
+                      sname ? sname : "-unknown-",
+                      iname ? iname : "-unknown-");

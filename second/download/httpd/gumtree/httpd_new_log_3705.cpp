@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00595)
-                      "Depth must be 0 or \"infinity\" for LOCK.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01469)
+                      "ap_pass_brigade() failed");

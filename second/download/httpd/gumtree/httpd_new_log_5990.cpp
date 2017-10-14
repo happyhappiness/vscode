@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
-                  "h2_session(%ld): malloc(%ld)",
-                  session->id, (long)size);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, status, io->c,
+                      "h2_conn_io: writing %ld bytes to brigade", (long)length);

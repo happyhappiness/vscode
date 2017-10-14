@@ -1,5 +1,2 @@
-ap_rputs("<a href=\"#modules\">Loaded Modules</a>, "
-                     "<a href=\"#server\">Server Settings</a>, "
-                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
-                     "<a href=\"#request_hooks\">Request Hooks</a>, "
-                     "<a href=\"#other_hooks\">Other Hooks</a>", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, result, s, APLOGNO(01315)
+                         "LDAP cache: could not create shared memory segment");

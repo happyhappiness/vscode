@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "proxy_handler no URL in %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+              "proxy: ap_get_scoreboard_lb(%d) failed for worker %s",
+              worker->id, worker->name);

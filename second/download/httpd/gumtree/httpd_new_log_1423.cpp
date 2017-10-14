@@ -1,4 +1,2 @@
-decl_die(access_status, ap_auth_type(r)
-                                  ? "check user.  Check your authn provider!"
-                                  : "perform authentication. AuthType not set!",
-                                  r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
+                                  (ctx->remaining < 0) ? "(overflow)" : "");

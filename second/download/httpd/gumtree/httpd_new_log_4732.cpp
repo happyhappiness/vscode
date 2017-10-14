@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01848)
-                    "The crypto library '%s' could not be initialised",
-                    conf->library);
+ap_register_output_filter (ssl_io_coalesce, ssl_io_filter_coalesce, NULL, AP_FTYPE_CONNECTION + 4);

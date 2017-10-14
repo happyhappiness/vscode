@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                     "h2_worker(%d): done", h2_worker_get_id(worker));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_response", session->id, stream_id);

@@ -1,2 +1,4 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01957)
-                 "stapling_cb: no response available");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                  "h2_stream(%ld-%d): promised new stream %d for %s %s on %d",
+                  session->id, is->id, nid,
+                  push->req->method, push->req->path, is->id);

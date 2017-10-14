@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "Number of request headers exceeds "
-                              "LimitRequestFields");
+fprintf(output, "    - No address: %d\n", errors[NO_ADDRESS]);

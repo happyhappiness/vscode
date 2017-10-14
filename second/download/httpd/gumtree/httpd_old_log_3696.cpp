@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "The \"propfind\" element does not contain one of "
-                      "the required child elements (the specific command).");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                  rv, f->r, "apr_pollset_poll()");

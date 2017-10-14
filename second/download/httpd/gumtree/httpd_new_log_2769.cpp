@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-                         "disk_cache: rename tempfile to datafile failed:"
-                         " %s -> %s", dobj->tempfile, dobj->datafile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "client denied by server configuration: %s%s",
+            r->filename ? "" : "uri ",
+            r->filename ? r->filename : r->uri);

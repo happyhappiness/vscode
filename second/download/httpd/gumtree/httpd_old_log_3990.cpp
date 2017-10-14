@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p,
-                      "Maximum new request methods %d reached while "
-                      "registering method %s.",
-                      METHOD_NUMBER_LAST, methname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "File does not exist: %s", r->filename);

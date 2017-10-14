@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %lu: All worker threads have exited.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                         "Service %s is already started!", mpm_display_name);

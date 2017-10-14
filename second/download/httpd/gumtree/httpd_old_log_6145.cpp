@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                      "h2_from_h1(%d): err bucket status=%d", 
-                      from_h1->stream_id, st);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                          "h2_task_input(%s): serialize request %s %s", 
+                          task->id, task->request->method, task->request->path);

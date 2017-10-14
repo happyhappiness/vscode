@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: don't need to refresh cached response "
-                         "after obtaining refresh mutex");
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
+                              "h2_mplx(%ld): task %s without corresp. h2_io",
+                              m->id, task->id);

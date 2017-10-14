@@ -1,1 +1,0 @@
-printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_function_1348.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">usage<pos:position pos:line="1" pos:column="18"/></name><parameter_list pos:line="1" pos:column="18">(<parameter><decl><type><specifier pos:line="1" pos:column="19">const<pos:position pos:line="1" pos:column="24"/></specifier> <name pos:line="1" pos:column="25">char<pos:position pos:line="1" pos:column="29"/></name> <modifier pos:line="1" pos:column="30">*<pos:position pos:line="1" pos:column="31"/></modifier></type><name pos:line="1" pos:column="31">error<pos:position pos:line="1" pos:column="36"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="37"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <if pos:line="3" pos:column="5">if <condition pos:line="3" pos:column="8">(<expr><name pos:line="3" pos:column="9">error<pos:position pos:line="3" pos:column="14"/></name></expr>)<pos:position pos:line="3" pos:column="15"/></condition><then pos:line="3" pos:column="15"> <block pos:line="3" pos:column="16">{
+    	<expr_stmt><expr><call><name pos:line="4" pos:column="9">apr_file_printf<pos:position pos:line="4" pos:column="24"/></name><argument_list pos:line="4" pos:column="24">(<argument><expr><name pos:line="4" pos:column="25">errfile<pos:position pos:line="4" pos:column="32"/></name></expr></argument>, <argument><expr><literal type="string" pos:line="4" pos:column="34">"%s error: %s\n"<pos:position pos:line="4" pos:column="50"/></literal></expr></argument>, <argument><expr><name pos:line="4" pos:column="52">shortname<pos:position pos:line="4" pos:column="61"/></name></expr></argument>, <argument><expr><name pos:line="4" pos:column="63">error<pos:position pos:line="4" pos:column="68"/></name></expr></argument>)<pos:position pos:line="4" pos:column="69"/></argument_list></call></expr>;<pos:position pos:line="4" pos:column="70"/></expr_stmt>
+    }<pos:position pos:line="5" pos:column="6"/></block></then></if>
+	<macro><name pos:line="6" pos:column="9">apr_file_printf<pos:position pos:line="6" pos:column="24"/></name><argument_list pos:line="6" pos:column="24">(<argument pos:line="6" pos:column="25">errfile<pos:position pos:line="6" pos:column="32"/></argument>,
+    <argument><literal type="string" pos:line="7" pos:column="5">"%s -- program for cleaning the disk cache."<pos:position pos:line="7" pos:column="49"/></literal>                             NL
+    <literal type="string" pos:line="8" pos:column="5">"Usage: %s [-Dvtrn] -pPATH -lLIMIT"<pos:position pos:line="8" pos:column="40"/></literal>                                      NL
+    <literal type="string" pos:line="9" pos:column="5">"       %s [-nti] -dINTERVAL -pPATH -lLIMIT"<pos:position pos:line="9" pos:column="49"/></literal>                             NL
+                                                                             NL
+    <literal type="string" pos:line="11" pos:column="5">"Options:"<pos:position pos:line="11" pos:column="15"/></literal>                                                               NL
+    <literal type="string" pos:line="12" pos:column="5">"  -d   Daemonize and repeat cache cleaning every INTERVAL minutes."<pos:position pos:line="12" pos:column="73"/></literal>     NL
+    <literal type="string" pos:line="13" pos:column="5">"       This option is mutually exclusive with the -D, -v and -r"<pos:position pos:line="13" pos:column="70"/></literal>        NL
+    <literal type="string" pos:line="14" pos:column="5">"       options."<pos:position pos:line="14" pos:column="22"/></literal>                                                        NL
+                                                                             NL
+    <literal type="string" pos:line="16" pos:column="5">"  -D   Do a dry run and don't delete anything. This option is mutually"<pos:position pos:line="16" pos:column="77"/></literal> NL
+    <literal type="string" pos:line="17" pos:column="5">"       exclusive with the -d option."<pos:position pos:line="17" pos:column="43"/></literal>                                   NL
+                                                                             NL
+    <literal type="string" pos:line="19" pos:column="5">"  -v   Be verbose and print statistics. This option is mutually"<pos:position pos:line="19" pos:column="70"/></literal>        NL
+    <literal type="string" pos:line="20" pos:column="5">"       exclusive with the -d option."<pos:position pos:line="20" pos:column="43"/></literal>                                   NL
+                                                                             NL
+    <literal type="string" pos:line="22" pos:column="5">"  -r   Clean thoroughly. This assumes that the Apache web server is "<pos:position pos:line="22" pos:column="75"/></literal>   NL
+    <literal type="string" pos:line="23" pos:column="5">"       not running. This option is mutually exclusive with the -d"<pos:position pos:line="23" pos:column="72"/></literal>      NL
+    <literal type="string" pos:line="24" pos:column="5">"       option and implies -t."<pos:position pos:line="24" pos:column="36"/></literal>                                          NL
+                                                                             NL
+    <literal type="string" pos:line="26" pos:column="5">"  -n   Be nice. This causes slower processing in favour of other"<pos:position pos:line="26" pos:column="71"/></literal>       NL
+    <literal type="string" pos:line="27" pos:column="5">"       processes."<pos:position pos:line="27" pos:column="24"/></literal>                                                      NL
+                                                                             NL
+    <literal type="string" pos:line="29" pos:column="5">"  -t   Delete all empty directories. By default only cache files are"<pos:position pos:line="29" pos:column="75"/></literal>   NL
+    <literal type="string" pos:line="30" pos:column="5">"       removed, however with some configurations the large number of"<pos:position pos:line="30" pos:column="75"/></literal>   NL
+    <literal type="string" pos:line="31" pos:column="5">"       directories created may require attention."<pos:position pos:line="31" pos:column="56"/></literal>                      NL
+                                                                             NL
+    <literal type="string" pos:line="33" pos:column="5">"  -p   Specify PATH as the root directory of the disk cache."<pos:position pos:line="33" pos:column="67"/></literal>           NL
+                                                                             NL
+    <literal type="string" pos:line="35" pos:column="5">"  -l   Specify LIMIT as the total disk cache size limit. Attach 'K'"<pos:position pos:line="35" pos:column="74"/></literal>    NL
+    <literal type="string" pos:line="36" pos:column="5">"       or 'M' to the number for specifying KBytes or MBytes."<pos:position pos:line="36" pos:column="67"/></literal>           NL
+                                                                             NL
+    <literal type="string" pos:line="38" pos:column="5">"  -i   Be intelligent and run only when there was a modification of"<pos:position pos:line="38" pos:column="74"/></literal>    NL
+    <literal type="string" pos:line="39" pos:column="5">"       the disk cache. This option is only possible together with the"<pos:position pos:line="39" pos:column="76"/></literal>  NL
+    <literal type="string" pos:line="40" pos:column="5">"       -d option."<pos:position pos:line="40" pos:column="24"/></literal>                                                      NL<pos:position pos:line="40" pos:column="80"/></argument>,
+    <argument pos:line="41" pos:column="5">shortname<pos:position pos:line="41" pos:column="14"/></argument>,
+    <argument pos:line="42" pos:column="5">shortname<pos:position pos:line="42" pos:column="14"/></argument>,
+    <argument pos:line="43" pos:column="5">shortname<pos:position pos:line="43" pos:column="14"/></argument>
+    )<pos:position pos:line="44" pos:column="6"/></argument_list></macro><empty_stmt pos:line="44" pos:column="6">;<pos:position pos:line="44" pos:column="7"/></empty_stmt>
+
+    <expr_stmt><expr><call><name pos:line="46" pos:column="5">exit<pos:position pos:line="46" pos:column="9"/></name><argument_list pos:line="46" pos:column="9">(<argument><expr><literal type="number" pos:line="46" pos:column="10">1<pos:position pos:line="46" pos:column="11"/></literal></expr></argument>)<pos:position pos:line="46" pos:column="12"/></argument_list></call></expr>;<pos:position pos:line="46" pos:column="13"/></expr_stmt>
+}<pos:position pos:line="47" pos:column="2"/></block></function></unit>

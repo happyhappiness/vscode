@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                     "could not open charset conversion config file %s.", 
-                     charset_confname);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
+             "LDAP: Built with Netscape LDAP SDK" );

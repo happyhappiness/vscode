@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                         "h2_worker(%d): start task(%s)",
-                         h2_worker_get_id(worker), task->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d,", threads_per_child,
+                         tmp_max_workers);

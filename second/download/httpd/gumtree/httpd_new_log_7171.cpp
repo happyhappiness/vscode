@@ -1,4 +1,3 @@
-(SSL_CTX_check_private_key(sc->server->ssl_ctx) != 1) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02572)
-                     "Failed to configure at least one certificate and key "
-                     "for %s", sc->vhost_id);;
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
+                 "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
+                 worker->s->name);

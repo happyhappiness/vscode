@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, ctx->owner, APLOGNO(03352)
-                      "H2: failed to make connection to backend: %s",
-                      ctx->p_conn->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
+                      "h2_stream(%ld-%d): submit %d trailers",
+                      session->id, (int)stream->id,(int) nh->nvlen);

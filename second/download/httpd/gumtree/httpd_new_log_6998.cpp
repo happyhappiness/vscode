@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                              H2_SSSN_MSG(session, "on_frame_rcv %s"), buffer);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00266)
+                     "sigaction(SIGINT)");

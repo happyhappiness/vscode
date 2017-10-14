@@ -1,2 +1,2 @@
-apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform." NL);
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "Failed to acquire DBD connection from pool!");

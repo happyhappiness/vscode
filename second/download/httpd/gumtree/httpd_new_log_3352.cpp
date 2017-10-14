@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01627)
-                          "AuthType configured with no corresponding "
-                          "authorization directives");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02166)
+                         "Can't chroot to %s", ap_unixd_config.chroot_dir);

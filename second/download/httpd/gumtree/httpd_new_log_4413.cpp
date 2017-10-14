@@ -1,2 +1,3 @@
-ap_rvputs(r, "<input type=hidden name='nonce' id='nonce' value='",
-                      bsel->s->nonce, "'>\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01039)
+                      "an error occurred creating a new connection to %pI (%s)",
+                      connect_addr, connectname);

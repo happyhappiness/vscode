@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+ap_log_perror(file, line, APLOG_ERR, 0, p, 
+                      "Failed to allocate dynamic lock structure");

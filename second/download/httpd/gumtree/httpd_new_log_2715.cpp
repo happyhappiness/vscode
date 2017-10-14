@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                     "DBD: failed to prepare SQL statements: %s",
-                     (errmsg ? errmsg : "[???]"));
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                                     ap_server_conf,
-                                     "server is within MinSpareThreads of MaxClients, "
-                                     "consider raising the MaxClients setting");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, LOG_PREFIX
+                  "user '%s' set cookie: '%s'", r->user, rfc2109);

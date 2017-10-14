@@ -1,1 +1,2 @@
-fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234. (repeatable)\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "Error accessing authentication cache");

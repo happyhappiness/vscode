@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, rv,
-                          ap_server_conf, APLOGNO(02291)
-                         "Cannot access directory '%s' for %s", dir, desc);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)
+                         "Couldn't create a Thread Safe Pollset. "
+                         "Is it supported on your platform?"
+                         "Also check system or user limits!");

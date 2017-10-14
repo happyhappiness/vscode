@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "could not send interim 101 Upgrade response");
+ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
+                      "Acquiring mutex %s:%d", l->file, l->line);

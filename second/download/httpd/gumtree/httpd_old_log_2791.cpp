@@ -1,1 +1,1 @@
-ap_rvputs(r, "value=\"", wsel->redirect, NULL);
+printf("Total of %ld requests completed\n" , done);

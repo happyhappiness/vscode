@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
-                                 "Server ran out of threads to serve "
-                                 "requests. Consider raising the "
-                                 "ThreadsPerChild setting");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                     "%s configured -- resuming normal operations",
+                     ap_get_server_description());

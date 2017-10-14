@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "shared memory segment too small");
+ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d released!", l->file, l->line);

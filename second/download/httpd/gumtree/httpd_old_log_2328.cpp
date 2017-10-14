@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                         "Child %lu: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "%s: Failed to remove the RunServices registry "
+                         "entry.", mpm_display_name);

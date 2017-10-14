@@ -1,1 +1,0 @@
-ap_rputs("        <httpd:worker>\n", r);

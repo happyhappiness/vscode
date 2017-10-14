@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
-                         "Parent: SetEvent for child process %pp failed.",
-                         event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s partial content response not cached",
+                     key);

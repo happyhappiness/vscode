@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
+                 "Child %d: Accept thread listening on %s:%d using %s", my_pid,
+                 lr->bind_addr->hostname ? lr->bind_addr->hostname : "*",
+                 lr->bind_addr->port, accf_name);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                        MODNAME ": magic_init 1 test");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: read response failed from %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

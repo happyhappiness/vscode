@@ -1,1 +1,1 @@
-apr_file_puts(line, outfile);
+ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);

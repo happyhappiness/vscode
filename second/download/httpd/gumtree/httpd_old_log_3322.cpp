@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: "
-                          "require dn: authorization successful");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Awaiting re-negotiation handshake");

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00268)
-                     "sigaction(SIGXFSZ)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00034)
+                          "dir_walk error, could not determine the root "
+                          "path of filename %s%s for uri %s",
+                          r->filename, r->path_info, r->uri);

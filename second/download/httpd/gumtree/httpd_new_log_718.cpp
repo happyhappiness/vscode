@@ -1,1 +1,1 @@
-ap_rputs("<dl><dt><strong>Configuration:</strong>\n", r);
+ap_rputs(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n", r);

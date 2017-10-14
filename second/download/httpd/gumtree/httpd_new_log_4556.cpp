@@ -1,1 +1,2 @@
-r(APLOG_MARK, APLOG_TRACE3, 0, r, "end body send");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00944)
+                 "connecting %s to %s:%d", *url, uri->hostname, uri->port);

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                 "proxy: CONNECT: client was set");
+ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);

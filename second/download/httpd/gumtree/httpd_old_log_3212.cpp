@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "allocated new client %lu", key);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);

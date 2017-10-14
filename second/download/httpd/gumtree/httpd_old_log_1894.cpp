@@ -1,1 +1,0 @@
-ap_rputs("/second - ", r);

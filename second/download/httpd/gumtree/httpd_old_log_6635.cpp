@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                     "h2_worker(%d): looking for work", h2_worker_get_id(worker));
+ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");

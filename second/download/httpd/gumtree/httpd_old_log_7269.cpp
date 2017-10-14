@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
-                                 "connect to remote machine %s blocked: "
-                                 "IP %s matched", uri_addr->hostname, conf_ip);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00695)
+                        "Cached response for %s isn't fresh.  Adding/replacing "
+                        "conditional request headers.", r->uri);

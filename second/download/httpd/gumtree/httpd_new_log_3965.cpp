@@ -1,2 +1,2 @@
-ap_rputs("PID Key: <br />\n"
-                     "<pre>\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00651)
+                         "could not open forensic log file %s.", fname);

@@ -1,2 +1,1 @@
-fprintf(stderr, "%s: Cannot use concurrency level greater than "
-                "total number of requests\n", argv[0]);
+apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d" NL, rv);

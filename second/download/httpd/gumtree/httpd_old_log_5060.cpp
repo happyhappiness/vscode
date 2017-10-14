@@ -1,2 +1,8 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                     "Invalid URI in request %s", r->the_request);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,
+                             idle_thread_count, total_non_dead);

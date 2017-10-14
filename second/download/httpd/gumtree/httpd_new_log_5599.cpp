@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, APLOGNO(00042)
-                     "apr_MD5InitEBCDIC() failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02664)
+                 "mod_lua IVM: Failed to find temporary directory");

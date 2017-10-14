@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03452)
-                                  "Request header field name presented"
-                                  " invalid whitespace");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
+                  H2_STRM_MSG(stream, "dispatch event %d"), ev);

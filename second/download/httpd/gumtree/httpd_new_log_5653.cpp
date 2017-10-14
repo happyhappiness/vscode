@@ -1,1 +1,2 @@
-fprintf(stderr, "Post-rotation prog: %21s\n", config->postrotate_prog);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
+                              "Failed to read request header line %s", field);

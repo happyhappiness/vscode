@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, 0, p,
-                      APLOGNO(02185) "Failed to allocate dynamic lock structure");
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, server, APLOGNO(00137)
+                     "apr_socket_addr_get(APR_LOCAL)");

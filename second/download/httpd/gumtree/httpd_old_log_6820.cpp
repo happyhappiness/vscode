@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                              "h2_stream(%ld-%d): DATA, len=%ld, eos=%d", 
+                              session->id, frame->hd.stream_id, 
+                              (long)frame->hd.length, eos);

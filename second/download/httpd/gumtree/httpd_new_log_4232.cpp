@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
-               "ajp_unmarshal_response: ap_set_content_type to '%s'", value);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01172)
+                  "%s: worker (%s) rewritten to %s",
+                  (*balancer)->s->name, (*worker)->s->name, *url);

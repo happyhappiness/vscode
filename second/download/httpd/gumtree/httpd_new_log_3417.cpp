@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server, APLOGNO(02134)
-                 "Awaiting re-negotiation handshake");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00751)
+                            "Adding CACHE_REMOVE_URL filter for %s",
+                            r->uri);

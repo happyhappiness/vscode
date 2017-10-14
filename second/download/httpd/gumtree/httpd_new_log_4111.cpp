@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00690)
-                          "no acceptable variant: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00977)
+                              "ajp_marshal_into_msgb: "
+                              "Error appending the SSL ciphers");

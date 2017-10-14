@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, pool, 
-                      APLOGNO(02913) "h2_task: creating conn");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "protocol switch: current proto != http/1.1, declined");

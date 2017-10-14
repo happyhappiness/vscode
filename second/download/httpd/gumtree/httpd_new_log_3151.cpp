@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
-                         "Sharing worker '%s' instead of creating new worker '%s'",
-                         worker->name, new->real);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01812)
+          "internal redirect to method '%s' and body mimetype '%s' for the "
+                      "uri: %s", sent_method, sent_mimetype, r->uri);

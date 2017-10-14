@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                    "Graceful restart requested, doing restart");
+ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
+                 "No installed service named \"%s\".", service_name);

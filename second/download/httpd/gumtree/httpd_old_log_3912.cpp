@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
-                                   "unable to create socket to cgi daemon");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "LDAP: Could not set LDAP_OPT_TIMEOUT");

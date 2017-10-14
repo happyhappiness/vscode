@@ -1,1 +1,1 @@
-err("Cannot mix POST with other methods\n");
+fprintf(stderr, "Opening file %s\n", status->filename);

@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require ldap-filter: "
-                              "authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01797)
+                      "client denied by server configuration: %s%s",
+                      r->filename ? "" : "uri ",
+                      r->filename ? r->filename : r->uri);

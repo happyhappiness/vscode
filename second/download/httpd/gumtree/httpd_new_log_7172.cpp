@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02572)
-                     "Failed to configure at least one certificate and key "
-                     "for %s", sc->vhost_id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(02433)
+                     "Cannot find LB Method: %s", b->s->lbpname);

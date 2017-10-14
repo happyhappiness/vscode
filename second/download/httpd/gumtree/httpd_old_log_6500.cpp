@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
-                      "h2_conn_io: flush, flushing %ld bytes", 
-                      (long)io->buflen);
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

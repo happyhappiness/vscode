@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                 "disk_cache: Caching headers for URL %s",  dobj->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0 , s, "LDAP cache: Unable to init Shared Cache: no file");

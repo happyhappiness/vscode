@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00299)
-                             "apr_proc_detach failed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, "%s", res);

@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "%s", buff);
+printf("Server loaded:  APR %s, APR-UTIL %s\n",
+           apr_version_string(), apu_version_string());

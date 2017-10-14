@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                 "Opening config handler %s", descr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01455)
+                              "rl: full speed brigade pass failed.");

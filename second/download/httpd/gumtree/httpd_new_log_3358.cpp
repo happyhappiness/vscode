@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01643)
-                      "Error retrieving Query for %s!", action);
+apr_file_printf(out, "ChrootDir: \"%s\"%s\n",
+                        ap_unixd_config.chroot_dir, no_root);

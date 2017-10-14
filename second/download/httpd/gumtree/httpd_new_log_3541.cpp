@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00775)
-                "cache: CACHE_REMOVE_URL enabled unexpectedly");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02073)
+                     "Failed to accept localhost mulitcast on socket.");

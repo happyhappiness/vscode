@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rv, c,
-                          "core_output_filter: writing data to the network");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set screen name");

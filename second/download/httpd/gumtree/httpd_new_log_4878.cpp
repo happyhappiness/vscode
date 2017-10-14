@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02228)
-                          "Failed expression: %s", req->cpExpr);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01934)
+                     "stapling_check_response: Error Parsing Response!");

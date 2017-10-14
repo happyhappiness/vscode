@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                             APLOGNO(03489) "rl: disabling burst: rate-initial-burst = %s (too high?)", rl);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03462)
+                              "proxying is explicitly disabled for URI path "
+                              "'%s'; declining", r->uri);

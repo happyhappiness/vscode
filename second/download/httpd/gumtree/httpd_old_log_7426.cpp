@@ -1,1 +1,1 @@
-fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
+fprintf(stderr, "Error truncating the file %s\n", status->current.name);

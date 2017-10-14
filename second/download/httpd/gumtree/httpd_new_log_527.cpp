@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_ENOTIMPL, r->server,
-                     "proxy: client %s (%s) requested Transfer-Encoding body"
-                     " with Content-Length (C-L ignored)",
-                     c->remote_ip, c->remote_host ? c->remote_host: "");
+ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);

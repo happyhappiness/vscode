@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(02332)
-            "(re)loading lua file %s", spec->file);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02568)
+                     "Certificate and private key %s configured from %s and %s",
+                     key_id, certfile, keyfile);

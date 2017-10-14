@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00128)
-                          "File does not exist: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00489)
+                 "%s configured -- resuming normal operations",
+                 ap_get_server_description());

@@ -1,2 +1,3 @@
-ap_register_output_filter("H1_TO_H2", h2_filter_stream_output,
-                              NULL, AP_FTYPE_NETWORK);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02935) "nghttp2_submit_settings: %s", 
+                      nghttp2_strerror(*rv));

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "proxy: CONNECT: error on %s - ap_pass_brigade",
-                              name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "proxy: server %s:%d returned Transfer-Encoding"
+                             " and Content-Length", backend->hostname,
+                             backend->port);

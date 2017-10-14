@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00636)
-                 "child init failed!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01401)
+                              "Zlib: Validation bytes not present");

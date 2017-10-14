@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(10022)
-                          "h2_mplx(%ld): task(%s) has not-shutdown "
-                          "engine(%s)", m->id, task->id, 
-                          h2_req_engine_get_id(task->engine));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(03016)
+                     "mod_lua: Failed to reopen mutex lua-ivm-shm in child");

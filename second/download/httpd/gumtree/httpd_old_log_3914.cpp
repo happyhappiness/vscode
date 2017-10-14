@@ -1,2 +1,3 @@
-log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno,
-                                       "unable to connect to cgi daemon after multiple tries");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "ldap_simple_bind() failed with server down "
+                      "(try %d)", failures + 1);

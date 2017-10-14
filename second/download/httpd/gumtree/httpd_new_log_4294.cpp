@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00870) "request is chunked");
+ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);

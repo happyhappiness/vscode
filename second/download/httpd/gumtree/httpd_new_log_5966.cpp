@@ -1,3 +1,5 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
-                      "h2_request(%d): pseudo header in trailer",
-                      req->id);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, APLOGNO(03195)
+                      "missing argument for exec element in %s", r->filename);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00009) LOG_PREFIX
-                  "user '%s' removed cookie: '%s'", r->user, rfc2109);
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(02812),
+                               "attempt to invoke directory as script");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01053)
-                              "failed to accept data connection");
+ap_log_rerror(APLOG_MARK, loglevel, rv, r, APLOGNO(00935)
+                          "%s: error creating fam %d socket for target %s",
+                          proxy_function, backend_addr->family, backend_name);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(00522)
-                     "write pipe_of_death");
+ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, APLOGNO(00346)
+                             "getsockname failed");

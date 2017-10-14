@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_task(%s): read returned", task->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                          "h2_proxy_session(%s): write, rv=%d", session->id, rv);

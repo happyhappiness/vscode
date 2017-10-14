@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                           "apr_socket_opt_set(APR_TCP_NODELAY): "
-                           "Failed to set");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                  "Connection to child %ld established "
+                  "(server %s)", c->id, sc->vhost_id);

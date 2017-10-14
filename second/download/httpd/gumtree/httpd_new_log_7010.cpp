@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                      H2_SSSN_LOG(APLOGNO(03069), session, 
-                                  "sent GOAWAY, err=%d, msg=%s"), error, msg? msg : "");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(03490)
+                         "scoreboard is full, not at MaxRequestWorkers."
+                         "Increase ServerLimit.");

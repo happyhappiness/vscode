@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01879)
-                     "Init: Failed to generate temporary "
-                     "%d bit RSA private key", bits);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02035)
+                    "Encountered FakeBasicAuth spoof: %s", username);

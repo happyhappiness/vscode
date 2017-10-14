@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, status, s, APLOGNO(00223)
-            "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00398)
+                     "Parent: Unable to send the start mutex to the child");

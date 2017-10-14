@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "schedule %s %s://%s%s chunked=%d"),
-                      r->method, r->scheme, r->authority, r->path, r->chunked);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
+                         ap_server_conf, APLOGNO(02324)
+                         "A resource shortage or other unrecoverable failure "
+                         "was encountered before any child process initialized "
+                         "successfully... httpd is exiting!");

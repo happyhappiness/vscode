@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03013) 
-                      "Websocket: Writing framed message to client");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             APLOGNO(02304) "Discarding directive `%s' not "
+                             "allowed in AllowOverrideList at %s:%d",
+                             argv[i], cmd->directive->filename,
+                             cmd->directive->line_num);

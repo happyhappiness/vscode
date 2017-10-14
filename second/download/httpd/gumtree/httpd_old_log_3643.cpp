@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to set file permssions on %s",
-                     path);
+ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server,
+        "mod_dumpio: %s - %d", f->frec->name, ret);

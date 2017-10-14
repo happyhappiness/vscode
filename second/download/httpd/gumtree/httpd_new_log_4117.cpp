@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00658)
-                      "rewritemap: error %s looking up %s", errmsg, key);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
+            "ajp_marshal_into_msgb: Done");

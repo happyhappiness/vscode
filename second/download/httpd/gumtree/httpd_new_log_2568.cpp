@@ -1,3 +1,3 @@
-apr_file_printf(errfile, "total entries was %d, total entries now %d"
-                              APR_EOL_STR, (int)(s->etotal),
-                              (int)(s->entries));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: WriteClient ap_pass_brigade "
+                          "failed: %s", r->filename);

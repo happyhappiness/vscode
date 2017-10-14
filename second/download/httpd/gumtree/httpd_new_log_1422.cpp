@@ -1,4 +1,2 @@
-decl_die(access_status, ap_auth_type(r)
-                                  ? "check access.  Check your 'Require' directive"
-                                  : "perform authentication. AuthType not set!",
-                                   r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
+                              (ctx->remaining < 0) ? "(overflow)" : "");

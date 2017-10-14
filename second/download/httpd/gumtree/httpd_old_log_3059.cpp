@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authenticate: accepting %s", getpid(), user);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing end");

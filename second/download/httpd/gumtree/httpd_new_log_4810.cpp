@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02207)
-                 "loaded %d client certs for SSL proxy",
-                 ncerts);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02245)
+                                 "Init: SSLPassPhraseDialog builtin is not "
+                                 "supported on Win32 (key file "
+                                 "%s)", szPath);

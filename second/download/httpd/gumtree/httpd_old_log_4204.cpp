@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server,
-                "mod_unique_id: using ip addr %s",
-                 ipaddrstr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "proxy: error processing end");

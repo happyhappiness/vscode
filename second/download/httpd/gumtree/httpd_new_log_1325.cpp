@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                              "SSL Proxy: Peer certificate is expired");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                  "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                  auth_line);

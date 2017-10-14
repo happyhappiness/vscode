@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      c->id, req->id);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request: ignoring unknown pseudo header %s",
+                          buffer);

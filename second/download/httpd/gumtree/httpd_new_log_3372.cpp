@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01802)
-                        "No group file was specified in the configuration");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "%s: %s", cid->r->filename,
+                          (char*) buf_data);

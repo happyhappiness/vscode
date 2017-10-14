@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01763)
-                 "Set shmem-size: %" APR_SIZE_T_FMT ", num-buckets: %ld",
-                 shmem_size, num_buckets);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01706)
+                              "auth_ldap authorize: "
+                              "require user: authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));

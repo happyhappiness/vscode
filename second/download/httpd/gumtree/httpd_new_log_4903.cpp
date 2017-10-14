@@ -1,1 +1,2 @@
-ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c, "%s", buf);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01959)
+                     "SSLStapling: cannot initialise stapling mutex");

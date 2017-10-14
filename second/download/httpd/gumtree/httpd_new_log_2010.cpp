@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "proxy: CONNECT: read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "proxy: %s: fam %d socket created to connect to %s",
+                      proxy_function, backend_addr->family, backend_name);

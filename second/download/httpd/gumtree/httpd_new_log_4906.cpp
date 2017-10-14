@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(02025)
-                         "Cannot reinit %s mutex", SSL_CACHE_MUTEX_TYPE);
+ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         ap_server_conf, APLOGNO(02171) "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);

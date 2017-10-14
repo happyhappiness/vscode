@@ -1,2 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "request_rec->dispatching %s -> int", name);
+                        "%ld > %ld = %d", v, l, matched);

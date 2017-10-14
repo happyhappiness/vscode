@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, APLOGNO(00346)
-                             "getsockname failed");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00381)
+                     "Query of Service %s failed", mpm_display_name);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring server certificate chain "
-                 "(%d CA certificate%s)",
-                 n, n == 1 ? "" : "s");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit %s mutex", SSL_CACHE_MUTEX_TYPE);

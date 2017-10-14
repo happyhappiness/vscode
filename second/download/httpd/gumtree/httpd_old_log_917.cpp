@@ -1,1 +1,4 @@
-fprintf (stderr, "Next token is %d (%s", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "Cannot open SSLSessionCache DBM file `%s' for status "
+                     "retrival",
+                     mc->szSessionCacheDataFile);

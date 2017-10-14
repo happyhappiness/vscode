@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                          "require user: authorization successful", getpid());
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                     "worker %s already used by another worker", worker->name);

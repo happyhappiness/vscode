@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                 "proxy: CONNECT: setting up poll()");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to set session id context to '%s'", vhost_md5);

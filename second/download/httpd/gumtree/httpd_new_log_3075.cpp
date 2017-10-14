@@ -1,6 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "auth_ldap authorise: require group "
-                                  "(sub-group): authorisation successful "
-                                  "(attribute %s) [%s][%d - %s]",
-                                  ent[i].name, ldc->reason, result,
-                                  ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k install|config|uninstall] [-n service_name]",
+                 pad_len, " ");

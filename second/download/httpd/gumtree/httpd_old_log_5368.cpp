@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to retrieve the scoreboard handle for the child");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "Accept mutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());

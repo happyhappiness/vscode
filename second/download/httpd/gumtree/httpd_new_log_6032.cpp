@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): readx %s, len=%ld eos=%d",
-                  stream->session->id, stream->id, src, (long)*plen, *peos);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                              "h2_mplx(%ld): decrease worker limit to %d",
+                              m->id, m->workers_limit);

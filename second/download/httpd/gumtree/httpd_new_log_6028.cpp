@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d, bbin=%d", 
-                      stream->session->id, stream->id, input_closed(stream),
-                      stream->request->eoh, !!stream->bbin);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
+                                  "h2_mplx(%ld): task(%s) has not-shutdown "
+                                  "engine(%s)", m->id, task->id, 
+                                  h2_req_engine_get_id(task->engine));

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                         "could not open transfer log file %s.", fname);
+fprintf(stderr, "Processing config directory: %s\n", fname);

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c, APLOGNO(03398)
-                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
-                      shed->c->id, entry->task->id, ngn->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "status_handler(%s): checking for incoming trailers", 
+                      task->id);

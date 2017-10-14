@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "core_output_filter: writing data to the network");
+printf("Copyright (c) 1998-2002 The Apache Software Foundation, http://www.apache.org/\n");

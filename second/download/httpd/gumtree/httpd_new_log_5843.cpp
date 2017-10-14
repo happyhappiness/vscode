@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01946)
-                         "Cannot reinit %s mutex with file `%s'",
-                         type, lockfile);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
+                  "h2_session(%ld): malloc(%ld)",
+                  session->id, (long)size);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "proxy: %s Transfer-Encoding is not supported",
-                     old_te_val);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);

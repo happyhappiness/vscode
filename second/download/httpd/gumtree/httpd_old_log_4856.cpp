@@ -1,3 +1,3 @@
-r(APLOG_MARK, APLOG_ERR, 0, r,
-                      "access to %s failed, reason: %s",
-                      r->filename, "SSL connection required");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "bad response from OCSP server: %s",
+                      line ? line : "(none)");

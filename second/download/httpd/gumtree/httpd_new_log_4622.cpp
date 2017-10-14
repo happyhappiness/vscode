@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00915)
-                             "%s", inet_ntoa(This->mask));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01856)
+                      "no SessionDBDupdatelabel has been specified");

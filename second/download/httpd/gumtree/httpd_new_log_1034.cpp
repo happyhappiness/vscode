@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_EMERG, 0, NULL, "%s: %s",
-                     ap_server_argv0, error);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                 "Child %d: Starting thread to listen on port %d.", my_pid, lr->bind_addr->port);

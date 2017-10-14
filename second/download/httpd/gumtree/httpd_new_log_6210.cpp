@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03069)
-                  "session(%ld): sent GOAWAY, err=%d, msg=%s", 
-                  session->id, error, msg? msg : "");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                         ref ? APLOGNO(03226) "Spelling fix: %s: %d candidates from %s"
+                             : APLOGNO(03227) "Spelling fix: %s: %d candidates%s",
+                         r->uri, candidates->nelts,
+                         (ref ? ref : ""));

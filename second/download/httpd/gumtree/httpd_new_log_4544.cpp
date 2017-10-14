@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                          "SIZE shows this is a directory");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00928)
+                             "can not create worker thread mutex");

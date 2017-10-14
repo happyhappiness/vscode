@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03049)
-                              "h2_task(%s): sending trailers", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03449)
+                          "HTTP Request Line; Extraneous text found '%.*s' "
+                          "(perhaps whitespace was injected?)",
+                          field_name_len(ll), ll);

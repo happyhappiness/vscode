@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", ap_threads_per_child);

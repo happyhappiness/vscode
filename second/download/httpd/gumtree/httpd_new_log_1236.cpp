@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: username too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN - 1);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create reslist memory pool");

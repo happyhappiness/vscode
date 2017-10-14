@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00509)
-                         "WARNING: ThreadsPerChild of %d not allowed, "
-                         "increasing to 1.", threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf, APLOGNO(00331)
+                     "winnt_accept: unrecognized AcceptFilter '%s', "
+                     "only 'data', 'connect' or 'none' are valid. "
+                     "Using 'none' instead", accf_name);

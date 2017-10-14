@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                 "Writing message failed %d %d", rv, errno);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);

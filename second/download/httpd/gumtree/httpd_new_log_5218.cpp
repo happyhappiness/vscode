@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00200)
-                         "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf, APLOGNO(00347)
+                             "getpeername failed");

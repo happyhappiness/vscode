@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, level, 0, r,
-                              "%d:  '%s'", i, lua_tostring(L, i));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03044)
+                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
+                      c->id, (long)bblen);

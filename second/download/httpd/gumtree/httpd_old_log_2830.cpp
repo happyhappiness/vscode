@@ -1,3 +1,3 @@
-fprintf(stderr,
-                "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-                argv[0]);
+printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+       "<td colspan=2 %s>%ld bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalread);

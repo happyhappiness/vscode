@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
-                              "require ldap-filter: authorization "
-                              "failed [%s][%s]", getpid(),
-                              ldc->reason, ldap_err2string(result));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" first line", *cmd);

@@ -1,1 +1,0 @@
-ap_rvputs(r, "  <h1 id=\"indextitle\">Index of ", title, "</h1>\n", NULL);

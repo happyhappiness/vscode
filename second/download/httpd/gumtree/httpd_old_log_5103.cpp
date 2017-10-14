@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
-                         "%s: Invalid error log path %s.",
-                         ap_server_argv0, s->error_fname);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
+                             ap_server_conf, "removed PID file %s (pid=%d)",
+                             pidfile, getpid());

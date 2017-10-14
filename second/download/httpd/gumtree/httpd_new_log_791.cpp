@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "mod_rewrite: could not open reliable pipe "
-                         "to RewriteLog filter %s", fname);
+ap_rvputs(r, "</td><td>", worker->s->route, NULL);

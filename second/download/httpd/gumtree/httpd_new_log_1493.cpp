@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                         "%s child %lu: Unable to init the start_mutex.",
-                         service_name, my_pid);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "SSL proxy client cert chain verification failed for %s: %s",
+                         cert_dn, X509_verify_cert_error_string(err));

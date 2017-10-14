@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                  H2_STRM_MSG(stream, "read_to, len=%ld eos=%d"),
-                  (long)*plen, *peos);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02343)
+                          "Can't evaluate logout expression: %s", err);

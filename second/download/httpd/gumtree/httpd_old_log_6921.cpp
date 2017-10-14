@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
-                      "Response header '%s' value of '%s' contains invalid "
-                      "characters, aborting request",
-                      name, val);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                  "h2_stream(%ld-%d): RST=2 (internal err) %s %s://%s%s",
+                  stream->session->id, stream->id,
+                  stream->request->method, stream->request->scheme,
+                  stream->request->authority, stream->request->path);

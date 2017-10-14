@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                                  "rl: brigade pass failed.");
+ap_rputs("\"<b><code>.</code></b>\" Open slot with no current process</p>\n", r);

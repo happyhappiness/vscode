@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "disk_cache: URL %s didn't receive complete response, not caching",
-                             h->cache_obj->key);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Skipping generating temporary "
+                     "%d bit RSA private key in FIPS mode", bits);

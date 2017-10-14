@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02042)
-                          "rejecting client initiated renegotiation");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01952)
+                 "stapling_cb: retrieved cached certificate data");

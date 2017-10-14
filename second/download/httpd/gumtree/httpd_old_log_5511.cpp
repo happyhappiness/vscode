@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d would require %d "
-                         "servers and ", max_clients, ap_daemons_limit);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_s,
+                         "VirtualHost %s:%u -- mixing * "
+                         "ports and non-* ports with "
+                         "a NameVirtualHost address is not supported,"
+                         " proceeding with undefined results",
+                         sar->virthost, sar->host_port);

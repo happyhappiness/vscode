@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01890)
-                     "Init: loaded Crypto Device API `%s'",
-                     mc->szCryptoDevice);
+ssl_log_cxerror(SSLLOG_MARK, APLOG_DEBUG, 0, c, info->x509, APLOGNO(02277)
+                    SSLPROXY_CERT_CB_LOG_FMT "%s, sending",
+                    (mySrvConfigFromConn(c))->vhost_id, msg);

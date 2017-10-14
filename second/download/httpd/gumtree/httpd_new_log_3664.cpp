@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
-                          cmd->pool, APLOGNO(01574) "module %s is already loaded, skipping",
-                          modname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01384)
+                          "Zlib: Compressed %ld to %ld : URL %s",
+                          ctx->stream.total_in, ctx->stream.total_out, r->uri);

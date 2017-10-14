@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                      APLOGNO(02940) "submit_response: %s", 
-                      nghttp2_strerror(rv));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                          "h2_task(%s): getline: %s",
+                          task->id, buffer);

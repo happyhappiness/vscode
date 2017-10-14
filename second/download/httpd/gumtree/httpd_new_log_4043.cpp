@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(01310)
-                 "LDAP: Connection timeout option not supported by the "
-                 "LDAP SDK in use." );
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01508)
+             MODNAME ": rsl_strdup() %d chars: %s", res_pos - 1, result);

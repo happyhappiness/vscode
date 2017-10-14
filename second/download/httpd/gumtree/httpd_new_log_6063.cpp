@@ -1,1 +1,0 @@
-cleanup_zombies(workers, 0);

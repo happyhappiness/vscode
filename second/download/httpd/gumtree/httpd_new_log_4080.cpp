@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01480)
-                      "Failed to init LuaJIT: %s", msg);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01548)
+                    "((%lx & %lx) == %lx) = %d", v, l, l, matched);

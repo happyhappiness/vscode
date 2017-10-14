@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, err->aprerr, ap_server_conf,
-                         APLOGNO(00577) "Error writing propdb: %s", err->desc);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01407)
+                              "Zlib: %d bytes of garbage at the end of "
+                              "compressed stream.", ctx->stream.avail_in);

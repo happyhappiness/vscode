@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(03021)
-                         "Parsed host %s", New->name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
+                  "h2_task(%s): destroy", task->id);

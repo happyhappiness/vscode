@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: read timeout");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Insufficient data for inflate");

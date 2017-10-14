@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00833)
-                     "can't store an socache entry!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00591)
+                      "The request is missing a Destination header.");

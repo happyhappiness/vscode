@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00991)
-                   "ajp_read_header: ajp_msg_create failed");
+ap_rvputs(r, "      <httpd:name>", balancer->s->name, "</httpd:name>\n", NULL);

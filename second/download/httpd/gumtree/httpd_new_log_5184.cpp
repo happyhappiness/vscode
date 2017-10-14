@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00492)
-                         "caught " AP_SIG_GRACEFUL_STOP_STRING
-                         ", shutting down gracefully");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00176)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);

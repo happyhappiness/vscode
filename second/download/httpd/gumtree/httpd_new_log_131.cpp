@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rc,
-                         c->base_server,
-                         "SSL handshake stopped: connection was closed");
+ap_register_output_filter (ssl_io_filter, ssl_io_filter_output, NULL, AP_FTYPE_CONNECTION + 5);

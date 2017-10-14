@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, "rl: conn aborted");
+ap_rputs("\"<b><code>L</code></b>\" Logging, \n", r);

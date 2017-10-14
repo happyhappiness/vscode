@@ -1,1 +1,1 @@
-ap_rputs("OK", r);
+fprintf(stderr, "Invalid -n argument\n");

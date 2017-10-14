@@ -1,2 +1,2 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            " (8 chars max, insecure)." NL);
+ap_rvputs(r, "<dt>Server MPM: ",
+                  ap_show_mpm(), "</dt>\n", NULL);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01665)
-                        "Could not open group file: %s",
-                        conf->groupfile);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                            "asynchronous I/O not supported: %s",
+                            r->filename);

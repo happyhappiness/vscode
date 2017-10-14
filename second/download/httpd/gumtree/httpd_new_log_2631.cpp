@@ -1,2 +1,2 @@
-fprintf(stderr, "Error linking file %s to %s (%s)\n",
-                    status->filename, config->linkfile, error);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, irv, r->server,
+                                     "cache: attempt to remove url from cache unsuccessful.");

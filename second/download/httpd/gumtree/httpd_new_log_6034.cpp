@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                  "h2_stream(%ld-%d): suspended=%d",
-                  stream->session->id, stream->id, stream->suspended);
+ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, diary->entries->pool,
+                  "push_diary_append: %"APR_UINT64_T_HEX_FMT, ne->hash);

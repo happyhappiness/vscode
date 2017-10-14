@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Digest: invalid qop `%s' received: %s",
-                          resp->message_qop, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require attribute: "
+                              "authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));

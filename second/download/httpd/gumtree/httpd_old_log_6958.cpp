@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,  APLOGNO(03056)
-                          "h2_mplx(%ld): 3. release_join with %d tasks",
-                          m->id, (int)h2_ihash_count(m->tasks));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, ctx->owner, 
+                      "h2_proxy_engine(%s): pulled request (%s) %s", 
+                      ctx->engine_id, 
+                      before_leave? "before leave" : "regular", 
+                      (ctx->next? ctx->next->the_request : "NULL"));

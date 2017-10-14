@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_send_header: ajp_msg_create failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: (%s). Lock failed for post_request",
+            balancer->name);

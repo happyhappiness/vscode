@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02208)
-                     "SSL proxy client cert initialization failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, APLOGNO(02246)
+                                     "Init: Unable to read pass phrase "
+                                     "[Hint: key introduced or changed "
+                                     "before restart?]");

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01815)
-                      "session is enabled but no session modules have been configured, "
-                      "session not loaded: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02209)
+                     "CA certificate: %s",
+                     SSL_X509_NAME_to_string(ptemp, name, 0));

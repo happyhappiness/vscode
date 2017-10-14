@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02206)
-                     "no client certs found for SSL proxy");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02243)
+                                  "Init: Can't open server private key file "
+                                  "%s",szPath);

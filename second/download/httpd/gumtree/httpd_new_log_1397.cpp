@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  Check your authn provider!"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

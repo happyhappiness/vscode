@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, GCSLOG_LEVEL, 0, session->c,
-                              "push_diary_update: adding PUSH %s", push->req->path);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03008)
+                              "%d:  <table>", i);

@@ -1,1 +1,2 @@
-ap_rputs("<tr><td colspan='2'><input type=submit value='Submit'></td></tr>\n", r);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_slave_in(%s): no data", task->id);

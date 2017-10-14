@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "proxy: CONNECT: error on %s - ap_pass_brigade",
-                              name);
+ap_log_rerror(APLOG_MARK, loglevel, rv, r,
+                          "proxy: %s: attempt to connect to %pI (%s) failed",
+                          proxy_function,
+                          backend_addr,
+                          backend_name);

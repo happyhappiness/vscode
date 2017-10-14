@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01146)
-                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                             elts[i].key, elts[i].val, worker->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01091)
+                                  "write to temporary file %s failed",
+                                  tmpfile_name);

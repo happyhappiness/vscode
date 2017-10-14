@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                     "SSL connection destroyed without being closed");
+apr_file_printf(writetty, "In order to read them you have to provide us with the pass phrases.\n");

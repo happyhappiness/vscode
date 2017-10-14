@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                  "Authorization of user %s to access %s failed, reason: %s",
-                  r->user, r->uri, reason ? reason : "unknown");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "disk_cache: URL %s failed the size check "
+                         "(%" APR_OFF_T_FMT "<%" APR_OFF_T_FMT ")",
+                         h->cache_obj->key, dobj->file_size, conf->minfs);

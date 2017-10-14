@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00857)
-                      "error parsing URL %s: %s", url, err);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01829)
+                "apr_crypto_block_encrypt_init failed");

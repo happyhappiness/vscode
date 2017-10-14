@@ -1,2 +1,1 @@
-fprintf(stderr,
-		"overlay_tables: overlay's pool is not an ancestor of p\n");
+printf("Req char = \\x%02x\n", re->req_char);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "%s", lookup.err.desc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "cache: running CACHE_IN filter");

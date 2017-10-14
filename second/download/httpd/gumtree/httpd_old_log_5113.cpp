@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
-                     NULL, "Invalid PID file path %s, ignoring.", filename);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGINT)");

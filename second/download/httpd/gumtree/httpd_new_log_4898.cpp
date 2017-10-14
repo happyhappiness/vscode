@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02044)
-                              "No matching SSL virtual host for servername "
-                              "%s found (using default/first virtual host)",
-                              servername);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
+                     "stapling_cb: renewing cached response");

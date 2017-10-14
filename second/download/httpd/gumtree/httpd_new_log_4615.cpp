@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00908)
-                         "%s", inet_ntoa(This->mask));
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, APLOGNO(01849)
+                "The crypto library '%s' was loaded successfully",
+                conf->library);

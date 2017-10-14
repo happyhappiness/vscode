@@ -1,5 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01476)
-                          "request details scope:%u, filename:%s, function:%s",
-                          spec->scope,
-                          spec->file,
-                          hook_spec->function_name ? hook_spec->function_name : "-");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                  req->proxy_ips
+                      ? "Using %s as client's IP by proxies %s"
+                      : "Using %s as client's IP by internal proxies",
+                  req->useragent_ip, req->proxy_ips);

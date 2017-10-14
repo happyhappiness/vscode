@@ -1,0 +1,1 @@
+apr_err("apr_socket_connect()", rv);

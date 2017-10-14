@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "No Authn provider configured");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize: require group: testing for group "
+                  "membership in \"%s\"",
+                  t);

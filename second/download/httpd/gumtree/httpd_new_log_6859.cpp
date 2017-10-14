@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
-                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
-                          "not complete, was touched",
-                          ctx->engine_id, task_id, uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  H2_STRM_MSG(stream, "on_headers"));

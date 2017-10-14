@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01816)
-                      "error while loading the session, "
-                      "session not loaded: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(02292)
+                     "Init: Name-based SSL virtual hosts only "
+                     "work for clients with TLS server name indication "
+                     "support (RFC 4366)");

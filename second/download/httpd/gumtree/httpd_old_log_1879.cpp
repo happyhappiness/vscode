@@ -1,1 +1,0 @@
-ap_rvputs(r, "</td><td>", ar[x]->desc, NULL);

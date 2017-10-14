@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
-                  "h2_stream(%ld-%d): create slave", master->id, slave_id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                          H2_STRM_MSG(stream, "prepare, len=%ld eos=%d"),
+                          (long)*plen, *peos);

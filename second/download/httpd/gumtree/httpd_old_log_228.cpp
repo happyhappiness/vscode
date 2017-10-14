@@ -1,1 +1,0 @@
-ap_rputs("<hr /></pre>\n", r);

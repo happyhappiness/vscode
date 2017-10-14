@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown value "
-                              "\"%s\" to parameter \"encoding\" of tag echo in "
-                              "%s", tag_val, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "exec used but not allowed "
+                      "in %s", r->filename);

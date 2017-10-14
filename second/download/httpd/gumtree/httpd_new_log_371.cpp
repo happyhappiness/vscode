@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
+apr_file_printf(errfile, "password for user %s\n", user);

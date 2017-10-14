@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01302)
-                 "ldap cache: Setting operation cache size to %ld entries.",
-                 st->compare_cache_size);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv, APLOGNO(01492)
+                     "rfc1413: apr_sockaddr_info_get(%s) failed",
+                     conn->local_ip);

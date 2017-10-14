@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01165)
-                         "%s: Forcing recovery for worker (%s)",
-                         balancer->s->name, (*worker)->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01141)
+                      "proxy_handler no URL in %s", r->filename);

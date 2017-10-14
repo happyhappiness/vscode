@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                          "apr_socket_opt_set(APR_TCP_NODELAY): "
-                          "Failed to set");
+fprintf(stderr,
+            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
+            argv0);

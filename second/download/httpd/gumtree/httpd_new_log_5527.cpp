@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s,
-                 "mpm child %" APR_PID_T_FMT " (gen %d/slot %d) %s",
-                 pid, gen, slot, status_msg);
+apr_file_printf(
+            errfile,
+            "%" APR_OFF_T_FMT " entries deleted (%" APR_OFF_T_FMT " from future, %"
+            APR_OFF_T_FMT " expired, %" APR_OFF_T_FMT " fresh)" APR_EOL_STR,
+            (s->etotal - s->entries), s->dfuture, s->dexpired, s->dfresh);

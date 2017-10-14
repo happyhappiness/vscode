@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01765)
-                      "get_client(): client %lu not found", key);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01708)
+                      "auth_ldap authorize: no sec->host - weird...?");

@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Cleaned %s. Statistics:" APR_EOL_STR, path);
+fprintf(stderr, "Error linking file %s to %s (%s)\n",
+                    status->filename, config->linkfile, error);

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
-                      session->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00269)
+                     "sigaction(SIGPIPE)");

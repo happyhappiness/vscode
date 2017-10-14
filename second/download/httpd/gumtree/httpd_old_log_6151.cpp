@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                              "h2_h2(%ld): tls cipher %s blacklisted by %s", 
-                              (long)c->id, val, source);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_output(%s): opened and passed brigade", 
+                      output->task->id);

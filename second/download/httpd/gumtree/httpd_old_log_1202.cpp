@@ -1,1 +1,1 @@
-printf("Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/\n");
+apr_file_printf(errfile, " -D  Delete the specified user.\n");

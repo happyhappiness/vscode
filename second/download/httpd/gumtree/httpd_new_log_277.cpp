@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "subrequested from r->uri = %s",
-                          top->uri ? top->uri : "(unexpectedly NULL)");
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs");

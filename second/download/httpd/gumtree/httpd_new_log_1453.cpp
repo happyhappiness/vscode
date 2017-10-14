@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Illegal attempt to re-initialise SSL for server "
-                "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", nsd);

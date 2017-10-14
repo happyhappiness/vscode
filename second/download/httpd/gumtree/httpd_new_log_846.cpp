@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: connecting %s to %s:%d", *url, uri->hostname,
-                 uri->port);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
+                          "SSL library error %d writing data", ssl_err);

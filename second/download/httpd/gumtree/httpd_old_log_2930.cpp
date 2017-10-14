@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i> apache-2.0<br>\n", AP_AB_BASEREVISION, "$Revision: 1.146 $");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "no matching sessions were found");

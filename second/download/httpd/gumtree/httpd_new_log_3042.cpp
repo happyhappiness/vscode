@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
-                      "Mutex %s:%d released!", l->file, l->line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "no cached SGL for %s, retrieving from LDAP", dn);

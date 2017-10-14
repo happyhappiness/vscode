@@ -1,1 +1,1 @@
-ap_rputs("</dt>", r);
+ap_rputs(" -D SINGLE_LISTEN_UNSERIALIZED_ACCEPT\n", r);

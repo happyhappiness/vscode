@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
+                         "Child %lu: setup_inherited_listeners(), WSASocket failed to open the inherited socket.", my_pid);

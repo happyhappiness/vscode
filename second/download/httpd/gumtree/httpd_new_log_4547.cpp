@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "Content-Type set to %s", r->content_type);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00933)
+                         "%s: too soon to retry worker for (%s)",
+                         proxy_function, worker->s->hostname);

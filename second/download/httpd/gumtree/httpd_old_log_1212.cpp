@@ -1,3 +1,1 @@
-printf("error reading postfile: read only %"
-	       APR_SIZE_T_FMT " bytes",
-	       length);
+apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d\n", rv);

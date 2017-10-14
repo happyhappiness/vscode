@@ -1,2 +1,4 @@
-printf("%sdebug: state %d, shifting to state %d\n",
-                    YYPREFIX, ssl_expr_yystate, ssl_expr_yytable[ssl_expr_yyn]);
+apr_psprintf(p, "Module \"%s\" could not be loaded, "
+                                "because the dynamic module limit was "
+                                "reached. Please increase "
+                                "DYNAMIC_MODULE_LIMIT and recompile.", m->name);

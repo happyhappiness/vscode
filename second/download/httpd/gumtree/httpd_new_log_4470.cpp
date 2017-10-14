@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "declining URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01110)
+                                      "error reading response");

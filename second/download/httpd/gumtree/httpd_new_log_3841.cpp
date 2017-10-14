@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01355) "missing expr value for if "
-                      "element in %s", r->filename);
+apr_file_printf(out, "%s %s\n", dir->directive, dir->args);

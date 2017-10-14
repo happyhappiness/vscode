@@ -1,1 +1,1 @@
-(isprint(ch);
+printf("SSL/TLS Protocol:       %s\n", ssl_info);

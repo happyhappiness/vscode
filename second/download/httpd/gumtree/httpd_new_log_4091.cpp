@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01473)
-                      "request details scope:%u, filename:%s, function:%s",
-                      spec->scope,
-                      spec->file,
-                      "handle");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,  rv, r, APLOGNO(01569)
+                          "RemoteIP: Header %s value of %s appears to be "
+                          "a private IP or nonsensical.  Ignored",
+                          config->header_name, parse_remote);

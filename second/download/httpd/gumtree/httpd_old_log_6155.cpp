@@ -1,2 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "adding h1_to_h2_resp output filter");
+ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p,
+                                      "h2_util_move: %s, copied bucket %ld-%ld "
+                                      "from=%lx(p=%lx) to=%lx(p=%lx)",
+                                      msg, (long)b->start, (long)b->length, 
+                                      (long)from, (long)from->p, 
+                                      (long)to, (long)to->p);

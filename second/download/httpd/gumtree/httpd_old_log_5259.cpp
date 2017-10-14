@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxThreads of %d not allowed, "
-                         "increasing to 1.", ap_threads_limit);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "setup_inherited_listeners: Unable to read socket data from parent");

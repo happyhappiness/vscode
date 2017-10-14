@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool, APLOGNO(01575)
-                 "loaded module %s", modname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01385)
+                              "Zlib error %d flushing zlib output buffer (%s)",
+                              zRC, ctx->stream.msg);

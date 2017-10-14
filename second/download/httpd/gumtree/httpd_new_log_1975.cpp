@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                      "ajp_check_msg_header() got bad signature %02x%02x",
-                      head[0], head[1]);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                  "proxy: CONNECT: connection complete to %pI (%s)",
+                  connect_addr, connectname);

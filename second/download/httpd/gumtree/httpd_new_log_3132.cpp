@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "no cached SGL for %s, retrieving from LDAP", dn);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01783)
+                          "invalid uri <%s> in Authorization header",
+                          resp->uri);

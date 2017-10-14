@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02619)
+                                  "Encountered premature end-of-stream while "
+                                  "reading inflate header");

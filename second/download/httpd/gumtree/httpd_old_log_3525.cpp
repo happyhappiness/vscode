@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "CACHE_OUT enabled unexpectedly");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "match at idx=%d, data=%d", pos, idx->data_pos);

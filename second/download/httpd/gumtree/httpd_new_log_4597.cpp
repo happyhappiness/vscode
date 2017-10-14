@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00859)
-                          "receiving request body failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01831)
+                "apr_crypto_block_encrypt_finish failed");

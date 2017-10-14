@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
-                 pad_len, " ");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01755)
+                      "Could not open dbm (type %s) hash file: %s",
+                      conf->dbmtype, conf->pwfile);

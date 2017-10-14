@@ -1,1 +1,1 @@
-err("Authentication credentials too long\n");
+apr_file_printf(errfile, "Use -c option to create new one.\n");

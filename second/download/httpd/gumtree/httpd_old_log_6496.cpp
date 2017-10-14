@@ -1,2 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
-                    "Can't evaluate require expression: %s", err);
+ap_rvputs(r, "<tr>\n<td><a href=\"",
+                          ap_escape_uri(r->pool, r->uri), "?b=",
+                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->s->name),
+                          "&nonce=", balancer->s->nonce,
+                          "\">", NULL);

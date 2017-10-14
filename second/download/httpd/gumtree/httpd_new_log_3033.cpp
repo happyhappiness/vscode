@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "finished force-expire, subcache: idx_used=%d, "
-                     "data_used=%d", subcache->idx_used, subcache->data_used);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "Response sent with status %d%s",
+		      r->status,
+		      APLOGrtrace4(r) ? ", headers:" : "");

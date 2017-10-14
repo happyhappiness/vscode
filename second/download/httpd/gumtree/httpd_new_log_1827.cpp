@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "disk_cache: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT "<%" APR_OFF_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->minfs);
+ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">",time_str, NULL);

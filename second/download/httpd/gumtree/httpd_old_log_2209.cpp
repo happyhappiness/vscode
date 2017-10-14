@@ -1,1 +1,0 @@
-printf(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n");

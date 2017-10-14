@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);

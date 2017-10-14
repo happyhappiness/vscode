@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");
+fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");

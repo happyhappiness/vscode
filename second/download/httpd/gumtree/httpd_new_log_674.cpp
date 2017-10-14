@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, intern->r, "missing "
-                          "directive name in parsed document %s",
-                          intern->r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                         "Couldn't change owner of unix domain socket %s",
+                         sockname);

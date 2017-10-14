@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                            "Adding CACHE_REMOVE_URL filter for %s",
-                            r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "socache_shmcb_retrieve (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));

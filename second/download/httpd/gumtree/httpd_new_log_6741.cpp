@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                              "h2_slave_out(%s): copy_files on", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02417)
+                          "Replacing host header '%s' with host '%s' given "
+                          "in the request uri", host_header, repl);

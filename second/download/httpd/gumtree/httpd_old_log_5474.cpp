@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf,
-                         "No active workers found..."
-                         " Apache is exiting!");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                         "%s: apr_sockaddr_info_get() failed for %s",
+                         ap_server_argv0, str);

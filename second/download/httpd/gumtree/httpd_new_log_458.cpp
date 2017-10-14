@@ -1,2 +1,4 @@
-printf("Connect:    " CONF_FMT_STRING, 
-                   mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
+                                      0, r, "[%d] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "successful", getpid());

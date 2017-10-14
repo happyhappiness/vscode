@@ -1,1 +1,1 @@
-printf("SSL/TLS Protocol:       %s\n", ssl_info);
+apr_file_printf(errfile, " -c  Create a new file." NL);

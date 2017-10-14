@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
-                               "script not found or unable to stat");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Cache entry for %s doesn't exist", dn);

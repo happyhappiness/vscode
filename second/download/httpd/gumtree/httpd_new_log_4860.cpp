@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02256)
-                         "Non-default virtual host with SSLVerify set to "
-                         "'require' and VirtualHost-specific CA certificate "
-                         "list is only available to clients with TLS server "
-                         "name indication (SNI) support");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01984)
+                          "OCSP response: got EOF");

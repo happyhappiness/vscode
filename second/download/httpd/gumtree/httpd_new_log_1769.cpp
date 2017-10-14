@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s failed the size check "
+                     "(%" APR_OFF_T_FMT " > %" APR_OFF_T_FMT ")",
+                     key, len, conf->maxfs);

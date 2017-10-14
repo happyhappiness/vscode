@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00812)
-                         "Cannot re-open socache DBM file `%s' for "
-                         "expiring",
-                         ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(02095)
+                     "Failed to register watchdog callback (%s)",
+                     HM_WATHCHDOG_NAME);

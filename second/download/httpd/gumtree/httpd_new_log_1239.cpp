@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d" NL, rv);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, svr->pool,
+                      "DBD: failed to initialise");

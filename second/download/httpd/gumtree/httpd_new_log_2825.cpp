@@ -1,3 +1,2 @@
-fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
-            argv0);
+printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
+                           ap_round_ms(stats[(int) (done * percs[i] / 100)].time));

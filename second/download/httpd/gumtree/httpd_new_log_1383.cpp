@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EEXIST, r->server,
-                     "Could not stat a cache lock file: %s",
-                     lockname);
+ap_rputs("<tr valign='top'><td nowrap colspan=7>Cache has not been enabled/initialised.</td></tr>", r);

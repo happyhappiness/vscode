@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                                  "h2_proxy_session(%s): write, rv=%d", session->id, rv);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
+                  "h2_stream(%ld-%d): done", m->c->id, stream->id);

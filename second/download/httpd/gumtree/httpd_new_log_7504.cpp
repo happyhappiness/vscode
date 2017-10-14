@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02480)
-                "failed to register %s mutex", proxy_id);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02604)
+                             "Unable to configure certificate %s:%d "
+                             "for stapling", sc->vhost_id, i);

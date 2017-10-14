@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                     "Failed to acquire SSL session cache lock");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, cmd->server,
+                     "%s: getrlimit failed", cmd->cmd->name);

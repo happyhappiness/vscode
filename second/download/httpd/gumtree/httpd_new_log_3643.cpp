@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02079)
-                     "Unable to set file permissions on %s",
-                     path);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
+                      "mod_dumpio: %s - %d", f->frec->name, ret);

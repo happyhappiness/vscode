@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                          "OCSP response size exceeds %u byte limit",
-                          MAX_CONTENT);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                      "alloc_listener: failed to set up sockaddr for %s",
+                      addr);

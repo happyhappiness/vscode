@@ -1,1 +1,2 @@
-decl_die(access_status, "check authorization", r);
+apr_file_printf(output, "    - Double lookup failed : %d" NL,
+                        doublefailed);

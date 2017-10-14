@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
-                             "proxy: FTP: lock");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                     "proxy: worker %s already initialized",
+                     worker->name);

@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02333)
-                          "Error loading %s: %s", spec->file,
-                          rc == LUA_ERRMEM ? "memory allocation error"
-                                           : lua_tostring(L, 0));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id, certfile);

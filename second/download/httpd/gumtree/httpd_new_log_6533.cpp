@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%s): open response: %d, rst=%d",
-                  task->id, response->http_status, response->rst_error);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03193)
+                      "brigade: [%d] %s", i, e->type->name);

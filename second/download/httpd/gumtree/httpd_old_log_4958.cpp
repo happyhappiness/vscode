@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, p,
-                      "Failed to create thread mutex for dynamic lock");
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, server,
+                     "apr_socket_addr_get(APR_REMOTE)");

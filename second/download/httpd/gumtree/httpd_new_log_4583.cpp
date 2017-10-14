@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01106)
-                              "bad HTTP/%d.%d header returned by %s (%s)",
-                              major, minor, r->uri, r->method);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01817)
+                          "error while decoding the session, "
+                          "session not loaded: %s", r->uri);

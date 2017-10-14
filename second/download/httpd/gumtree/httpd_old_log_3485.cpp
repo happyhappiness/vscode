@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                     "ISAPI: Failed to create module cache");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "socache: Failed to create Memcache Object of '%d' size.", 
+                     nservers);

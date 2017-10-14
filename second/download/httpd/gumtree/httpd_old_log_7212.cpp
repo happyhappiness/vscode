@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00266)
-                     "sigaction(SIGINT)");
+fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");

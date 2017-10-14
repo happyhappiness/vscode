@@ -217,7 +217,7 @@ def fetch_version_diff(is_recreate=False):
 """
 def create_version_diff():
     # clear old patch file
-    # clear = commands.getoutput('rm ' + my_constant.PATCH_DIR + '*')
+    clear = commands.getoutput('rm ' + my_constant.PATCH_DIR + '*')
     # get all versions
     versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
     versions = versions.split('\n')

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                                         APLOGNO(02551) "bad md5 match");
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
+                      "Unable to find entry function '%s' in %s (not a valid function)",
+                      prov_spec->function_name, prov_spec->file_name);

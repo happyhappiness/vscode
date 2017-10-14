@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01828)
-                "encryption could not be configured.");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02004)
+                              "SSL Proxy: Peer certificate is expired");

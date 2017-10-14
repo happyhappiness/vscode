@@ -1,7 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                             ap_server_conf, APLOGNO(00355)
-                             "Child: CreateThread failed. Unable to "
-                             "create all worker threads. Created %d of the %d "
-                             "threads requested with the ThreadsPerChild "
-                             "configuration directive.",
-                             threads_created, ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00271)
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");

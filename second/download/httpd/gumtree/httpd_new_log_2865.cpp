@@ -1,1 +1,2 @@
-printf("Adding: %s\n", DYNAMIC_LINK_OPTS);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "proxy: read timeout");

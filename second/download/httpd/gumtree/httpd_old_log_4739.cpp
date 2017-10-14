@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, LOG_PREFIX
-                          "error retrieving results while saving '%s' "
-                          "in database using query '%s': %s", key, conf->selectlabel,
-                           apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unable to reconfigure (per-directory) "
+                          "permitted SSL ciphers");

@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                             "ProtocolEcho: Failure reading from %s",
-                             c->remote_ip);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for flastmod element in %s",
+                      r->filename);

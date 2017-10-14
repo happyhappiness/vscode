@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, "FIPS mode failed");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "%s", buff);

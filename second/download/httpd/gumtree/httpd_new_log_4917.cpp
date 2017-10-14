@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                      "No cert available to check with OCSP");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00523)
+            "handler \"%s\" not found for: %s", r->handler, r->filename);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(03159)
-                         "LDAP: SSL connections (ldaps://) not supported by utilLDAP");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
+                      session->id, stream->id);

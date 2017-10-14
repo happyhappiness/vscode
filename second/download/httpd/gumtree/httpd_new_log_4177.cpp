@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01540)
-                    MODNAME ": invalid type %d in mcheck().", m->type);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(02281)
+                     "Failed to lookup provider 'shm' for '%s'. Maybe you "
+                     "need to load mod_slotmem_shm?",
+                     AP_SLOTMEM_PROVIDER_GROUP);

@@ -1,6 +1,3 @@
-(mask & APHTP_VERIFY) {
-        apr_file_printf(errfile, "Password for user %s correct." NL, user);
-        exit(0);
-    }
-
-    apr_file_printf(errfile, "password for user %s" NL, user);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02539)
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);

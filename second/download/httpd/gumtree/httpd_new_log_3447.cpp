@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02166)
-                         "Can't chroot to %s", ap_unixd_config.chroot_dir);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r, APLOGNO(00776)
+                "cache: CACHE filter was added in quick handler mode and "
+                "will be ignored: %s", f->r->unparsed_uri);

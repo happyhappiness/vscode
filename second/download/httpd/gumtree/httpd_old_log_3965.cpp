@@ -1,1 +1,2 @@
-ap_rputs("\"<b><code>.</code></b>\" Open slot with no current process</p>\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "could not open forensic log file %s.", fname);

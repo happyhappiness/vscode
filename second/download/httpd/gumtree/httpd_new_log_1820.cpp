@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-           "disk_cache: could not create temp file %s",
-           dobj->tempfile);
+ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : ">", NULL);

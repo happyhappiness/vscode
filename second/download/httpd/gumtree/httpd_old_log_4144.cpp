@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv,
-                         "read: rfc1413: error reading response");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_ilink_receive(): NULL socket provided");

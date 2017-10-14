@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02132)
-                      "could not send interim 101 Upgrade response");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r, APLOGNO(00749) "Adding CACHE_SAVE_SUBREQ filter for %s",
+                                r->uri);

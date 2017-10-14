@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): 2. release_join with %d streams in hold", 
-                          m->id, (int)h2_ihash_count(m->shold));
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02473) 
+                "cache: %s responded with an uncacheable 304, " 
+                "retrying the request %s. Reason: %s", 
+                cache->key, r->unparsed_uri, reason);

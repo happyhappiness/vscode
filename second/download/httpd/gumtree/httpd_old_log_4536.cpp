@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: error creating PASV socket");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "proxy: %s: worker for (%s) has been marked for retry",
+                         proxy_function, worker->hostname);

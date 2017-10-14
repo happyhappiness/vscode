@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
+ap_log_error(APLOG_MARK, APLOG_CRIT, sts, s, "failed to init caching lock in child process");

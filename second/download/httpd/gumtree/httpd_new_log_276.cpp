@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "redirected from r->uri = %s",
-                          top->uri ? top->uri : "(unexpectedly NULL)");
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
+                     NULL, "Pre-configuration failed");

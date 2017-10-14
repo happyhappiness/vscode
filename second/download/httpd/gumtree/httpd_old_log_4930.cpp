@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                                     pServ, "Init: Private key not found");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool,
+                          "Warning: DocumentRoot [%s] does not exist",
+                          arg);

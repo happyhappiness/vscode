@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "proxy: FCGI: sending env var '%s' value '%s'",
-                      elts[i].key, elts[i].val);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));

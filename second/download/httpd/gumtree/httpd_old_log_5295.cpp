@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "killpg SIGHUP");
+ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL,
+             "No installed service named \"%s\".", service_name);

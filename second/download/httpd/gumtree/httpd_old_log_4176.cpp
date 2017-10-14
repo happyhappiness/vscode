@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    MODNAME ": BOINK");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "lb_heartbeat: failed picking a random number. how random.");

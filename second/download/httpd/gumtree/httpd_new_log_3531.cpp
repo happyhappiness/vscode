@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00768)
-                "cache: %s not cached. Reason: %s", r->unparsed_uri,
-                reason);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(00855)
+                             "shmcb entry iterated");

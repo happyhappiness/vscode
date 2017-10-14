@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02798)
-                         "%s: empty argument #%d", where, i + 1);
+ap_log_rerror(APLOG_MARK, level, status, r, APLOGNO(02822)
+                      "dialog with client %pI failed",
+                      r->connection->client_addr);

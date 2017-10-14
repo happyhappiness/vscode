@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " ThreadLimit directive.");
+fprintf(stderr,"The %s service is not started.\n", mpm_display_name);

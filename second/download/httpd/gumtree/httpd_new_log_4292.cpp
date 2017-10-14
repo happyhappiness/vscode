@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00868)
-                      "request failed to %pI (%s)",
-                      conn->worker->cp->addr,
-                      conn->worker->s->hostname);
+ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

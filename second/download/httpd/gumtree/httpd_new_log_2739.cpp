@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: Processing of request failed backend: %i, "
-                     "output: %i", backend_failed, output_failed);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                      "buffered SSL brigade exhausted");

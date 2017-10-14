@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Unlock failed for post_request",
-            balancer->name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);

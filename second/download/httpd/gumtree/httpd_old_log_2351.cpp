@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_netos_error(), ap_server_conf,
-                         "Parent: WSADuplicateSocket failed for socket %d. Check the FAQ.", nsd);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
+                         "Couldn't set permissions on cross-process lock; "
+                         "check User and Group directives");

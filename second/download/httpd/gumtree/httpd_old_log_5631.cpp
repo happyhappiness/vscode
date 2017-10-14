@@ -1,7 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                 0, main_s, "VirtualHost %s:%u overlaps "
-                                 "with VirtualHost %s:%u, the first has "
-                                 "precedence, perhaps you need a "
-                                 "NameVirtualHost directive",
-                                 sar->virthost, sar->host_port,
-                                 ic->sar->virthost, ic->sar->host_port);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00370)
+                         "Failed to create WinNT Service Profile");

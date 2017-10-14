@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01023) "error apr_poll()");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00861)
+                          "Found %s: %s - preparing subrequest.",
+                          conf->sendfile, location);

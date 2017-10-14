@@ -1,2 +1,1 @@
-ap_rvputs(r, "<dt>Balancer changes will ", conf->bal_persist ? "" : "NOT ",
-                  "be persisted on restart.</dt>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "LDC %pp used for authn, must be rebound", ldc);

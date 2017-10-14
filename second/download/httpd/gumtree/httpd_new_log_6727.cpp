@@ -1,2 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                                  "h2_task(%s): response header %s", task->id, line);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
+                              "Request header exceeds LimitRequestFieldSize%s"
+                              "%.*s",
+                              (field && *field) ? ": " : "",
+                              (field) ? field_name_len(field) : 0,
+                              (field) ? field : "");

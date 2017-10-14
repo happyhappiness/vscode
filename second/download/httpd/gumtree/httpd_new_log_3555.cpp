@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00804)
-                     "Cannot create socache DBM file `%s'",
-                     ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ctx->s, APLOGNO(02087)
+                     "malformed message from %pI",
+                     from);

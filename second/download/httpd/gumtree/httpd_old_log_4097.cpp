@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "cannot redirect '%s' to '%s'; "
-                              "target is not a valid absoluteURI or abs_path",
-                              r->uri, ret);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server,
+                "mod_unique_id: using ip addr %s",
+                 ipaddrstr);

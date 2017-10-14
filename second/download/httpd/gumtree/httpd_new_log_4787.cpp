@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01903)
-                "Failed to configure CA certificate chain!");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(02024)
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_CACHE_MUTEX_TYPE, lockfile);

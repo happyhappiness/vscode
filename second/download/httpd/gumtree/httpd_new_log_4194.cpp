@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01557)
-                    MODNAME ": subrequest %s got %s",
-                    sub_filename, r->content_type);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00877)
+                          "read zero bytes, expecting"
+                          " %" APR_OFF_T_FMT " bytes",
+                          content_length);

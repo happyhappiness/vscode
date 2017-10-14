@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create scoreboard "
-                     "(name-based shared memory failure)");
+fprintf(stderr, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);

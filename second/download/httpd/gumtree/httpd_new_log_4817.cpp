@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02209)
-                     "CA certificate: %s",
-                     SSL_X509_NAME_to_string(ptemp, name, 0));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ, APLOGNO(02250)
+                                 "encrypted %s private key - pass phrase "
+                                 "requested", an);

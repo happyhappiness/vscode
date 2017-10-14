@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01285)
-                          "util_ldap: Failed to create memory pool");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00663)
+                              "mod_rewrite: can't access DBM RewriteMap "
+                              "file %s", s->checkfile2);
