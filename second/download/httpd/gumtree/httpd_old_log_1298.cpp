@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: filter: %s", getpid(), urld->lud_filter);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, c->base_server));

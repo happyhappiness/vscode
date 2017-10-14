@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                             "%s: Unable to create the start_mutex.",
+                             service_name);

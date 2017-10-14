@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_init() failed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  req->id, req->method, req->scheme, req->authority, req->path);

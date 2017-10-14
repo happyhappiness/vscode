@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d, increasing to %d.  MaxClients must be at "
+                         "least as large",
+                         threads_per_child, threads_per_child);

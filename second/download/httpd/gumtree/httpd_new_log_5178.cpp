@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf, APLOGNO(00487)
-                                 "Ignoring fatal error in child of previous "
-                                 "generation (pid %ld).",
-                                 (long)pid.pid);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00170)
+           "caught " AP_SIG_GRACEFUL_STOP_STRING ", shutting down gracefully");

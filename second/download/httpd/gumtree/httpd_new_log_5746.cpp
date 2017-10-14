@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00367)
-                         "No ConfigArgs registered for the '%s' service, "
-                         "perhaps this service is not installed?",
-                         mpm_service_name);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02837)
+                      "ALPN client protocol list empty");

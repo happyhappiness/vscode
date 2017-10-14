@@ -1,3 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Changed client verification locations will force "
-                      "renegotiation");
+                      "[%" APR_PID_T_FMT "] auth_ldap authorise: declining to authorise (not authoritative)", getpid());

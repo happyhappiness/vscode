@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
-                              APLOGNO(03080)
-                              "h2_session(%ld): unknown state %d", session->id, session->state);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01472) "handling [%s] in mod_lua",
+                  r->filename);

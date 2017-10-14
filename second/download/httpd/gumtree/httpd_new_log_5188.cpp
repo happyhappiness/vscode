@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00496)
-                             "apr_proc_detach failed");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00180)
+                         "WARNING: MaxRequestWorkers of %d exceeds ServerLimit "
+                         "value of", ap_daemons_limit);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
-                                 "cgid daemon failed to initialize");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                     "Cannot get media type from '%s'",
+                     (const char *) mp);

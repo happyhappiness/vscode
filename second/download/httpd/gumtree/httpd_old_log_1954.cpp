@@ -1,1 +1,1 @@
-ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+ap_rvputs(r, "</td><td>", worker->s->route, NULL);

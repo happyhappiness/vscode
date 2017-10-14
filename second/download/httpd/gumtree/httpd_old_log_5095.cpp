@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
-                      "alloc_listener: failed to set up sockaddr for %s",
-                      addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: StartServers of %d not allowed, "
+                         "increasing to 1.", ap_daemons_to_start);

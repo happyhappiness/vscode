@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
+apr_file_printf(errfile, "%s: unable to update file %s" NL,
+                        argv[0], pwfilename);

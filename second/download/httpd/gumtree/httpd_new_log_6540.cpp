@@ -1,3 +1,10 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                              "h2_mplx(%s): task_done, stream in hold", 
-                              task->id);
+ap_rputs("\n\n<table rules=\"all\" cellpadding=\"1%\">\n"
+                     "<tr><th rowspan=\"2\">Slot</th>"
+                         "<th rowspan=\"2\">PID</th>"
+                         "<th rowspan=\"2\">Stopping</th>"
+                         "<th colspan=\"2\">Connections</th>\n"
+                         "<th colspan=\"2\">Threads</th>"
+                         "<th colspan=\"3\">Async connections</th></tr>\n"
+                     "<tr><th>total</th><th>accepting</th>"
+                         "<th>busy</th><th>idle</th>"
+                         "<th>writing</th><th>keep-alive</th><th>closing</th></tr>\n", r);

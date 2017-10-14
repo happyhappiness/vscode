@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction "
-                          "HSE_REQ_EXTENSION_TRIGGER "
-                          "is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00741) "distributed scache 'store' successful");

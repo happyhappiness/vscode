@@ -1,1 +1,0 @@
-ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);

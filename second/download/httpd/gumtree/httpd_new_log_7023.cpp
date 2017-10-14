@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02937) 
-                      "h2_stream(%ld-%d): data_cb, stream not found",
-                      session->id, (int)stream_id);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                     APLOGNO(10012) "Failed to open the '%s' service",
+                     mpm_display_name);

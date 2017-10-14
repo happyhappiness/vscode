@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "TLS session ticket key for %s successfully set, "
-                      "creating new session ticket", sc->vhost_id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field name was empty");

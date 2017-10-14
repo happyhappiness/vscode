@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                   "proxy: NOT Closing connection to client"
-                                   " although reading from backend server %s:%d"
-                                   " failed.", backend->hostname,
-                                   backend->port);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
+                      "error while loading the session, "
+                      "session not loaded: %s", r->uri);

@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, r->connection,
-                      APLOGNO(02915) 
-                      "h2_from_h1(%d): unable to create resp_head",
-                      from_h1->stream_id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ServerSupport function "
+                          "HSE_REQ_TRANSMIT_FILE "
+                          "ap_pass_brigade failed: %s", r->filename);

@@ -1,1 +1,1 @@
-ap_rputs("      </httpd:workers>\n", r);
+apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);

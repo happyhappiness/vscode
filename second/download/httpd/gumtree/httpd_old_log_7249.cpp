@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");
+apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
+        " (default)"
+        "." NL);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Parse error in type map, Content-Length: "
-                                  "'%s' in %s is invalid.",
-                                  body, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the auth type");

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "ProtocolEcho: Error - read empty brigade from %s!",
+                         c->remote_ip);

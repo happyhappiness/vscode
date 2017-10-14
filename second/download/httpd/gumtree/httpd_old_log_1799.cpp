@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                 "cache: Key for entity %s?%s is %s", r->uri,
-                 r->parsed_uri.query, *key);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                                    "Inflated content length of %" APR_OFF_T_FMT
+                                    " is larger than the configured limit"
+                                    " of %" APR_OFF_T_FMT, 
+                                    ctx->inflate_total, inflate_limit);

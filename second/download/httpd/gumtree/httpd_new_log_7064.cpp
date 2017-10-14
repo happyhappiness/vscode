@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-                                  H2_SSSN_LOG(APLOGNO(03404), session, 
-                                  "waiting on conditional"));
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(01482)
+                          "Error loading %s: %s", spec->file,
+                          rc == LUA_ERRMEM ? "memory allocation error"
+                                           : lua_tostring(L, 0));

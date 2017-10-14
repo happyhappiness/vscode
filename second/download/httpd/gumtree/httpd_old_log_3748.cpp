@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because "
-                          "CharsetOptions included 'NoImplicitAdd'");
+ap_log_rerror(APLOG_MARK,
+                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "else directive does not take tags in %s",
+                      r->filename);

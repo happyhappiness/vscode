@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02011)
-                      "No acceptable peer certificate available");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02214)
+                     "No certificates in %s", pkcs7);

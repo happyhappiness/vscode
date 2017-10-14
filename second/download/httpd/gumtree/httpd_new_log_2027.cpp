@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                  "proxy: CONNECT: connection complete to %pI (%s)",
-                  connect_addr, connectname);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit DH parameters", bits);

@@ -1,4 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                "AcceptMutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
-                apr_proc_mutex_defname());
+ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGKILL",
+                     pid);

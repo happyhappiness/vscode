@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01625)
-                      "authorization result of %s: %s "
-                      "(directive limited to other methods)",
-                      format_authz_command(r->pool, section),
-                      format_authz_result(auth_result));
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02164)
+                         "Cannot chroot when not started as root");

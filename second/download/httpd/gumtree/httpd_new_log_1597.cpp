@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                              "Zlib error %d inflating data (%s)", zRC,
-                              ctx->stream.msg);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "TLS session ticket key for %s successfully set, "
+                      "decrypting existing session ticket", sc->vhost_id);

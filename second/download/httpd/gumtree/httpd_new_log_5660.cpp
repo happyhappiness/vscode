@@ -1,1 +1,1 @@
-fprintf(stderr, "Opening file %s\n", newlog.name);
+ap_rputs("CacheType: DBM\n", r);

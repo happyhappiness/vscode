@@ -1,3 +1,3 @@
-ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, ngh2? ngh2->version_str : "unknown");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03074)
+                      "h2_stream(%ld-%d): RST_STREAM, err=%d",
+                      session->id, stream->id, err);

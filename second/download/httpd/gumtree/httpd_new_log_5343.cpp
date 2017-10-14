@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00357)
-                         "Child: Exit event signaled. Child process is "
-                         "ending.");
+ap_log_error(APLOG_MARK, level, rv, ap_server_conf, APLOGNO(00272)
+                     "apr_proc_mutex_%s failed "
+                     "before this child process served any requests.",
+                     func);

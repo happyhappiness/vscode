@@ -1,20 +1,3 @@
-ap_log_error(APLOG_MARK, 
-#ifdef OPENSSL_NO_TLSEXT
-                         APLOG_WARNING, 
-#else
-                         APLOG_DEBUG, 
-#endif
-                         0,
-                         base_server,
-#ifdef OPENSSL_NO_TLSEXT
-                         "Init: SSL server IP/port conflict: "
-#else
-                         "Init: SSL server IP/port overlap: "
-#endif
-                         "%s (%s:%d) vs. %s (%s:%d)",
-                         ssl_util_vhostid(p, s),
-                         (s->defn_name ? s->defn_name : "unknown"),
-                         s->defn_line_number,
-                         ssl_util_vhostid(p, ps),
-                         (ps->defn_name ? ps->defn_name : "unknown"),
-                         ps->defn_line_number);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Oops, no RSA or DSA server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);

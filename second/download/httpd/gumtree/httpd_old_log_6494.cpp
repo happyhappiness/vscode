@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
-                              "access to %s denied because search "
-                              "permissions are missing on a component "
-                              "of the path", r->uri);
+ap_rvputs(r, "<a href=\"", ap_escape_uri(r->pool, r->uri), "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&nonce=", balancer->s->nonce,
+                      "\">", NULL);

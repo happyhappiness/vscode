@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02803)
-                     "%s better prefix a macro name with any of '%s'",
-                     where, ARG_PREFIX);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(01062)
+                          "sending env var '%s' value '%s'",
+                          elts[i].key, elts[i].val);

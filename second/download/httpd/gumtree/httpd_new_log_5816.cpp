@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, level, status, r, APLOGNO(02822)
-                      "dialog with client %pI failed",
-                      r->connection->client_addr);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          APLOGNO(02917) 
+                          "h2_request(%d): pseudo header after request start",
+                          req->id);

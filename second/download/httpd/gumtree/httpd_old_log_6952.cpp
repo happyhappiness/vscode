@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                  "h2_stream(%ld-%d): done", m->c->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, workers->s,
+                     APLOGNO(02962) "h2_workers: max_worker_idle_sec value of %d"
+                     " is not valid, ignored.", idle_secs);

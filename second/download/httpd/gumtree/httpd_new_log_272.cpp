@@ -1,3 +1,1 @@
-fprintf(stderr, "%s: could not open config directory %s: %s\n",
-                    ap_server_argv0, path,
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+printf(" -D APR_HAVE_IPV6 (IPv4-mapped addresses ");

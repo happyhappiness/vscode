@@ -1,1 +1,0 @@
-BIO_printf(bio_err, "SSL write failed - closing connection\n");

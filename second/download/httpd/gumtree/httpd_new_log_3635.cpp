@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02071)
-                     "Failed to bind on socket.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00621)
+                          "%s", lookup.err.desc);

@@ -1,1 +1,0 @@
-fprintf(stderr, "%s:%s\n", h->username, h->userpass);

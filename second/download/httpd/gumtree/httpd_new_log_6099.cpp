@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02977)
-                "Watchdog: found child providers.");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                                  "h2_session: wait for data, %ld micros", 
+                                  (long)session->wait_us);

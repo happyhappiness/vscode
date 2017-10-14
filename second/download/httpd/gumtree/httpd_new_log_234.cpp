@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "error parsing URL %s: %s",
+                      url, err);

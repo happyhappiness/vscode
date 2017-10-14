@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL, APLOGNO(00107)
-                             "piped_log_maintenance: unable to respawn '%s'",
-                             pl->program);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s,
+                             APLOGNO(01965)
+                             "Init: Creating pass phrase dialog pipe child "
+                             "'%s'", sc->server->pphrase_dialog_path);

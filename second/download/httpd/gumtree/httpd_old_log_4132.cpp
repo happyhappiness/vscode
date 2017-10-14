@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "PassEnv variable %s was undefined", arg);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_read_header: ajp_ilink_received %02x", result);

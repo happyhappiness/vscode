@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                          H2_SSSN_MSG(session, "read enough, returning"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02305)
+                          "no alias provider found for '%s' (BUG?)",
+                          provider_name);

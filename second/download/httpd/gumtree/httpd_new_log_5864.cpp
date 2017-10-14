@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02902)
-                      "No db handle available for %s! "
-                      "Check your database access",
-                      action);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                                          "h2_session: send: %s", nghttp2_strerror(rv));

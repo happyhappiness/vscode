@@ -1,3 +1,3 @@
-apr_file_printf(errfile, "%s: The file %s does not appear "
-                                         "to be a valid htpasswd file." NL,
-                                argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: worker %s already initialized",
+              worker->name);

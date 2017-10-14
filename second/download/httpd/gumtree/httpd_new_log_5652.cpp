@@ -1,1 +1,2 @@
-fprintf(stderr, "Rotation create empty logs:  %12s\n", config->create_empty ? "yes" : "no");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(02404)
+                     "write pipe_of_death");

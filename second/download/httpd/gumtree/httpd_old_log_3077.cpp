@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorize: require group \"%s\": "
-                              "authorization failed [%s][%d - %s]",
-                              getpid(), t, ldc->reason, result, ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad);

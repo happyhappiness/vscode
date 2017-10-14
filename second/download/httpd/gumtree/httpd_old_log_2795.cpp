@@ -1,1 +1,1 @@
-ap_rvputs(r, r->uri, "\">\n<dl>", NULL);
+printf("Failed requests:        %ld\n", bad);

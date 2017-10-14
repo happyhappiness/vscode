@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
+log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, errno, APLOGNO(01258)
+                                   "cgid daemon is gone; is Apache terminating?");

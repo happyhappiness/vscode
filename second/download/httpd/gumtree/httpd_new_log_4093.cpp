@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00652)
-                          "File does not exist: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01505)
+                                          "Regular expression replacement "
+                                          "failed for '%s', value too long?",
+                                          elts[j].key);

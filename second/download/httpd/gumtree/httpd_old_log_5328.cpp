@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(),
-                             ap_server_conf,
-                             "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                     "Service %s is already started!", mpm_display_name);

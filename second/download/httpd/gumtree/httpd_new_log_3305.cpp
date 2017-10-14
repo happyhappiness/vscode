@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01709)
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01641)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

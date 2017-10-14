@@ -1,2 +1,8 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the exit event handle for the child");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,
+                             idle_thread_count, total_non_dead);

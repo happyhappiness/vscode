@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                 "proxy: FTP: serving URL %s", url);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool,
+                      "proxy: Pooled connection 0x%pp for worker %s has been"
+                      " already returned to the connection pool.", conn,
+                      worker->name);

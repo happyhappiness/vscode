@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
-                     "Child %d: Failure releasing the start mutex", my_pid);
+apr_file_printf(errfile,
+            "On Windows, NetWare and TPF systems the '-m' flag is used by "
+            "default." NL);

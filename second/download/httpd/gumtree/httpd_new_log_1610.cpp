@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Processing of request failed backend: %i, client: %i",
-                     backend_failed, client_failed);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                              "Response header '%s' value of '%s' contains "
+                              "invalid characters, aborting request",
+                              name, pos);

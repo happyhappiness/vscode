@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'" NL, argv[0], *arg);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to create memory pool");

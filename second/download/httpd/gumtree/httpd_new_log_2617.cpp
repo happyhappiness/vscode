@@ -1,1 +1,2 @@
-fprintf(stderr, "Error writing to the file %s\n", status->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
+                         "proxy: unlock");

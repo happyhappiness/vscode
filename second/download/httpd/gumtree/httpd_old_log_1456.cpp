@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                                 "Child %d: Encountered too many errors accepting client connections. "
-                                 "Possible causes: dynamic address renewal, or incompatible VPN or firewall software. "
-                                 "Try using the Win32DisableAcceptEx directive.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %d failed.",
+                         event_handles[CHILD_HANDLE]);

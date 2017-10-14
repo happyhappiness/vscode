@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "an ip address 'require' list appears to be invalid; %s ",
-                              msgbuf);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                               "ISAPI: asynch I/O result HSE_STATUS_PENDING "
+                               "from HttpExtensionProc() is not supported: %s",
+                               r->filename);

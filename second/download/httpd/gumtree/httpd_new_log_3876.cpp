@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01275)
-                      "Can't open directory for index: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01585)
+                              "Unknown Transfer-Encoding: %s", tenc);

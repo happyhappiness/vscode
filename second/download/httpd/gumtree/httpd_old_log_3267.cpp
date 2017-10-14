@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog,
-                      "Please select a socache provider with AuthnCacheSOCache "
-                      "(no default found on this platform)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "authz_dbd in get_row; action=%s user=%s [%s]",
+                          action, r->user, message?message:noerror);

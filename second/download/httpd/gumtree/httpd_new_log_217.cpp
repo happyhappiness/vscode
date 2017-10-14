@@ -1,1 +1,1 @@
-ap_rputs("></th>", r);
+ap_rputs(" /", r);

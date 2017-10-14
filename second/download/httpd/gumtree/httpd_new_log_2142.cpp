@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                                 "Certificate with serial %ld (0x%lX) "
-                                 "revoked per CRL from issuer %s",
-                                 serial, serial, cp);
+printf("Compiled using: APR %s, APR-UTIL %s\n",
+           APR_VERSION_STRING, APU_VERSION_STRING);

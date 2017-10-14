@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01311)
-                      "LDAP: Setting referral chasing %s", arg);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02648)
+                                    "Inflated content length of %" APR_OFF_T_FMT
+                                    " is larger than the configured limit"
+                                    " of %" APR_OFF_T_FMT, 
+                                    ctx->inflate_total, inflate_limit);

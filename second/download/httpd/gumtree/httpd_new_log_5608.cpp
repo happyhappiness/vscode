@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(00022)
-                 "Can't create mutex of unknown type %s", type);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02823)
+                         "%s: connection established with Unix domain socket "
+                         "%s (%s)",
+                         proxy_function,
+                         conn->uds_path,
+                         worker->s->hostname);

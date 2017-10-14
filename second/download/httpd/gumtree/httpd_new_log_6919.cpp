@@ -1,1 +1,0 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">", time_str, "  ", NULL);

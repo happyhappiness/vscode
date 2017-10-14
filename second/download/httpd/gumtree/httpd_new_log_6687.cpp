@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02971)
-                    "cache: serving %s (revalidated)", r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                      APLOGNO(03370)
+                      "h2_proxy_session(%s): finished request %s",
+                      ctx->engine_id, task_id);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00271)
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
+                              "access to %s failed", r->uri);

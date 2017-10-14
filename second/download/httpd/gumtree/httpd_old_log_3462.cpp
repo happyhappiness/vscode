@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r,
-                "ISAPI: Could not determine HTTP response code; using %d",
-                cid->r->status);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "malloc error creating DBM value");

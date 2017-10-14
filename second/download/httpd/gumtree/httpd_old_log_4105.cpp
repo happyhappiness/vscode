@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Syntax error in type map --- no header body: %s for %s",
-                      r->filename, header);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
+                   i, elts[i].key, elts[i].val);

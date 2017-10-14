@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                    "Encountered FakeBasicAuth spoof: %s", username);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "stapling_check_response: response times invalid");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01618)
-                      "user %s not found: %s", sent_user, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01698)
+                      "auth_ldap authorize: no sec->host - weird...?");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL,
-                     "%s: Configuration error: %s", ap_server_argv0, error);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01659)
+                      "No AuthDBDUserRealmQuery has been specified");

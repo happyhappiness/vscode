@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT | level_flags, 0,
-                     (startup ? NULL : s),
-                     "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);

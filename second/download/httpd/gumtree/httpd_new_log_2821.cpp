@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "unable to create or access scoreboard \"%s\" "
-                     "(name-based shared memory failure)", fname);
+printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
+               (double) totalread / 1024 / timetaken);

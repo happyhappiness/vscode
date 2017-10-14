@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                  H2_STRM_MSG(stream, "unexpected, started=%d, scheduled=%d, ready=%d"), 
-                  !!stream->task, stream->scheduled, h2_stream_is_ready(stream));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
+                          APLOGNO(03369)
+                          "h2_proxy_session(%s): rescheduled request %s",
+                          ctx->engine_id, task_id);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: require dn: user's DN has not "
-                      "been defined; failing authorization");
+decl_die(access_status,
+                                "check access (with Satisfy All)", r);

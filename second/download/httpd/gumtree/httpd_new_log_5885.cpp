@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                          "%s: Exit: error in %s",
-                          MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                      "h2_stream(%ld-%d): read_to, saving trailers",
+                      stream->session->id, stream->id);

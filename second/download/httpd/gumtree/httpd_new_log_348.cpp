@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
+                    h->comment);

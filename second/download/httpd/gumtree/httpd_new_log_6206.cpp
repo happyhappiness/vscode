@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03066)
-                      "h2_session(%ld): recv FRAME[%s], frames=%ld/%ld (r/s)",
-                      session->id, buffer, (long)session->frames_received,
-                     (long)session->frames_sent);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(03017)
+                              "Lua hook %s:%s for phase %s did not return a numeric value",
+                              hook_spec->file_name, hook_spec->function_name, name);

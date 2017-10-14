@@ -1,1 +1,1 @@
-ap_rputs("<dd><tt>", r);
+ap_rputs(" -D NO_LINGCLOSE\n", r);

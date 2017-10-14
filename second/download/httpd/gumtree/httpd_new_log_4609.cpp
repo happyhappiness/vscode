@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00902)
-                     "         Set to %s/%ld", inet_ntoa(This->addr), bits);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01843)
+                    "APR crypto could not be initialised");

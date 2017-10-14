@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00214)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS,
+                             ap_server_conf, APLOGNO(00362)
+                             "Child: Waiting %d more seconds "
+                             "for %d worker threads to finish.",
+                             time_remains / 1000, threads_created);

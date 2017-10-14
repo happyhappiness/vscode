@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
-                             "Parent: SetEvent for child process %pp failed",
-                             event_handles[CHILD_HANDLE]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                             "proxy: BALANCER: (%s).  Forcing worker (%s) into error state "
+                             "due to status code %d matching 'failonstatus' "
+                             "balancer parameter",
+                             balancer->name, worker->name, val);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01544)
-                        "%lu > %lu = %d", v, l, matched);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01117)
+                 "proxy: Creating roundrobin ctx for BALANCER %s (%d)",
+                 balancer->name, (int)getpid());

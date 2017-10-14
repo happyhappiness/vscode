@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01881)
-                     "Init: Failed to generate temporary "
-                     "%d bit DH parameters", bits);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
+                      "Error dispatching request to %s:", server_portstr);

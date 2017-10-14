@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO()
-                             "Failed to free auth_digest client allocation");
+ap_add_output_filter("H2_PARSE_H1", NULL, NULL, c);

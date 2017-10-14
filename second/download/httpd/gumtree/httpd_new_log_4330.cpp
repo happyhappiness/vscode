@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01163)
-                      "%s: Lock failed for find_best_worker()",
-                      balancer->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01139)
+                          "TRACE forbidden by server configuration");

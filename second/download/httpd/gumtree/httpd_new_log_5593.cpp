@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00008) LOG_PREFIX
-                  "user '%s' set cookie2: '%s'", r->user, rfc2965);
+log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(02811),
+                               "script not found or unable to stat");

@@ -1,5 +1,3 @@
-cache_conditional_filter_handle =
-        ap_register_output_filter("CACHE_CONDITIONAL", 
-                                  cache_conditional_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "disk_cache: URL %s didn't receive complete response, not caching",
+                             h->cache_obj->key);

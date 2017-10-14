@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "ap_pass_brigade() failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "Couldn't create unix domain socket");

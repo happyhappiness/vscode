@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                      H2_SSSN_LOG(APLOGNO(03402), session, 
-                      "proto error -> shutdown"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02320)
+                      "Error evaluating expression in 'Require expr': %s",
+                      err);

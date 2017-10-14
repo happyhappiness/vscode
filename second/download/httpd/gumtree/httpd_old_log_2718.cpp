@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to create thread mutex");
+ap_rvputs(r, bsel->name, "</h3>\n", NULL);

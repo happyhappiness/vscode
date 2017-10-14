@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, stream->r, APLOGNO(03468) 
-                      "h2_proxy_stream(%d): request DATA %ld, %ld"
-                      " total, flags=%d", 
-                      stream->id, (long)readlen, (long)stream->data_sent,
-                      (int)*data_flags);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, f->c, APLOGNO(03046)
+                          "h2_session(%ld): error reading", f->c->id);

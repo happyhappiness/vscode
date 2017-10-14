@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-        "proxy: BALANCER: (%s). Lock failed for find_best_worker()", balancer->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: dialog to %pI (%s) failed",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

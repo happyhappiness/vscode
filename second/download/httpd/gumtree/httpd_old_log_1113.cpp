@@ -1,1 +1,1 @@
-printf("\n  ");
+printf("%3d ", charlength);

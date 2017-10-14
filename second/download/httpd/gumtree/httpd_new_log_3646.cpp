@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02082)
-                   "Unable to flush file: %s", path);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01612)
+                         "ProtocolEcho: Error - read empty brigade from %s!",
+                         c->client_ip);

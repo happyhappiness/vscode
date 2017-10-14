@@ -1,6 +1,3 @@
-ap_log_rerror(APLOG_MARK,
-                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
-                      0, r, (ctx->argc)
-                                ? "too many arguments for if element in %s"
-                                : "missing expr argument for if element in %s",
-                      r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, NULL,
+                             "Couldn't unlink unix domain socket %s",
+                             sockname);

@@ -1,1 +1,1 @@
-printf("%3d", i-1);
+(isprint(c = code[1]);

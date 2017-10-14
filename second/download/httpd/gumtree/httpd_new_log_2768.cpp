@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserRealmQuery, key '%s'.", conf->realm);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error retrieving results while looking up '%s:%s' "
+                          "in database", user, realm);

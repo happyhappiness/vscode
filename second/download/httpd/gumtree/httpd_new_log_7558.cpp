@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(02612)
+                        "failed to create mod_socache_shmcb socache "
+                        "instance: %s", errmsg);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, data->r, APLOGNO(01220)
-                              "Timeout waiting for output from CGI script %s",
-                              data->r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01592)
+                          "Unknown Transfer-Encoding %s", tenc);

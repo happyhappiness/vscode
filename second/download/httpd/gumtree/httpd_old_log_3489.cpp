@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s is not executable; ensure interpreted scripts have "
-                      "\"#!\" first line", *cmd);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                         "socache: Failed to Add memcache Server: %s:%d", 
+                         host_str, port);

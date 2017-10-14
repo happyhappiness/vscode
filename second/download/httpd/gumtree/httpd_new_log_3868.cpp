@@ -1,4 +1,14 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01413)
-                      "Requested content-length of %" APR_OFF_T_FMT
-                      " is larger than the configured limit"
-                      " of %" APR_OFF_T_FMT, len, ctx->keep_body);
+ap_rputs("</pre>\n"
+                 "<p>Scoreboard Key:<br />\n"
+                 "\"<b><code>_</code></b>\" Waiting for Connection, \n"
+                 "\"<b><code>S</code></b>\" Starting up, \n"
+                 "\"<b><code>R</code></b>\" Reading Request,<br />\n"
+                 "\"<b><code>W</code></b>\" Sending Reply, \n"
+                 "\"<b><code>K</code></b>\" Keepalive (read), \n"
+                 "\"<b><code>D</code></b>\" DNS Lookup,<br />\n"
+                 "\"<b><code>C</code></b>\" Closing connection, \n"
+                 "\"<b><code>L</code></b>\" Logging, \n"
+                 "\"<b><code>G</code></b>\" Gracefully finishing,<br /> \n"
+                 "\"<b><code>I</code></b>\" Idle cleanup of worker, \n"
+                 "\"<b><code>.</code></b>\" Open slot with no current process,<br />\n"
+                 "<p />\n", r);

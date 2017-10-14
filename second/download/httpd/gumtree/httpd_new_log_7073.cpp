@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "added trailers"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02317)
+                      "Error: authz provider %s did not return integer", prov_spec->name);

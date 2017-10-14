@@ -1,1 +1,0 @@
-apr_table_unset(r->headers_out, "Content-Length");

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01789)
-                      "unknown algorithm `%s' received: %s",
-                      resp->algorithm, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01732)
+                "auth_ldap authorise: User DN not found with filter %s: %s", filtbuf, ldc->reason);

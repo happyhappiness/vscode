@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
-                          APLOGNO(02954) 
-                          "h2_request: ignoring unknown pseudo header %s",
-                          buffer);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          H2_STRM_MSG(stream, "process, added to q"));

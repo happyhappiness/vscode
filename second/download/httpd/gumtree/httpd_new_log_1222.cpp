@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -c  Create a new file." NL);
+apr_file_printf(errfile, "%s: unable to read file %s" NL,
+                            argv[0], pwfilename);

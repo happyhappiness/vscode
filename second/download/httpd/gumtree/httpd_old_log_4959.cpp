@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, 0, l->pool,
-                      "Acquiring mutex %s:%d", l->file, l->line);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
+                      "apr_socket_opt_set(APR_TCP_NODELAY)");

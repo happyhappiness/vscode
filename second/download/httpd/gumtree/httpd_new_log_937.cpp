@@ -1,2 +1,2 @@
-printf("%sdebug: after reduction, shifting from state 0 to\
- state %d\n", YYPREFIX, YYFINAL);
+apr_psprintf(p, "Could not open config directory %s: %s",
+                                path, apr_strerror(rv, errmsg, sizeof errmsg));

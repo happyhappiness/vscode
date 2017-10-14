@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(00054)
-                     "get socket to connect to listener");
+fprintf(stderr,
+                "post_rotate: apr_procattr_create failed for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));

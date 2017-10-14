@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01538)
+                    MODNAME ": invalid type %d in mconvert().", m->type);

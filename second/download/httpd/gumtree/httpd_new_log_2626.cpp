@@ -1,1 +1,1 @@
-fprintf(stderr, "Rotation verbose:            %12s\n", config->verbose ? "yes" : "no");
+printf("%s\n", ap_get_server_description());

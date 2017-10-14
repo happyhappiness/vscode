@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01745)
-                              "auth_ldap authorize: require ldap-filter: "
-                              "authorization successful");
-                set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;;
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02155)
+                         "getpwuid: couldn't determine user name from uid %ld, "
+                         "you probably need to modify the User directive",
+                         (long)uid);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "apr_file_pipe_timeout_set(child output)");
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                                 "cgid daemon failed to initialize");

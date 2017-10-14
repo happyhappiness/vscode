@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
-                                "lua: Failed to obtain lua interpreter for %s %s",
-                                function_name, filename);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
+                     "Failed to read %d bytes from %s: (%d) %pm",
+                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00117)
-              "Ignoring deprecated use of DefaultType in line %d of %s.",
-                     cmd->directive->line_num, cmd->directive->filename);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00479)
+                     "Couldn't initialize signal thread");

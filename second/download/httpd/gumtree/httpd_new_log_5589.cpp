@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a, APLOGNO(00556)
-                     "%s: apr_gethostname() failed to determine ServerName",
-                     ap_server_argv0);
+ap_log_rerror(APLOG_MARK, log_flags, rv, r,
+                  "%s%s: %s", logno ? logno : "", error, r->filename);

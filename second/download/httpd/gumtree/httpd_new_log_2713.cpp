@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: Can't connect to %s", cfg->name);
+ap_rvputs(r, "<td>", ap_escape_html(r->pool, worker->s->route),
+                          NULL);

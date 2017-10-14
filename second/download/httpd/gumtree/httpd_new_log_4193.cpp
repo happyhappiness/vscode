@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01556)
-                MODNAME ": subrequest lookup for %s", sub_filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00876)
+                              "send failed to %pI (%s)",
+                              conn->worker->cp->addr,
+                              conn->worker->s->hostname);

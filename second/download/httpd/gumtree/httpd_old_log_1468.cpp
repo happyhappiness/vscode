@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
-                     "Child %d: Released the start mutex", my_pid);
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
+            " (default)"
+#endif
+            "." NL);

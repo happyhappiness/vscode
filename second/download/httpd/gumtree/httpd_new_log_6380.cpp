@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03308)
-                          "ap_proxy_transfer_between_connections: "
-                          "error on %s - ap_get_brigade",
-                          name);
+h2_beam_mutex_set(task->output.beam, beam_enter, task->cond, m);

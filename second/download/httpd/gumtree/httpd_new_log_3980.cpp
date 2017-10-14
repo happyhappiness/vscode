@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, f->r, APLOGNO(01586)
-                  "Unknown Transfer-Encoding: %s; using Content-Length", tenc);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(01482)
+                "Loading lua file %s: %s",
+                spec->file, err);

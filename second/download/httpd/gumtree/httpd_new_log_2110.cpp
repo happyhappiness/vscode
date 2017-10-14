@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rc, c,
-                          "SSL handshake interrupted by system "
-                          "[Hint: Stop button pressed in browser?!]");
+ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_NOERRNO, 0, s,
+                     "No certificates in %s", pkcs7);

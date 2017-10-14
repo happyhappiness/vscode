@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01814)
-                      "excluded by configuration for: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");

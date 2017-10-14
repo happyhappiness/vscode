@@ -1,1 +1,1 @@
-(isprint(re->req_char);
+(isprint(c = code[1]);

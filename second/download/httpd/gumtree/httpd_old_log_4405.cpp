@@ -1,2 +1,2 @@
-ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                 "proxy:<FTP: %3.3u %s", rc, message);

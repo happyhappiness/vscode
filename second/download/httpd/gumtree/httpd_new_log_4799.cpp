@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01907)
-                         "%s server certificate is not a leaf certificate "
-                         "(BasicConstraints: pathlen == %d > 0 !?)",
-                         ssl_asn1_keystr(type), pathlen);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                      "No cert available to check with OCSP");

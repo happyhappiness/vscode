@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02080)
-                     "Unable to move file: %s -> %s", path,
-                     ctx->storage_path);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c, "mod_dumpio: %s", f->frec->name);

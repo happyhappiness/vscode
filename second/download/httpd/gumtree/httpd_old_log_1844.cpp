@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, 
-                                    "Inflated content ratio is larger than the "
-                                    "configured limit %i by %i time(s)",
-                                    dc->ratio_limit, dc->ratio_burst);
+ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  "</h1>\n\n", NULL);

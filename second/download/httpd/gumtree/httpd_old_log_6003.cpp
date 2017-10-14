@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02939) "h2_stream(%ld-%d): submit_response: %s",
-                      session->id, response->stream_id, nghttp2_strerror(rv));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c,
+                          "h2_h2, error reading 24 bytes speculative");

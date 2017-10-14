@@ -1,1 +1,1 @@
-printf(" %.2x %s", code[1], OP_names[*code]);
+printf(",");

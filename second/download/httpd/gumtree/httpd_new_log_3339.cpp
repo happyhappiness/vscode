@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01743)
-                      "auth_ldap authorize: checking filter %s", t);
+ap_log_perror(APLOG_MARK, APLOG_NOTICE, rv, ptemp, APLOGNO(02153)
+                      "mod_privileges: unable to determine MPM characteristics."
+                      "  Please ensure you are using a non-threaded MPM "
+                      "with this module.");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "proxy: CONNECT: error apr_pollset_create()");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                 "proxy: HTTP: serving URL %s", url);

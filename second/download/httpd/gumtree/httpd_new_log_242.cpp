@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "mod_rewrite's internal redirect status: %d/%d.",
-                  reqc->redirects, reqc->redirect_limit);
+ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00918)
-                     "no provider for %s", balancer->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01861)
+                      "failed to acquire database connection to remove "
+                      "session with key '%s'", key);

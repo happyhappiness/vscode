@@ -1,1 +1,2 @@
-printf(" -D APR_HAVE_IPV6\n");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
+                         "sigaction(SIGABORT)");

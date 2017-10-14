@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
-                     "Child %d: Released the start mutex", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "Failed to create WinNT Service Profile");

@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
+ap_fputstrs(output, bb,
+                DEBUG_CR "<D:href>",
+                dav_xml_escape_uri(pool, response->href),
+                "</D:href>" DEBUG_CR,
+                NULL);

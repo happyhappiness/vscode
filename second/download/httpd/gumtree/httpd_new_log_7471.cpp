@@ -1,2 +1,3 @@
-ap_log_rerror(
-                APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02468) "cache: Attempted to invalidate cached entity with key: %s", cache->key);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02546)
+                         "%s: cannot determine UDS (%s)",
+                         proxy_function, worker->s->uds_path);

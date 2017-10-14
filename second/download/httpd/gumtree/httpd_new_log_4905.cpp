@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(02024)
-                         "Cannot reinit %s mutex with file `%s'",
-                         SSL_CACHE_MUTEX_TYPE, lockfile);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, server, APLOGNO(02170)
+                     "The debug mode of Apache should only "
+                     "be started by an unprivileged user!");

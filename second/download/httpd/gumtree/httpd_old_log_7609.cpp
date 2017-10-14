@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                  "handing out temporary 256 bit ECC key");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
+                     "Init: You should not use name-based "
+                     "virtual hosts in conjunction with SSL!!");

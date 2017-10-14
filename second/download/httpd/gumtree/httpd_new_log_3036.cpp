@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_DEBUG, 0, p, 
-                  "Creating dynamic lock");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                      "Headers received from client:");

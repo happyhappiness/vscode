@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                     "could not find the UTF-8 charset in the file %s.",
-                     charset_confname);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                    "setuid: unable to change to uid: %ld",
+                    (long) ap_unixd_config.user_id);

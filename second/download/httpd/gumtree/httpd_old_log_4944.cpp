@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Init: Requesting pass phrase from dialog filter "
-                     "program (%s)", cmd);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                     "Invalid URI in request %s", r->the_request);

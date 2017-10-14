@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, 0, s,
-                     "Can't read PKCS7 object %s", pkcs7);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid method in request %s - possible attempt to establish SSL connection on non-SSL port", r->the_request);

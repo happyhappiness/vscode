@@ -1,1 +1,2 @@
-ap_rputs("<table cellspacing=0 cellpadding=0>\n", r);
+apr_pstrcat(p, "Wildcard patterns not allowed in Include ",
+                               fname, NULL);

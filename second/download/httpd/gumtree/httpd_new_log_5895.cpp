@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, p, APLOGNO(02640)
-                            "ap_duplicate_listeners: for address %pI, "
-                            "cannot duplicate a new socket!",
-                            duplr->bind_addr);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, task->c,
+                      APLOGNO(02957) "h2_task(%s): error setting up h2_task", 
+                      task->id);

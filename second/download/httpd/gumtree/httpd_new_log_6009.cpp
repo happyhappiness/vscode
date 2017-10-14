@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
-                      session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03055)  
+                          "h2_mplx(%ld-%d): stream timeout expired: %s",
+                          m->id, io->id, 
+                          (io->timed_op == H2_IO_READ)? "read" : "write");

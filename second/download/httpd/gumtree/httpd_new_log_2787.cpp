@@ -1,1 +1,1 @@
-ap_rvputs(r, "<td>", balancer->sticky, NULL);
+printf("Warning: could not explode %s\n", lib);

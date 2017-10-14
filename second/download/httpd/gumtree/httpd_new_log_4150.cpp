@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01512)
-                    MODNAME ": can't read `%s'", r->filename);
+ap_log_rerror(APLOG_MARK, level, 0, r, "%s", buf);

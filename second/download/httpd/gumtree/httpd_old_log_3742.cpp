@@ -1,3 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                         "ProtocolEcho: Error - read empty brigade from %s!",
-                         c->remote_ip);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, (ctx->argc)
+                                ? "too many arguments for if element in %s"
+                                : "missing expr argument for if element in %s",
+                      r->filename);

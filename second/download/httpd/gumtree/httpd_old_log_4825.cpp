@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
-                          "SSL library error %d writing data", ssl_err);
+apr_file_printf(writetty, "%s mod_ssl/%s (Pass Phrase Dialog)\n",
+                            AP_SERVER_BASEVERSION, MOD_SSL_VERSION);

@@ -1,1 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "h2_conn_io: pass_output");
+ap_rputs("<th>HC Fail</th>", r);

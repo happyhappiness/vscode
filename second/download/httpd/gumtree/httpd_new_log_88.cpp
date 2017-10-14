@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "cache_disk: URL %s failed the size check, "
-                     "or is incomplete", 
-                     key);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "MCacheMaxStreamingBuffer must be greater than or equal to MCacheMinObjectSize. "
+                     "Resetting MCacheMaxStreamingBuffer to MCacheMinObjectSize.");

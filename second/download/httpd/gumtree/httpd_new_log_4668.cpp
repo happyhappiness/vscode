@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00936)
-                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
-                          "ProxyReceiveBufferSize, using default");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01901)
+                     "Host %s: unable to configure X.509 CRL storage "
+                     "for certificate revocation", mctx->sc->vhost_id);

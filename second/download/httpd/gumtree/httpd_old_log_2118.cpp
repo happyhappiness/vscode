@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                      "buffered SSL brigade exhausted");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "setgid: unable to set group id to Group %u",
+                        (unsigned)unixd_config.group_id);

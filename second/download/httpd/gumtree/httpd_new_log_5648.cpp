@@ -1,2 +1,1 @@
-apr_file_printf(outfile, "%s\n",
-                                                    url);
+fprintf(stderr, "The '%s' service is not started.\n", mpm_display_name);

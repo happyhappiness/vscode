@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
-                          nghttp2_strerror(*rv));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03049)
+                                  "h2_from_h1(%d): trailers filter, saving trailers",
+                                  from_h1->stream_id);

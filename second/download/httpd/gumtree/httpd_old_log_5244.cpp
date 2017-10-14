@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
-                     "unable to open work queue in maintenance thread");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %d: Unable to reopen the scoreboard from the parent", my_pid);

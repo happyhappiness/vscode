@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "ldap_simple_bind() timed out on reused "
-                              "connection, dropped by firewall?");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_global_mutex_unlock(rewrite_mapr_lock_acquire) "
+                          "failed");

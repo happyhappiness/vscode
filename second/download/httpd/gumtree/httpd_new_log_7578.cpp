@@ -1,2 +1,3 @@
-ap_register_output_filter_protocol(filter, lua_output_filter_handle, NULL, AP_FTYPE_RESOURCE,
-                                            AP_FILTER_PROTO_CHANGE|AP_FILTER_PROTO_CHANGE_LENGTH);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                                "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
+                                (now - l->last_backend_conn) / APR_USEC_PER_SEC);

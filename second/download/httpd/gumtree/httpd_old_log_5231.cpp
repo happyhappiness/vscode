@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGUSR1)");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);

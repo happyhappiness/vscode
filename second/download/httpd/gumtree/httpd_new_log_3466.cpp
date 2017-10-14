@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                           "ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                           "is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00810)
+                     "Cannot open socache DBM file `%s' for writing "
+                     "(delete)",
+                     ctx->data_file);

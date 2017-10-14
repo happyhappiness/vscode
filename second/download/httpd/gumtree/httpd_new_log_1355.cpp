@@ -1,5 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn,
-                      "Certificate Verification: Certificate Chain too long "
-                      "(chain has %d certificates, but maximum allowed are "
-                      "only %d)",
-                      errdepth, depth);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: "
+                      "user %s authentication failed; URI %s [%s][%s]",
+                      getpid(), user, r->uri, ldc->reason, ldap_err2string(result));

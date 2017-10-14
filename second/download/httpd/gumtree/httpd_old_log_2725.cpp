@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
-                          "DBD[%s] Error: %s", svr->name, errmsg);
+ap_rputs("<tr><td>LB Method:</td><td><select name=\"lm\">", r);

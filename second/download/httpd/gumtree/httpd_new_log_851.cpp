@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                             "apr_socket_opt_set(SO_KEEPALIVE): Failed to set"
-                             " Keepalive");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                          "SSL Proxy connect failed");

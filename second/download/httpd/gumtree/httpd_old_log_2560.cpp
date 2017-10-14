@@ -1,1 +1,0 @@
-fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");

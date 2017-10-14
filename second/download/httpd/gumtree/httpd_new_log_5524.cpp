@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, ap_server_conf,
-                 "end of generation %d", gi->gen);
+apr_file_printf(
+            errfile,
+            "total size was %" APR_OFF_T_FMT ".%" APR_OFF_T_FMT "%c, total size now "
+            "%" APR_OFF_T_FMT ".%" APR_OFF_T_FMT "%c" APR_EOL_STR, s->total,
+            tfrag, ttype, s->sum, sfrag, stype);

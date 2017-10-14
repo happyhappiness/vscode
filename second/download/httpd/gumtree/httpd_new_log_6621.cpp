@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                  "h2_task(%s): write response body (%ld bytes)", 
-                  task->id, (long)written);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
+                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);

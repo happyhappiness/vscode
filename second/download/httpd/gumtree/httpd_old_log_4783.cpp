@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "Configuring certificate revocation facility");
+ap_log_cerror(file, line, APLOG_MODULE_INDEX, level, rv, c,
+                  "%s [subject: %s, issuer: %s, serial: %s]",
+                  buf,
+                  sname ? sname : "-unknown-",
+                  iname ? iname : "-unknown-",
+                  serial ? serial : "-unknown-");

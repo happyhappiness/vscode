@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01635)
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02100)
+                          "Failed to open cgi file %s for testing", *cmd);

@@ -1,1 +1,4 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">",time_str, NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "[%" APR_PID_T_FMT "] util_ldap: Couldn't "
+                              "retrieve group entry for %s from cache",
+                               getpid(), dn);

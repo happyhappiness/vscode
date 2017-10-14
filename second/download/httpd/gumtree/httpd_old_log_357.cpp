@@ -1,0 +1,1 @@
+fprintf(stderr, "Could not open temp file.\n");

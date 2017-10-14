@@ -1,1 +1,1 @@
-printf("]");
+apr_err("apr_connect()", rv);

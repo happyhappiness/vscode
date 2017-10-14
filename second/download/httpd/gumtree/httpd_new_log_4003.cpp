@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01604)
-                                 "Cannot get media parameter.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00683)
+                      "cannot access type map file: %s", rr->filename);

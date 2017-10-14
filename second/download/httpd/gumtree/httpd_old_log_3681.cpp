@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                 "DBD: child init failed!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Zlib: Validation bytes not present");

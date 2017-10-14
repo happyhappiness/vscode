@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
-                                  "h2_session(%ld): dispatch error", 
-                                  session->id);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");

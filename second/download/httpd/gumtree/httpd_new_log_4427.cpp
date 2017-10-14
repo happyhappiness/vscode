@@ -1,1 +1,2 @@
-ap_rputs("<tr><td>Timeout:</td><td><input name='b_tmo' id='b_tmo' type=text ", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01051)
+                          "error binding to ftp data socket %pI", local_addr);

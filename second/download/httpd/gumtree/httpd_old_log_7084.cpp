@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
-                      "h2_stream(%ld-%d): wait on input drain", 
-                      stream->session->id, stream->id);
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, dynlockpool,
+                      APLOGNO(02183) "Failed to create subpool for dynamic lock");

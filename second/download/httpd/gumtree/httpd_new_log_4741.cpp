@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01857)
-                      "query execution error updating session '%s' "
-                      "using database query '%s': %s", key, conf->updatelabel,
-                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02255)
+                              "Changed client verification type will force "
+                              "%srenegotiation",
+                              renegotiate_quick ? "quick " : "");

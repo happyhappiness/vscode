@@ -1,1 +1,2 @@
-ap_rputs(custom_response + 1, r);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                            "could not open transfer log file %s.", fname);

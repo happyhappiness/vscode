@@ -1,3 +1,3 @@
-apr_file_printf(errfile, "total entries was %d, total entries now %d"
-                              APR_EOL_STR, (int)(s->etotal),
-                              (int)(s->entries));
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00378)
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);

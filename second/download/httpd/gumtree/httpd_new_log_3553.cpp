@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(errno), s, APLOGNO(00802)
-                         "Can't change owner of %s", name);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02085)
+                     "Unable to move file: %s -> %s", path,
+                     ctx->storage_path);

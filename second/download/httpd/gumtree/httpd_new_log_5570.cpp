@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00034)
-                          "dir_walk error, could not determine the root "
-                          "path of filename %s%s for uri %s",
-                          r->filename, r->path_info, r->uri);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                         "%s on line %d of %s: %s",
+                         what, cfg->line_number, cfg->name, ptr);

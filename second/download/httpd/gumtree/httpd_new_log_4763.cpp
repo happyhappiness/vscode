@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01880)
-                     "Init: Skipping generating temporary "
-                     "%d bit DH parameters in FIPS mode", bits);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02036)
+                  "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                  auth_line);

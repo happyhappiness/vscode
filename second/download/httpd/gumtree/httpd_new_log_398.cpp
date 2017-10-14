@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: no-cache or authorization forbids caching "
-                         "of %s", url);
+ap_register_output_filter("CACHE_SAVE", 
+                                  cache_save_filter, 
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);

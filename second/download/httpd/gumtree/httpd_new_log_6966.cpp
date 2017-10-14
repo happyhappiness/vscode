@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                      H2_STRM_MSG(stream, "task_done, in hold"));
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03514)
+                              "Error evaluating expression for replacement of %s: '%s'",
+                               entry->envname, err);

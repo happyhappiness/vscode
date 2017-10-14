@@ -1,2 +1,2 @@
 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-            "ISAPI: not a regular file, skipping %s", fspec);
+                 "mod_file_cache: unable to cache file: %s. MMAP is not supported by this OS", filename);

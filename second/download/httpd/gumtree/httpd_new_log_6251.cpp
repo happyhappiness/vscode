@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
-                              APLOGNO(03080)
-                              "h2_session(%ld): unknown state %d", session->id, session->state);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03101)
+                     "ap_queue_info_create() failed");

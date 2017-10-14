@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                  "Destroying dynamic lock %s:%d", l->file, l->line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "no subgroups for %s",
+                          dn);

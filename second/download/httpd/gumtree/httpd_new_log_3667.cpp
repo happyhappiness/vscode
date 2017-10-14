@@ -1,2 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, APLOGNO(01577)
-                 "WARNING: LoadFile not supported on this platform");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01389)
+                          "unable to init Zlib: "
+                          "inflateInit2 returned %d: URL %s",
+                          zRC, r->uri);

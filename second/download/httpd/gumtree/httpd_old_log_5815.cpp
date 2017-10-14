@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00890)
-                      "Processing of request failed backend: %i, "
-                      "output: %i", backend_failed, output_failed);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                  "h2_request(%d): written request %s %s, host=%s",
+                  req->id, req->method, req->path, req->authority);

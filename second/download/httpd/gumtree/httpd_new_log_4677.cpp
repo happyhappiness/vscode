@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00947)
-                 "connected %s to %s:%d", *url, conn->hostname, conn->port);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02238)
+                "Unable to configure %s server private key", type);

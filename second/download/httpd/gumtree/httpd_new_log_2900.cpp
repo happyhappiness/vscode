@@ -1,2 +1,2 @@
-printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (double) done / timetaken);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "insert happened at idx=%d, data=%d", new_idx, new_offset);

@@ -1,2 +1,1 @@
-apr_file_printf(out, "PidFile: \"%s\"\n",
-                    ap_server_root_relative(p, ap_pid_fname));
+fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");

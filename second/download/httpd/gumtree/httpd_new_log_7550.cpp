@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01663)
-                  "access to %s failed, reason: user '%s' does not meet "
-                  "'require'ments for user to be allowed access",
-                  r->uri, r->user);
+apr_file_printf(errfile, "Could not remove file %s: %pm" APR_EOL_STR,
+                        remove, &status);

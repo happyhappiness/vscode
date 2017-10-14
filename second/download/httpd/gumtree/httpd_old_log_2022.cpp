@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                                     "proxy: CONNECT: read %d from client", i);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "Init: Skipping generating temporary "
+                         "%u bit DH parameters in FIPS mode", bits);

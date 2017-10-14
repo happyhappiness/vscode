@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                 "apr_socket_opt_set(APR_TCP_NODELAY): Failed to set");
+fprintf(stderr,
+            "Usage: %s [-l] <logfile> "
+            "{<rotation time in seconds>|<rotation size in megabytes>} "
+            "[offset minutes from UTC]\n\n",
+            argv0);

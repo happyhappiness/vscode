@@ -1,2 +1,2 @@
-apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work.\n");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: can't find driver for %s", svr->name);

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                      "h2_session(%ld): feeding %ld bytes to nghttp2",
-                      session->id, (long)len);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01661)
+                      "Query execution error looking up '%s:%s' "
+                      "in database", user, realm);

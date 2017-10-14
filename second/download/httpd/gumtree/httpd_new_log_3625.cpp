@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00853)
-                         "shmcb_subcache_remove removing matching entry");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00611)
+                      "The \"label\" element does not contain "
+                      "an \"add\", \"set\", or \"remove\" element.");

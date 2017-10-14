@@ -1,1 +1,0 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "<%3.3u %s", rc, message);

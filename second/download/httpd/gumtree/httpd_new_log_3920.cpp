@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01263)
-                "attempt to include NPH CGI script");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01290) "no subgroups for %s",
+                          dn);

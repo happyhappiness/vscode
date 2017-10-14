@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(02086)
-                     "%pI busy=%s ready=%s", from,
-                     apr_table_get(tbl, "busy"), apr_table_get(tbl, "ready"));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01448)
+                      "incomplete configuration: src %s, dst %s",
+                      dc->charset_source ? dc->charset_source : "unspecified",
+                      dc->charset_default ? dc->charset_default : "unspecified");

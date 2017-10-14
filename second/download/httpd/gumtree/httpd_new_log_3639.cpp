@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02075)
-                         "Unable to read file: %s", ctx->storage_path);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
+                              "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
+                              (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
+                              b->type->name, xlatebuf);

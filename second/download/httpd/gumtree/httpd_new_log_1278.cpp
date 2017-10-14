@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-              "proxy: initialized plain memory in child %" APR_PID_T_FMT " for worker %s",
-              getpid(), worker->name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              "incomplete redirection target of '%s' for "
+                              "URI '%s' modified to '%s'",
+                              orig_target, r->uri, ret);

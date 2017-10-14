@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "proxy: missing or failed auth to %s",
-                      apr_uri_unparse(r->pool,
-                                 &r->parsed_uri, APR_URI_UNP_OMITPATHINFO));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                           "apr_socket_opt_set(APR_TCP_NODELAY): "
+                           "Failed to set");

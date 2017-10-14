@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, errno, ptemp, APLOGNO(02152)
-                      "priv_addset");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00764)
+                    "cache: serving %s", r->uri);

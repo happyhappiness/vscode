@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error retrieving query for dbd-group!");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "ISAPI: missing HttpExtensionProc() in %s",
+                     isa->filename);

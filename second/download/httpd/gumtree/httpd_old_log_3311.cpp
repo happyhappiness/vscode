@@ -1,6 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require group: "
-                              "authorization successful (attribute %s) "
-                              "[%s][%d - %s]",
-                              ent[i].name, ldc->reason, result,
-                              ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                         "make_secure_socket: for %s, WSAIoctl: "
+                         "(SO_SSL_SET_FLAGS)", addr);

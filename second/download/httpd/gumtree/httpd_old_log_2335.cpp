@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "WARNING: Require ThreadsPerChild > 0, setting to 1");
+fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+               signal ? "restarting" : "stopping");

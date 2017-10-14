@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, f->r,
-                  "h2_task(%s): request filter, exp=%d", task->id, r->expecting_100);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03451)
+                                  "Request header field value presented"
+                                  " bad whitespace");

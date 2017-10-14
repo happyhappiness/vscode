@@ -1,1 +1,1 @@
-decl_die(access_status, "check access", r);
+apr_file_printf(errfile, "Interrupted.\n");

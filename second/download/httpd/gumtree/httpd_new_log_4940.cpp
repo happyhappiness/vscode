@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01966)
-                                 "Init: Failed to create pass phrase pipe '%s'",
-                                 sc->server->pphrase_dialog_path);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00122)
+                          "redirected from r->uri = %s",
+                          top->uri ? top->uri : "(unexpectedly NULL)");

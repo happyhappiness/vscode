@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                         "ServerSupportFunction HSE_REQ_TRANSMIT_FILE "
-                         "as HSE_IO_ASYNC is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00811)
+                         "Cannot open socache DBM file `%s' for "
+                         "scanning",
+                         ctx->data_file);

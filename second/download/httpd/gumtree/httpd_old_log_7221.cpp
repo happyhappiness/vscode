@@ -1,0 +1,1 @@
+fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");

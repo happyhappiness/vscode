@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Error looking up %s in database", user);
+printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (float) (totalread + totalposted) / timetaken);

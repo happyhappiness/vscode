@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01268)
-                     "write to cgi daemon process");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01294)
+                                 "Copy of SGL failed to obtain shared memory, "
+                                 "couldn't update cache");

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01560)
-                "malformed header in meta file: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00990)
+                   "ajp_read_header: ajp_msg_reuse failed");

@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03347)
-                              "h2_mplx(%ld): stream for response %d closed, "
-                              "resetting io to close request processing",
-                              m->id, io->id);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
+                     "h2_workers: freed %d tx handles, %d/%d left", 
+                     (int)count, (int)workers->spare_tx_handles,
+                     (int)workers->max_tx_handles);

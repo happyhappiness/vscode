@@ -1,2 +1,3 @@
 ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "LDAP: Could not set LDAP_OPT_TIMEOUT");
+               "ajp_marshal_into_msgb - No such method %s",
+               r->method);

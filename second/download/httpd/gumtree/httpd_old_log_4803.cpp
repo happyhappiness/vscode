@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-#ifndef OPENSSL_NO_EC
-                "Oops, no RSA, DSA or ECC server private key found?!");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                                 "Init: Can't open server certificate file %s",
+                                 szPath);

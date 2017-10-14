@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01633)
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(02119)
+                     "Failed to create module cache");

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, 
-                 "Writing message to %d, passing sd:  %d", sconf->output, sfd);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                     "value of %d threads,", ap_threads_per_child, 
+                     thread_limit);

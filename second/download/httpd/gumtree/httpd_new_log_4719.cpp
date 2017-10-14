@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01835)
-                    "encryption could not be configured.");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02011)
+                      "No acceptable peer certificate available");

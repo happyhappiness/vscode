@@ -1,3 +1,3 @@
-ap_rputs("\n\n<table border=\"0\"><tr>"
-                     "<th>SSes</th><th>Timeout</th><th>Method</th>"
-                     "</tr>\n<tr>", r);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
+                      "h2_request(%d): pseudo header in trailer",
+                      req->id);

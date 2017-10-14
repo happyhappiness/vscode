@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                     "cache: attempt to remove url from cache unsuccessful.");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Failed to create listening socket.");

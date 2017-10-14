@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: password too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: failed to initialise prepared SQL statements");

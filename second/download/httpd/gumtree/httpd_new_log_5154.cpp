@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, ap_server_conf,
-                             "apr_pollset_poll failed.  Attempting to "
-                             "shutdown process gracefully");
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00147) "sigaction(SIGTERM)");

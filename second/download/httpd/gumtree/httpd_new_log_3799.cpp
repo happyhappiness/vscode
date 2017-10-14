@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, lvl, rv, r, APLOGNO(01466)
-                      "apr_file_read(child output), len %" APR_SIZE_T_FMT,
-                      !rv ? len : -1);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(01239)
+                                 "cgid daemon process died, restarting");

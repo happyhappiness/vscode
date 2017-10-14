@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01685)
-                      "Authn cache: found credentials for %s", user);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01805)
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);

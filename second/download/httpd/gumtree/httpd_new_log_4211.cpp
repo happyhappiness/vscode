@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00971)
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the header value");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00893)
+                      "dialog to %pI (%s) failed",
+                      conn->worker->cp->addr,
+                      conn->worker->s->hostname);

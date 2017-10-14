@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "Empty folded line encountered");
+fprintf(output, "    - Try again : %d\n", errors[TRY_AGAIN]);

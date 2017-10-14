@@ -1,3 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "proxy: Unhandled bucket type of type %s in"
-                          " ap_proxy_buckets_lifetime_transform", e->type->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         base_server,
+                         "Init: (%s) You configured HTTPS(%d) "
+                         "on the standard HTTP(%d) port!",
+                         ssl_util_vhostid(p, s),
+                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);

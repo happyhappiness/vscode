@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                      H2_STRM_MSG(stream, "invalid frame %d send"), ftype);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "ProxyBlock comparing %s and %s", caddr, uaddr);

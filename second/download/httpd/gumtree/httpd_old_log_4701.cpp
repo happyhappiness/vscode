@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, SESSION_PREFIX
-                          "error while decoding the session, "
-                          "session not loaded: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                    "Failed to open Certificate Path `%s'",
+                    ca_path);

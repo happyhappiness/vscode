@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
-                     "write pipe_of_death");
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
+                      "configuration error:  couldn't %s: %s", phase, r->uri);

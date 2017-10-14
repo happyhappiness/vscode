@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1757674 $");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, c, 
+                      H2_STRM_LOG(APLOGNO(03060), stream, 
+                      "pseudo header in trailer"));

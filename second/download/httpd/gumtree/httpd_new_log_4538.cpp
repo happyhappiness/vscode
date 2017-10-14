@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01047)
-                                  "apr_socket_opt_set(APR_TCP_NODELAY): "
-                                  "Failed to set");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00941)
+                     "%s: failed to acquire connection for (%s)",
+                     proxy_function, worker->s->hostname);

@@ -1,1 +1,4 @@
-ap_rputs(dav_xml_escape_uri(r->pool, first->href), r);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                  "[%d] auth_ldap authorise: "
+                                  "require dn: LDAP error [%s][%s]",
+                                  getpid(), ldc->reason, ldap_err2string(result));

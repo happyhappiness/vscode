@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02459)
-                      "AuthBasicFake: empty password expression for URI '%s', ignoring", r->uri);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool, APLOGNO(00923)
+                      "Pooled connection 0x%pp for worker %s has been"
+                      " already returned to the connection pool.", conn,
+                      ap_proxy_worker_name(conn->pool, worker));

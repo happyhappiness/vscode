@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00858)
-                          "sending data to %s:%u failed",
-                          conn->hostname, conn->port);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01830)
+                "apr_crypto_block_encrypt failed");

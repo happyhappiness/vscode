@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                     "Failed to create module cache lock");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(02555)
+                              "Unknown Transfer-Encoding: %s;"
+                              " using read-until-close", tenc);

@@ -1,2 +1,2 @@
-printf("   (Connect: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_length, err_except);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "shmcb_store successful");

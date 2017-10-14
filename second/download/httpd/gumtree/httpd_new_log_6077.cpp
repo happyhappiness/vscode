@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02982)
-                      "form parsed, but username field '%s' was missing or empty, unauthorized",
-                      username);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                          "h2_stream(%ld-%d): scheduling push stream",
+                          session->id, stream->id);

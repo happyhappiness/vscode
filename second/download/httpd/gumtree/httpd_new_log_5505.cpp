@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d, increasing to %d.  MaxRequestWorkers must be at "
-                         "least as large",
-                         threads_per_child, threads_per_child);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00539)
+                              "XML request body is larger than the configured "
+                              "limit of %lu", (unsigned long)limit_xml_body);

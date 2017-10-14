@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02174)
-                         "Must be uid 0 to raise maximum %s", cmd->cmd->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00466)
+                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");

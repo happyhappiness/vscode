@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                          "Websocket: Upgraded from HTTP to Websocket");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
+                     "Useless use of AllowOverrideList in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);

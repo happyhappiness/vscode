@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                     "proxy: FTP: end body send");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: connecting %s to %s:%d", *url, uri->hostname,
+                 uri->port);

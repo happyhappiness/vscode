@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01836)
-                    "too short to decrypt, skipping");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                      "coalesce: have %" APR_SIZE_T_FMT " bytes, "
+                      "adding %" APR_SIZE_T_FMT " more", ctx->bytes, bytes);

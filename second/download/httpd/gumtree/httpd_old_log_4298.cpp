@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: apr_brigade_flatten");
+ap_rvputs(r, "value=\"", ap_escape_uri(r->pool, wsel->name), "\">\n", NULL);

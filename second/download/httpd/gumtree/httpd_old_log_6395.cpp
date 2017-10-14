@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
-                                     "pollset remove failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
+                      "h2_ngn_shed(%ld): create engine %s (%s)", 
+                      shed->c->id, newngn->id, newngn->type);

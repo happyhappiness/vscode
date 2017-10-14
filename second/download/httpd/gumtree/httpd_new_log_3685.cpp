@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "not configured");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01405)
+                                      "inflate: bad header");

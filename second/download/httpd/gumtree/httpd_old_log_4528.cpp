@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: an error occurred creating a new connection to %pI (%s)",
-                     connect_addr, connectname);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                      "proxy: grabbed scoreboard slot %d in child %" APR_PID_T_FMT " for worker %s",
+                      worker->id, getpid(), worker->name);

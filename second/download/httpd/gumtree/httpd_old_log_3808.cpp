@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "Error evaluating filter dispatch condition");
+ap_log_error(APLOG_MARK, APLOG_ERR, stat,
+                         main_server,
+                         "Error reading request on cgid socket");

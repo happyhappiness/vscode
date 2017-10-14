@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -k install         : install an Apache service");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                        "select() failed on listen socket");

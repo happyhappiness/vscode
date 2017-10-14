@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to close file: %s", path);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "ProtocolEcho: Failure writing to %s",
+                         c->remote_ip);

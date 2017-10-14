@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01898)
-                "Unable to configure permitted SSL ciphers");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02290)
+                      "TLS session ticket key for %s successfully set, "
+                      "decrypting existing session ticket", sc->vhost_id);

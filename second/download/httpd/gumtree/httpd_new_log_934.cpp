@@ -1,2 +1,1 @@
-printf("%sdebug: error recovery discarding state %d\n",
-                            YYPREFIX, *ssl_expr_yyssp);
+rebuild_conf_hash(s->process->pconf, 1);

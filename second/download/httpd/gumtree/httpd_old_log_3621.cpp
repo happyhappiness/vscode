@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "match at idx=%d, data=%d", pos, idx->data_pos);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Depth must be zero for UPDATE with a version");

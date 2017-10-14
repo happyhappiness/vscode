@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; Invalid method token: '%.*s'"
-                          " (only GET is allowed for HTTP/0.9 requests)",
-                          field_name_len(r->method), r->method);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "unable to allocate new auth_digest client");

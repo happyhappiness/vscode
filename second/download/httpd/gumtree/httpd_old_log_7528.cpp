@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
-                              "request failed: URI too long (longer than %d)",
-                              r->server->limit_req_line);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01968)
+                         "Init: Requesting pass phrase via builtin terminal "
+                         "dialog");

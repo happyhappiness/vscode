@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01704)
-                          "auth_ldap authorize: require user: "
-                          "authorization failed [%s][%s]",
-                          ldc->reason, ldap_err2string(result));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01636)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

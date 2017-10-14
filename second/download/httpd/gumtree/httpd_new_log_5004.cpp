@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
-                             "stapling_renew_response: error in retreived response!");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00107)
+                             "piped_log_maintenance: unable to respawn '%s': %s",
+                             pl->program, apr_strerror(stats, buf, sizeof(buf)));

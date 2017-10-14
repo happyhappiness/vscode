@@ -1,3 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, pool,
-                              APLOGNO(02955) "h2_response(%d): invalid header[%d] '%s'",
-                              response->stream_id, i, (char*)hline);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02550) "Failed to flush CGI output to client");

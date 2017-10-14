@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(00765)
-                    "cache: Cache provider's store_body failed!");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00852)
+                         "possible match at idx=%d, data=%d", pos, idx->data_pos);

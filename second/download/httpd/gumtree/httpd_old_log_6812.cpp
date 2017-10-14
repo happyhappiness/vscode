@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03082)
-                  "h2_stream(%ld-%d): opened", session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                  "h2_stream(%ld-%d): data_chunk_recv, written %ld bytes",
+                  session->id, stream_id, (long)len);

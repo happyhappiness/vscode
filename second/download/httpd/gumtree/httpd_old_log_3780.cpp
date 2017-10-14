@@ -1,2 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Insufficient data for inflate");
+                      "Directory index forbidden by "
+                      "Options directive: %s", r->filename);

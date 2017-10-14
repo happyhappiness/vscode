@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          PARTITION_ERR_FMT, range_end+1, clength);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool,
+                      "creating lua_State with file %s", spec->file);

@@ -1,1 +1,1 @@
-ap_rputs("<td> - ", r);
+printf("Making: %s\n", tmpdir);

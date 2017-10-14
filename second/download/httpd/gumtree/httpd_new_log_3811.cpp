@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01380)
-                          "Unknown filter %s not added", p->fname);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server, APLOGNO(01251)
+                         "couldn't set child process attributes: %s", r->filename);

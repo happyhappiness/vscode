@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Not cached: %s" APR_EOL_STR,
-                            argv[o->ind]);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
+                     "mem_cache: Failed to create memory pool.");

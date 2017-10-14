@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                   "Heartmonitor: Unable to flush file: %s", path);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
+                         "ProtocolEcho: Error - read empty brigade from %s!",
+                         c->remote_ip);

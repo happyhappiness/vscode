@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01823)
-                "no ciphers returned by APR. "
-                "session encryption not possible");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c, APLOGNO(01994)
+                          "SSL library error %d writing data", ssl_err);

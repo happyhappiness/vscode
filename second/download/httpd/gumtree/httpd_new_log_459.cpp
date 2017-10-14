@@ -1,2 +1,5 @@
-printf("Processing: " CONF_FMT_STRING,
-		   mind, (int) (meand + 0.5), sdd, mediand, maxd);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 
+                                      0, r, "[%d] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "failed [%s][%s]", getpid(), 
+                                      ldc->reason, ldap_err2string(result));

@@ -1,1 +1,4 @@
-f(pid_file, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);

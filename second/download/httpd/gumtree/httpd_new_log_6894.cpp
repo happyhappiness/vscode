@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02418)
-                          "HTTP Request Line; Unrecognized protocol '%.*s' "
-                          "(perhaps whitespace was injected?)",
-                          field_name_len(r->protocol), r->protocol);
+ap_log_cerror(APLOG_MARK, lvl, 0, c, 
+                      H2_STRM_MSG(s, "out-buffer(%s)"), len? buffer : "empty");

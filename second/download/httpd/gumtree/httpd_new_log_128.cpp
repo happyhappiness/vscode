@@ -1,1 +1,4 @@
-filter_ctx->pInputFilter = ap_add_input_filter(ssl_io_filter, inctx, NULL, c);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                         c->base_server,
+                         "SSL client authentication failed: %s",
+                         error ? error : "unknown");

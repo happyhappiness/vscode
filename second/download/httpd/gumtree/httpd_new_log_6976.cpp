@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          "h2_mplx(%ld): idle, no tasks ongoing, %d streams",
-                          m->id, (int)h2_ihash_count(m->streams));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(03257)
+                         "Somehow tried to use unimplemented hcheck method: %d",
+                         (int)hc->s->method);

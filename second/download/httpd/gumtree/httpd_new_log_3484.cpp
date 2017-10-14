@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EGENERAL, NULL, APLOGNO(02118)
-                     "could not create the isapi cache pool");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00742) "distributed scache 'retrieve' MISS");

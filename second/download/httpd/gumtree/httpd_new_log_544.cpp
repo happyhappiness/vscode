@@ -1,2 +1,1 @@
-printf("Server loaded:  APR %s, APR-UTIL %s\n",
-           apr_version_string(), apu_version_string());
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "filling buffer");

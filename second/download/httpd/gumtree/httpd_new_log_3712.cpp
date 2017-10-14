@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00602)
-                                  "Within the DAV:activity-set element, the "
-                                  "DAV:new element must be used, or at least "
-                                  "one DAV:href must be specified.");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "Expression condition for '%s' %s",
+                          provider->frec->name,
+                          match ? "matched" : "did not match");

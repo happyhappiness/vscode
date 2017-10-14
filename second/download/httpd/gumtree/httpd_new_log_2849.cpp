@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, main_server,
-                     "Couldn't set permissions on unix domain socket %s",
-                     sockname);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 655654 $");

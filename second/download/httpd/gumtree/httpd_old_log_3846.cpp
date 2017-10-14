@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK,
-                      (!(ctx->if_nesting_level)) ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "endif directive does not take tags in %s",
-                      r->filename);
+ap_rputs("<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>", r);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation request failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "ssl_stapling_init_cert: no responder URL");

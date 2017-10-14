@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                  "proxy: initialized plain memory in child %" APR_PID_T_FMT " for worker %s",
-                  getpid(), worker->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "TLS upgrade handshake failed: not accepted by client!?");

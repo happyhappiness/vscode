@@ -1,1 +1,1 @@
-ap_rputs("    </httpd:balancer>\n", r);
+apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);

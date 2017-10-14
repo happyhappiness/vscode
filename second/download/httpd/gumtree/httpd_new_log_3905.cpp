@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat,
-                         main_server, APLOGNO(01248)
-                         "Error reading request on cgid socket");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01609)
+                             "Cannot get media parameter.");

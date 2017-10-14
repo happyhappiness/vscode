@@ -1,2 +1,1 @@
-fprintf(stderr,
-            "or \n\nTransferLog \"|%s /some/where 5M\"\n\n", argv0);
+fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");

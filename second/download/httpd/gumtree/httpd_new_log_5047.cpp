@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
-                     "cannot use a full URL in a 401 ErrorDocument "
-                     "directive --- ignoring!");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "creation of the timeout mutex failed.");

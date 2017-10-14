@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02415)
-                  "[strict] Invalid host name '%s'%s%.6s",
-                  host, *ch ? ", problem near: " : "", ch);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
+                          H2_STRM_MSG(stream, "wait on input drain"));

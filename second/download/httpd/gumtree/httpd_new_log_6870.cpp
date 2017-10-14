@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, server, APLOGNO(03408)
-                         "%s: reusable backend connection is not empty: "
-                         "forcibly closed", scheme);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                                      H2_SSSN_MSG(session, "input gone"));

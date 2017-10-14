@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server, APLOGNO(01566) "using ip addr %s",
-                 ipaddrstr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00888)
+                                      "error processing end");

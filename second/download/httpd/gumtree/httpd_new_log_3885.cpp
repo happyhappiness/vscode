@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01222)
-                      "don't know how to spawn child process: %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01594)
+                          "Invalid Content-Length");

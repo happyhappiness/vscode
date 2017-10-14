@@ -1,3 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          "h2_session(%ld): writing, terminating",
-                          session->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "form parsed, but username field '%s' was missing or empty, unauthorized",
+                      username);

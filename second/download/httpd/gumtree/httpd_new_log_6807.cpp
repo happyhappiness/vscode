@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                          "h2_session(%ld): read 64k, returning", session->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03519)
+                      "h2_proxy_session(%s): terminated, %d streams unfinished",
+                      session->id, (int)h2_proxy_ihash_count(session->streams));

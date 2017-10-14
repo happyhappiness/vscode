@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
-                      H2_SSSN_MSG(session, "no master event available"));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                          "Content-Type '%s' ...", r->content_type);

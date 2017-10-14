@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02100)
-                          "Failed to open cgi file %s for testing", *cmd);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00787)
+                         "Failed to Parse Server, "
+                         "no hostname specified: '%s'", split);

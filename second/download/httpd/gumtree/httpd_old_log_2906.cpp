@@ -1,2 +1,1 @@
-printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           stats[requests - 1].time);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "remove called with NULL session_id!");

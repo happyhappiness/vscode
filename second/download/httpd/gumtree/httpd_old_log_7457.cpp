@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "Automatically using MD5 format." NL);

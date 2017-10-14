@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_TRACE2, 0, r,
-                  "finished with poll() - cleaning up");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_session(%ld): before_frame_send %s", 
+                      session->id, buffer);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server, APLOGNO(00624)
-                     "Failed to create memory pool");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
+                                      "Zlib: Length %ld of inflated data does "
+                                      "not match expected value %ld",
+                                      ctx->stream.total_out, compLen);

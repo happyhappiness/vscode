@@ -1,3 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI must not contain a "
-                          "username/password");
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                      "require user: user's DN has not been defined; failing authorization",
+                      getpid());

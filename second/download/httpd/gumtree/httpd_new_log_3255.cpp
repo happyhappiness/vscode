@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01658)
-                      "Failed to acquire database connection to look up "
-                      "user '%s:%s'", user, realm);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01625)
+                      "authorization result of %s: %s "
+                      "(directive limited to other methods)",
+                      format_authz_command(r->pool, section),
+                      format_authz_result(auth_result));

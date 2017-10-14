@@ -1,2 +1,2 @@
-ap_rputs("<hr />\n<table>\n\
-<tr><th>Vhost</th><th>Seconds since last used</th></tr>\n", r);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02480)
+                "failed to register %s mutex", proxy_id);

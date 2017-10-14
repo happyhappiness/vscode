@@ -1,6 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                     0, ap_server_conf,
-                     "child process %" APR_PID_T_FMT
-                     " still did not exit, "
-                     "sending a SIGTERM",
-                     pid);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  Check your 'Require' directive"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

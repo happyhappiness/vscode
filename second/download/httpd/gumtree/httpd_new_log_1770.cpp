@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in group file (%s).",
-                      r->user, r->uri, conf->groupfile);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: URL %s failed the size check "
+                     "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
+                     key, len, conf->minfs);

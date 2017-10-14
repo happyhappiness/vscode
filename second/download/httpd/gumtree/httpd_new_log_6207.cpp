@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
-                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
-                          session->id, (int)frame->hd.stream_id,
-                          (int)frame->rst_stream.error_code);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02825)
+                          "Can't evaluate alias expression: %s", err);

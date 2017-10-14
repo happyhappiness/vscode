@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01390)
-                              "Encountered EOS bucket in inflate filter (bug?)");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(01410)
+                             "reflector_handler: ap_pass_brigade returned %i",
+                                  status);

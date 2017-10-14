@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Illegal attempt to re-initialise SSL for server "
-                "(theoretically shouldn't happen!)");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Write: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));

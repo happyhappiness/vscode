@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00396)
-                     "Parent: Unable to retrieve the start mutex for the child");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf, APLOGNO(00290)
+                                 "Ignoring fatal error in child of previous "
+                                 "generation (pid %ld).",
+                                 (long)pid.pid);

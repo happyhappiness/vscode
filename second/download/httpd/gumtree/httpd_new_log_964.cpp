@@ -1,1 +1,0 @@
-rebuild_conf_hash(s->process->pconf, 1);

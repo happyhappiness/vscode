@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf, APLOGNO(00166)
-                                 "Ignoring fatal error in child of previous "
-                                 "generation (pid %ld).",
-                                 (long)pid.pid);
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00431)
+                             "Parent: Forcing termination of child process %pp",
+                             event_handles[CHILD_HANDLE]);

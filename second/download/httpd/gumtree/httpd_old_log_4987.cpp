@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                 "stapling_get_cert_info: stapling not supported for certificate");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
+                         "%s: Invalid error log path %s.",
+                         ap_server_argv0, s->error_fname);

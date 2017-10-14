@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
-                     "Cache lock file for '%s' too old, removing: %s",
-                     r->uri, lockname);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);

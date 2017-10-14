@@ -1,4 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
-                      "Certificate Verification: Verifiable Issuer is "
-                      "configured as optional, therefore we're accepting "
-                      "the certificate");
+fprintf(stderr, " %.*s", (int)(val.dptr+val.dsize - (cmnt+1)), cmnt + 1);

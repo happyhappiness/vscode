@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00807)
-                     "Cannot open socache DBM file `%s' for writing "
-                     "(store)",
-                     ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(02091)
+                             "%s listener started.",
+                             HM_WATHCHDOG_NAME);

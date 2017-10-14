@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01857)
-                      "query execution error updating session '%s' "
-                      "using database query '%s': %s", key, conf->updatelabel,
-                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02202)
+                             "Init: Read server certificate from '%s'",
+                             szPath);

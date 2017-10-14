@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00651)
-                         "could not open forensic log file %s.", fname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01537)
+                    MODNAME ": invalid m->type (%d) in mprint().",
+                    m->type);

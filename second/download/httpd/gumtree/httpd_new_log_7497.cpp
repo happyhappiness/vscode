@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find function %s in %s",
-                                    function_name,
-                                    filename);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
+                     "Unable to initialize TLS session ticket key callback "
+                     "(incompatible OpenSSL version?)");

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "getpwuid: couldn't determine user name from uid %ld, "
-                         "you probably need to modify the User directive",
-                         (long)uid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
+                         "cache: Cache provider's store_body failed!");

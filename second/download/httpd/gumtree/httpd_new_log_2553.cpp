@@ -1,2 +1,1 @@
-printf("Total body sent:        %" APR_INT64_T_FMT "\n",
-               totalposted);
+fprintf(stderr, "Closing file %s (%s)\n", finfo.name, finfo.fname);

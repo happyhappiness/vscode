@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-                                  "h2_session(%ld): waiting on conditional",
-                                  session->id);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03100)
+                     "ap_queue_init() failed");

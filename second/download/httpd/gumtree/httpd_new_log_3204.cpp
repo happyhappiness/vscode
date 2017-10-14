@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01760)
-                 "%s - all nonce-count checking, one-time nonces, and "
-                 "MD5-sess algorithm disabled", msg);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01703)
+                          "auth_ldap authorize: require user: authorization "
+                          "successful");

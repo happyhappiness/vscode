@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
-                         "atomics not working as expected");
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1604373 $");

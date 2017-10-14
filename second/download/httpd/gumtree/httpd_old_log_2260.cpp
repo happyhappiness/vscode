@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s,
-                     "Couldn't create accept lock (%s) (%d)",
-                     ap_lock_fname, ap_accept_lock_mech);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %lu: WAIT_FAILED -- shutting down server", my_pid);

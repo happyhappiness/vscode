@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Failed to open the WinNT service manager.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "request failed: invalid characters in URI");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                r->server, "Replacing CACHE with CACHE_OUT filter for %s",
-                r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Error evaluating filter dispatch condition");

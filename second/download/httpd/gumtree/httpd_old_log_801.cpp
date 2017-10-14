@@ -1,2 +1,3 @@
-ap_register_output_filter("FIXUP_HEADERS_OUT", ap_headers_output_filter,
-                              NULL, AP_FTYPE_CONTENT_SET);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+			 "proxy: No HTTP headers "
+			 "returned by %s (%s)", r->uri, r->method);

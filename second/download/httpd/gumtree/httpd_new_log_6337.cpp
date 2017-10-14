@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03008)
-                              "%d:  <table>", i);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02298)
+                     "Init: Failed to generate temporary "
+                     "%d bit EC parameters, only 256 bits supported", bits);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "[%" APR_PID_T_FMT "] auth_ldap authorize: require group: "
-                          "user's DN has not been defined; failing authorization for user %s",
-                          getpid(), r->user);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Module mod_ldap missing. Mod_ldap (aka. util_ldap) "
+                     "must be loaded in order for mod_authnz_ldap to function properly");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Encountered extra data after compressed data");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);

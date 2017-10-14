@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "checking remote machine [%s] against [%s]",
-                      uri_addr->hostname, npent[j].name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01857)
+                      "query execution error updating session '%s' "
+                      "using database query '%s': %s", key, conf->updatelabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));

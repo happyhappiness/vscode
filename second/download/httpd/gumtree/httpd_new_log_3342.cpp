@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01746)
-                              "auth_ldap authorize: require ldap-filter: "
-                              "%s authorization failed [%s][%s]",
-                              filtbuf, ldc->reason, ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02156)
+                        "setgid: unable to set group id to Group %ld",
+                        (long)ap_unixd_config.group_id);

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "regex capture $%" APR_SIZE_T_FMT
-                          " is out of range (last regex was: '%s') in %s",
-                          idx, re->rexp, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
+                     "mod_cgid: Couldn't spawn cgid daemon process");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                     "Client requested a 'session-resume' but "
-                     "we have no such session.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no user specified", getpid());

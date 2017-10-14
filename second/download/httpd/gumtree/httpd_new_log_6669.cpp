@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(3305)
-                         "%s: Won't retry worker (%s): stopped",
-                         proxy_function, worker->s->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                          "h2_slave_in(%s): getline: %s",
+                          task->id, buffer);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
-                                         ap_server_conf, APLOGNO(03097)
-                                         "Failed to create transaction pool");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c, APLOGNO(03398)
+                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
+                      shed->c->id, entry->task->id, ngn->id);

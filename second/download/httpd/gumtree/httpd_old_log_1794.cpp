@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "access to %s failed, reason: user '%s' does not meet "
-                  "'require'ments for user/valid-user to be allowed access",
-                  r->uri, user);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid flags %02x", ctx->zlib_flags);

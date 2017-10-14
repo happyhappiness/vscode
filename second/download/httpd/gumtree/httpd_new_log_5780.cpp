@@ -1,3 +1,2 @@
-(!(flags & AP_STATUS_SHORT)) {
-        ap_rputs("</td></tr>\n</table>\n", r);
-    };
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02911) 
+                      "workers not initialized");

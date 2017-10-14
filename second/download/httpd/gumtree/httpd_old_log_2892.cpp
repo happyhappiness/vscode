@@ -1,2 +1,2 @@
-printf("Connect:    " CONF_FMT_STRING,
-                       mincon, (int) (meancon + 0.5), sdcon, mediancon, maxcon);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                  "index_size = %u", header->index_size);

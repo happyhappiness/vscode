@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-            "proxy: BALANCER: (%s). Lock failed for post_request",
-            balancer->name);
+ap_log_error(APLOG_MARK,APLOG_ERR, status, ap_server_conf,
+                     "Child %lu: Failed to acquire the start_mutex. Process will exit.", my_pid);

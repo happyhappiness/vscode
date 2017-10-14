@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
-                     "%s: Failed to start the service process.",
-                     mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, "need AuthName: %s", r->uri);

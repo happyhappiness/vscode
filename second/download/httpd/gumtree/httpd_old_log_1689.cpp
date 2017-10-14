@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "Digest: WARNING: qop `auth-int' currently only works "
-                     "correctly for responses with no entity");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: checking filter %s",
+                              getpid(), t);

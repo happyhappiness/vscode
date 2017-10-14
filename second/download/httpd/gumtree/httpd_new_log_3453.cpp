@@ -1,2 +1,2 @@
-apr_file_printf(out, "ChrootDir: \"%s\"%s\n",
-                        ap_unixd_config.chroot_dir, no_root);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server, APLOGNO(00798)
+                     "unable to open(%s, O_RDONLY), skipping", fspec);

@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
-                          APLOGNO(02917) 
-                          "h2_request: pseudo header after request start");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
+                      "h2_mplx(%s): out open", stream->task->id);

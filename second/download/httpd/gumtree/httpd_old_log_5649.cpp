@@ -1,5 +1,2 @@
-fprintf(stderr,
-            "Usage: %s [-v] [-l] [-L linkname] [-f] [-t] <logfile> "
-            "{<rotation time in seconds>|<rotation size>(B|K|M|G)} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
+fprintf(stderr,"The %s service is %s.\n", mpm_display_name,
+            signal ? "restarting" : "stopping");

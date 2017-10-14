@@ -1,1 +1,2 @@
-fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "Error looking up %s in database", user);

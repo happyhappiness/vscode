@@ -1,3 +1,1 @@
-fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-            argv0);
+fprintf(out, "%d,%.3f\n", i, t);

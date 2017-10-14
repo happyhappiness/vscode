@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR, 0,
-                         NULL, "Configuration check failed");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+                        "select() failed on listen socket");

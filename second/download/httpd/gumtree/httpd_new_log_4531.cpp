@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01040)
-                                  "error creating EPSV socket");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00924)
+                     "worker %s shared already initialized", worker->s->name);

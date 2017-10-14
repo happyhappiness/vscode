@@ -1,4 +1,8 @@
-ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
-                                      APLOGNO(02950) 
-                                      "h2_session(%ld): error reading, terminating",
-                                      session->id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): NULL -> %s %d"
+                      "[orph=%d/started=%d/done=%d/eos_in=%d/eos_out=%d]", 
+                      m->id, io->id, 
+                      io->response? "http" : (io->rst_error? "reset" : "?"),
+                      io->response? io->response->http_status : io->rst_error,
+                      io->orphaned, io->worker_started, io->worker_done,
+                      io->eos_in, io->eos_out);

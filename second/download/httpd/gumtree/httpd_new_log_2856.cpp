@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");

@@ -1,1 +1,2 @@
-fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
+                          "core_output_filter: writing data to the network");

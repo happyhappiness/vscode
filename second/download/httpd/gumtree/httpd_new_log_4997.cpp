@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01936)
-                             "stapling_check_response: response times invalid");
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, p, APLOGNO(00098)
+                      "pid file %s overwritten -- Unclean "
+                      "shutdown of previous Apache run?",
+                      fname);

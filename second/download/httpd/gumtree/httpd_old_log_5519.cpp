@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, status, ap_server_conf,
-                     "apr_socket_opt_set: (TCP_NODELAY)");
+err("\nServer timed out\n\n");

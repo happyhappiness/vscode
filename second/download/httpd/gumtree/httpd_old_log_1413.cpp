@@ -1,5 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "proxy: Closing connection to client because"
-                              " reading from backend server %s failed. Number"
-                              " of keepalives %i", backend->hostname, 
-                              c->keepalives);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-v] [-V] [-h] [-l] [-L] [-t] [-S]", pad);

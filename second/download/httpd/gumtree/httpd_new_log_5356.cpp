@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00387)
-                     "Child: Unable to access the start_mutex from the parent");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, APLOGNO(00283)
+                     "fork: Unable to fork new process");

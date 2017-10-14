@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
-                      "Failed writing Environment to %s:", server_portstr);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00915)
+                             "%s", inet_ntoa(This->mask));

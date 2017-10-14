@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01571)
-                                "Watchdog: Failed to create parent worker thread.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);

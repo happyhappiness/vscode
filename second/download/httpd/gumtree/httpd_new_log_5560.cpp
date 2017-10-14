@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00573)
-                      "client used wrong authentication scheme: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02680)
+                          "ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);

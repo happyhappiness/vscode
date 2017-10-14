@@ -1,1 +1,0 @@
-ap_rvputs(r, "CacheTarget: ", ctx->target, "\n", NULL);

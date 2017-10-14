@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c, APLOGNO(03405)
-                      "h2_task(%s): could not write all, saving brigade", 
-                      task->id);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          APLOGNO(02917) 
+                          "h2_request: pseudo header after request start");

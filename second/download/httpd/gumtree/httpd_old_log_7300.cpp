@@ -1,1 +1,0 @@
-ap_rputs("   <DT><EM>n</EM>.<SAMP>&lt;routine-name&gt;", r);

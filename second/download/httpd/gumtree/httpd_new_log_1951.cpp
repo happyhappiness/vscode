@@ -1,2 +1,2 @@
-ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
-               "</a></pre>\n", NULL);
+ap_rvputs(r, "<td>", balancer->sticky, " | ",
+                          balancer->sticky_path, NULL);

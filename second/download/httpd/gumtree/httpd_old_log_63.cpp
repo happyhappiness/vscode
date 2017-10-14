@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: unable to create temporary file '%s'\n", 
-                        argv[0], tn);
+ap_log_error(APLOG_MARK, APLOG_CRIT, errno, server_conf,
+            "make_secure_socket: failed to get a socket for %s", addr);

@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "HTTP: serving URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01826)
+                "padding is not supported for cipher");

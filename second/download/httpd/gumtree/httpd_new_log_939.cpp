@@ -1,2 +1,3 @@
-printf("%sdebug: after reduction, shifting from state %d \
-to state %d\n", YYPREFIX, *ssl_expr_yyssp, ssl_expr_yystate);
+apr_psprintf(p, "Syntax error on line %d of %s: %s",
+                            parms.err_directive->line_num,
+                            parms.err_directive->filename, error);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, 
-                             "LDAP: Invalid LDAPTrustedCAType directive - "
-                             "DER_FILE or BASE64_FILE type required");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
+                          "name in parsed document %s", ctx->r->filename);

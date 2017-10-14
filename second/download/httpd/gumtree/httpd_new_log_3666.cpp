@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(01576)
-                 "loaded file %s", filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
+                              "Zlib error %d deflating data (%s)", zRC,
+                              ctx->stream.msg);

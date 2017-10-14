@@ -1,6 +1,2 @@
-ap_rputs("\n\n<table border=\"0\" style=\"text-align: left;\"><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>To</th><th>From</th>"
-                "</tr>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                 "apr_socket_opt_set(APR_TCP_NODELAY): Failed to set");

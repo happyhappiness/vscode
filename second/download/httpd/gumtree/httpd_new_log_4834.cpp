@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c, APLOGNO(02006)
-                         "SSL handshake stopped: connection was closed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02274)
+                     "Can't read PKCS7 object %s", pkcs7);

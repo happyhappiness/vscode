@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01206)
-                             "Failed to init balancer %s in child",
-                             balancer->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01057)
+                              "data connection closed");

@@ -1,5 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      input->task->id, block, 
-                      (long)readbytes, (long)bblen);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03063)
+                      "h2_session(%ld): recv unknown FRAME[%s], frames=%ld/%ld (r/s)",
+                      session->id, buffer, (long)session->frames_received,
+                     (long)session->frames_sent);

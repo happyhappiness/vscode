@@ -1,1 +1,1 @@
-ap_rvputs(r, "value=\"", bsel->sticky, "\"", NULL);
+printf("Write errors:           %ld\n", epipe);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf,
-                         "select/accept error (%d)", status);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " HARD_THREAD_LIMIT define in %s.",
+                    AP_MPM_HARD_LIMITS_FILE);

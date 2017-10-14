@@ -1,2 +1,2 @@
-printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           ap_round_ms(stats[done - 1].time));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "shmcb_subcache_remove internal error");

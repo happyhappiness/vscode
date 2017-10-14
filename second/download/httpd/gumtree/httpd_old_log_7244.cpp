@@ -1,0 +1,1 @@
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);

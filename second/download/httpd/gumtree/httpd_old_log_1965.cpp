@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, s,
-                     "mod_rewrite: Parent could not set permissions "
-                     "on RewriteLock; check User and Group directives");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+             "proxy: CONNECT: sending the CONNECT request to the remote proxy");

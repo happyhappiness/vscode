@@ -1,1 +1,0 @@
-r(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(02997) "%s", msg);

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01281)
-                        "Unable to set LDAP_OPT_REFHOPLIMIT option to %d: %d.",
-                        ldc->ReferralHopLimit,
-                        result->rc);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00657)
+                      "rewritemap: error %s querying for %s", errmsg, key);

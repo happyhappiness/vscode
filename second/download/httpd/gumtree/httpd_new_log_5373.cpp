@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00400)
-                     "Parent: Unable to duplicate the scoreboard handle to the child");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00297)
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");

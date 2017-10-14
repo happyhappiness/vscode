@@ -1,1 +1,1 @@
-ap_rputs("Error", r);
+apr_file_printf(errfile, "User %s not found" NL, user);

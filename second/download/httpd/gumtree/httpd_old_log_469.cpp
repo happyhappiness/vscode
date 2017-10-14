@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r->server,
-                                 "cache_select_url(): Vary header mismatch - Cached document cannot be used. \n");
+ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
+                              AP_FTYPE_CONTENT_SET);

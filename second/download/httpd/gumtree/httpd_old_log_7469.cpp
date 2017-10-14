@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698)
-            "cache: Key for entity %s?%s is %s", r->uri,
-            r->parsed_uri.query, *key);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00927)
+                     "initializing worker %s local", worker->s->name);

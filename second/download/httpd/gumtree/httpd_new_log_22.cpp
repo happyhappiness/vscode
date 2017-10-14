@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                            "invalid transfer log path %s.", name);
+fprintf(stderr, "%s: could not open config directory %s: %s\n",
+                    ap_server_argv0, path,
+                    apr_strerror(rv, errmsg, sizeof errmsg));

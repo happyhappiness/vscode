@@ -1,1 +1,3 @@
-ap_rvputs(r, bsel->s->name, "</h3>\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01042)
+                                  "apr_socket_opt_set(APR_TCP_NODELAY): "
+                                  "Failed to set");

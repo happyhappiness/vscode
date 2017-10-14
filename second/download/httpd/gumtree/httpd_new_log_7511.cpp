@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01859)
-                      "query execution error inserting session '%s' "
-                      "in database with '%s': %s", newkey, conf->insertlabel,
-                      apr_dbd_error(dbd->driver, dbd->handle, rv));
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02574)
+                      "Init: Can't open server private key file %s", pkey_file);

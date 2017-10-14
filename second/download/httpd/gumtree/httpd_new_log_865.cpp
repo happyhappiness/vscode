@@ -1,1 +1,2 @@
-printf("%s\n", pks->cert_files[i]);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not split line from buffered SSL brigade");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00279)
-                     "apr_thread_join: unable to join the start "
-                     "thread");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(00551)
+        "Done with config file %s", cfp->name);

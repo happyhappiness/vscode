@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, res, ap_server_conf, APLOGNO(00142)
-                         "gprof: error creating directory %s", dir);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00408)
+                     "Parent: Duplicating socket %d (%pI) and sending it to child process %lu",
+                     nsd, lr->bind_addr, dwProcessId);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
-                     "Fatal error: shared scoreboard too small for child!");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     "conflicting SQL statements with label %s", label);

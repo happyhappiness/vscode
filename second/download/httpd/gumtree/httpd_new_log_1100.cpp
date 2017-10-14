@@ -1,1 +1,1 @@
-cc = apr_file_puts(buf, fptr);
+fprintf(f, "%3d", *tables++);

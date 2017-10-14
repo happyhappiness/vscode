@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01096)
-                          "processing prefetched request body failed"
-                          " to %pI (%s) from %s (%s)",
-                          p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
-                          c->client_ip, c->remote_host ? c->remote_host: "");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                     s, APLOGNO(00960) "%s: an error occurred creating a "
+                     "new connection to %pI (%s)", proxy_function,
+                     backend_addr, conn->hostname);

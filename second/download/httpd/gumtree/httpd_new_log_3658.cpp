@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02284)
-                             "failed to lookup provider 'shm' for '%s', "
-                             "maybe you need to load mod_slotmem_shm?",
-                             AP_SLOTMEM_PROVIDER_GROUP);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE6, 0, f->r,
+                 "xlate_in_filter() - "
+                 "charset_source: %s charset_default: %s",
+                 dc && dc->charset_source ? dc->charset_source : "(none)",
+                 dc && dc->charset_default ? dc->charset_default : "(none)");

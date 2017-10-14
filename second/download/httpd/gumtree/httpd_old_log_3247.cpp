@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
-        "internal redirect requested but one or all of method, mimetype or "
-                      "body are NULL: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require ldap-filter: "
+                              "%s authorization failed [%s][%s]",
+                              filtbuf, ldc->reason, ldap_err2string(result));

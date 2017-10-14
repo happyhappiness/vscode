@@ -1,1 +1,2 @@
-apr_file_printf(f, "wildcard NameVirtualHosts and _default_ servers:\n");
+fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
+                   : "Installing the %s service\n", mpm_display_name);

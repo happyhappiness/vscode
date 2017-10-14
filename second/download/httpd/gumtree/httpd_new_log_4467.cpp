@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01016)
-                          "read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01106)
+                              "bad HTTP/%d.%d header returned by %s (%s)",
+                              major, minor, r->uri, r->method);

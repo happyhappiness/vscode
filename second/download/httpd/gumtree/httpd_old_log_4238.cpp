@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_read_header: ajp_ilink_receive failed");
+ap_rvputs(r, "          <httpd:scheme>", worker->scheme,
+                          "</httpd:scheme>\n", NULL);

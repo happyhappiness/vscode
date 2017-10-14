@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c,
+                  "h2_task(%s): added chunk %ld, total %ld", 
+                  task->id, (long)chunk_len, (long)task->input.chunked_total);

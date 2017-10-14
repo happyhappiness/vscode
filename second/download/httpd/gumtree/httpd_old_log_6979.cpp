@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                                  "h2_mplx(%ld-%d): on_resume", 
-                                  m->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(03313)
+                                 "apr_thread_pool_create() with %d threads succeeded",
+                                 ctx->tpsize);

@@ -1,1 +1,2 @@
-fprintf(stderr, "Shifting token %d (%s), ", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, 
+                 "leaving shmcb_status");

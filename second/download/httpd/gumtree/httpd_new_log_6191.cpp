@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, decoder->pool,
-                  "h2_push_diary_digest_dec: val=%"APR_UINT64_T_HEX_FMT", delta=%"
-                  APR_UINT64_T_HEX_FMT", flex=%d, fixed=%"APR_UINT64_T_HEX_FMT, 
-                  *phash, delta, (int)flex, fixed);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03013) 
+                      "Websocket: Writing framed message to client");

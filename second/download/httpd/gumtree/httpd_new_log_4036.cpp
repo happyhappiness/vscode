@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01303)
-                      "LDAP: SSL trusted global cert - %s (type %s)",
-                       file, type);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv, APLOGNO(01493)
+                     "rfc1413: apr_sockaddr_info_get(%s) failed",
+                     conn->client_ip);

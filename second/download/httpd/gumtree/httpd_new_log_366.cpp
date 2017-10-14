@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "The -c flag creates a new file.\n");
+apr_file_printf(errfile, " -D  Delete the specified user.\n");

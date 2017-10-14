@@ -1,2 +1,3 @@
-apr_file_printf(errfile, "%s: unable to update file %s" NL,
-                        argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: worker %s already initialized",
+              worker->name);

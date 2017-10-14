@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, r->server, APLOGNO(02995)
-                             "Child %ld failed to acquire lock",
-                             (long int)getpid());
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      "h2_stream(%ld-%d): output closed", 
+                      stream->session->id, stream->id);

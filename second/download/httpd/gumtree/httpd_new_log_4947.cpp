@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01971)
-                              "Found an extension '%s', but failed to "
-                              "create a string from it", extension);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00128)
+                          "File does not exist: %s", r->filename);

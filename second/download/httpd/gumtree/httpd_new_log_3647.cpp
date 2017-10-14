@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02083)
-                   "Unable to close file: %s", path);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01613)
+                         "ProtocolEcho: Failure writing to %s",
+                         c->client_ip);

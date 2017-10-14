@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01637)
-                      "Authorization of user %s to access %s failed, reason: %s",
-                      r->user, r->uri, reason ? reason : "unknown");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02102)
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" or \"'!\" first line", *cmd);

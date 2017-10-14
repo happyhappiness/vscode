@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00539)
-                              "XML request body is larger than the configured "
-                              "limit of %lu", (unsigned long)limit_xml_body);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01926)
+                 "stapling_get_certinfo: stapling not supported for certificate");

@@ -1,0 +1,1 @@
+fprintf(stderr, "                    Default is 30 seconds\n");

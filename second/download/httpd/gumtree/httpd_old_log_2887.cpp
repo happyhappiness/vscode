@@ -1,2 +1,2 @@
-printf("                        %.2f kb/s sent\n",
-               (float) (totalposted / timetaken / 1024));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "division_offset = %u", header->division_offset);

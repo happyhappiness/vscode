@@ -1,2 +1,1 @@
-ap_rvputs(r, "          <httpd:hostname>", worker->s->hostname,
-                          "</httpd:hostname>\n", NULL);
+ap_rvputs(r, "<tr>\n<td>", (*worker)->s->scheme, "</td>", NULL);

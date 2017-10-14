@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
-                     "worker %s already used by another worker", worker->name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS, r,
+                          "Anonymous: Passwd <%s> Accepted",
+                          sent_pw ? sent_pw : "\'none\'");

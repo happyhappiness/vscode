@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "auth_ldap authenticate: using URL %s", sec->url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open group file: %s",
+                      conf->groupfile);

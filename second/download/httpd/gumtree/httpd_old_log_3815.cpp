@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Unsupported option -%s in file %s",
-                      current->token.value, r->filename);
+log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   "unable to create socket to cgi daemon");

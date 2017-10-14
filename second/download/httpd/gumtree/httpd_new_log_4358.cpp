@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01187) "worker slotmem_dptr failed");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01019)
+                  "connecting %s to %s:%d", url, uri.hostname, uri.port);

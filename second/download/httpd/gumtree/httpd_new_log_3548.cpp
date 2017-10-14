@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00797)
-                     "%s is too large to cache, skipping", fspec);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02080)
+                     "Unable to move file: %s -> %s", path,
+                     ctx->storage_path);

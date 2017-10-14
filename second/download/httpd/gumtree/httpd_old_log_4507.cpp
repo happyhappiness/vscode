@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: FCGI: url: %s proxyname: %s proxyport: %d",
-                 url, proxyname, proxyport);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
+                         "proxy: connect to remote machine %s blocked: name %s matched", uri_addr->hostname, npent[j].name);

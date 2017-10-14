@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
-                         "apr_socket_accept: (client socket)");
+ap_register_output_filter("CORE", ap_core_output_filter,
+                                  NULL, AP_FTYPE_NETWORK);

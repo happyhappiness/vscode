@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
-                          "make_sock: failed to set ReceiveBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "%s compiled against Server: %s, Library: %s",
+                 modver, AP_SERVER_BASEVERSION, incver);

@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00320)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, main_s, APLOGNO(00549)
+                                 "Failed to resolve server name "
+                                 "for %s (check DNS) -- or specify an explicit "
+                                 "ServerName",
+                                 ipaddr_str);

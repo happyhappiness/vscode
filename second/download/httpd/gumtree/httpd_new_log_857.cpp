@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "proxy: %s: connection complete to %pI (%s)",
-                 proxy_function, backend_addr, conn->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "No acceptable peer certificate available");

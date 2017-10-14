@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01632)
-                  "Authorization of user %s to access %s failed, reason: %s",
-                  r->user, r->uri, reason ? reason : "unknown");
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EGENERAL, NULL, APLOGNO(02118)
+                     "could not create the isapi cache pool");

@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, level, 0, c, "beam(%ld-%d): %s %s", 
-                      c->id, id, msg, buffer);
+ap_rputs("<tr><td>Expr</td><td><select name='w_he'>\n", r);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01504)
-                  "Regular expression replacement failed (replacement too long?)");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00996)
+               "ajp_parse_data: ajp_msg_get_byte failed");

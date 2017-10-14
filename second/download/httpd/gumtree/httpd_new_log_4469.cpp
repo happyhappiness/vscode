@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01018)
-                          "error on %s - ap_get_brigade",
-                          name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "start body send");

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01337)
-                      "Could not parse expr \"%s\" in %s: %s", expr,
-                      ctx->r->filename, err);
+log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01264)
+                "script not found or unable to stat");

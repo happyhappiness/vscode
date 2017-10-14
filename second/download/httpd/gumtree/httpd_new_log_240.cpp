@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not init rewrite log lock in child");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "Faking HTTP Basic Auth header: \"Authorization: %s\"",
+                 auth_line);

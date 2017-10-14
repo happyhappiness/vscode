@@ -1,1 +1,1 @@
-printf("%s\n", status);
+err("Cannot mix POST and HEAD\n");

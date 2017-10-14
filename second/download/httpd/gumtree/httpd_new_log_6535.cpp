@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03393)
-                      "h2_mplx(%s): close, no response, no rst", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                             APLOGNO(03489) "rl: disabling burst: rate-initial-burst = %s (too high?)", rl);

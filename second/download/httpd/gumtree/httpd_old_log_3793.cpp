@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                                  rv, f->r, "apr_pollset_poll()");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "couldn't spawn child process: %s", r->filename);

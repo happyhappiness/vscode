@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, cmd->server, APLOGNO(02172)
-                     "%s: getrlimit failed", cmd->cmd->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00463)
+                     "sigaction(SIGXFSZ)");

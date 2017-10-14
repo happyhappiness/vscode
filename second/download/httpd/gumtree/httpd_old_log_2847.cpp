@@ -1,0 +1,1 @@
+fprintf(stderr, "Finished %ld requests\n", done);

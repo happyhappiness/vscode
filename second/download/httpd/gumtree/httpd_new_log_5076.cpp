@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(00140)
-                      "apr_socket_timeout_set");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);

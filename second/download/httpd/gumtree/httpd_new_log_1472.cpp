@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %lu: Terminating %d threads that failed to exit.",
-                     my_pid, threads_created);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "copy_brigade_range() failed [%" APR_OFF_T_FMT
+                          "-%" APR_OFF_T_FMT ",%" APR_OFF_T_FMT "]",
+                          range_start, range_end, clength);

@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00334)
-                 "Child: Accept thread listening on %s:%d using AcceptFilter %s",
-                 lr->bind_addr->hostname ? lr->bind_addr->hostname : "*",
-                 lr->bind_addr->port, accf_name);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(00766)
+                        "cache: Cache provider's store_body returned an "
+                        "empty brigade, but didn't consume all of the"
+                        "input brigade, standing down to prevent a spin");

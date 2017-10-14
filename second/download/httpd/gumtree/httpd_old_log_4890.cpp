@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                                 "Certificate with serial %ld (0x%lX) "
-                                 "revoked per CRL from issuer %s",
-                                 serial, serial, cp);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit %s mutex with file `%s'",
+                         SSL_STAPLING_MUTEX_TYPE, lockfile);

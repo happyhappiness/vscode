@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(01964)
-                  "Connection to child %ld established "
-                  "(server %s)", c->id, sc->vhost_id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02264)
+                             "SSL cipher suite not renegotiated: "
+                             "access to %s denied using cipher %s",
+                              r->filename,
+                              SSL_CIPHER_get_name(cipher));

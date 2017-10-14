@@ -1,1 +1,1 @@
-ap_rputs("\n", r);
+ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);

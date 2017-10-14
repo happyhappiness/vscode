@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: dialog to %pI (%s) failed",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                             "undefined proxy interim response policy");

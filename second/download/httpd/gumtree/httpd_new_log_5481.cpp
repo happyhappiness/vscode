@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00292)
-                "%s configured -- resuming normal operations",
-                ap_get_server_description());
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, APLOGNO(00040)
+                     "apr_xlate_open() failed");

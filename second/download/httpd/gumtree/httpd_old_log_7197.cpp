@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00149) "sigaction(SIGINT)");
+fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");

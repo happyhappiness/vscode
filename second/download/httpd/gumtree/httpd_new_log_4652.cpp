@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "%s: found worker %s for %s",
-                          (*worker)->s->scheme, (*worker)->s->name, *url);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, base_server, APLOGNO(01887)
+                 "Init: Initializing (virtual) servers for SSL");

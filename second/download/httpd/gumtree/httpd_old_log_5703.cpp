@@ -1,2 +1,2 @@
-apr_file_printf(out, "mod_example traced in non-loggable "
-                        "context: %s\n", note);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02030)
+                      "TLS upgrade handshake failed: not accepted by client!?");

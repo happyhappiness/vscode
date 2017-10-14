@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "Automatically using MD5 format." NL);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
+                      "DBD: Failed to release thread mutex");

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
-                  "h2_stream(%ld-%d): invalid state transition from %d to %d", 
-                  stream->session->id, stream->id, stream->state, state);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
+                              "h2_mplx(%ld-%d): wait on in data (BLOCK_READ)", 
+                              m->id, stream_id);

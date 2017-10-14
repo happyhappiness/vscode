@@ -1,3 +1,3 @@
-printf("<tr %s><th colspan=2 %s>Total PUT:</th>"
-           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
-           trstring, tdstring, tdstring, totalposted);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "LDAPSharedCacheSize is too small. Increase it or "
+                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");

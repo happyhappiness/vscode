@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                         "h2_workers: got %d worker, adding 1", 
-                         workers->worker_count);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " Please read the documentation.");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                    "cannot read directory for multi: %s", neg->dir_name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the jvm route");

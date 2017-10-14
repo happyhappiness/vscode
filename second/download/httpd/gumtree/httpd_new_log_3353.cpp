@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01628)
-                      "authorization result: granted (no directives)");
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02167)
+                         "Can't chdir to new root");

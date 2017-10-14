@@ -1,1 +1,1 @@
-apr_err("apr_connect()", rv);
+apr_file_printf(errfile, " -s  Force SHA encryption of the password.\n");

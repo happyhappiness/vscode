@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: "
-                              "require attribute: authorization successful");
+decl_die(access_status, "check user", r);

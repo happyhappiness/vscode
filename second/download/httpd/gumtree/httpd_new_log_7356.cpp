@@ -1,2 +1,1 @@
-ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);

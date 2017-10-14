@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "could not read request body for SSL buffer");
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
+                      "Mutex %s:%d acquired!", l->file, l->line);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf, APLOGNO(02122)
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698)
+            "cache: Key for entity %s?%s is %s", r->uri,
+            r->parsed_uri.query, *key);

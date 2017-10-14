@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                      "failed reading line from OCSP server");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
+                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
+                      server->bind_addr);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                              "ldap_compare_s(%pp, %s, %s, %s) = %s (cached)", 
-                              ldc->ldap, dn, attrib, value, ldap_err2string(result));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
+                              "h2_mplx(%ld-%d): write with trailers=%s", 
+                              m->id, io->id, trailers? "yes" : "no");

@@ -1,1 +1,1 @@
-ap_rputs("<p />\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, "FOO!");

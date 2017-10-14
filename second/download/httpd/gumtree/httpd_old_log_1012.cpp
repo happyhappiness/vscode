@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -n name           : set screen name");
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL, 
+                            "error getting data from UDP!!");

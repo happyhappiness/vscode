@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02805)
-                            "Inflated content ratio is larger than the "
-                            "configured limit %i by %i time(s)",
-                            dc->ratio_limit, dc->ratio_burst);
+ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);

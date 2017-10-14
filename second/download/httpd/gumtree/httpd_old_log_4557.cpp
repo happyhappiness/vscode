@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: data connection closed");
+ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
+                         "proxy: lock");

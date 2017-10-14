@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "[%" APR_PID_T_FMT "] auth_ldap authenticate: no password specified", getpid());
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG + level, 0, r, logline);

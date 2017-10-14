@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Sum of ranges not smaller than file, ignoring.");
+ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+               "</a></pre>\n", NULL);

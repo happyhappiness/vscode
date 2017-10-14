@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, loglevel, rv, r,
-                          "proxy: %s: error creating fam %d socket for target %s",
-                          proxy_function,
-                          backend_addr->family,
-                          backend_name);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "Unable to create a new SSL connection from the SSL "
+                      "context");

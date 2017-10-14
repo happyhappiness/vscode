@@ -1,1 +1,0 @@
-fprintf(f, "%3d", *tables++);

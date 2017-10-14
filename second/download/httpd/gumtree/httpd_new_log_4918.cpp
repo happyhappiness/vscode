@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                      "Skipping OCSP check for valid self-issued cert");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00524)
+                          "Handler for %s returned invalid result code %d",
+                          r->handler, result);

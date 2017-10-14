@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01906)
-                         "%s server certificate is a CA certificate "
-                         "(BasicConstraints: CA == TRUE !?)",
-                         ssl_asn1_keystr(type));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01924)
+                        "Bad OCSP responder answer (bad nonce)");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00110)
-                         "ap_get_server_port: Invalid UCN Option somehow");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                                 "Idle workers: %u",
+                                 ap_queue_info_get_idlers(worker_queue_info));

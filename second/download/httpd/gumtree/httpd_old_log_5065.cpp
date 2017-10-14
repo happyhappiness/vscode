@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "File does not exist: %s",
-                          apr_pstrcat(r->pool, r->filename, r->path_info, NULL));
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long) getpid());

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
-                     "stapling_cb: renewing cached response");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL,
+                         APLOGNO(00018) "Configuration check failed, exiting");

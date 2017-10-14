@@ -1,1 +1,0 @@
-ap_rputs("</dl>\n<hr />\n", r);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, s,
-                     "could not open charset conversion config file %s.",
-                     charset_confname);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                         "Can't chdir to new root");

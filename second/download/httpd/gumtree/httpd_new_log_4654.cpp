@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00940)
-                         "%s: disabled connection for (%s)",
-                         proxy_function, worker->s->hostname);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01889)
+                         "Init: Failed to enable Crypto Device API `%s'",
+                         mc->szCryptoDevice);

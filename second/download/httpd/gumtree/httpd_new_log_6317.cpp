@@ -1,5 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                             "h2_worker(%d): waiting signal, "
-                             "workers=%d, idle=%d", worker->id, 
-                             (int)workers->worker_count, 
-                             workers->idle_workers);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00318)
+                         "WARNING: MaxRequestWorkers of %d would require %d "
+                         "servers and would exceed ServerLimit of %d, decreasing to %d. "
+                         "To increase, please see the ServerLimit directive.",
+                         max_workers, ap_daemons_limit, server_limit,
+                         server_limit * threads_per_child);

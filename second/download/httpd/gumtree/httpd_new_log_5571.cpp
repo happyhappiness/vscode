@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
-                              "access to %s denied because search "
-                              "permissions are missing on a component "
-                              "of the path", r->uri);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                 0, NULL, APLOGNO(02793)
+                                 "bad (negative) nesting on line %d of %s",
+                                 config_file->line_number - line_number_start,
+                                 where);

@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
-                     ap_scoreboard_image->parent[slot].pid,
-                     ap_scoreboard_image->parent[slot].quiescing ?
-                         " (quiescing)" : "");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP | APLOG_WARNING, 0, a,
+                     "%s: apr_gethostname() failed to determine ServerName",
+                     ap_server_argv0);

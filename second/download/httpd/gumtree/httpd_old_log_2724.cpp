@@ -1,1 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");
+ap_rputs("<tr><td>Failover Attempts:</td><td><input name=\"fa\" type=text ", r);

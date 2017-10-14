@@ -1,0 +1,1 @@
+fprintf(stderr, "Error truncating the file %s\n", status->current.name);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "ProxyBlock comparing %s and %s", conf_ip,
-                              uri_ip);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r, APLOGNO(00694) "cache_select_url(): Vary header mismatch.");

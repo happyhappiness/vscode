@@ -1,6 +1,5 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03210)
-                    "Websocket: Reading %" APR_SIZE_T_FMT " (%s) bytes, masking is %s. %s", 
-                    plen,
-                    (payload >= 126) ? "extra payload" : "no extra payload", 
-                    mask ? "on" : "off", 
-                    fin ? "This is a final frame" : "more to follow");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             APLOGNO(00116) "Discarding unrecognized "
+                             "directive `%s' in AllowOverrideList at %s:%d",
+                             argv[i], cmd->directive->filename,
+                             cmd->directive->line_num);

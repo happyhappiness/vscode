@@ -1,2 +1,1 @@
-apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work." NL);
+ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);

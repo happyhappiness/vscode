@@ -1,1 +1,2 @@
-ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Zlib: Invalid header");

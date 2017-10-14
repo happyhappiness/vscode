@@ -1,2 +1,2 @@
-r(APLOG_MARK, APLOG_TRACE2, 0, r, "Setting %s",
-                              elts[j].key);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00884)
+                                  "Backend sent headers twice.");

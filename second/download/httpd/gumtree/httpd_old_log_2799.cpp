@@ -1,1 +1,1 @@
-ap_rputs("<tr><td>Failover Attempts:</td><td><input name=\"fa\" type=text ", r);
+printf("Total transferred:      %ld bytes\n", totalread);

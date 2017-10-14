@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01079)
-                      "failed to make connection to backend: %s",
-                      backend->hostname);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00918)
+                     "no provider for %s", balancer->s->name);

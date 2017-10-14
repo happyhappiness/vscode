@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                    "ajp_marshal_into_msgb: "
-                    "Error appending attribute %s=%s",
-                    key, val);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unknown filter %s not added", p->fname);

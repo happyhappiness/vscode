@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "request body exceeds maximum size (%" APR_SIZE_T_FMT 
-                          ") for SSL buffer", maxlen);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn,
+                      "Certificate Verification: Certificate Chain too long "
+                      "(chain has %d certificates, but maximum allowed are "
+                      "only %d)",
+                      errdepth, depth);

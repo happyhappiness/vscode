@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "auth_ldap authorize: require ldap-filter: "
-                              "authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
+                        "initgroups: unable to set groups for User %s "
+                        "and Group %ld", name, (long)ap_unixd_config.group_id);

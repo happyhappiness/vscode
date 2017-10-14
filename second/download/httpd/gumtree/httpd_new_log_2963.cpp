@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "ssl_scache_shmcb_store (0x%02x -> subcache %d)",
-                 SHMCB_MASK_DBG(header, id));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "auth_ldap authenticate: no sec->host - weird...?");

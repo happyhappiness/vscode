@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, service_set, NULL, APLOGNO(00437)
-             "No installed service named \"%s\".", service_name);
+ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, ap_server_conf,
+                     "no record of generation %d", gen);

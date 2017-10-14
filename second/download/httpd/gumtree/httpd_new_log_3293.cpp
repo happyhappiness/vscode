@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01697)
-                  "auth_ldap authenticate: accepting %s", user);
+apr_ipsubnet_test(localhost_v4, r->useragent_addr);

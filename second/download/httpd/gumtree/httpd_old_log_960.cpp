@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Please contact the vendor for the correct version.");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error log file");

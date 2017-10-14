@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01174)
-                              "%s:  Forcing recovery for worker (%s), "
-                              "failonstatus %d",
-                              balancer->s->name, worker->s->name, val);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
+                     "Defined worker '%s' for balancer '%s'",
+                     worker->s->name, balancer->s->name);

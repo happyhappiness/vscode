@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01927)
-                     "OCSP stapling response encode error??");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL, APLOGNO(00091)
+                         "%s: could not open error log file %s.",
+                         ap_server_argv0, fname);

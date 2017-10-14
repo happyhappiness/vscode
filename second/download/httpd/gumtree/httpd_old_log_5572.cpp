@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "access to %s failed", r->uri);
+ap_log_error(APLOG_MARK,
+                                     APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                                     "bad cumulated nesting (%+d) in %s",
+                                     any_nesting, where);

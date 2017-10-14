@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01045)
-                                  "error creating PASV socket");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: found reverse proxy worker for %s", *url);

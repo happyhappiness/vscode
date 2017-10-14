@@ -1,1 +1,1 @@
-fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);
+apr_file_printf(errfile, "Automatically using MD5 format." NL);

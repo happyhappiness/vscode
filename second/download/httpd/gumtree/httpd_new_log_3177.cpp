@@ -1,1 +1,2 @@
-decl_die(access_status, "check access", r);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(01679)
+                      "authn credentials for %s not cached (mutex busy)", user);

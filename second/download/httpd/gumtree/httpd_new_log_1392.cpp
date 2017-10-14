@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                 "DBD: child init failed!");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                             "Operating in SSL FIPS mode");

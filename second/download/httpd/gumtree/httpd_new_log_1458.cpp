@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_DEBUG, rc, ap_server_conf,
-                             "Child %lu: GetQueuedComplationStatus returned %d", my_pid, rc);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Parent: child process exited with status %lu -- Restarting.", exitcode);

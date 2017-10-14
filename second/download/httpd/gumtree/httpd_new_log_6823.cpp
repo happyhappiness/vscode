@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
-                  "h2_request(%d): set_request_rec %s host=%s://%s%s",
-                  stream->id, req->method, req->scheme, req->authority, 
-                  req->path);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
+                          "h2_stream(%ld-%d): RST_STREAM by client, errror=%d",
+                          session->id, (int)frame->hd.stream_id,
+                          (int)frame->rst_stream.error_code);

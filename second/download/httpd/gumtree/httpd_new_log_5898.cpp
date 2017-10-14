@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                     (startup ? NULL : s),
-                     "could not duplicate listeners");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                          "h2_task_input(%s): serialize request %s %s", 
+                          task->id, task->request->method, task->request->path);

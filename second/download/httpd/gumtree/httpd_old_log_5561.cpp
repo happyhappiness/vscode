@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "ap_content_length_filter: "
-                              "apr_bucket_read() failed");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);

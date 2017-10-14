@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00109)
-                         "ap_get_server_name: Invalid UCN Option somehow");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "Too many open connections (%u), "
+                                 "not accepting new conns in this process",
+                                 apr_atomic_read32(&connection_count));

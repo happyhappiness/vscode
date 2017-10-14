@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                      "total of %" APR_OFF_T_FMT " bytes in buffer, eos=%d",
-                      total, eos);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, 
+                             ap_server_conf,
+                             "Child %d: Waiting %d more seconds "
+                             "for %d worker threads to finish.", 
+                             my_pid, time_remains / 1000, threads_created);

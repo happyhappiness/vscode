@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server,
-                             "ProtocolEcho: Failure reading from %s",
-                             c->remote_ip);
+ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcoldesc\">" : ">",
+                                  terminate_description(d, ar[x]->desc,
+                                                        autoindex_opts,
+                                                        desc_width), NULL);

@@ -1,4 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00440)
-                         "ThreadLimit of %d exceeds compile-time limit "
-                         "of %d, decreasing to match",
-                         thread_limit, MAX_THREAD_LIMIT);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                     0, ap_server_conf, APLOGNO(00045)
+                     "child process %" APR_PID_T_FMT
+                     " still did not exit, "
+                     "sending a SIGTERM",
+                     pid);

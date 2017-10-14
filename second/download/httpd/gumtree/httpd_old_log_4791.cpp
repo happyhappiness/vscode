@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                "Unable to configure %s server certificate", type);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "no OCSP responder specified in certificate and "
+                      "no default configured");

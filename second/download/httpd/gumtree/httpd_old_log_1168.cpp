@@ -1,1 +1,1 @@
-(j == '-' || j == ']';
+printf("SSL write failed - closing connection\n");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %lu: Retrieved our scoreboard from the parent.", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "Sum of ranges larger than file, ignoring.");

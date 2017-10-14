@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "could not read bucket for SSL buffer");
+ap_rvputs(r, DOCTYPE_HTML_3_2, "<html><head>\n<title>Menu for ", 
+              ap_escape_html(r->pool, r->uri),
+              "</title>\n</head><body>\n", NULL);

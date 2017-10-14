@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                          "h2_stream(%ld-%d): header %s too long", 
-                          stream->session->id, stream->id, name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,  APLOGNO(03056)
+                          "h2_mplx(%ld): 3. release_join with %d tasks",
+                          m->id, (int)h2_ihash_count(m->tasks));

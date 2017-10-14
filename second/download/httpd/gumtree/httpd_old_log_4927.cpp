@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO,
-                                         0, pServ,
-                                         "%s reusing existing "
-                                         "%s private key on restart",
-                                         cpVHostID, ssl_asn1_keystr(i));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                         "ap_get_server_name: Invalid UCN Option somehow");

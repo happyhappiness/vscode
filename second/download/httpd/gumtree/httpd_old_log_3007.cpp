@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "storing in index %u, at offset %u",
-                 new_pos, new_offset);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: checking dn match %s",
+                          getpid(), dn);

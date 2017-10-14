@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "client sent unknown Transfer-Encoding "
-                              "(%s): %s", tenc, r->uri);
+fprintf(stderr, "logresolve: could not open statistics file '%s'\n"
+                    ,statfile);

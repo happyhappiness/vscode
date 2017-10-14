@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00876)
-                              "send failed to %pI (%s)",
-                              conn->worker->cp->addr,
-                              conn->worker->s->hostname);
+ap_rvputs(r, "<input type=hidden name='nonce' id='nonce' value='",
+                      bsel->s->nonce, "'>\n", NULL);

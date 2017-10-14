@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to create shared memory segment on file %s", 
-                     client_shm_filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                          "require dn: authorization successful", getpid());

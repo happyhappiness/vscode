@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01877)
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01502)
+                 "headers: ap_headers_output_filter()");

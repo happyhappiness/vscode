@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00824)
-                 "shmcb_init_memory choices follow");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00582)
+                      "Depth must be \"infinity\" for DELETE of a collection.");

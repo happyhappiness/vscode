@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters, only 256 bits supported", bits);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                      "Error while reading HTTP trailer: %i%s%s",
+                      r->status, error_notes ? ": " : "",
+                      error_notes ? error_notes : "");

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                            "Init: Unable to read server private key from "
-                            "file %s [Hint: Perhaps it is in a separate file? "
-                            "  See SSLCertificateKeyFile]", szPath);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Useless use of AllowOverride in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);

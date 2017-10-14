@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, serv,
+                MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
+                lineno, m, m->next, m->cont_level, m->desc);

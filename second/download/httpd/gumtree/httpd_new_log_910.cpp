@@ -1,0 +1,1 @@
+ap_rputs("<tr><td bgcolor=\"#000000\">\n", r);

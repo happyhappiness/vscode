@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                 "h2_workers: min=%d max=%d, mthrpchild=%d, tx_files=%d", 
-                 minw, maxw, max_threads_per_child, max_tx_handles);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, msos->m->c,
+                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                  msos->m->id, sos->stream->id, (long)*plen, *peos);

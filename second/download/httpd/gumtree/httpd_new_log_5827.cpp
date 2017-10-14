@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(01062)
-                          "sending env var '%s' value '%s'",
-                          elts[i].key, elts[i].val);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                  "h2_stream(%ld-%d): data_chunk_recv, written %ld bytes",
+                  session->id, stream_id, (long)len);

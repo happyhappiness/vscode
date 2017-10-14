@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s, APLOGNO(00203)
-                     "failure allocating shared memory, shutting down");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf, APLOGNO(00351)
+                     "Child: Failed to acquire the start_mutex. "
+                     "Process will exit.");

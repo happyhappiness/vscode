@@ -1,2 +1,4 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_DEBUG, rv, l->pool,
-                      "Mutex %s:%d released!", l->file, l->line);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);

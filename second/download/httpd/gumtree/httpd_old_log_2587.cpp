@@ -1,1 +1,0 @@
-fprintf(output, "    With name   : %d\n", withname);

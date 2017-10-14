@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-                     "Failed to find temporary directory");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                  "h2_stream(%ld-%d): opened", session->id, stream->id);

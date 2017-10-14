@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: `%s'", getpid(), url);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "ppr: checking balancer: %s",
+                         balancer->name);

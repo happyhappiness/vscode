@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01883)
-                 "Init: Initialized %s library", SSL_LIBRARY_NAME);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, stream->m->c,
+                      "h2_mplx(%ld-%d): start stream, task %s %s (%s)",
+                      stream->m->id, stream->id,
+                      stream->request->method, stream->request->path,
+                      stream->request->authority);

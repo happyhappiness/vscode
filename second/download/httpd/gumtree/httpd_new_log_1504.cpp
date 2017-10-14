@@ -1,1 +1,1 @@
-rv = copy_brigade_range(bb, tmpbb, range_start, range_end);
+ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);

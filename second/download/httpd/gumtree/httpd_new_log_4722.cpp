@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01838)
-                    "apr_crypto_block_decrypt failed");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c, APLOGNO(02013)
+                                  "coalesce failed to read from data bucket");

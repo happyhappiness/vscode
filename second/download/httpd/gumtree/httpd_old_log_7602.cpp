@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Init: Generating temporary RSA private keys (512/1024 bits)");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02607)
+                            "err/hup on client conn");

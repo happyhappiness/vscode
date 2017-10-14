@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01272)
-                              "execution failure for parameter \"%s\" "
-                              "to tag exec in file %s", tag, r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01299)
+                 "ldap cache: Setting cache TTL to %ld microseconds.",
+                 st->search_cache_ttl);

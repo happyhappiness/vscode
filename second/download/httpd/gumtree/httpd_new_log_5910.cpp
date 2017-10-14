@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
-                          "select protocol, proposals=%s preferences=%s configured=%s", 
-                          apr_array_pstrcat(pool, proposals, ','),
-                          apr_array_pstrcat(pool, prefs, ','),
-                          apr_array_pstrcat(pool, conf->protocols, ','));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_output(%s): opened and passed brigade", 
+                      output->task->id);

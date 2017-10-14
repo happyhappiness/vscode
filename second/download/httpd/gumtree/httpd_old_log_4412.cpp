@@ -1,2 +1,2 @@
-ap_rvputs(r, "value=\"", bsel->name + sizeof("balancer://") - 1,
-                      "\">\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
+                         "proxy: FTP: unlock");

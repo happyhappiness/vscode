@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadLimit of %d not allowed, increasing to 1",
-                         thread_limit);
+ap_log_error(APLOG_MARK, APLOG_ERR,
+                     0, ap_server_conf,
+                     "could not make child process %" APR_PID_T_FMT
+                     " exit, "
+                     "attempting to continue anyway",
+                     pid);

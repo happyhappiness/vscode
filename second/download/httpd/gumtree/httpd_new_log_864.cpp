@@ -1,1 +1,2 @@
-ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not partition buffered SSL brigade");

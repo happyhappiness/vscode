@@ -1,5 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, output->task->c, APLOGNO(03348)
-                  "h2_task(%s): open response to %s %s %s",
-                  output->task->id, output->task->request->method, 
-                  output->task->request->authority, 
-                  output->task->request->path);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(03139)
+                             "ap_queue_pop failed");

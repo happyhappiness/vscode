@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          H2_STRM_MSG(stream, "task_done, stream open"));
+ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, r->server, "%s", out);

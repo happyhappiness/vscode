@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, 
-                         "LDAP: SSL initialization failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "SSI directive was not properly finished at the end "
+                          "of parsed document %s", r->filename);

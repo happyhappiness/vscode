@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
-                             "All workers are busy, will close %d keep-alive "
-                             "connections",
-                             keepalive_q.count);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submitted response %s, rv=%d",
+                      session->id, response->stream_id, 
+                      response->status, rv);

@@ -1,1 +1,2 @@
-fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                  "handing out built-in DH parameters for %d-bit authenticated connection", keylen);

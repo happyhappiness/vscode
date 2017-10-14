@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_WARNING,
+                                     0, main_s, "_default_ VirtualHost "
+                                     "overlap on port %u, the first has "
+                                     "precedence", sar->host_port);

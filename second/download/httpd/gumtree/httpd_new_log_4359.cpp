@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01188) "Cannot share worker");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "connecting to remote proxy %s on port %d",
+                  connectname, connectport);

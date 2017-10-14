@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02255)
-                              "Changed client verification type will force "
-                              "%srenegotiation",
-                              renegotiate_quick ? "quick " : "");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01983)
+                      "could not read response header from OCSP server");

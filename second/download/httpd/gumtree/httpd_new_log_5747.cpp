@@ -1,3 +1,2 @@
-fprintf(stderr, reconfig ? "Reconfiguring the '%s' service\n"
-                             : "Installing the '%s' service\n",
-                    mpm_display_name);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02838)
+                          "ALPN protocol identifier too long");

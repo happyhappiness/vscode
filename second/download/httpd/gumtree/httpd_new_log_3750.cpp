@@ -1,5 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "xlate input filter not added implicitly because %s",
-                      !reqinfo->input_ctx ?
-                      "no input configuration available" :
-                      "another module added the filter");
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r,
+                      APLOGNO(01362) "missing argument for set element in %s",
+                      r->filename);

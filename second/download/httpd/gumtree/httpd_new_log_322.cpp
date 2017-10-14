@@ -1,1 +1,2 @@
-printf("\tRESTART    - Reread the configuration file and restart Apache\n");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL, 
+                     "Disabled use of AcceptEx() WinSock2 API");

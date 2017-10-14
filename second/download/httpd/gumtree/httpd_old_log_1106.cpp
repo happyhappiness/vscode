@@ -1,1 +1,1 @@
-fprintf(stderr, "table_set: key not in ancestor pool of t\n");
+printf("First char = \\x%02x\n", re->first_char);

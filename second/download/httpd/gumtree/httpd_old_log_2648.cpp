@@ -1,6 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, c->base_server,
-                 "mod_dumpio:  %s (%s-%s): %s",
-                 f->frec->name,
-                 (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                 b->type->name,
-                 "error reading data");
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "Failed to acquire DBD connection from pool!");

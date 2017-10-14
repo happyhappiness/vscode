@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01723)
-            "ldap authorize: Creating LDAP req structure");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02131)
+                     "Unable to get upgradeable socket handle");

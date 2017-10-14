@@ -1,1 +1,1 @@
-ap_add_output_filter("FIXUP_HEADERS_ERR", NULL, r, r->connection);
+fprintf(stderr, "error creating request buffer: out of memory\n");

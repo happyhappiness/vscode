@@ -1,3 +1,2 @@
-ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
-                  " (via ", r->connection->local_ip,
-                  ")</h1>\n\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(02479)
+                     "could not init proxy_mutex in child");

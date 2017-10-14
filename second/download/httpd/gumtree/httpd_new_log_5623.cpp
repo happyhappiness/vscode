@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00540)
-                      "XML parser error (at end). status=%d", status);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(02661)
+                         "MaxThreads of %d not allowed, increasing to 1",
+                         ap_threads_limit);

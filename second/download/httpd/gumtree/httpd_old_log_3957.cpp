@@ -1,1 +1,2 @@
-ap_rputs("\"<b><code>R</code></b>\" Reading Request,<br />\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                         "Could not allocate memory for LDAP cache value");

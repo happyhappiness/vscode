@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00120)
-                         "Limiting the subrequest depth to a very low level may"
-                         " cause normal requests to fail.");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, APLOGNO(00481)
+                     "fork: Unable to fork new process");

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
-                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                                 ap_server_conf, APLOGNO(02644)
+                                 "Child: Event handle #%d (%pp) is invalid",
+                                 i, child_events[i]);

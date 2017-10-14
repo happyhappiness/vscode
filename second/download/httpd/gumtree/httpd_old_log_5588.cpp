@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                             "Read config: %s", buf);
+ap_rputs("</td><td>&nbsp;", r);

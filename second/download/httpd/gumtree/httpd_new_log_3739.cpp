@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
-                      "mod_dumpio: %s - %d", f->frec->name, ret);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01349) "unknown parameter "
+                          "\"%s\" to tag config in %s", tag, r->filename);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00466)
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00228)
+                         "WARNING: MaxThreads of %d exceeds compile-time "
+                         "limit of", ap_threads_limit);

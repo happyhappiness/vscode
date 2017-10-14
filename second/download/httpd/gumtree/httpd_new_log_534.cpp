@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
-                             "apr_proc_mutex_unlock failed. Attempting to "
-                             "shutdown process gracefully.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "ISAPI: WriteClient ap_pass_brigade "
+                          "failed: %s", r->filename);

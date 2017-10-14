@@ -1,1 +1,1 @@
-printf("Server version: %s\n", ap_get_server_description());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "No AuthDBDUserPWQuery has been specified.");

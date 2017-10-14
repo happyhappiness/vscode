@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: %s: worker for (%s) has been marked for retry",
-                         proxy_function, worker->hostname);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                "Oops, no RSA or DSA server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);

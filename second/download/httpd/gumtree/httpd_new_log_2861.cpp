@@ -1,3 +1,3 @@
 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "ppr: matching member (%s) and URL (%s)",
-                         u, url);
+                     "proxy: byrequests selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->name, mycandidate->s->busy, mycandidate->s->lbstatus);

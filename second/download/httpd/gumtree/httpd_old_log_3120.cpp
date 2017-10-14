@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "shmcb_subcache_iterate discarding expired entry");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                      "Digest: cannot check nonce count without shared memory");

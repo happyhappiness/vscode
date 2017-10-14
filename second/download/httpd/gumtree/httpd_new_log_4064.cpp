@@ -1,3 +1,7 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00647)
-                                 "could not initialize buffered log mutex, "
-                                 "transfer log may become corrupted");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01530)
+                        MODNAME ": match: POINTER CLOBBERED! "
+                        "m=\"%c%c%c%c\"",
+                        (((unsigned long) m) >> 24) & 255,
+                        (((unsigned long) m) >> 16) & 255,
+                        (((unsigned long) m) >> 8) & 255,
+                        ((unsigned long) m) & 255);

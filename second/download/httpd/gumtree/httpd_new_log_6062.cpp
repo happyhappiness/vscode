@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                      "h2_workers: cleanup zombie %d", zombie->id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
+                      "session(%ld): connection disappeared without proper "
+                      "goodbye, clients will be confused, should not happen", 
+                      session->id);

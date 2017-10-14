@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01720)
-                  "auth_ldap authorize group: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02128)
+                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());

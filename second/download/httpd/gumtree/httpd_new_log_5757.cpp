@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00374) "Failed to delete the '%s' service",
-                     mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG , 0, s, APLOGNO(02639)
+                 "Using SO_REUSEPORT: %s (%d)",
+                 ap_have_so_reuseport ? "yes" : "no",
+                 ap_num_listen_buckets);

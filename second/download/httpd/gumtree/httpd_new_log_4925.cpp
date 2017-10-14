@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02202)
-                             "Init: Read server certificate from '%s'",
-                             szPath);
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
+                     APR_EBADPATH, NULL, APLOGNO(00532) "Invalid config file path %s",
+                     filename);

@@ -1,3 +1,3 @@
-r(APLOG_MARK, APLOG_WARNING, 0, r->server,
-			 "proxy: Ignoring bogus HTTP header "
-			 "returned by %s (%s)", r->uri, r->method);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "SSL Proxy requested for %s but not enabled "
+                     "[Hint: SSLProxyEngine]", sc->vhost_id);

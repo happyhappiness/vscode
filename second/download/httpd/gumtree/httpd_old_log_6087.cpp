@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                              "ServerSupport function "
-                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
-                              "ap_pass_brigade failed: %s", r->filename);
+ap_log_cerror( APLOG_MARK, APLOG_INFO, status, session->c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);

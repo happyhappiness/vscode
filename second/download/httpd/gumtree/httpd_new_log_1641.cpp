@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "caught " AP_SIG_GRACEFUL_STOP_STRING
-                         ", shutting down gracefully");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "Client sent malformed Host header: %s",
+                  src);

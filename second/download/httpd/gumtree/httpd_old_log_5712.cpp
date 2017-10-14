@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
-                               "script not found or unable to stat");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01953)
+                     "stapling_cb: retrieved cached response");

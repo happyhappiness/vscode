@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb - No such method %s",
-               r->method);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: CONNECT: woke from poll(), i=%d", pollcnt);

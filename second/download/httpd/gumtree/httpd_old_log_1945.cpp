@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, "Error writing to %s",
-                      cls->fname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering byrequests for BALANCER (%s)",
+                 balancer->name);

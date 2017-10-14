@@ -1,1 +1,1 @@
-apr_err("apr_connect()", rv);
+apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);

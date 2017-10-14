@@ -1,1 +1,3 @@
-ap_register_output_filter (ssl_io_coalesce, ssl_io_filter_coalesce, NULL, AP_FTYPE_CONNECTION + 4);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
+                      "could not connect to OCSP responder '%s'",
+                      uri->hostinfo);

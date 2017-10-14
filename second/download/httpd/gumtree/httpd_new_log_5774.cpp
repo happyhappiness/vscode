@@ -1,4 +1,3 @@
-ap_log_error(SCRIPT_LOG_MARK, APLOG_ERR, 0, r->server,
-                             APLOGNO(02660) "CGI Interface Error: "
-                             "Script headers apparently ASCII: (CGI = %s)",
-                             r->filename);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02905)
+                          "unexpected return code %d from protocol_switch to %s"
+                          , rc, protocol);

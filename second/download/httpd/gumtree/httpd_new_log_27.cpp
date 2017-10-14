@@ -1,3 +1,2 @@
-fprintf(stderr, "%s: could not open config directory %s: %s\n",
-                    ap_server_argv0, path,
-                    apr_strerror(rv, errmsg, sizeof errmsg));
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs\n");

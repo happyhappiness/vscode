@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot re-open socache DBM file `%s' for "
-                         "expiring",
-                         ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "Heartmonitor: Failed to create watchdog "
+                     "instance (%s)", HM_WATHCHDOG_NAME);

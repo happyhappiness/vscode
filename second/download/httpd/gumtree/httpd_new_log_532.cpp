@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c,
-                      "apr_socket_opt_set(APR_TCP_NODELAY)");
+printf(" Copyright (c) 2006 The Apache Software Foundation, http://www.apache.org/<br>\n");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00920)
-                     "Failed to reopen mutex %s in child",
-                     balancer->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01863)
+                      "prepared statement could not be found for "
+                      "SessionDBDdeletelabel with the label '%s'",
+                      conf->deletelabel);

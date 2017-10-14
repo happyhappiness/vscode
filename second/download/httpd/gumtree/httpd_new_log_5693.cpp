@@ -1,7 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                             0, NULL, APLOGNO(02797)
-                             "macro '%s' (%s): "
-                             "argument name prefix conflict (%s #%d and %s #%d), "
-                             "be careful about your macro definition!",
-                             macro->name, macro->location,
-                             tab[i], i + 1, tab[j], j + 1);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00890)
+                      "Processing of request failed backend: %i, client: %i",
+                      backend_failed, client_failed);

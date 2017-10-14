@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server, APLOGNO(00799)
-                         "unable to mmap %s, skipping", filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02082)
+                   "Unable to flush file: %s", path);

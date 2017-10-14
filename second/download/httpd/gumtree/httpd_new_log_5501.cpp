@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00310)
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", threads_per_child);
+ap_log_rerror(SCRIPT_LOG_MARK, APLOG_TRACE4, 0, r, "  %s", w);

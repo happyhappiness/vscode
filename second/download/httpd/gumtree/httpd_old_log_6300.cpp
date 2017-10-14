@@ -1,6 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                              "h2_task_output(%s): write without response "
-                              "for %s %s %s",
-                              output->task->id, output->task->request->method, 
-                              output->task->request->authority, 
-                              output->task->request->path);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "ap_queue_pop failed");

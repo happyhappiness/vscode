@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00298)
-                    "SIGHUP received.  Attempting to restart");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(00083)
+                              "ap_pass_brigade returned %d", rv);

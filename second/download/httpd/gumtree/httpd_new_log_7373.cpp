@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01845)
-                    "The crypto library '%s' could not be loaded: %s (%s: %d)", conf->library, err->msg, err->reason, err->rc);
+ap_rvputs(r, "<dt>Balancer changes will ", conf->bal_persist ? "" : "NOT ",
+                  "be persisted on restart.</dt>", NULL);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "auth_ldap authorize: require user: authorization "
-                          "successful");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                     "Sharing worker '%s' instead of creating new worker '%s'",
+                     worker->name, name);

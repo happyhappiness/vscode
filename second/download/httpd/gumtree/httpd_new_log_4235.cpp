@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00989)
-               "ajp_send_header: ajp_ilink_send failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
+                      "%s: Unlock failed for post_request", balancer->s->name);

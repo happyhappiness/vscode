@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
-                  "h2_request(%d): rwrite %s host=%s://%s%s",
-                  stream->request->id, stream->request->method, 
-                  stream->request->scheme, stream->request->authority, 
-                  stream->request->path);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2-stream(%ld-%d): on_header, reset stream",
+                      session->id, stream->id);

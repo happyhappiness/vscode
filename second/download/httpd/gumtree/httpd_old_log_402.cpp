@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                             "cache: error returned while trying to return %s "
-                             "cached data", 
-                             cache->type);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 "disk_cache: Serving Cached URL %s",  dobj->name);

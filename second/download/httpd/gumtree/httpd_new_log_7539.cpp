@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "User %s not found" NL, user);
+fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT " bytes)\n", strlen(s));

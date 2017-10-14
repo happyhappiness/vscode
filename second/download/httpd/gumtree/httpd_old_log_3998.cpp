@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media type from '%s'",
-                     (const char *) mp);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "invalid directory name in map file: %s", r->uri);

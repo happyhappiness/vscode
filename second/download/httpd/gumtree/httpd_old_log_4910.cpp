@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, 
-                      "failed to parse OCSP responder URI '%s'", s);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server,
+                 "Platform does not support rlimit for %s", cmd->cmd->name);

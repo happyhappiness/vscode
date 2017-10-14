@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
-                                  "Got error '%s'", iobuf);
+decl_die(access_status, "check access", r);

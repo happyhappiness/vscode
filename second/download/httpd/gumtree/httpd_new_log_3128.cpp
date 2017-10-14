@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "attempt to re-init the connection");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01779)
+                          "user %s: one-time-nonce mismatch - sending "
+                          "new nonce", r->user);

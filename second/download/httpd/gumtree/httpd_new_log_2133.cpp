@@ -1,10 +1,6 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "Performing full renegotiation: complete handshake "
-                          "protocol (%s support secure renegotiation)",
-#if defined(SSL_get_secure_renegotiation_support)
-                          SSL_get_secure_renegotiation_support(ssl) ? 
-                          "client does" : "client does not"
-#else
-                          "server does not"
-#endif
-                );
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Request exceeded the limit of %d subrequest "
+                              "nesting levels due to probable configuration "
+                              "error. Use 'LimitInternalRecursion' to increase "
+                              "the limit if necessary. Use 'LogLevel debug' to "
+                              "get a backtrace.", slimit);

@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
+apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
+                        argv[0], dirname);

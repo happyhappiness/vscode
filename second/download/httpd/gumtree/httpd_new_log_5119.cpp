@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00107)
-                             "piped_log_maintenance: unable to respawn '%s': %s",
-                             pl->program, apr_strerror(stats, buf, sizeof(buf)));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00216)
+                         "MinSpareThreads of %d not allowed, increasing to 1",
+                         ap_min_spare_threads);

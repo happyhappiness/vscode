@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv, APLOGNO(01524)
-                    MODNAME ": type %s invalid", l);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01010)
+               "ajp_handle_cping_cpong: apr_socket_timeout_get failed");

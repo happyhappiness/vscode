@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading first chunk %s ", 
-                              (ctx->remaining < 0) ? "(overflow)" : "");
+ap_rvputs(r, "<pre>          <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
-                "generic symmetrical encryption is not supported by this "
-                "version of APR. session encryption not possible");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                         "SSL handshake failed: HTTP spoken on HTTPS port; "
+                         "trying to send HTML error page");

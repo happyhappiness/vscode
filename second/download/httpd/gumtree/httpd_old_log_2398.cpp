@@ -1,1 +1,4 @@
-fprintf(stderr,"The %s service is not started.\n", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " of ThreadsPerChild (%d), lowering MaxClients to %d",
+                    ap_threads_per_child,
+                    ap_daemons_limit * ap_threads_per_child);

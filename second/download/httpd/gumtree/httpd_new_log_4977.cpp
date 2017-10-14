@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01984)
-                          "OCSP response: got EOF");
+ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p, APLOGNO(00075)
+                          "Failed to enable the '%s' Accept Filter",
+                          accf);

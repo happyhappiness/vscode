@@ -1,4 +1,4 @@
-fprintf(stderr,
-                "Usage: %s [-l] <logfile> <rotation time in seconds> "
-                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
-                argv[0]);
+printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT ".%03ld seconds</td></tr>\n",
+       trstring, tdstring, tdstring, apr_time_sec(timetaken),
+           (long)apr_time_usec(timetaken));

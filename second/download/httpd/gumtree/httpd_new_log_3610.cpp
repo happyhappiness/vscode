@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00838) "unusably short id provided "
-                "(%u bytes)", idlen);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00596)
+                      "Unlock failed (%s):  "
+                      "No Lock-Token specified in header", r->filename);

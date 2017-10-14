@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
-                      "h2_mplx(%s): out open", stream->task->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, ctx->owner, 
+                              "set SNI to %s for (%s)", 
+                              ctx->p_conn->ssl_hostname, 
+                              ctx->p_conn->hostname);

@@ -1,1 +1,2 @@
-ap_rvputs(r, "value='", ap_escape_uri(r->pool, wsel->s->name), "'>\n", NULL);
+ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
+                      task->id, len? buffer : line);

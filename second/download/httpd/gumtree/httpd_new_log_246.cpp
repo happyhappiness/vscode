@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "error parsing URL %s: %s",
-                      url, err);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                         "Cannot reinit SSLMutex");

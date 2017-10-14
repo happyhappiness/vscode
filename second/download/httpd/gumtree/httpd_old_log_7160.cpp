@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
-                         "Run of %s watchdog.",
-                         HCHECK_WATHCHDOG_NAME);
+ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);

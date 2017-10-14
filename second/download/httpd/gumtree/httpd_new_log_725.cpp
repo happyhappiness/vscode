@@ -1,1 +1,1 @@
-ap_rputs(" -D OS=\"" OS "\"\n", r);
+ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);

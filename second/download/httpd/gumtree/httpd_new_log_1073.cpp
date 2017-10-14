@@ -1,2 +1,1 @@
-fprintf(stderr,"Errors reported here must be corrected before the "
-                "service can be started.\n");
+fprintf(stderr, "apr_table_mergen: key not in ancestor pool of t\n");

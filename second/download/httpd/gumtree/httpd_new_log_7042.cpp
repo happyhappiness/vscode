@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,  
-                      H2_STRM_LOG(APLOGNO(02936), stream, "resumed"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01656)
+                      "Query execution error looking up '%s' "
+                      "in database [%s]",
+                      user, apr_dbd_error(dbd->driver, dbd->handle, ret));

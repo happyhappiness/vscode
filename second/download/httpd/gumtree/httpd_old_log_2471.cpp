@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     " ThreadLimit directive.");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "request failed: malformed request line");

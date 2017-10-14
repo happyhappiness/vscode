@@ -1,1 +1,1 @@
-fprintf(stderr, "   -v   Verify the username/password.\n");
+fprintf(stderr, "Error writing to the file %s\n", status.current.name);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->intern->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
+                          "Unexpected body state (%i)", (int)ctx->state);

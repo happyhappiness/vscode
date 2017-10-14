@@ -1,8 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0,
-                             ap_server_conf, APLOGNO(00289)
-                             "server seems busy, (you may need "
-                             "to increase StartServers, ThreadsPerChild "
-                             "or Min/MaxSpareThreads), "
-                             "spawning %d children, there are around %d idle "
-                             "threads, and %d total children", free_length,
-                             idle_thread_count, total_non_dead);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00009) LOG_PREFIX
+                  "user '%s' removed cookie: '%s'", r->user, rfc2109);

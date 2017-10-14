@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->connection,
-                          "h2_conn_io: flush error");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                          "%s: %s", cid->r->filename,
+                          (char*) buf_data);

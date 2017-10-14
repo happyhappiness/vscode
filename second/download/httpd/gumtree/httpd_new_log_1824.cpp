@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "disk_cache: Error when reading bucket for URL %s",
-                         h->cache_obj->key);
+ap_rvputs(r, "   <tr class=\"", ( x & 0x1) ? "odd" : "even", "\">", NULL);

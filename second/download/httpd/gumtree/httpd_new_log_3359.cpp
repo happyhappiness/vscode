@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01644)
-                          "authz_dbd: %s of user %s updated %d rows",
-                          action, r->user, nrows);
+ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server, APLOGNO(02103)
+                     "invalid module path, skipping %s", filename);

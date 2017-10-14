@@ -1,1 +1,1 @@
-fprintf(stderr, "Error writing to the file %s\n", status->current.name);
+ap_rputs("CacheType: DC\n", r);

@@ -1,3 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "A prepared statement could not be found for "
-                      "AuthDBDUserPWQuery with the key '%s'", conf->user);
+printf("<tr %s><th %s>Processing:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot - mincon, tdstring,
+               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);

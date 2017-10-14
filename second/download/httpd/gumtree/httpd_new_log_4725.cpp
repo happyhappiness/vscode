@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, APLOGNO(01841)
-                    "encrypt session failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02015)
+                          "could not read request body for SSL buffer");

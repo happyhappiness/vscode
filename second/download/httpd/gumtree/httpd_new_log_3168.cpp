@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-C \"directive\"] [-c \"directive\"]", pad_len, " ");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01619)
+                      "AuthUserFile not specified in the configuration");

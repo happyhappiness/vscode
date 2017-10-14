@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01300)
-                 "ldap cache: Setting search cache size to %ld entries.",
-                 st->search_cache_size);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01503)
+                 "headers: ap_headers_error_filter()");

@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "shmcb_init allocated %" APR_SIZE_T_FMT
-                 " bytes of shared memory",
-                 shm_segsize);
+ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
+                      "Releasing mutex %s:%d", l->file, l->line);

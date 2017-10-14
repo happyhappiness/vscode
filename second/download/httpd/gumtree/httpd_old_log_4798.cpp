@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "%s server certificate is a CA certificate "
-                         "(BasicConstraints: CA == TRUE !?)",
-                         ssl_asn1_keystr(type));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                        "failed to verify the OCSP response");

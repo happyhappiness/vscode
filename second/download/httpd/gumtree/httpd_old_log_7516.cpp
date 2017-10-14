@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01886)
-                     "SSL FIPS mode disabled");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     pServ, APLOGNO(02203) "Init: Private key not found");

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "insecure SSL re-negotiation required, but "
-                              "a pipelined request is present; keepalive "
-                              "disabled");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "ssl_stapling_init_cert: error allocating memory!");

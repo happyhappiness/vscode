@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_INFO, 0, NULL, APLOGNO(00434)
-                             "Using ConfigArgs of the installed service "
-                             "\"%s\".", service_name);
+apr_file_printf(out, "PidFile: \"%s\"\n",
+                    ap_server_root_relative(p, ap_pid_fname));

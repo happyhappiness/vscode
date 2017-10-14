@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "cgi: apr_pollset_create(); check system or user limits");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "LDAP cache: Setting shared memory cache file to %s bytes.",
+                 st->cache_file);

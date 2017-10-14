@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: Removing CACHE_REMOVE_URL filter.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, "Heartbeat: apr_socket_create failed");

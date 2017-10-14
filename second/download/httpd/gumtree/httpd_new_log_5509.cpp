@@ -1,4 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
+ap_log_error(APLOG_MARK, APLOG_NOTICE|APLOG_STARTUP, APR_SUCCESS, NULL, APLOGNO(00548)
+                     "NameVirtualHost has no effect and will be removed in the "
+                     "next release %s:%d",
+                     cmd->directive->filename,
+                     cmd->directive->line_num);

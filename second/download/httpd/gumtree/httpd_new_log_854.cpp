@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-            "ap_proxy_connect_backend disabling worker for (%s)",
-            worker->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL library error %d in handshake "
+                          "(server %s)", ssl_err,
+                          ssl_util_vhostid(c->pool, c->base_server));

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Re-negotiation handshake failed: "
-                              "Client verification failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "OCSP stapling response too big (%u bytes)", resp_derlen);

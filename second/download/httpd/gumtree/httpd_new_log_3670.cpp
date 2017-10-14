@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
-                 "%sWatchdog (%s) stopping",
-                 w->singleton ? "Singleton" : "", w->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01390)
+                              "Encountered EOS bucket in inflate filter (bug?)");

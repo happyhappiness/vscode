@@ -1,1 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00210) "sigaction(SIGINT)");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00358)
+                         "Child: Process exiting because it reached "
+                         "MaxConnectionsPerChild. Signaling the parent to "
+                         "restart a new child process.");

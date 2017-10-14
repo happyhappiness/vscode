@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
-                     "Child %d: Released the start mutex", my_pid);
+ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to "
+                             "shutdown process gracefully.");

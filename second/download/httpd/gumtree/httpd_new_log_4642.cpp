@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, rv, r,
-                          "SSL cleanup brigade contained %"
-                          APR_OFF_T_FMT " bytes of data.", len);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01877)
+                     "Init: Skipping generating temporary "
+                     "%d bit RSA private key in FIPS mode", bits);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01553)
-                    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00873)
+                      "data to read (max %" APR_SIZE_T_FMT
+                      " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);

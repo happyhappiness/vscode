@@ -1,1 +1,1 @@
-(isprint(re->first_char);
+(isprint(c = *(++code));

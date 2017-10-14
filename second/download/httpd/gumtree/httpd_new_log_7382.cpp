@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00128)
-                          "File does not exist: %s",
-                          apr_pstrcat(r->pool, r->filename, r->path_info, NULL));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  APLOGNO(02537) "Error occurred reading padding");

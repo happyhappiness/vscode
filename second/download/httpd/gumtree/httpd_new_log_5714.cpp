@@ -1,2 +1,3 @@
-log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(02813),
-                               "AcceptPathInfo off disallows user's path");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: don't need to refresh cached response "
+                         "after obtaining refresh mutex");

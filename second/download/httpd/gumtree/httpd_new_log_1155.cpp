@@ -1,1 +1,1 @@
-(isprint(ch);
+GETCHARLEN(fc, ecode, length);

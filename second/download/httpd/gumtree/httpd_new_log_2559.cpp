@@ -1,1 +1,1 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 951932 $");
+fprintf(stderr, "Rotation file forced open:   %12s\n", config->force_open ? "yes" : "no");

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02416)
-                         "[strict] purely numeric host names not allowed: %s",
-                         src);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, stream->session->c, 
+                  H2_STRM_MSG(stream, "destroy"));

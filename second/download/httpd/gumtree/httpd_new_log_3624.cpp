@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00852)
-                         "possible match at idx=%d, data=%d", pos, idx->data_pos);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00610)
+                      "The request body does not contain "
+                      "a \"label\" element.");

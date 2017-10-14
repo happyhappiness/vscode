@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf, APLOGNO(02121)
-                         "make_secure_socket: for %s, WSAIoctl: "
-                         "(SO_SSL_SET_FLAGS)", addr);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00696)
+                "cache: 'only-if-cached' requested and no cached entity, "
+                "returning 504 Gateway Timeout for: %s", r->uri);

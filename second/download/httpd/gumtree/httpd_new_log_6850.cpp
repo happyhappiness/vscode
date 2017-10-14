@@ -1,2 +1,2 @@
-ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
-                              NULL, AP_FTYPE_NETWORK);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                          H2_STRM_LOG(APLOGNO(03071), stream, "suspending"));

@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "%s: module \"%s\" is not compatible with this "
-                     "version of Apache.", ap_server_argv0, m->name);
+fprintf(stderr, " Processing config file: %s\n", fnew->fname);

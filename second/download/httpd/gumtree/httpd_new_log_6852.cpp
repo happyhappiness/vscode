@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      c->id, stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                      H2_STRM_LOG(APLOGNO(03075), is, 
+                      "submitting push promise fail: %s"), nghttp2_strerror(nid));

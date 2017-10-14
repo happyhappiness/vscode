@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00294)
-                "Accept mutex: %s (default: %s)",
-                apr_proc_mutex_name(accept_mutex),
-                apr_proc_mutex_defname());
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, APLOGNO(00042)
+                     "apr_MD5InitEBCDIC() failed");

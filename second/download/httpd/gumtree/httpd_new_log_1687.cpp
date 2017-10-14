@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, 
-                     "Failed to find temporary directory");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                      "require dn: user's DN has not been defined; failing authorization",
+                      getpid());

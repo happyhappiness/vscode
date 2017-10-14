@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(02404)
-                     "write pipe_of_death");
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c, APLOGNO(02906)
+                      "already at it, protocol_switch to %s", 
+                      protocol);

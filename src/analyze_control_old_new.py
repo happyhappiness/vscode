@@ -159,7 +159,7 @@ def analyze_old_new(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new(False)
+    analyze_old_new(True)
 
     # analyze_old_new_joern(False)
     # gumtree = Gumtree()

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                              "h2_proxy_stream(%s-%d): resuming", 
-                              session->id, stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): destroy, tasks=%d", 
+                  m->id, (int)h2_ihash_count(m->tasks));

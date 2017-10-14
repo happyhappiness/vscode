@@ -1,1 +1,1 @@
-fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);

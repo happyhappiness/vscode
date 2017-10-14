@@ -1,1 +1,0 @@
-fprintf(stderr,"The %s service is running.\n", mpm_display_name);

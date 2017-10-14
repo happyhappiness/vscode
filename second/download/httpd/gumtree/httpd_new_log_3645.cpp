@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s, APLOGNO(02081)
-                     "Unable to open tmp file: %s", path);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, c->base_server, APLOGNO(01611)
+                             "ProtocolEcho: Failure reading from %s",
+                             c->client_ip);

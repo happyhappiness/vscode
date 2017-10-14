@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                      "h2-stream(%ld-%d): on_header, reset stream",
-                      session->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id, certfile);

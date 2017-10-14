@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT|APLOG_NOERRNO, 0, s,
-                     "Don't understand PKCS7 file %s", pkcs7);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid method in request %s", r->the_request);

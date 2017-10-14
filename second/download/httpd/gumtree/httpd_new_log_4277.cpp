@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01207)
-                 "proxy: Entering byrequests for BALANCER (%s)",
-                 balancer->s->name);
+ap_rvputs(r, "<tr>\n<td><a href='", r->uri, "?b=",
+                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->s->name),
+                          "&nonce=", balancer->s->nonce,
+                          "'>", NULL);

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00754)
-                    "Restoring request headers.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00839)
+                 "leaving socache_shmcb_remove successfully");

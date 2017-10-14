@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf,
-                     "error spawning child, slot %d", slot);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                         ap_server_conf,
+                         "Child %d: WAIT_FAILED -- shutting down server", 
+                         my_pid);

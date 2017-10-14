@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                            0, ap_server_conf,
-                            "long lost child came home! (pid %ld)", (long)pid.pid);
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);

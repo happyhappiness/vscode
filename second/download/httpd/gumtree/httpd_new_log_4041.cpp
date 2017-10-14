@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01308)
-                      "LDAP: SSL verify server certificate - %s",
-                      mode?"TRUE":"FALSE");
+ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv, APLOGNO(01498)
+                         "read: rfc1413: error reading response");

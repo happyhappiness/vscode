@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 APLOGNO(02303)
-                 "attach found %s: %"APR_SIZE_T_FMT"/%u", fname,
-                 *item_size, *item_num);
+ap_rvputs(r, "> <br/> <label for='", name, "0'>Off</label> <input name='", name, "' id='", name, "0' value='0' type=radio", NULL);

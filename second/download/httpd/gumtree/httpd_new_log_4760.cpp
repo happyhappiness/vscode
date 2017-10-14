@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01877)
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02228)
+                          "Failed expression: %s", req->cpExpr);

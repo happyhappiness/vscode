@@ -1,7 +1,3 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
-                    time_str,
-                    r->connection->remote_ip,
-                    err,
-                    apr_strerror(err, errbuf, sizeof(errbuf)),
-                    description);
+ap_rvputs(r, xhtml ? DOCTYPE_XHTML_1_0T : DOCTYPE_HTML_3_2,
+              "<html>\n <head>\n  <title>Index of ", title,
+              "</title>\n </head>\n <body>\n", NULL);

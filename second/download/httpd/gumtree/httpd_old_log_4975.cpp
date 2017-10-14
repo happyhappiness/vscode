@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "could not read response headers from OCSP server, "
-                      "exceeded maximum count (%u)", MAX_HEADERS);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, stat, p,
+                      "make_sock: unable to listen for connections "
+                      "on address %pI",
+                      server->bind_addr);

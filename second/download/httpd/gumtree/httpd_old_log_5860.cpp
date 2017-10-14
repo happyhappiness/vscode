@@ -1,1 +1,0 @@
-decl_die(access_status, "check access", r);

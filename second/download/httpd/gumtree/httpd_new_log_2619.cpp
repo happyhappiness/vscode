@@ -1,1 +1,2 @@
-fprintf(stderr, "Closing file %s (%s)\n", finfo.name, finfo.fname);
+ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                          "unable to control socket non-blocking status");

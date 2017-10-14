@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "cache: No cache request information available for key"
-                     " generation");
+ap_rvputs(r, DOCTYPE_HTML_3_2,
+                  "<html>\n <head>\n"
+                  "  <title>Index of ", title,
+                  "</title>\n", NULL);

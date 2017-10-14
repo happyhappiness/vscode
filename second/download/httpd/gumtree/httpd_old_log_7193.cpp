@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00466)
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
+                         apr_get_os_error(), NULL,
+                         "OpenService failed");

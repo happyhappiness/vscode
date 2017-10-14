@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
-                     "Custom DH parameters (%d bits) for %s loaded from %s",
-                     DH_bits(dhparams), vhost_id, certfile);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(02432)
+                     "Cannot find LB Method: %s", balancer->s->lbpname);

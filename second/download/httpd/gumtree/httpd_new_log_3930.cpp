@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01273) "invalid CGI ref "
-                              "\"%s\" in %s", tag_val, file);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01300)
+                 "ldap cache: Setting search cache size to %ld entries.",
+                 st->search_cache_size);

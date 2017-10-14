@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01988)
-                      "failed to decode OCSP response data");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool, APLOGNO(00079)
+                          "unable to control socket non-blocking status");

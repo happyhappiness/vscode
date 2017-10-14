@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01911)
-                "Oops, no " KEYTYPES " server private key found?!");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02201)
+                                 "Init: Can't open server certificate file %s",
+                                 szPath);

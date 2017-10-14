@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
-                     "stapling_cb: renewing cached response");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
+                          nghttp2_strerror(*rv));

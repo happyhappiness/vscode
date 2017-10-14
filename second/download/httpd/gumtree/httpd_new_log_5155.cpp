@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
-                                 ap_server_conf,
-                                 "event_loop: unexpected state %d",
-                                 cs->pub.state);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00148)
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00459)
-                     "sigaction(SIGTERM)");
+printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);

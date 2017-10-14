@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02672)
-                           "ServerSupportFunction HSE_REQ_GET_SSPI_INFO "
-                           "is not supported: %s", r->filename);
+log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, connect_errno, 
+                                   apr_pstrcat(r->pool, APLOGNO(02833) "ScriptSock ", sockname, " does not exist", NULL));

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                    "((%lx & %lx) == %lx) = %d", v, l, l, matched);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                     "proxy: AJP: request failed to %pI (%s)",
+                     conn->worker->cp->addr,
+                     conn->worker->hostname);

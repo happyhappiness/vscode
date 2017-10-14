@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02274)
-                     "Can't read PKCS7 object %s", pkcs7);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00133)
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);

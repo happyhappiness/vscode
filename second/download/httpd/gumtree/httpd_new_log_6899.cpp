@@ -1,6 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
-                              "Request header exceeds LimitRequestFieldSize%s"
-                              "%.*s",
-                              (field && *field) ? ": " : "",
-                              (field) ? field_name_len(field) : 0,
-                              (field) ? field : "");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
+                      H2_STRM_MSG(stream, "added trailers"));

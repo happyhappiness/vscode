@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01973)
-                  "connecting to OCSP responder '%s'", uri->hostinfo);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
+                          "h2_mplx(%ld-%d): close with eor=%s", 
+                          m->id, io->id, io->eor? "yes" : "no");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server,
-                     "Couldn't listen on unix domain socket");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
+                                         "Cannot get media parameter.");

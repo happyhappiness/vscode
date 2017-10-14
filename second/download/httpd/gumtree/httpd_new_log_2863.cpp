@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                          "proxy: SSL cleanup brigade contained %"
-                          APR_OFF_T_FMT " bytes of data.", len);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bybusyness for BALANCER (%s)",
+                 balancer->name);

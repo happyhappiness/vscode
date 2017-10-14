@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01877)
-                     "Init: Skipping generating temporary "
-                     "%d bit RSA private key in FIPS mode", bits);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02245)
+                                 "Init: SSLPassPhraseDialog builtin is not "
+                                 "supported on Win32 (key file "
+                                 "%s)", szPath);

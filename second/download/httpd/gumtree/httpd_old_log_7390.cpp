@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00431)
-                             "Parent: Forcing termination of child process %pp",
-                             event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01880)
+                     "Init: Skipping generating temporary "
+                     "%d bit DH parameters in FIPS mode", bits);

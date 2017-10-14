@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02285)
-                             "slotmem_create for status failed");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                              "Not compressing, (gzip-only-text/html)");

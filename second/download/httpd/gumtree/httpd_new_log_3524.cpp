@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(00766)
-                        "cache: Cache provider's store_body returned an "
-                        "empty brigade, but didn't consume all of the"
-                        "input brigade, standing down to prevent a spin");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00848)
+                 "finished insert, subcache: idx_pos/idx_used=%d/%d, "
+                 "data_pos/data_used=%d/%d",
+                 subcache->idx_pos, subcache->idx_used,
+                 subcache->data_pos, subcache->data_used);

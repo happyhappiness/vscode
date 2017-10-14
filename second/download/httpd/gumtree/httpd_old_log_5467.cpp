@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't initialize cross-process lock in child");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+               "Internal error: pcfg_openfile() called with NULL filename");

@@ -1,2 +1,2 @@
-printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-           (float) (totalread / 1024 / timetaken));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "division_mask = 0x%02X", header->division_mask);

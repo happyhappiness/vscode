@@ -1,1 +1,2 @@
-fprintf (stderr, "%s ", ssl_expr_yytname[ssl_expr_yyrhs[i]]);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_accept: (client socket)");

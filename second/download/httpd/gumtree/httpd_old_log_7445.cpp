@@ -1,1 +1,5 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);

@@ -1,6 +1,2 @@
-E(int) ap_rputs(const char *str, request_rec *r)
-{
-    apr_size_t len;
-
-    if (r->connection->aborted)
-        return -1;;
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                     "Failed to create module cache lock");

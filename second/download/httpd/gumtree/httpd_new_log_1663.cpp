@@ -1,2 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "HTTP Request Line; URI must not contain a fragment");
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);

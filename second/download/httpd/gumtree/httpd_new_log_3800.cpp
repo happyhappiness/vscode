@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01467)
-                          "can't initialise output filter %s: %s",
-                          f->frec->name,
-                          (ctx->dc->onfail == 1) ? "removing" : "aborting");
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, ap_server_conf, APLOGNO(01240)
+                             "Couldn't unlink unix domain socket %s",
+                             sockname);

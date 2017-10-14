@@ -1,1 +1,1 @@
-ap_rputs("<tr><td colspan=2><input type=submit value='Submit'></td></tr>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "serving URL %s", url);

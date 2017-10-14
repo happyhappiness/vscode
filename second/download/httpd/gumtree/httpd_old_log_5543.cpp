@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGBUS)");
+fprintf(stderr, "Error writing to the file %s\n", status->filename);

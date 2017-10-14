@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                     "proxy: worker %s already initialized",
-                     worker->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                     "Init: Failed to generate temporary "
+                     "%d bit RSA private key", bits);

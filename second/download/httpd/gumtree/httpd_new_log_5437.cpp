@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00371)
-                     "%s: Failed to store the ConfigArgs in the registry.",
-                     mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00564)
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01531)
-                    MODNAME ": line=%d desc=%s", m->lineno, m->desc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01211)
+                 "proxy: Entering bybusyness for BALANCER (%s)",
+                 balancer->s->name);

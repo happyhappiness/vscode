@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, lvl, rv, r, APLOGNO(01460)
-                      "apr_file_read(child output), len %" APR_SIZE_T_FMT,
-                      !rv ? len : -1);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01225)
+                          "Error reading request entity data");

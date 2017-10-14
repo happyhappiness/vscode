@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                          "could not partition buffered SSL brigade");
+fprintf(stderr, "Discarding token %d (%s).\n", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);

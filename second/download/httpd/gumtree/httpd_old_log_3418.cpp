@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "PRIV_ON failed restoring default user/group");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
+                                 r->server, "Cache locked for url, not caching "
+                                 "response: %s", r->uri);

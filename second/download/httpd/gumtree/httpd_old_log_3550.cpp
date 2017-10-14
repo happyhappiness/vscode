@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                         "mod_file_cache: unable to mmap %s, skipping", filename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                   "Heartmonitor: Unable to flush file: %s", path);

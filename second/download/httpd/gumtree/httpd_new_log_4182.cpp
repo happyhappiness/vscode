@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01545)
-                        "%ld > %ld = %d", v, l, matched);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01118)
+                 "proxy: roundrobin index: %d (%d)",
+                 ctx->index, (int)getpid());

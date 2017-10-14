@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01629)
-                          "authorization failure (no authenticated user): %s",
-                          r->uri);
+ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02168)
+                    "setuid: unable to change to uid: %ld",
+                    (long) ap_unixd_config.user_id);

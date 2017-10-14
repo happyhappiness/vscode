@@ -1,6 +1,5 @@
-((session->io.bytes_read - read_start) > (64*1024)) {
-            /* read enough in one go, give write a chance */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                          "h2_session(%ld): read 64k, returning", session->id);
-            break;
-        };
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c, 
+                      "h2_ngn_shed(%ld): push task(%s) hosting engine %s " 
+                      "already with %d tasks", 
+                      shed->c->id, task->id, task->engine->id,
+                      task->engine->no_assigned);

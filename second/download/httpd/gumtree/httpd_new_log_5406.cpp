@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, 0, NULL, APLOGNO(00433)
-                 "%s: Service is already installed.", service_name);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00544)
+                     "%s: bad group name %s", ap_server_argv0, name);

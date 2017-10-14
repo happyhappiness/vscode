@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-       "proxy: FTP: connecting %s to %s:%d", url, connectname, connectport);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, rv, r,
+                          "proxy: SSL cleanup brigade contained %"
+                          APR_OFF_T_FMT " bytes of data.", len);

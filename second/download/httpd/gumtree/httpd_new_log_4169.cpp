@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01532)
-                        MODNAME ": line=%d mc=%x mc->next=%x cont=%d desc=%s",
-                            m_cont->lineno, m_cont,
-                            m_cont->next, m_cont->cont_level,
-                            m_cont->desc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01212)
+                     "proxy: bybusyness selected worker \"%s\" : busy %" APR_SIZE_T_FMT " : lbstatus %d",
+                     mycandidate->s->name, mycandidate->s->busy, mycandidate->s->lbstatus);

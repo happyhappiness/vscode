@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-            "can not create connection pool");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Initialized %s library", SSL_LIBRARY_NAME);

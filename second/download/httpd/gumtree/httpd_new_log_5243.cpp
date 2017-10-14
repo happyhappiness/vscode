@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00196)
-                     "unable to open work queue, exiting");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00389)
+                     "Child: Unable to access the scoreboard from the parent");

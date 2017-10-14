@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                                  "h2_task(%s): end of response", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02422)
+                          "HTTP Request Line; URI must not contain a "
+                          "username/password");

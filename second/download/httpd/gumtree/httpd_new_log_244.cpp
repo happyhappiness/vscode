@@ -1,1 +1,2 @@
-ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot create SSLMutex");

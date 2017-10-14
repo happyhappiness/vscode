@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00581)
-                  "An invalid Overwrite header was specified.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, f->r, APLOGNO(01458)
+                      "couldn't create child process to run `%s'",
+                      ctx->filter->command);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Failed to open the WinNT service manager");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);

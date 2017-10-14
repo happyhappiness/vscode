@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01328) "Line too long, URI %s",
-                      f->r->uri);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01232)
+                     "suEXEC mechanism enabled (wrapper: %s)", SUEXEC_BIN);

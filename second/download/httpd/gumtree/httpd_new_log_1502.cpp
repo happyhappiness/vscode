@@ -1,3 +1,2 @@
-apr_file_printf(errfile,
-            "On other systems than Windows, NetWare and TPF the '-p' flag will "
-            "probably not work." NL);
+fprintf(stderr, "crypt() failed: %s\n", 
+                        apr_strerror(errno, errbuf, sizeof errbuf));

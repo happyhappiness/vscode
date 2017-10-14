@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00430)
-                             "Parent: Child process exited successfully.");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01879)
+                     "Init: Failed to generate temporary "
+                     "%d bit RSA private key", bits);

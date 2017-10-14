@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "proxy: %s: fam %d socket created to connect to %s",
-                     proxy_function, backend_addr->family, worker->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                         "SSL handshake stopped: connection was closed");

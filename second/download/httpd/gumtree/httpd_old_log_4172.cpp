@@ -1,2 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, r,
-                    MODNAME ": matched after %d rules", rule_counter);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bytraffic for BALANCER (%s)",
+                 balancer->name);

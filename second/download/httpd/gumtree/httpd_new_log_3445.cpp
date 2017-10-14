@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02164)
-                         "Cannot chroot when not started as root");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(00772)
+                    "cache: updating headers with store_headers failed. "
+                    "Removing cached url.");

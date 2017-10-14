@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01090)
-                                  "creation of temporary file in directory "
-                                  "%s failed", temp_dir);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00954)
+                          "apr_socket_opt_set(APR_TCP_NODELAY): "
+                          "Failed to set");

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03453)
+                                  "Request header field name was empty");

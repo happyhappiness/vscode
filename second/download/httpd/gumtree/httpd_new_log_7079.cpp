@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "non-state event %d"), ev);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00916)
+                          "connect to remote machine %s blocked: name %s "
+                          "matched", hostname, npent[j].name);

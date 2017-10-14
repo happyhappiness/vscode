@@ -1,2 +1,2 @@
-printf("Waiting:    " CONF_FMT_STRING,
-	           minwait, (int) (totalwait + 0.5), sdwait, meanwait, maxwait);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server,
+                 "cache: running CACHE_CONDITIONAL filter");

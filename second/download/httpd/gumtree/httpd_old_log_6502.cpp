@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
-                      "h2_conn_io: buffering %ld bytes", (long)length);
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);

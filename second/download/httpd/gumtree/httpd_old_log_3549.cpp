@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                     "mod_file_cache: unable to open(%s, O_RDONLY), skipping", fspec);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to open tmp file: %s", path);

@@ -1,1 +1,1 @@
-decl_die(access_status, "check authorization", r);
+apr_file_puts(line, outfile);

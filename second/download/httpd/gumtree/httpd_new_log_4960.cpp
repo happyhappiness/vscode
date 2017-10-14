@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE3, rv, l->pool,
-                      "Mutex %s:%d acquired!", l->file, l->line);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, rv, c, APLOGNO(00140)
+                      "apr_socket_timeout_set");

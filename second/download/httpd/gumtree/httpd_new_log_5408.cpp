@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_WARNING, rv, NULL, APLOGNO(00435)
-                             "No installed ConfigArgs for the service "
-                             "\"%s\", using Apache defaults.", service_name);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00545)
+                     "MaxRequestsPerChild is deprecated, use "
+                     "MaxConnectionsPerChild instead.");

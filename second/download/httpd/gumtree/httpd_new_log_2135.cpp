@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "access to %s failed, reason: %s",
-                          r->filename,
-                          "SSL requirement expression not fulfilled");
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                     "Server MUST relinquish startup privileges before "
+                     "accepting connections.  Please ensure mod_unixd "
+                     "or other system security module is loaded.");

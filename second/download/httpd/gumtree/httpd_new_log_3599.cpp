@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00827)
-                 "subcache_data_offset = %u", header->subcache_data_offset);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00585)
+                      "The \"propfind\" element was not found.");

@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                  H2_STRM_MSG(stream, "invalid state event"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);

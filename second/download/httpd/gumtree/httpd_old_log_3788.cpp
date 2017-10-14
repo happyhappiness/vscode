@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, f->r,
-                      "couldn't create child process to run `%s'",
-                      ctx->filter->command);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "don't know how to spawn child process: %s",
+                      r->filename);

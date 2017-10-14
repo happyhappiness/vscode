@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01344) "unknown value "
-                                      "\"%s\" to parameter \"decoding\" of tag echo in "
-                                      "%s", token, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01272)
+                              "execution failure for parameter \"%s\" "
+                              "to tag exec in file %s", tag, r->filename);

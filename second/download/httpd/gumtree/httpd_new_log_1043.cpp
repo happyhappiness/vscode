@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                             ap_server_conf, "apr_pollset_poll: (listen)");
+fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");

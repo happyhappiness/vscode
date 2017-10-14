@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "bad response from OCSP server: %s",
-                      line ? line : "(none)");
+ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                    "SIGHUP received.  Attempting to restart");
+ap_log_error(APLOG_MARK,APLOG_CRIT, service_to_start_success, NULL,
+                     "%s: Unable to start the service manager.",
+                     service_name);

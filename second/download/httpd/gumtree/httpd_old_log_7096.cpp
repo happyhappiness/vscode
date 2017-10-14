@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                  "h2_stream(%ld-%d): closing input",
-                  stream->session->id, stream->id);
+ap_log_rerror(SCRIPT_LOG_MARK, APLOG_ERR|APLOG_TOCLIENT, 0, r,
+                              "Invalid status line from script '%s': %s",
+                              apr_filepath_name_get(r->filename), w);

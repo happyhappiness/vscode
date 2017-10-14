@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, APLOGNO(00945) "lock");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02236)
+                 "Configuring %s server private key", type);

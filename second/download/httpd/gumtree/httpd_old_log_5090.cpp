@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p,
-                      "make_sock: could not bind to address %pI",
-                      server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d is not an integer "
+                         "multiple of", max_clients);

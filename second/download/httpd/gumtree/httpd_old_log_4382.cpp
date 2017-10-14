@@ -1,2 +1,1 @@
-ap_rvputs(r, "<td>", balancer->sticky, " | ",
-                              balancer->sticky_path, NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "HEADER: -EOH-");

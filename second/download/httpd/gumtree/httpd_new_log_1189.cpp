@@ -1,1 +1,1 @@
-printf("Named substrings\n");
+fprintf(stderr, "%s", cmnt + 1);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
-                     MODNAME ": can't read magic file %s", fname);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                      "ajp_msg_create(): can't allocate AJP message memory");

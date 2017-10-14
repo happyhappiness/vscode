@@ -1,0 +1,1 @@
+ap_rvputs(r, time_str, "  ", NULL);

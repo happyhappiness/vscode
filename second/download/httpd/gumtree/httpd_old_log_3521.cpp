@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
-                             r->server, "Cache locked for url, not caching "
-                             "response: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);

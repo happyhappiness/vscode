@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
-                      "coalesce: passing on %" APR_SIZE_T_FMT " bytes", ctx->bytes);
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE3, 0, l->pool,
+                      "Acquiring mutex %s:%d", l->file, l->line);

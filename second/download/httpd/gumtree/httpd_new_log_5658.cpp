@@ -1,1 +1,1 @@
-fprintf(stderr, "Calling post-rotate program: %s\n", argv[0]);
+ap_rputs("NotAvailable\n", r);

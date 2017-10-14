@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c, APLOGNO(01993)
-                          "SSL output filter write failed.");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01968)
+                         "Init: Requesting pass phrase via builtin terminal "
+                         "dialog");

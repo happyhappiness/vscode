@@ -1,1 +1,1 @@
-(*code == OP_TYPEMINUPTO;
+printf("\n");

@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction (%d) not supported: "
-                          "%s", HSE_code, r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00740) "distributed scache 'store' failed");

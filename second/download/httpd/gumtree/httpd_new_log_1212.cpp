@@ -1,1 +1,1 @@
-fprintf(stderr, "ab: Could not allocate POST data buffer\n");
+apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d" NL, rv);

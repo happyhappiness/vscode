@@ -1,2 +1,2 @@
-printf("                        %.2f kb/s total\n",
-               (double) (totalread + totalposted) / timetaken / 1024);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                             "shmcb_subcache_retrieve internal error");

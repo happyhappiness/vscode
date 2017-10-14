@@ -1,7 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-#ifndef OPENSSL_NO_EC
-                "Oops, no RSA, DSA or ECC server certificate found "
-#else
-                "Oops, no RSA or DSA server certificate found "
-#endif
-                "for '%s:%d'?!", s->server_hostname, s->port);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
+                         "Server should be SSL-aware but has no certificate "
+                         "configured [Hint: SSLCertificateFile] (%s:%d)",
+                         pServ->defn_name, pServ->defn_line_number);

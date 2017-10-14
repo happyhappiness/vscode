@@ -1,1 +1,1 @@
-ap_rputs("Standby", r);
+fprintf(stderr, "Cannot use -n with %% in filename\n");

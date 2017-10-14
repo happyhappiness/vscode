@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  H2_STRM_MSG(stream, "send_data_cb for %ld bytes"),
-                  (long)length);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00270)
+                         "sigaction(SIGHUP)");

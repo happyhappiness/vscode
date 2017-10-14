@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                      "Error while reading HTTP trailer: %i%s%s",
-                      r->status, error_notes ? ": " : "",
-                      error_notes ? error_notes : "");
+ap_register_output_filter(logio_filter_name, logio_out_filter, NULL,
+                              AP_FTYPE_NETWORK - 1);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
-                         "Child %lu: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+apr_file_printf(errfile,
+            "The SHA algorithm does not use a salt and is less secure than "
+            "the MD5 algorithm." NL);

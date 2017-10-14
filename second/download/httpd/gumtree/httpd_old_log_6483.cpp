@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01174)
-                              "%s:  Forcing recovery for worker (%s), "
-                              "failonstatus %d",
-                              balancer->s->name, worker->s->name, val);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                     "h2_worker(%d): done", h2_worker_get_id(worker));

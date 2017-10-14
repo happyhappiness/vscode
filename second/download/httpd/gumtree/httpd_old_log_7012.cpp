@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
-                      "session(%ld): connection disappeared without proper "
-                      "goodbye, clients will be confused, should not happen", 
-                      session->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00148)
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

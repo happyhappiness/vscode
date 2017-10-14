@@ -1,3 +1,2 @@
-ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
-                      ap_escape_html(scratch, t2),
-                      "</a></li>\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "client used wrong authentication scheme: %s", r->uri);

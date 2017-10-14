@@ -1,1 +1,1 @@
-apr_file_printf(outfile, "%s %s", hostname, space + 1);
+ap_rputs("Dis ", r);

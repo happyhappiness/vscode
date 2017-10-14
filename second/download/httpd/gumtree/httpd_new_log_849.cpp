@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                         "proxy: %s: error creating fam %d socket for target %s",
-                         proxy_function,
-                         backend_addr->family,
-                         worker->hostname);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
+                      "Connection closed to child %ld with %s shutdown "
+                      "(server %s)",
+                      c->id, type, ssl_util_vhostid(c->pool, c->base_server));

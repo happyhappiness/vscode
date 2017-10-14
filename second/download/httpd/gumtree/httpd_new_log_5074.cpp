@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, rv, server, APLOGNO(00138)
-                     "apr_socket_addr_get(APR_REMOTE)");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00498)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);

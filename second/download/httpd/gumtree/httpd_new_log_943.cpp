@@ -1,1 +1,2 @@
-ap_rputs("<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">SSL/TLS Session Cache Status:</font></b>\r", r);
+apr_pstrcat(p, "Must include a wildcard pattern for "
+                               "Include ", fname, NULL);

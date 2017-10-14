@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01677)
-                      "failed to initialise %s cache", authn_cache_id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01650)
+                      "Error retrieving query for dbd-group!");

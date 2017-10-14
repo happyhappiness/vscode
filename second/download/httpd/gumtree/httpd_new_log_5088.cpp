@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p, APLOGNO(00070)
-                          "make_sock: failed to set SendBufferSize for "
-                          "address %pI, using default",
-                          server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00511)
+                         "WARNING: MaxRequestWorkers of %d is less than "
+                         "ThreadsPerChild of", max_workers);

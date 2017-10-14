@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                             "proxy: ProxyBlock comparing %s and %s", conf_ip, uri_ip);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "filling buffer, max size "
+                  "%" APR_SIZE_T_FMT " bytes", maxlen);

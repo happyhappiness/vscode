@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main,
-                     "unable to replace stderr with /dev/null");
+ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s,
+                     "failure allocating shared memory, shutting down");

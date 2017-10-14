@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01953)
-                     "stapling_cb: retrieved cached response");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02934) "lookup of stream 1");

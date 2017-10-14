@@ -1,5 +1,1 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                         "proxy: %s: error creating fam %d socket for target %s",
-                         proxy_function,
-                         backend_addr->family,
-                         backend_name);
+ap_register_output_filter ("UPGRADE_FILTER", ssl_io_filter_Upgrade, NULL, AP_FTYPE_PROTOCOL + 5);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-               "ajp_marshal_into_msgb: "
-               "Error appending the message begining");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: Processing of request failed backend: %i, "
+                     "output: %i", backend_failed, output_failed);

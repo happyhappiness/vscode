@@ -1,1 +1,2 @@
-ap_rputs("<tr><td colspan='2'>\n<table align='center'><tr><th>Health Check param</th><th>Value</th></tr>\n", r);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c, 
+                      "h2_task(%s): send_out done", task->id);

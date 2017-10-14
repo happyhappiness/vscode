@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "LDAP cache: LDAPSharedCacheSize is zero, disabling "
-                     "shared memory cache");
+ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                     MODNAME ": can't read magic file %s", fname);

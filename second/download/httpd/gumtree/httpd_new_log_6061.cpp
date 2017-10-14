@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
-                  c->id, stream_id, tag, line);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "session(%ld): pool_cleanup", session->id);

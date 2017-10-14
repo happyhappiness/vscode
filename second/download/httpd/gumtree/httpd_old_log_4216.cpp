@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                   "ajp_marshal_into_msgb: "
-                   "Error appending the jvm route");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+             "proxy: BALANCER: canonicalising URL %s", url);

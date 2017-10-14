@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s,
-                     "Failed to open ticket key file %s: (%d) %pm",
-                     path, rv, &rv);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Request "
+                  "header exceeds LimitRequestFieldSize after merging: %.*s",
+                  field_name_len(key), key);

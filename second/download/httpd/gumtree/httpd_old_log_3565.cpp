@@ -1,4 +1,3 @@
-r(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "DBM socache expiry: "
-                 "old: %d, new: %d, removed: %d",
-                 elts, elts-deleted, deleted);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                     "Heartmonitor: Failed to register watchdog "
+                     "callback (%s)", HM_WATHCHDOG_NAME);

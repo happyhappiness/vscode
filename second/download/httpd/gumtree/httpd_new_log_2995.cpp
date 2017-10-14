@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "shmcb_subcache_retrieve returning matching session");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize dn: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);

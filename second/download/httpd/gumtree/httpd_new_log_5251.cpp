@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00222)
-            "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00401)
+                     "Parent: Unable to send the scoreboard handle to the child");

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
-            "ajp_marshal_into_msgb: Done");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01164)
+                      "%s: Unlock failed for find_best_worker()",
+                      balancer->s->name);

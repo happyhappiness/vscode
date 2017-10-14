@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "password for user %s" NL, user);

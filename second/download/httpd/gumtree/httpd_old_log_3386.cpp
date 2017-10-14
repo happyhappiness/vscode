@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "an ip address 'require' list appears to be invalid; %s ",
-                              msgbuf);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                      "ISAPI: %s: %s", r->filename, cid->ecb->lpszLogData);

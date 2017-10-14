@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_HAS_OTHER_CHILD\n", r);
+ap_rputs("<dl><dt><tt>Loaded Modules: <br />", r);

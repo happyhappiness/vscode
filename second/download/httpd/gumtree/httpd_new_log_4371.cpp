@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_EMERG, rv, r, APLOGNO(01195)
-                                      "worker slotmem_grab failed");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01028)
+                              "unknown socket in pollset");

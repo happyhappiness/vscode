@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                      "Error while reading HTTP trailer: %i%s%s",
-                      r->status, error_notes ? ": " : "",
-                      error_notes ? error_notes : "");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
+                      "DBD: failed to initialise prepared SQL statements: %s",
+                      (errmsg ? errmsg : "[???]"));

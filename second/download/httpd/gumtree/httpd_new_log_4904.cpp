@@ -1,1 +1,1 @@
-ap_log_error(file, line, APLOG_MODULE_INDEX, level, rv, s, "%s", buf);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01960) "OCSP stapling initialized");

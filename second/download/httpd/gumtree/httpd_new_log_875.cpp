@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
-                          "SSL library error %d writing data", ssl_err);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
+                     "Failed to acquire SSL session cache lock");

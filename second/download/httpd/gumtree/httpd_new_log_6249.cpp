@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                                  "h2_session: wait for data, %ld micros", 
-                                  (long)session->wait_us);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             APLOGNO(03099) "ap_queue_pop failed");

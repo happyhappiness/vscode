@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                 "Child %lu: Starting %d worker threads.", my_pid, ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                         "GetModuleFileName failed");

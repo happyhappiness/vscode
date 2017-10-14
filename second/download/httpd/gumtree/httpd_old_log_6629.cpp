@@ -1,6 +1,4 @@
-ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03206)
-                                  "h2_util_move: %s, moving FILE bucket %ld-%ld "
-                                  "from=%lx(p=%lx) to=%lx(p=%lx), setaside=%d",
-                                  msg, (long)b->start, (long)b->length, 
-                                  (long)from, (long)from->p, 
-                                  (long)to, (long)to->p, setaside);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02920) 
+                      "h2_session:  stream(%ld-%d): on_header unknown stream",
+                      session->id, (int)frame->hd.stream_id);

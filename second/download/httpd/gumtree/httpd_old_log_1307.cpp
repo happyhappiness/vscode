@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                      "apr_global_mutex_unlock(rewrite_log_lock) failed");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                         r->server,
+                         "Unable to reconfigure (per-directory) "
+                         "permitted SSL ciphers");

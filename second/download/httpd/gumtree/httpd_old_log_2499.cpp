@@ -1,1 +1,1 @@
-printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");
+err("Cannot mix PUT and HEAD\n");

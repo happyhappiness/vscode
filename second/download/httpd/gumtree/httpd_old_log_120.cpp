@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
-                "failed to write %d of %d bytes (%s)",
-                n > 0 ? len - n : len, len, reason);
+ap_add_output_filter(ssl_io_filter,
+                                                   filter, NULL, c);

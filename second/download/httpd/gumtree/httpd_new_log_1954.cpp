@@ -1,0 +1,1 @@
+ap_rvputs(r, "</td><td>", (*worker)->s->redirect, NULL);

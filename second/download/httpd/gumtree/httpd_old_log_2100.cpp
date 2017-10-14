@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, s,
-                           "proxy client certificate and "
-                           "private key do not match");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot reinit SSLMutex with file `%s'",
+                         mc->szMutexFile);

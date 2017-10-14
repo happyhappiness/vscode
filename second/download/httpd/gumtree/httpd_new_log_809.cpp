@@ -1,3 +1,4 @@
-ap_rputs("\n\n<table border=\"0\"><tr>"
-                 "<th>SSes</th><th>Timeout</th><th>Method</th>"
-                 "</tr>\n<tr>", r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+            "proxy: initialized worker %d in child %" APR_PID_T_FMT " for (%s) min=%d max=%d smax=%d",
+             worker->id, getpid(), worker->hostname, worker->min,
+             worker->hmax, worker->smax);

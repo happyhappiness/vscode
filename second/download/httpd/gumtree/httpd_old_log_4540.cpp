@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "proxy: FTP: error creating local socket");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "proxy: %s: has released connection for (%s)",
+                 proxy_function, conn->worker->hostname);

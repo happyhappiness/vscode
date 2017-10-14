@@ -1,2 +1,2 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
-                  "h2_session(%ld): process start, async=%d", session->id, async);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                                     APLOGNO(03094) "pollset remove failed");

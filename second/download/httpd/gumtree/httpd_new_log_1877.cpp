@@ -1,1 +1,3 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">&nbsp;" : ">&nbsp;", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                             "Copying local SGL of len %d for group %s into cache",
+                             tmp_local_sgl->len, dn);

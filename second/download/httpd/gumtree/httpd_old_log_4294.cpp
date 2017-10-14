@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: request is chunked");
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->redirect),
+                      NULL);

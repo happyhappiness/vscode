@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00673)
-                              "incomplete redirection target of '%s' for "
-                              "URI '%s' modified to '%s'",
-                              orig_target, r->uri, ret);
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, main_server, APLOGNO(01565)
+                         "using low-order bits of IPv6 address "
+                         "as if they were unique");

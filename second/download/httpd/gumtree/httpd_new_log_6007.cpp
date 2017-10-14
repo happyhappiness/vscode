@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                  "h2_stream(%ld-%d): promised new stream %d for %s %s on %d",
-                  session->id, is->id, nid,
-                  push->req->method, push->req->path, is->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, process_conn, "
+                          "new connection using protocol '%s', direct=%d, "
+                          "tls acceptable=%d", proto, h2_allows_h2_direct(c), 
+                          h2_is_acceptable_connection(c, 1));

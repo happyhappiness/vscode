@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00926)
-                     "worker %s local already initialized", worker->s->name);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01894)
+                     "Unable to initialize TLS servername extension "
+                     "callback (incompatible OpenSSL version?)");

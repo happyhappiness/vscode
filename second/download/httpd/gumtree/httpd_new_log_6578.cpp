@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_session(%ld): NO_IO event, %d streams open", 
-                          session->id, session->open_streams);
+ap_add_output_filter("H2_TRAILERS_OUT", task, r, r->connection);

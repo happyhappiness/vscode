@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00566)
-                              "request failed: malformed request line");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
+                      H2_STRM_MSG(stream, "invalid frame %d recv"), ftype);

@@ -1,1 +1,2 @@
-ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
+                     "proxy: FTP: Last-Modified set to %s", datestr);

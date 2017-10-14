@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-             "2)IP-NoMatch: hostname=%s msg=Host not found", host);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, LOG_PREFIX
+                          "You must load mod_dbd to enable AuthDBD functions");

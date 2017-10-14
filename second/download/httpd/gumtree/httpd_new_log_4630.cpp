@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00921) "slotmem_attach failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01864)
+                      "query execution error removing session '%s' "
+                      "from database", key);

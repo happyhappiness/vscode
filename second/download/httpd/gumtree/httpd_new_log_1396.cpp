@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                         "Could not allocate memory for LDAP cache entry");
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access.  Check your 'Require' directive"
+                                  : "perform authentication. AuthType not set!",
+                                   r);

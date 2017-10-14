@@ -1,4 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: Warning, possible replay attack: nonce-count "
-                      "check failed: %lu != %lu", nc,
-                      resp->client->nonce_count);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "auth_ldap authorise: require group "
+                                  "(sub-group): authorisation successful "
+                                  "(attribute %s) [%s][%d - %s]",
+                                  ent[i].name, ldc->reason, result,
+                                  ldap_err2string(result));

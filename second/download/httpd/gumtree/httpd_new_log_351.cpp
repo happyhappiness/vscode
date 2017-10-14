@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGILL)");
+apr_file_printf(errfile, "Usage: htdigest [-c] passwordfile realm username\n");

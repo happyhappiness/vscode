@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01043)
-                                  "EPSV attempt to connect to %pI failed - "
-                                  "Firewall/NAT?", epsv_addr);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00931)
+                 "initialized single connection worker in child %" APR_PID_T_FMT " for (%s)",
+                 getpid(), worker->s->hostname);

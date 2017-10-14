@@ -1,1 +1,2 @@
-fprintf(stderr, "Discarding token %d (%s).\n", ssl_expr_yychar, ssl_expr_yytname[ssl_expr_yychar1]);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
+                         "apr_accept: (client socket)");

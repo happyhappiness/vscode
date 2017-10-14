@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00426)
-                         "Parent: SetEvent for child process event %pp failed.",
-                         event_handles[CHILD_HANDLE]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             APLOGNO(02553) "Expected %" APR_SIZE_T_FMT ": Read %" APR_SIZE_T_FMT,
+                             size, nbytes);

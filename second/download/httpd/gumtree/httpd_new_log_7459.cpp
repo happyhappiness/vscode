@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "%s: %s" NL, argv[0], errstr);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(02446)
+                                  "sock was readable");

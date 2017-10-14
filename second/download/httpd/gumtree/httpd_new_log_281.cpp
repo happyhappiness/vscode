@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL,
-                 "%s", description);
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                         0, NULL, "Configuration Failed");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01294)
-                                 "Copy of SGL failed to obtain shared memory, "
-                                 "couldn't update cache");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01561)
+            "internal error in mod_cern_meta: %s", r->filename);

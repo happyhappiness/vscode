@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: start body send");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
+                          "SSL handshake interrupted by system "
+                          "[Hint: Stop button pressed in browser?!]");

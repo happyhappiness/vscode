@@ -1,2 +1,2 @@
-fprintf(stderr, "only simple translation is supported (%d/%u/%u)\n",
-           status, inbytes_left, outbytes_left);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "a match!");

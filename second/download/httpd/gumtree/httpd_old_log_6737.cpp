@@ -1,1 +1,2 @@
-ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
+                          "request failed: error reading the headers");

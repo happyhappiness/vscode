@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, pool,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      session_id, req->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " server/mpm/netware%s.", MPM_HARD_LIMITS_FILE);

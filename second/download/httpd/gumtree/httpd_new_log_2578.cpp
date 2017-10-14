@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "Error while removed: %s" APR_EOL_STR,
-                            argv[o->ind]);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool, "DBD: not configured");

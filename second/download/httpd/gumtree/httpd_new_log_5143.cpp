@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00465)
-                     "sigaction(SIGHUP)");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00229)
+                         "MaxThreads of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         ap_threads_limit, HARD_THREAD_LIMIT);

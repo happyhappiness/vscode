@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1748469 $");
+ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
+                              NULL, AP_FTYPE_NETWORK);

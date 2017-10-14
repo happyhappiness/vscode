@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, log_level, rv, c, APLOGNO(02968)
-                          "Can't check pipelined data");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));

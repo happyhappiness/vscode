@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02294)
-                     "slotmem(%s) release failed. Num %u/inuse[%u] %d",
-                     slot->name, slotmem_num_slots(slot),
-                     id, (int)inuse[id]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02225)
+                              "Re-negotiation request failed");

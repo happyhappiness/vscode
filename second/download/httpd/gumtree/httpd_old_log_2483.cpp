@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
-                     "refusing to send signal %d to pid %ld outside "
-                     "process group", sig, (long)pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[strict] Invalid host name '%s'%s%.6s",
+                  host, *ch ? ", problem near: " : "", ch);

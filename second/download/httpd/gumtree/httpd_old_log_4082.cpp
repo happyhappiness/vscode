@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool,
-                          "loading lua file %s", spec->file);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
+               "couldn't setup child process: %s", r->filename);

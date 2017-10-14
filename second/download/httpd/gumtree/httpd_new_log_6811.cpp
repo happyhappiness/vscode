@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
-                      c->log_id, len? buffer : line);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      H2_SSSN_LOG(APLOGNO(03063), session, 
+                      "recv invalid FRAME[%s], frames=%ld/%ld (r/s)"),
+                      buffer, (long)session->frames_received,
+                     (long)session->frames_sent);

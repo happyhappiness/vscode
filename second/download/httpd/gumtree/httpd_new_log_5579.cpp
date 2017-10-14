@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00004)
-                         "Unable to create or access scoreboard "
-                         "(anonymous shared memory failure)");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02803)
+                     "%s better prefix a macro name with any of '%s'",
+                     where, ARG_PREFIX);

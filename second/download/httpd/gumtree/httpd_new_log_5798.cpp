@@ -1,3 +1,3 @@
-ap_rvputs(r, "CurrentTime: ",
-                  ap_ht_time(r->pool, nowtime, DEFAULT_TIME_FORMAT, 0),
-                             "\n", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                              "h2_h2(%ld): tls cipher %s blacklisted by %s", 
+                              (long)c->id, val, source);

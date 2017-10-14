@@ -1,5 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d is not an integer multiple of "
-                         "ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d", max_clients, threads_per_child,
-                         tmp_max_clients);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                                     "Child %d: Encountered too many AcceptEx "
+                                     "faults accepting client connections. "
+                                     "Possible causes: dynamic address renewal, "
+                                     "or incompatible VPN or firewall software. ",
+                                     my_pid);

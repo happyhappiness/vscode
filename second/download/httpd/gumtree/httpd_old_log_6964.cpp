@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%s): task_done, stream still open", 
-                          task->id);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile);

@@ -1,1 +1,1 @@
-err("Cannot allocate memory for result statistics");
+fprintf(stderr, "Rotation based on localtime: %12s\n", config->use_localtime ? "yes" : "no");

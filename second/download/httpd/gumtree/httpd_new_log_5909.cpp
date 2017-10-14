@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
-                      "select protocol from %s, choices=%s for server %s", 
-                      p, apr_array_pstrcat(pool, choices, ','),
-                      s->server_hostname);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_output(%s): empty write", output->task->id);

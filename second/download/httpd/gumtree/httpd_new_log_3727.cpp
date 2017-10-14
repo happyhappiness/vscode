@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00617)
-                      "The DAV:merge element must contain a DAV:source "
-                      "element.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01337)
+                      "Could not parse expr \"%s\" in %s: %s", expr,
+                      ctx->r->filename, err);

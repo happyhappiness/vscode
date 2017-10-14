@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01827)
-                "the key type is not known");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                              "SNI extension for SSL Proxy request set to '%s'",
+                              hostname_note);

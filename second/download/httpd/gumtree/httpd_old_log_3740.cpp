@@ -1,1 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server, "mod_dumpio: %s", f->frec->name);
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "missing argument for fsize element in %s",
+                      r->filename);

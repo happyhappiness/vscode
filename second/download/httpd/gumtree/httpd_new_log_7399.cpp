@@ -1,1 +1,0 @@
-fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");

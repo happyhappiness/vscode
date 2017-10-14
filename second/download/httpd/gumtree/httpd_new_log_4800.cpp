@@ -1,6 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01908)
-                             "%sID '%s' in %s certificate configured "
-                             "for %s matches server name",
-                             is_wildcard ? "Wildcard " : "",
-                             id[i], ssl_asn1_keystr(type),
-                             (mySrvConfig(s))->vhost_id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                      "Skipping OCSP check for valid self-issued cert");

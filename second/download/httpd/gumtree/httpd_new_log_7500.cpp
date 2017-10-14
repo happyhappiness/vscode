@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
-                      "%s: Unlock failed for post_request", balancer->s->name);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02407)
+                         "\"SSLOpenSSLConfCmd %s %s\" failed for %s",
+                         param->name, param->value, sc->vhost_id);

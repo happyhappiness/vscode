@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                         "cache: updating headers with store_headers failed. "
-                         "Removing cached url.");
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, "Heartbeat: apr_socket_sendto failed");

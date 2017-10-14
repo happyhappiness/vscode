@@ -1,1 +1,2 @@
-ap_rvputs(r, "<input type=hidden name='b' id='b' ", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "control connection complete");

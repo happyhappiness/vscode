@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server, "%s", description);
+ap_rputs(" -D BUFFERED_LOGS\n", r);

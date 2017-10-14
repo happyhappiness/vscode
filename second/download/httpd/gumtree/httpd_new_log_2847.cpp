@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
-                                 "cgid daemon failed to initialize");
+fprintf(stderr, "Finished %d requests\n", done);

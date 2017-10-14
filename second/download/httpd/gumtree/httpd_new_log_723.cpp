@@ -1,1 +1,1 @@
-ap_rputs(" -D BIG_SECURITY_HOLE\n", r);
+ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);

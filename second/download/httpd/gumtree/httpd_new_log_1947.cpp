@@ -1,1 +1,0 @@
-APR_REGISTER_OPTIONAL_FN(ap_logio_get_last_bytes);

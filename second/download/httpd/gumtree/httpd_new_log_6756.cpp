@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,  APLOGNO(03056)
-                          "h2_mplx(%ld): 3. release_join with %d tasks",
-                          m->id, (int)h2_ihash_count(m->tasks));
+ap_log_cerror(APLOG_MARK, APLOG_ERR, status, master, 
+                      APLOGNO(10004) "h2_session(%ld-%d): create slave pool",
+                      master->id, slave_id);

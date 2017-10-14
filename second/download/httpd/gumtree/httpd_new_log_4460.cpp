@@ -1,1 +1,3 @@
-ap_rvputs(r, "<tr>\n<td>", (*worker)->s->scheme, "</td>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01099)
+                                       "No HTTP headers returned by %s (%s)",
+                                       r->uri, r->method);

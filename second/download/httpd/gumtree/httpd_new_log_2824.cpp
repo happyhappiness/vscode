@@ -1,5 +1,2 @@
-fprintf(stderr,
-            "Usage: %s [-l] <logfile> "
-            "{<rotation time in seconds>|<rotation size in megabytes>} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
+printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
+                           ap_round_ms(stats[done - 1].time));

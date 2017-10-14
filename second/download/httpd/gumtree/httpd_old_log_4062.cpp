@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
-                "log writer isn't correctly setup");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      MODNAME ": invalid file type %d.", r->finfo.filetype);

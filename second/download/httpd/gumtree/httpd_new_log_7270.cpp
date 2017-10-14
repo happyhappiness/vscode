@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02311)
-                     "Fatal error initialising mod_ssl, exiting. "
-                     "See %s for more information",
-                     ap_server_root_relative(s->process->pool,
-                                             s->error_fname));
+ap_log_rerror(
+            APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698) "cache: Key for entity %s?%s is %s", uri, parsed_uri->query, *key);

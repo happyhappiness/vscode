@@ -1,1 +1,1 @@
-printf("\nMatch succeeded again at offset %d\n", ovector[0]);
+fprintf(stderr, "ab: Could not allocate POST data buffer\n");

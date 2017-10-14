@@ -1,4 +1,3 @@
-ap_rputs("<a href=\"?config\">Configuration Files</a>, "
-                     "<a href=\"?server\">Server Settings</a>, "
-                     "<a href=\"?list\">Module List</a>,  "
-                     "<a href=\"?hooks\">Active Hooks</a>", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
+                         "mod_rewrite: could not start RewriteMap "
+                         "program %s", map->checkfile);

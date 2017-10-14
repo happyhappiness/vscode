@@ -1,1 +1,1 @@
-ap_rputs("Disabled", r);
+apr_file_printf(errfile, "%s" NL, ctx.errstr);

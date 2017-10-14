@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, session->c,
-                          H2_STRM_MSG(stream, "recv DATA, len=%d: -->%s<--"), 
-                          (int)len, load);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02319)
+                      "Unable to find function %s in %s",
+                      prov_spec->function_name, prov_spec->file_name);

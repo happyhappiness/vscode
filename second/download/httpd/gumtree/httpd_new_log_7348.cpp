@@ -1,1 +1,1 @@
-ap_rputs("</httpd:flushpackets>\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);

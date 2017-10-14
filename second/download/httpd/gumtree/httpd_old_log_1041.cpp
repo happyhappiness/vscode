@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
-                 "worker_thread %ld exiting", find_thread(NULL));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, 
+                         "Parent: child process exited with status %u -- Aborting.", exitcode);

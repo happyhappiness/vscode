@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -S                : a synonym for -t -D DUMP_VHOSTS");
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, ap_server_conf,
+                             "apr_poll: (listen)");

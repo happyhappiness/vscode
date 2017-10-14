@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                    MODNAME ": couldn't spawn uncompress process: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: data to read (max %" APR_SIZE_T_FMT
+                     " at %" APR_SIZE_T_FMT ")", bufsiz, msg->pos);

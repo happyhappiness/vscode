@@ -1,1 +1,1 @@
-shown = level;
+ap_rputs("enabled)\n", r);

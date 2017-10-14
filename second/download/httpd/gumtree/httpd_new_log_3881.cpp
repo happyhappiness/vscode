@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01218)
-                     "apr_pollset_add(); check system or user limits");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590) "Error reading chunk %s ",
+                                  (ctx->remaining < 0) ? "(overflow)" : "");

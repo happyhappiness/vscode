@@ -1,5 +1,2 @@
-ap_rvputs(r, "<tr>\n<td><a href='", r->uri, "?b=",
-                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
-                          ap_escape_uri(r->pool, worker->s->name),
-                          "&nonce=", balancer->s->nonce,
-                          "'>", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01068)
+                              "Got bogus version %d", (int) header.version);

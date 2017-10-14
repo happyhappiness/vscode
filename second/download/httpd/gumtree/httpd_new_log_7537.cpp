@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Empty hash for user %s" NL,
-                                        user);
+fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT" bytes)\n", size);

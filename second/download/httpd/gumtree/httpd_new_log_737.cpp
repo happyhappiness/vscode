@@ -1,1 +1,1 @@
-ap_rputs(" -D APR_USE_SYSVSEM_SERIALIZE\n", r);
+ap_rputs("</dl>\n<hr />\n", r);

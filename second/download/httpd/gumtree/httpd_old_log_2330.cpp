@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                     "Child %lu: Terminating %d threads that failed to exit.",
-                     my_pid, threads_created);
+fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);

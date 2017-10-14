@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rs, s, APLOGNO(02994)
-                     "Failed to reopen mutex %s in child",
-                     exipc_mutex_type);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                  "h2_stream(%ld-%d): reset, error=%d", 
+                  stream->session->id, stream->id, error_code);

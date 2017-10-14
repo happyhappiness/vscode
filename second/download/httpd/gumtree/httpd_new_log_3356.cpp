@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, APLOGNO(01631)
-                          "user %s: authorization failure for \"%s\": ",
-                          r->user, r->uri);
+apr_file_printf(out, "User: name=\"%s\" id=%lu%s\n",
+                    ap_unixd_config.user_name, (unsigned long)uid, no_root);

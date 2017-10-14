@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool,
-                              "Loading lua file %s: %s",
-                              spec->file, err);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
+                          MODNAME ": could not execute `%s'.",
+                          compr[parm->method].argv[0]);

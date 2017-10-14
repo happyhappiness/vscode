@@ -1,1 +1,1 @@
-apr_err("bind", rv);
+fprintf(stderr, "Removing the '%s' service\n", mpm_display_name);

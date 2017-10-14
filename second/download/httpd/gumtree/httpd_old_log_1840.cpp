@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
+ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);

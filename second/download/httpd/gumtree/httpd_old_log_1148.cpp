@@ -1,1 +1,1 @@
-(*code == OP_MINUPTO;
+printf("{%d,}", min);

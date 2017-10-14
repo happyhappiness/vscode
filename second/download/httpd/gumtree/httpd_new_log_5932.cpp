@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
-                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
-                      io->connection->id, (long)bblen);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02984)
+                          "WriteClient ap_pass_brigade failed: %s",
+                          r->filename);

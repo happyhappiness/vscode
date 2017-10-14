@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03463)
-                              "proxying is explicitly disabled for URI path "
-                              "'%s'; declining", r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  H2_STRM_MSG(stream, "prepared len=%ld, eos=%d"), 
+                  (long)len, eos);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02417)
-                          "Replacing host header '%s' with host '%s' given "
-                          "in the request uri", host_header, repl);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                  H2_STRM_MSG(stream, "reset, error=%d"), error_code);

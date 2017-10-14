@@ -1,1 +1,2 @@
-printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);

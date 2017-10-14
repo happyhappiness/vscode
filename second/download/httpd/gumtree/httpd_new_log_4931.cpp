@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02204)
-                                 "Init: Pass phrase incorrect for key of %s",
-                                 cpVHostID);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");

@@ -1,4 +1,3 @@
-ap_register_output_filter("CACHE_OUT", 
-                              cache_out_filter, 
-                              NULL,
-                              AP_FTYPE_CONTENT_SET-1);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by %s cache", cache->provider_name);

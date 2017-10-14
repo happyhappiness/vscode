@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02261)
+                              "Re-negotiation handshake failed: "
+                              "Not accepted by client!?");

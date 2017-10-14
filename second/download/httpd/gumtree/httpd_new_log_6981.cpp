@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03519)
-                      "h2_proxy_session(%s): terminated, %d streams unfinished",
-                      session->id, (int)h2_proxy_ihash_count(session->streams));
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                                         "Checking %s worker: %s  [%d] (%pp)", balancer->s->name,
+                                         worker->s->name, worker->s->method, worker);

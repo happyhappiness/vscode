@@ -1,1 +1,0 @@
-fprintf(stderr, "Error writing to the file %s\n", buf2);

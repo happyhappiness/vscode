@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                                     "Child %d: Encountered too many accept() "
-                                     "resource faults, aborting.",
-                                     my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
+                     "Failed to open the %s Service", mpm_display_name);

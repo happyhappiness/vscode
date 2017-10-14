@@ -1,2 +1,1 @@
-ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                          "h2_session: send: %s", nghttp2_strerror(rv));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_h2, child_init");

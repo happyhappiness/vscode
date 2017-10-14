@@ -1,1 +1,2 @@
-decl_die(access_status, "check user", r);
+apr_file_printf(output, "    - No reverse : %d" NL,
+                        noreverse);

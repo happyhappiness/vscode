@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01951)
-                 "stapling_cb: OCSP Stapling callback called");
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, APLOGNO(00015) "Unable to open logs");

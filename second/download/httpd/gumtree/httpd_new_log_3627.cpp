@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(00855)
-                             "shmcb entry iterated");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00613)
+                      "A \"label-name\" element does not contain "
+                      "a label name.");

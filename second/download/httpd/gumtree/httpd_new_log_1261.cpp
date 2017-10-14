@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: Can't connect to %s", svr->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Custom error page caused AP_FILTER_ERROR");

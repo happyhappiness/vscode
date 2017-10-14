@@ -1,3 +1,2 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %ld %s %s",
-                         e, err, annotation);
+fprintf(stderr, "%s: Include directory '%s' not found",
+                        ap_server_argv0, path);

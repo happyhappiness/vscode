@@ -1,3 +1,1 @@
-apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
+ap_rvputs(r, worker->s->name, "</a></td>", NULL);

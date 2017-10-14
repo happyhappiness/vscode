@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01603)
-                                 "Cannot get media parameter.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00682)
+                      "Syntax error in type map --- no header body: %s for %s",
+                      r->filename, header);

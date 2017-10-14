@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
-                     "Digest: error generating secret: %s",
-                     apr_strerror(status, buf, sizeof(buf)));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);

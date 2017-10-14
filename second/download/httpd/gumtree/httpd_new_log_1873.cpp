@@ -1,1 +1,3 @@
-ap_rvputs(r, "<td", (d->style_sheet != NULL) ? " class=\"indexcolicon\">" : " valign=\"top\">", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "[%" APR_PID_T_FMT "] util_ldap: no cached SGL for %s,"
+                      " retrieving from LDAP" , getpid(), dn);

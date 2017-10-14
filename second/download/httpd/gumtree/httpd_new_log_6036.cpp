@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol propose: connection requirements not met");
+ap_log_cerror(APLOG_MARK, GCSLOG_LEVEL, 0, session->c,
+                              "push_diary_update: adding PUSH %s", push->req->path);

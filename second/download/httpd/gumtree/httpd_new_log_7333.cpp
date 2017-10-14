@@ -1,2 +1,1 @@
-ap_rvputs(r, "      <httpd:lbmethod>", balancer->lbmethod->name,
-                      "</httpd:lbmethod>\n", NULL);
+apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx.errstr);

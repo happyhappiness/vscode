@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00746) "distributed scache 'remove' HIT");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                 "%sWatchdog (%s) stopping",
+                 w->singleton ? "Singleton" : "", w->name);

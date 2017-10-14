@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00500)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00183)
+                         "MaxRequestWorkers of %d not allowed, increasing to 1",
+                         ap_daemons_limit);

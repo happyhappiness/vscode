@@ -1,1 +1,1 @@
-ap_rputs("</tr>\n", r);
+apr_brigade_create(stream->pool, c->bucket_alloc);

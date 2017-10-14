@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                          H2_SSSN_LOG(APLOGNO(03401), session, 
-                          "conn error -> shutdown"));
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, APR_SUCCESS, s, APLOGNO(01624)
+                     "%s directive contains only negative authorization directives",
+                     is_conf ? "<Directory>, <Location>, or similar"
+                             : format_authz_command(p, section));

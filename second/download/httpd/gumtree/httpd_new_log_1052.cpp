@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, "%s", msg);
+printf("%s\n", status);

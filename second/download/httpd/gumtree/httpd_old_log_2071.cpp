@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-              "proxy: worker %s already initialized",
-              worker->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "Unable to reconfigure verify locations "
+                          "for client authentication");

@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                              "ServerSupport function "
-                              "HSE_REQ_SEND_RESPONSE_HEADER "
-                              "ap_pass_brigade failed: %s", r->filename);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                              "h2_session: send: %s", nghttp2_strerror(rv));

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00818)
-                         "Could not use default path '%s' for shmcb socache",
-                         ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_CRIT, status, ap_server_conf, APLOGNO(00576)
+            "The DBM driver could not be loaded");

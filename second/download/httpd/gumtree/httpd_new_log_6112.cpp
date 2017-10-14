@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03193)
-                      "brigade: [%d] %s", i, e->type->name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
+                      stream->session->id, stream->id, input_closed(stream),
+                      stream->request->eoh);

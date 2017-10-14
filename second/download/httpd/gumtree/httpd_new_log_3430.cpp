@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r, APLOGNO(02150)
-                          "Error setting permitted privileges");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(00766)
+                        "cache: Cache provider's store_body returned an "
+                        "empty brigade, but didn't consume all of the"
+                        "input brigade, standing down to prevent a spin");

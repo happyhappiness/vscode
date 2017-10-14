@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02830)
-                        "ajp_marshal_into_msgb: "
-                        "Error appending attribute %s=%s",
-                        key, envvar);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
+                              "h2_mplx(%ld-%d): close with trailers=%s", 
+                              m->id, io->id, trailers? "yes" : "no");

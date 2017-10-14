@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
-                     "Failed to open the NT Service Manager");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "client used wrong authentication scheme: %s", r->uri);

@@ -1,1 +1,3 @@
-fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
+printf("Processing: " CONF_FMT_STRING, mintot - mincon,
+                                                   meantot - meancon,
+                                                   maxtot - maxcon);

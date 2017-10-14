@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "inserting session larger (%d) than subcache data area (%d)",
-                     data_len, header->subcache_data_size);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                              "auth_ldap authorize: require group: "
+                              "authorization successful (attribute %s) "
+                              "[%s][%d - %s]",
+                              ent[i].name, ldc->reason, result,
+                              ldap_err2string(result));

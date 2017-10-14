@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_slave_in(%s): read returned", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01374)
+                      "mod_include: Options +Includes (or IncludesNoExec) "
+                      "wasn't set, INCLUDES filter removed");

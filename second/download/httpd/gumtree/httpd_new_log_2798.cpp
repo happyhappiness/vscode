@@ -1,0 +1,1 @@
+printf("Keep-Alive requests:    %d\n", doneka);

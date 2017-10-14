@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to write to stdout\n");
+apr_bucket_delete(e);

@@ -1,2 +1,2 @@
-count = apr_vformatter(file_printf_flush,
-                           (apr_vformatter_buff_t *)&data, format, ap);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "could not read bucket for SSL buffer");

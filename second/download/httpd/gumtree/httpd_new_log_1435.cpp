@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-w] [-k start|restart|stop|shutdown]", pad_len, " ");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %lu: WAIT_FAILED -- shutting down server", my_pid);

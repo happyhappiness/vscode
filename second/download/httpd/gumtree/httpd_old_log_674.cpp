@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "missing directive "
-                          "name in parsed document %s", ctx->r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
+                         "Couldn't change owner of unix domain socket %s",
+                         sconf->sockname);

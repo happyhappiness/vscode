@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p,
-                              "Failed to enable APR_TCP_DEFER_ACCEPT");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -k uninstall       : uninstall an Apache service");

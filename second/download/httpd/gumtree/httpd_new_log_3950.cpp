@@ -1,5 +1,4 @@
-ap_rputs(DOCTYPE_HTML_3_2
-                 "<html><head>\n"
-                 "<title>Apache Status</title>\n"
-                 "</head><body>\n"
-                 "<h1>Apache Server Status for ", r);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01320)
+                     "LDAP: SSL support unavailable%s%s",
+                     result_err ? ": " : "",
+                     result_err ? result_err->reason : "");

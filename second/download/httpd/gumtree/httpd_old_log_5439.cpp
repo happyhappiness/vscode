@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                        "%s: OpenService failed", mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "request failed: URI too long (longer than %d)", r->server->limit_req_line);

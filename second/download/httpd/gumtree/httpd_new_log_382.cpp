@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);
+ap_add_output_filter("UPGRADE_FILTER", NULL, r, r->connection);

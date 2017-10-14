@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(00094)
-                 "Command line: '%s'", result);
+ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s, APLOGNO(00204)
+                     "failure creating accept mutex, shutting down");

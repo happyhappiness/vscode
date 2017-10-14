@@ -1,1 +1,1 @@
-apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
+ap_rputs("<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">SSL/TLS Session Cache Status:</font></b>\r", r);

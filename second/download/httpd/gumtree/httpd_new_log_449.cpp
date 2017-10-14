@@ -1,1 +1,2 @@
-ap_rputs("</table>\n</p>\n", r);
+printf("Connect:    " CONF_FMT_STRING, 
+                mincon, meancon, maxcon);

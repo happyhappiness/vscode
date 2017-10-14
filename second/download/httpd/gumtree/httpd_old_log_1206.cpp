@@ -1,1 +1,1 @@
-fprintf(stderr, "    -s              Use httpS instead of HTTP (SSL)\n");
+apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);

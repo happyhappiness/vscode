@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%ld): start release_join with %d streams to purge", 
-                          m->id, (int)h2_ihash_count(m->spurge));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
+                      "Response header '%s' value of '%s' contains invalid "
+                      "characters, aborting request",
+                      name, val);

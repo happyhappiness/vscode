@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Adding password for %s in realm %s.\n", 
-                    argv[4], argv[3]);
+apr_file_printf(errfile, "%s: could not determine temp dir\n",
+                        argv[0]);

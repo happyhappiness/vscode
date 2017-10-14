@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01048)
-                                  "PASV attempt to connect to %pI failed - Firewall/NAT?", pasv_addr);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00942)
+                 "%s: has acquired connection for (%s)",
+                 proxy_function, worker->s->hostname);

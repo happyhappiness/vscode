@@ -1,1 +1,3 @@
-fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                     "LDAPSharedCacheSize is too small. Increase it or "
+                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");

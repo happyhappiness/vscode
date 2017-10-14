@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01607)
-                                     "Cannot get media parameter.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00686)
+                    "cannot read directory for multi: %s", neg->dir_name);

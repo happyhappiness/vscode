@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Request header field name was empty");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "successful", getpid());

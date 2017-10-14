@@ -1,4 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
-                                      APLOGNO(02950) 
-                                      "h2_session(%ld): error reading, terminating",
-                                      session->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03237)
+                         "stapling_cb: don't need to refresh cached response "
+                         "after obtaining refresh mutex");

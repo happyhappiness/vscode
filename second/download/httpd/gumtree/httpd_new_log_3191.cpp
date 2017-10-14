@@ -1,2 +1,2 @@
-use that with ap_log_rerror()
- * in preference to calling this function. This function is mainly useful;
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01691)
+                  "auth_ldap authenticate: using URL %s", sec->url);

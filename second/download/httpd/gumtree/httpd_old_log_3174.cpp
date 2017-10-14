@@ -1,0 +1,1 @@
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, "%s", errmsg);

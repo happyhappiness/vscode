@@ -1,2 +1,2 @@
-ap_log_perror(file, line, APLOG_ERR, rv, dynlockpool, 
-                       "Failed to create subpool for dynamic lock");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  %s: %s", "Server",
+                          server);

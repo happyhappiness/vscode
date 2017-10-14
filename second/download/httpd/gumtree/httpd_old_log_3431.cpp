@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                      "Error setting limit privileges");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "CACHE_OUT enabled unexpectedly");

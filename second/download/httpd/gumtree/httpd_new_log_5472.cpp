@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf, APLOGNO(00284)
-                         "processor unbind failed");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL, APLOGNO(00555) "Read config: '%s'", buf);

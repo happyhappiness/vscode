@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-            "mod_file_cache: %s is too large to cache, skipping", fspec);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
+                     "Heartmonitor: Unable to move file: %s -> %s", path,
+                     ctx->storage_path);

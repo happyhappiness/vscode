@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf,
-                         "set_listeners_noninheritable: SetHandleInformation failed.");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of", server_limit);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL session");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: BALANCER: Found value %s for "
+                     "stickysession %s", *route, balancer->sticky_path);

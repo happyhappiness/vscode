@@ -1,1 +1,1 @@
-printf("Server version: %s\n", ap_get_server_description());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "A prepared statement could not be found for AuthDBDUserPWQuery, key '%s'.", conf->user);

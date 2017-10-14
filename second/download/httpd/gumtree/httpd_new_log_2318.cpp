@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, ap_server_conf,
-                     "Child %d: Failed to acquire the start_mutex. "
-                     "Process will exit.", my_pid);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     "Failed to open the WinNT service manager, perhaps "
+                     "you forgot to log in as Adminstrator?");

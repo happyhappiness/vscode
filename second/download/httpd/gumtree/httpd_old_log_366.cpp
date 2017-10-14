@@ -1,1 +1,0 @@
-fprintf(stderr, "The -c flag creates a new file.\n");

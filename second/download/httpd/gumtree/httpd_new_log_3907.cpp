@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                             main_server, APLOGNO(01250)
-                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, APLOGNO(01278)
+                "LDAP: Setting referrals to %s.",
+                ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));

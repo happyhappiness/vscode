@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "fix_cgivars: Condition returned %d", rc);
+ap_rputs("On", r);

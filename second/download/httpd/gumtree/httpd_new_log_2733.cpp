@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                 "DBD [%s] Error: %s", svr->cfg->name, errmsg);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "Unescaped URL path matched ProxyPass; ignoring unsafe nocanon");

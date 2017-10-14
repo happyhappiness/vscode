@@ -1,1 +1,2 @@
-ap_log_error(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0, cmd->server, msg);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                    MODNAME ": BOINK");

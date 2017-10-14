@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_server, APLOGNO(01254)
-                        "The length of the ScriptSock path exceeds maximum, "
-                        "truncating to %s", tmp_sockname);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01282)
+                             "LDAP: Could not set the connection timeout");

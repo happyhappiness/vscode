@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MinSpareServers of %d not allowed, increasing to 1",
-                         ap_daemons_min_free);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Child process is running", my_pid);

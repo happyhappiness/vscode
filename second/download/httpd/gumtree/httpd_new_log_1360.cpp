@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                      "Symbolic link not allowed "
-                                      "or link target not accessible: %s",
-                                      r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "Cache already locked for stale cached URL, "
+                     "pretend it is fresh: %s",
+                     r->unparsed_uri);

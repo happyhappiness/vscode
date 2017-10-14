@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01846)
-                    "The crypto library '%s' could not be found",
-                    conf->library);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c, APLOGNO(02019)
+                          "could not partition buffered SSL brigade");

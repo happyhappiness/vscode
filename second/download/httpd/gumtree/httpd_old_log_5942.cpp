@@ -1,1 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "h2_h2, process_conn");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02383)
+                "body too big for the cache buffer, not caching: %s",
+                h->cache_obj->key);

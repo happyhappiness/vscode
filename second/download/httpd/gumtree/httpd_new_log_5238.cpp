@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00191)
-                     "accept mutex couldn't be accessed in child, exiting");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00384)
+                     "Child: Unable to retrieve the ready event from the parent");

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             ap_server_conf, APLOGNO(00288)
-                             "scoreboard is full, not at MaxRequestWorkers");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00008) LOG_PREFIX
+                  "user '%s' set cookie2: '%s'", r->user, rfc2965);

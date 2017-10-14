@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABORT)");
+fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);

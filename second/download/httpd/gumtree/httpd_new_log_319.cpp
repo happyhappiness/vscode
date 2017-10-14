@@ -1,2 +1,2 @@
-printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...", 
-                    worker_thread_count);
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                         "Child %d: Failed to create a qwait event.", my_pid);

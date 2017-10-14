@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
-                            r, APLOGNO(00753) "Restoring request headers for %s",
-                            r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00837)
+                 "socache_shmcb_remove (0x%02x -> subcache %d)",
+                 SHMCB_MASK_DBG(header, id));

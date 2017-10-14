@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
-                "log writer isn't correctly setup");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             r->server, "proxy: bad HTTP/%d.%d status line "
+                             "returned by %s (%s)", major, minor, r->uri,
+                             r->method);

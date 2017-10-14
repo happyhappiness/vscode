@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02837)
-                      "ALPN client protocol list empty");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
+                  "h2_stream(%ld-%d): suspended=%d",
+                  stream->session->id, stream->id, stream->suspended);

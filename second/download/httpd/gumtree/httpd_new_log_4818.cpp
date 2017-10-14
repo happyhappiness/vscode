@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(02292)
-                     "Init: Name-based SSL virtual hosts only "
-                     "work for clients with TLS server name indication "
-                     "support (RFC 4366)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02249)
+                             "unencrypted %s private key - pass phrase not "
+                             "required", an);

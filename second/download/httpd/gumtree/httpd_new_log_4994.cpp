@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01933)
-                 "stapling_get_cached_response: cache hit");
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, APR_EBADPATH,
+                     NULL, APLOGNO(00097) "Invalid PID file path %s, ignoring.", filename);

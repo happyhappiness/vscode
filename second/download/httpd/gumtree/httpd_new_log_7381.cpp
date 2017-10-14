@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
-                         "Unable to load SRP verifier file [error %d]", err);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
+                              "Failed to read FastCGI header");

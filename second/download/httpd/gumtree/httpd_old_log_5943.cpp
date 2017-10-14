@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c,
-                          "h2_h2, error reading 24 bytes speculative");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
+                         "%s on line %d of %s: %s",
+                         what, cfg->line_number, cfg->name, ptr);

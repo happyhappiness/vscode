@@ -1,2 +1,3 @@
-ap_register_output_filter(logio_filter_name, logio_out_filter, NULL,
-                              AP_FTYPE_NETWORK - 1);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: Entering bytraffic for BALANCER (%s)",
+                 balancer->name);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d would require %d "
-                         "servers and ", max_clients, ap_daemons_limit);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, rv, ap_server_conf,
+                                     "winnt_mpm: falling back to "
+                                     "'AcceptFilter none'.");

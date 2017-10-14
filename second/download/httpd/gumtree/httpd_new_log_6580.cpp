@@ -1,4 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): async idle, nonblock read, "
-                                      "%d streams open", session->id, 
-                                      session->open_streams);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                      "%s, early announcing %d resources for push",
+                      tag, conf->push_list->nelts);

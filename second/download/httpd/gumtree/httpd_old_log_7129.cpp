@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, status, workers->s,
-                     "h2_workers: register mplx(%ld), idle=%d", 
-                     m->id, workers->idle_workers);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00967)
+               "ajp_marshal_into_msgb - No such method %s",
+               r->method);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
-                     "mod_rewrite: could not init map cache in child");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_send_header: ajp_msg_create failed");

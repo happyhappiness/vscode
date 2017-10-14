@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: HTTP: declining URL %s", url);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                "generic symmetrical encryption is not supported by this "
+                "version of APR. session encryption not possible");

@@ -1,1 +1,1 @@
-ap_rvputs(r, "<a href=\"", href, "\">", text, "</a>", NULL);
+ap_rvputs(r, "<tr>\n<td>", (*worker)->scheme, "</td>", NULL);

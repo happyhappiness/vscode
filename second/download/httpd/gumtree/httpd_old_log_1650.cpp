@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: %s: backend socket is disconnected.",
-                         proxy_function);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                     cmd->server, "Digest: WARNING: nonce-count checking "
+                     "is not supported on platforms without shared-memory "
+                     "support - disabling check");

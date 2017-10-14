@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
-                      "make_sock: for address %pI, apr_socket_opt_set: (SO_KEEPALIVE)",
-                      server->bind_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         threads_per_child);

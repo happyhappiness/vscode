@@ -1,1 +1,0 @@
-fprintf(stderr, "Error opening database %s\n", argv[i]);

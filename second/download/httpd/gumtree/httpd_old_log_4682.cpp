@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                         "proxy: %s: error creating fam %d socket for target %s",
-                         proxy_function,
-                         backend_addr->family,
-                         worker->hostname);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                             "%s server certificate wildcard CommonName "
+                             "(CN) `%s' does NOT match server name!?",
+                             ssl_asn1_keystr(type), cn);

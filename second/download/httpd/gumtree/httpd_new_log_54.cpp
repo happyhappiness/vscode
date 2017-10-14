@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -b[cmdps] passwordfile username "
-                    "password\n\n");
+apr_file_printf(errfile,"Warning: storing passwords as plain text "
+                        "might just not work on this platform.\n");

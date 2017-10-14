@@ -1,2 +1,3 @@
-fprintf(stderr, "The '%s' service has been removed successfully.\n",
-                    mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
+                     (startup ? NULL : s),
+                     "could not duplicate listeners");

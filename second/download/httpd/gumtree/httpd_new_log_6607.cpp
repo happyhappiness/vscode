@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
-                  c->id, stream->id, (long)*plen, *peos);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03487) 
+                              "h2_proxy_session(%s): got interim HEADERS, "
+                              "status=%d, will forward=%d",
+                              session->id, r->status, forward);

@@ -1,1 +1,2 @@
-fprintf(stderr, "Closing file %s (%s)\n", finfo.name, finfo.fname);
+fprintf(stderr,"Failed to %s the %s service.\n",
+               signal ? "restart" : "stop", mpm_display_name);

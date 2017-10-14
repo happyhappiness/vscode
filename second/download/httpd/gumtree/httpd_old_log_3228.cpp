@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "Digest: "
-                              "applying AuthDigestEnableQueryStringHack "
-                              "to uri <%s>", resp->raw_request_uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: "
+                          "require dn \"%s\": LDAP error [%s][%s]",
+                          t, ldc->reason, ldap_err2string(result));

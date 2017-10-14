@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: cannot open file %s for "
-                                "read/write access" NL, argv[0], pwfilename);
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );

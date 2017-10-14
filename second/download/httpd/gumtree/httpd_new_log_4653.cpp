@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "*: found reverse proxy worker for %s", *url);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01888)
+                         "Init: Failed to load Crypto Device API `%s'",
+                         mc->szCryptoDevice);

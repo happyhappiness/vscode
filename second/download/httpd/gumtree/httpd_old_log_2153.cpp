@@ -1,3 +1,3 @@
-ap_log_error(file, line, level, 0, s,
-                         "SSL Library Error: %lu %s %s",
-                         e, err, annotation);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");

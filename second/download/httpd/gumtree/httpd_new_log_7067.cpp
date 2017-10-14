@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c, 
-                  H2_SSSN_MSG(session, "pre_close"));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, APLOGNO(01474) "got a vm!");

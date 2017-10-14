@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv2, s, APLOGNO(00635)
-                          "Failed to create thread mutex");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01400)
+                                  "Zlib: Length of inflated stream invalid");

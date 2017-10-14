@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, main_s,
-                         "VirtualHost %s:%u -- mixing * "
-                         "ports and non-* ports with "
-                         "a NameVirtualHost address is not supported,"
-                         " proceeding with undefined results",
-                         sar->virthost, sar->host_port);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00369)
+                     "Failed to open the WinNT service manager, perhaps "
+                     "you forgot to log in as Adminstrator?");

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction "
-                          "HSE_REQ_GET_IMPERSONATION_TOKEN "
-                          "is not supported: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00815)
+                     "Cannot open socache DBM file `%s' for "
+                     "iterating", ctx->data_file);

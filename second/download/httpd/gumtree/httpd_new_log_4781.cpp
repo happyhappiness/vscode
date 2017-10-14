@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(01897)
-                         "Init: Oops, you want to request client "
-                         "authentication, but no CAs are known for "
-                         "verification!?  [Hint: SSLCACertificate*]");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02289)
+                      "TLS session ticket key for %s successfully set, "
+                      "creating new session ticket", sc->vhost_id);

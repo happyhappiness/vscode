@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01050)
-                          "error setting reuseaddr option");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00925)
+                     "initializing worker %s shared", worker->s->name);

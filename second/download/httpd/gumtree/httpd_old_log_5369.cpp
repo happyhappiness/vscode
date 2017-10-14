@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Parent: Unable to duplicate the scoreboard handle to the child");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%" APR_PID_T_FMT ")",
+                             pidfile, getpid());

@@ -1,1 +1,0 @@
-h2_stream_set_request(stream, push->req);

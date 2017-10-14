@@ -1,4 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
+fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");

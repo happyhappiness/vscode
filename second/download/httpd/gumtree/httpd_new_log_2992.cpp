@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "possible match at idx=%d, data=%d", pos, idx->data_pos);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authorize: require dn: user's DN has not "
+                      "been defined; failing authorization");

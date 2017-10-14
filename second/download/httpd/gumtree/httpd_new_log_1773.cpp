@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                        "No group file was specified in the configuration");
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
+                 "disk_cache: Cannot read header file %s",  dobj->hdrsfile);

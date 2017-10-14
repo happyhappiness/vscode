@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "Response from AP_FILTER_ERROR");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                     "mem_cache: Discarding body for URL %s "
+                     "because client connection was aborted.",
+                     obj->key);

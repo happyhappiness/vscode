@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, server, APLOGNO(00951)
-                         "%s: backend socket is disconnected.", scheme);
+ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,  
+                      H2_STRM_LOG(APLOGNO(02936), stream, "resumed"));

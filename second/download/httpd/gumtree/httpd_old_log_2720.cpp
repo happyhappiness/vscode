@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, pool,
-                      "DBD: Failed to release thread mutex");
+ap_rvputs(r, r->uri, "\">\n<dl>", NULL);

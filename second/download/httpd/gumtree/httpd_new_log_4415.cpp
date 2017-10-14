@@ -1,1 +1,2 @@
-ap_rputs("<form method='POST' enctype='application/x-www-form-urlencoded' action='", r);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                              "EPSV contacting remote host on port %d", data_port);

@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                          "SSL library error %d in handshake "
-                          "(server %s)", ssl_err,
-                          ssl_util_vhostid(c->pool, server));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
+                      "Certificate Verification: Verifiable Issuer is "
+                      "configured as optional, therefore we're accepting "
+                      "the certificate");

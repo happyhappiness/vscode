@@ -1,4 +1,3 @@
-ap_rvputs(r, DOCTYPE_HTML_3_2,
-                  "<html>\n <head>\n"
-                  "  <title>Index of ", title,
-                  "</title>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "ppr: matching member (%s) and URL (%s)",
+                         u, url);

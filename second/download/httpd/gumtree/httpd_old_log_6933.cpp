@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->c, APLOGNO(03387)
-                      "h2_conn_io(%ld): FILE_to_scratch(%ld)", 
-                      io->c->id, (long)len);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      "h2_stream(%ld-%d): found %d push candidates",
+                      stream->session->id, stream->id, pushes->nelts);

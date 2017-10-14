@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p, APLOGNO(02641)
+                              "unable to control socket non-blocking status");

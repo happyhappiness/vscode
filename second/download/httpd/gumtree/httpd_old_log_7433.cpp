@@ -1,1 +1,0 @@
-fprintf(stderr, "Password verification error\n");

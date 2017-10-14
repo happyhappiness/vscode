@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "access to %s failed (filesystem path '%s')", 
-                              r->uri, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);

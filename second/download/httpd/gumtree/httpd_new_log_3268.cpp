@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01675)
-                      "failed to create %s mutex", authn_cache_id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01648)
+                          "authz_dbd/redirect for %s of %s [%s]",
+                          action, r->user, message?message:noerror);

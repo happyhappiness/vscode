@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv,
-                                          c, "core_output_filter:"
-                                          " Error reading from bucket.");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -c \"directive\"    : process directive after reading "
+                 "config files");

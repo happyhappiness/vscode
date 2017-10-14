@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(02012)
-                              "unexpected bucket type during coalesce");
+ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_TRACE1, 0, p,
+                  "Creating dynamic lock");

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
-                            "invalid transfer log path %s.", name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    MODNAME ": line=%d desc=%s", m->lineno, m->desc);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "finished force-expire, subcache: idx_used=%d, "
-                     "data_used=%d", subcache->idx_used, subcache->data_used);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "The request body does not contain "
+                      "an \"update\" element.");

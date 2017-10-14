@@ -1,1 +1,1 @@
-ap_rputs(" -D HAVE_SHMGET\n", r);
+ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);

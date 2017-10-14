@@ -1,1 +1,2 @@
-fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
+printf("                        %.2f kb/s sent\n",
+               (double) totalposted / timetaken / 1024);

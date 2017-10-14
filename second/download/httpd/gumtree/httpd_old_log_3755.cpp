@@ -1,5 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                     "xlate_in_filter() - "
-                     "charset_source: %s charset_default: %s",
-                     dc && dc->charset_source ? dc->charset_source : "(none)",
-                     dc && dc->charset_default ? dc->charset_default : "(none)");
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, "printenv directive does not take tags in %s",
+                      r->filename);

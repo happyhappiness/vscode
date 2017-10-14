@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, level, 0, r, APLOGNO(03216)
-                              "%d:  None", i);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "h2_conn_io: pass_output");

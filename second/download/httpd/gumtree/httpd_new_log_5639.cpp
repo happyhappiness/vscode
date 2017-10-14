@@ -1,1 +1,1 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1178079 $");
+fprintf(stderr, "Starting the '%s' service\n", mpm_display_name);

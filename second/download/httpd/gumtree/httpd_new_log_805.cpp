@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Running scheme %s handler (attempt %d)",
-                     scheme, attempts);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+          "proxy: all workers are busy.  Unable to serve %s",
+          *url);

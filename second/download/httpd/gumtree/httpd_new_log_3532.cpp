@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00769)
-            "cache: Caching url: %s", r->unparsed_uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00856)
+                             "shmcb_subcache_iterate discarding expired entry");

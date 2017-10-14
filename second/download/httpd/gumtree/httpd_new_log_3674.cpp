@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(01573)
-                                 "Watchdog: Failed to create worker thread.");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01394)
+                                      "Zlib: CRC error inflating data");

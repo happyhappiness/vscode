@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  "h2_session(%ld): on_frame_send", session->id);
+ap_log_perror(APLOG_MARK, APLOG_TRACE3, 0, task->pool,
+                  "h2_conn(%ld): created from master", master->id);

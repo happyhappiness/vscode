@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "%s", errmsg);
+ap_log_error(APLOG_MARK, APLOG_CRIT, result, s, 
+                         "LDAP cache: failed to set mutex permissions");

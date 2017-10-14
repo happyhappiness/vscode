@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "streamline session data size too large: %d > %d",
-                 nData, sizeof(ucaData));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Limiting internal redirects to very low numbers may "
+                     "cause normal requests to fail.");

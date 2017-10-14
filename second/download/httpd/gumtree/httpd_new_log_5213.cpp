@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00517)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
+ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(),
+                             ap_server_conf, APLOGNO(00342)
+                             "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");

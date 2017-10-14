@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                  "h2_task_input(%s): no data", input->task->id);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(03138)
+                                 "ap_queue_push failed");

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, status, f->c,
-                              "SSL filter error shutting down I/O");
+ap_log_perror(file, line, APLOG_DEBUG, rv, l->pool, 
+                      "Mutex %s:%d released!", l->file, l->line);

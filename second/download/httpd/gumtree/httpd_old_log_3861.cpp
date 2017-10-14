@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r,
-                              "rl: full speed brigade pass failed.");
+ap_rputs("\"<b><code>G</code></b>\" Gracefully finishing,<br /> \n", r);

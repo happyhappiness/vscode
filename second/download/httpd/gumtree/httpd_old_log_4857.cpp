@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "Unable to reconfigure (per-directory) "
-                          "permitted SSL ciphers");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "OCSP response header: %s", line);

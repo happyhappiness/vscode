@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02642)
-                      "proxy: connection shutdown");
+ap_register_output_filter(logio_ttfb_filter_name, logio_ttfb_filter, NULL,
+                              AP_FTYPE_RESOURCE);

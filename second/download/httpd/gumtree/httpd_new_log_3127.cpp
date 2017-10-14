@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "  %s: %s",
-                          ap_escape_logitem(r->pool, t_elt->key),
-                          ap_escape_logitem(r->pool, t_elt->val));
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0,r, APLOGNO(01778)
+                          "user %s: nonce expired (%.2f seconds old "
+                          "- max lifetime %.2f) - sending new nonce",
+                          r->user, (double)apr_time_sec(dt),
+                          (double)apr_time_sec(conf->nonce_lifetime));

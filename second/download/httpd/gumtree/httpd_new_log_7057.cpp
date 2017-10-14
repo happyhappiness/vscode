@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c,
-                                      H2_SSSN_LOG(APLOGNO(03403), session, 
-                                      "no data, error"));
+ap_rputs("<h2><a name=\"providers\">Providers</a></h2>\n<dl>", r);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->s->name, name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00964)
+                          "Unhandled bucket type of type %s in"
+                          " proxy_buckets_lifetime_transform", e->type->name);

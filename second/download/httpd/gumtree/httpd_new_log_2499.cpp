@@ -1,0 +1,1 @@
+err("Cannot mix PUT with other methods\n");

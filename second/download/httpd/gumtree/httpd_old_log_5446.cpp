@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL,
-                     "Failed to open the %s Service", mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "ap_content_length_filter: "
+                              "apr_bucket_read() failed");

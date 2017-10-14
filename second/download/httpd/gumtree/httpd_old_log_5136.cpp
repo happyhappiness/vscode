@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(SIGTERM)");
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s,
+            "no listening sockets available, shutting down");

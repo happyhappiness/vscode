@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, stream->r, APLOGNO(03359)
-                  "h2_proxy_session(%s): stream=%d, response DATA %ld, %ld"
-                  " total", session->id, stream_id, (long)len,
-                  (long)stream->data_received);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                      H2_SSSN_MSG(session, "fed %ld bytes to nghttp2, %ld read"),
+                      (long)len, (long)n);

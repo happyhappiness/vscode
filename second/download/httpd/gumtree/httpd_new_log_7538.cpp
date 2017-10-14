@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "%s" NL, ctx.errstr);
+fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT" bytes)\n", size*num);

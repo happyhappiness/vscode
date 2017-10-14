@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
-                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
-                      io->connection->id, (long)bblen);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, task->c,
+                      APLOGNO(02957) "h2_task(%s): error setting up h2_task", 
+                      task->id);

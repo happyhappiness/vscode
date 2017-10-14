@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00942)
-                 "%s: has acquired connection for (%s)",
-                 proxy_function, worker->s->hostname);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02234)
+                "Unable to configure %s server certificate", type);

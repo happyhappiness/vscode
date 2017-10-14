@@ -1,0 +1,1 @@
+decl_die(access_status, "check authorization", r);

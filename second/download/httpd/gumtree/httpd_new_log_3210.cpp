@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01766)
-                     "gc'd %ld client entries. Total new clients: "
-                     "%ld; Total removed clients: %ld; Total renewed clients: "
-                     "%ld", num_removed,
-                     client_list->num_created - client_list->num_renewed,
-                     client_list->num_removed, client_list->num_renewed);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01709)
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);

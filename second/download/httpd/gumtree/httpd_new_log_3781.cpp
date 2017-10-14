@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01404)
-                                  "inflate: data not deflated!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01215)
+                      "%s", argsbuffer);

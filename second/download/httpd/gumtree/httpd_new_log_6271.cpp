@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, msos->m->c,
-                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
-                  msos->m->id, sos->stream->id, (long)*plen, *peos);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00519)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1 to avoid almost certain server "
+                         "failure. Please read the documentation.",
+                         min_spare_threads);

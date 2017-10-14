@@ -1,2 +1,2 @@
-ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
+fprintf(stderr, "%s: table created by %p hit limit of %u\n",
+                func ? func : "table_push", t->creator, t->a.nalloc);

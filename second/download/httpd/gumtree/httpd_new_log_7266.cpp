@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "checking remote machine [%s] against [%s]",
-                      hostname, npent[j].name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02457)
+                  "AuthBasicFake: \"Authorization: %s\"",
+                  auth_line);

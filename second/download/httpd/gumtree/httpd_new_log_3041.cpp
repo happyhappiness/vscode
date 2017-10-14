@@ -1,2 +1,4 @@
-ap_log_perror(file, line, APLOG_DEBUG, 0, l->pool, 
-                      "Releasing mutex %s:%d", l->file, l->line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Making local copy of SGL for "
+                                  "group (%s)(objectClass=%s) ",
+                                  dn, (char *)sgc_ents[base_sgcIndex].name);

@@ -1,1 +1,2 @@
-apr_err("apr_socket_connect()", rv);
+apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout." NL);

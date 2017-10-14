@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(00830)
-                 "Shared memory socache initialised");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00588)
+                          "A \"prop\" element is missing inside "
+                          "the propertyupdate command.");

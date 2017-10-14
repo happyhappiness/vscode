@@ -1,1 +1,1 @@
-err("Cannot mix PUT with other methods\n");
+fprintf(stderr,"Linking %s to %s\n", status->filename, config->linkfile);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: detected MinSpareServers set to non-positive.");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "Child %lu: Unable to reopen the scoreboard from the parent", my_pid);

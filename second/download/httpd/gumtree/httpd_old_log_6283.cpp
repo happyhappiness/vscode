@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, task->c,
-                      APLOGNO(02957) "h2_task(%s): error setting up h2_task", 
-                      task->id);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " to avoid almost certain server failure.");

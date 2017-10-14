@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02216)
-                     "ssl_stapling_init_cert: error allocating memory!");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL, APLOGNO(00087)
+                     "unable to replace stderr with error log file");

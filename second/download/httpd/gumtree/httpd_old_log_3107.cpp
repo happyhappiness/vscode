@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
+ap_log_error(APLOG_MARK, APLOG_CRIT, status, s,
+                     "Digest: error generating secret: %s",
+                     apr_strerror(status, buf, sizeof(buf)));

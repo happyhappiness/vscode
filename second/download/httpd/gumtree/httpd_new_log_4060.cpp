@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, APLOGNO(01327)
-                         "Could not allocate memory for LDAP cache value");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, serv, APLOGNO(01526)
+                        MODNAME ": string too long: %s", origs);

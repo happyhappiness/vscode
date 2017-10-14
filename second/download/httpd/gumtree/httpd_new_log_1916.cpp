@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Setting referral hop limit to %d.",
-                     ldc->ReferralHopLimit);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Failed to evaluate expression - ignoring");

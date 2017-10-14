@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02427)
-                                  "Request header value is malformed: "
-                                  "%.*s", (int)LOG_NAME_MAX_LEN, value);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
+                  H2_STRM_MSG(stream, "send frame %d, eos=%d"), ftype, eos);

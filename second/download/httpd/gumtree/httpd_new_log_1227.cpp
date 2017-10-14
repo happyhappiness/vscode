@@ -1,1 +1,1 @@
-apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);
+fprintf(stderr, "suexec failure: could not open log file\n");

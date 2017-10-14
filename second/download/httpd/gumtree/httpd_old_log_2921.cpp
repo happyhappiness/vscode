@@ -1,5 +1,4 @@
-printf("<tr %s><th %s>Total:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot, tdstring, total / requests, tdstring, maxtot);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving now with %u bytes in the cache and %u indexes",
+                 shmcb_get_safe_uint(cache->pos_count),
+                 shmcb_get_safe_uint(queue->pos_count));

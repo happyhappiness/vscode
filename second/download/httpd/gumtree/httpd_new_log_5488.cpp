@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00297)
-                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, r ? r->connection : c, APLOGNO(00082)
+                  "an unknown filter was not added: %s", name);

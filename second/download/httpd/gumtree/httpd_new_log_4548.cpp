@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
-                      "Last-Modified set to %s", datestr);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "*: found forward proxy worker for %s", *url);

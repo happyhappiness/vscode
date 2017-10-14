@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
-                  "h2_mplx(%ld): dispatch events", m->id);
+ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, APLOGNO(03312)
+                                 "apr_thread_pool_create() with %d threads failed",
+                                 tpsize);

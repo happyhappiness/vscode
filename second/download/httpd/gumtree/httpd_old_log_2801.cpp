@@ -1,1 +1,1 @@
-ap_rputs("</select></td></tr>\n", r);
+printf("HTML transferred:       %ld bytes\n", totalbread);

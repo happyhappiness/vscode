@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02312)
-                     "Fatal error initialising mod_ssl, exiting.");
+ap_log_rerror(
+                APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00697) "cache: No cache request information available for key"
+                " generation");

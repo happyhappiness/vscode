@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00401)
-                     "Parent: Unable to send the scoreboard handle to the child");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00292)
+                "%s configured -- resuming normal operations",
+                ap_get_server_description());

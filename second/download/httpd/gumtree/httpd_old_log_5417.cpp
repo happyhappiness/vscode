@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of", ap_threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
+                     "refusing to send signal %d to pid %ld outside "
+                     "process group", sig, (long)pid);

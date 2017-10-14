@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
-                 "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
-                 worker->s->name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "Lua hook %s:%s for phase %s returned %d", 
+                              hook_spec->file_name, hook_spec->function_name, name, rc);

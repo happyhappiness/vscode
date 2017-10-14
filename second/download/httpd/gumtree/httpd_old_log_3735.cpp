@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, c->base_server,
-                             "mod_dumpio:  %s (%s-%s): %s", f->frec->name,
-                             (APR_BUCKET_IS_METADATA(b)) ? "metadata" : "data",
-                             b->type->name, xlatebuf);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
+                          "\"%s\" in tag echo of %s", tag, r->filename);

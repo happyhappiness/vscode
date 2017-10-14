@@ -1,1 +1,1 @@
-(*code != OP_TYPEEXACT;
+printf("?");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00903)
-                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01844)
+                    "warning: crypto for '%s' was already initialised, "
+                    "using existing configuration", conf->library);

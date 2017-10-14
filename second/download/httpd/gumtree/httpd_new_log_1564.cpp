@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters", bits);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);

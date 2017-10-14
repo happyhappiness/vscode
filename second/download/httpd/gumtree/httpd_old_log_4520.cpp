@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                 "proxy:<FTP: %3.3u %s", rc, message);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                          "ProxyReceiveBufferSize, using default");

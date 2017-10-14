@@ -1,0 +1,1 @@
+printf("httpd MPM \"" MPM_NAME "\" does not support graceful-stop\n");

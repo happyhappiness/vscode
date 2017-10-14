@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "proxy: server %s:%d returned Transfer-Encoding"
-                             " and Content-Length", backend->hostname,
-                             backend->port);
+apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
+                    user, realm);

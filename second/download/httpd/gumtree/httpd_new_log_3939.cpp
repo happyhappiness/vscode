@@ -1,1 +1,3 @@
-apr_file_printf(out, "%s %s\n", dir->directive, dir->args);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01309)
+                 "ldap connection: Setting connection timeout to %ld seconds.",
+                 st->connectionTimeout);

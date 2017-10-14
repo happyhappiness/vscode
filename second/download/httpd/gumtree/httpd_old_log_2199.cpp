@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, rc, NULL,
-                         "Couldn't start ErrorLog process");
+ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_STARTUP, 0,
+                     NULL, "no listening sockets available, shutting down");

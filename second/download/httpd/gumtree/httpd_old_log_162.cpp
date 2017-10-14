@@ -1,1 +1,1 @@
-ap_rputs("<D:response>", r);
+ap_rputs("</D:response>" DEBUG_CR, r);

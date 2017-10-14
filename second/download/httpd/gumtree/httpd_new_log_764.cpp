@@ -1,4 +1,3 @@
-ap_rputs(DOCTYPE_XHTML_1_0T
-             "<html xmlns=\"http://www.w3.org/1999/xhtml\">\n"
-             "<head>\n"
-             "  <title>Server Information</title>\n" "</head>\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                         "mod_rewrite: Invalid RewriteLog "
+                         "path %s", conf->rewritelogfile+1);

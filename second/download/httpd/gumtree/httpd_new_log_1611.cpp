@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, level, status, r->server,
-                     "dialog with client %pI failed",
-                     r->connection->remote_addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                "log writer isn't correctly setup");

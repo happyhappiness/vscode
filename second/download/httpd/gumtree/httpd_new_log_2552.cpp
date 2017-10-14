@@ -1,1 +1,1 @@
-apr_err("apr_pollset_add()", rv);
+fprintf(stderr, "Error writing to the file %s\n", status.filename);

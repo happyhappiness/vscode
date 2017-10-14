@@ -1,2 +1,1 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            " (8 chars max, insecure)." NL);
+ap_rvputs(r, wsel->s->name, "</h3>\n", NULL);

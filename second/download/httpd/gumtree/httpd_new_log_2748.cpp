@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
-                          "proxy: error reading status line from remote "
-                          "server %s", backend->hostname);
+fprintf(stderr,
+            "Add this:\n\nTransferLog \"|%s.exe /some/where 86400\"\n\n",
+            argv0);

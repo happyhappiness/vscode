@@ -1,0 +1,1 @@
+h2_ctx_session_set(ctx, session);

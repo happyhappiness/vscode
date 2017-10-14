@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "parent: child %s",
-                          (rv == APR_CHILD_DONE) ? "done" : "notdone");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r->server,
+                            "Adding CACHE_SAVE_SUBREQ filter for %s",
+                            r->uri);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: BALANCER: Found value %s for "
-                     "stickysession %s", *route, balancer->sticky_path);
+ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, r->server,
+                         "proxy: FTP: SIZE shows this is a directory");

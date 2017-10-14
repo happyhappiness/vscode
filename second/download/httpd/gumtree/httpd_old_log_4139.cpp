@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
-                     "rfc1413: apr_sockaddr_info_get(%s) failed",
-                     conn->remote_ip);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+               "ajp_parse_data: Wrong chunk length. Length of chunk is %i,"
+               " expected length is %i.", *len, expected_len);

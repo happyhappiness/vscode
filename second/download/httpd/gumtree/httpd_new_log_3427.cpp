@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02145)
-                          "Error setting userid");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv,
+                        r, APLOGNO(00760) "Cache locked for url, not caching "
+                        "response: %s", r->uri);

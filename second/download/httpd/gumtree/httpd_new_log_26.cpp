@@ -1,2 +1,3 @@
-fprintf(stderr, "%s: wildcard patterns not allowed in Include "
-                        "%s\n", ap_server_argv0, fname);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                                         c->base_server, "core_output_filter:"
+                                         " Error reading from bucket.");

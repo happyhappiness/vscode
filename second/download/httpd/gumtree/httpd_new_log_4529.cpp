@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                  "control connection complete");
+memset(*worker, 0, sizeof(proxy_worker));

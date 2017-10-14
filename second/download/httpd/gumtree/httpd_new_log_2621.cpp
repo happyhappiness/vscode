@@ -1,1 +1,1 @@
-fprintf(stderr, "Rotation size interval:      %12d\n", config->sRotation);
+printf("Server version: %s\n", ap_get_server_description());

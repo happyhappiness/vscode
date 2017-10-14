@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, log_flags, rv, r,
-                  "%s%s: %s", logno ? logno : "", error, r->filename);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, APLOGNO(01947)
+                         "Cannot reinit %s mutex", type);

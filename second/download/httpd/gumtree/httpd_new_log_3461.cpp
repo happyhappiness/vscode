@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(02110)
-                     "failed call to GetExtensionVersion() in %s",
-                     isa->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00806)
+                 "data size too large for DBM socache: %d >= %d",
+                 (idlen + nData), 950);

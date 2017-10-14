@@ -1,7 +1,2 @@
-apr_file_printf(stderr_log,
-                    "[%s] [client %s] mod_ext_filter (%d)%pm: %s\n",
-                    time_str,
-                    r->useragent_ip,
-                    err,
-                    &err,
-                    description);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
+                         "Unable to load SRP verifier file [error %d]", err);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, r->server,
-                    "disk_cache: rename tempfile to varyfile failed: %s -> %s",
-                    dobj->tempfile, dobj->hdrsfile);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL,
+                                 "cgid daemon failed to initialize");
