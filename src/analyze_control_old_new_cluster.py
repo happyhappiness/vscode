@@ -25,19 +25,8 @@ def cluster_feature(z3_api):
     # build feature list
     index = 0
     for record in islice(records, 1, None):  # remove the table title
-        old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
-        new_loc = record[my_constant.FETCH_LOG_NEW_LOC]# old cdg feature
-        check_feature = json.loads(record[my_constant.ANALYZE_OLD_CHECK])
-        variable_feature = json.loads(record[my_constant.ANALYZE_OLD_VARIABLE])
-        new_check_feature = json.loads(record[my_constant.ANALYZE_NEW_CHECK])
-        new_variable_feature = json.loads(record[my_constant.ANALYZE_NEW_VARIABLE])
-        # insert: so care new feature
-        if old_loc == '-1':
-            check_feature = new_check_feature
-            variable_feature = new_variable_feature
-        else:
-            check_feature = old_check_feature
-            variable_feature = old_variable_feature
+        check_feature = json.loads(record[my_constant.ANALYZE_CHECK])
+        variable_feature = json.loads(record[my_constant.ANALYZE_VARIABLE])
         # z3 feature
         if z3_api is not None:
             check_feature = z3_api.get_infix_for_postfix(check_feature)

@@ -25,6 +25,7 @@ class SrcmlApi:
         self.namespace_map = self.root.nsmap
         self.namespace_map['default'] = self.namespace_map[None]
         self.namespace_map.pop(None)
+        self.name_tag = "{" + self.namespace_map['default'] + "}name"
         # initiate log and control info
         self.log_node = None
         self.log = []
@@ -128,13 +129,19 @@ class SrcmlApi:
                 depended_info = depended_nodes[depended_line]
                 depended_node = depended_info[0]
                 depended_type = depended_info[1]
-                # call --name or type --name
+                # call --name or type (--specifier) --name
                 # deal with nested ref type
                 while len(depended_node) <= 0:
                     depended_node = depended_node.getparent().getprevious()[0]
                     # print 'can not find name for depended node %s' %depended_node.tag
                     # continue
-                info = self._get_text_for_nested_name(depended_node[0])
+                # get children whose tag is name
+                depended_sub_nodes = depended_node.getchildren()
+                for depended_sub_node in depended_sub_nodes:
+                    if self._remove_prefix(depended_sub_node) == 'name':
+                        depended_node = depended_sub_node
+                        break
+                info = self._get_text_for_nested_name(depended_node)
                 if info in self.log_functions:
                     continue
                 # level 1
@@ -234,9 +241,8 @@ class SrcmlApi:
     """
     def _get_pure_name_nodes(self, node):
         name_nodes = []
-        name_tag = "{" + self.namespace_map['default'] + "}name"
         call_tag = "{" + self.namespace_map['default'] + "}call"
-        name_descendants = node.iterdescendants(tag=name_tag)
+        name_descendants = node.iterdescendants(tag=self.name_tag)
         # validate each name descendant
         for name_node in name_descendants:
             is_valid = True
@@ -253,7 +259,9 @@ class SrcmlApi:
         call_info = []
         for call_node in node.iterdescendants(tag=call_tag):
             # call --name --argument list ----argument
-            call_info.append(self._remove_blank(call_node[0]) + my_constant.FlAG_FUNC_RETURN)
+            info = self._remove_blank(call_node[0])
+            if info not in self.log_functions:
+                call_info.append(self._remove_blank(call_node[0]) + my_constant.FlAG_FUNC_RETURN)
         return name_nodes, call_info
     """
     @ param ancestor and node
@@ -332,13 +340,15 @@ class SrcmlApi:
     @ involve deal with nested text which name is formed of two or more names
     """
     def _get_text_for_nested_name(self, node):
-        text = ''
-        name_tag = "{" + self.namespace_map['default'] + "}name"
-        name_nodes = node.iterdescendants(tag=name_tag)
-        for name_node in name_nodes:
-            if name_node.text is not None:
-                text = text + ' ' + self._remove_blank(name_node)
-        return text
+        if node.text is not None:
+            return self._remove_blank(node)
+        else:
+            text = ''
+            name_nodes = node.iterdescendants(tag=self.name_tag)
+            for name_node in name_nodes:
+                if name_node.text is not None:
+                    text = text + ' ' + self._remove_blank(name_node)
+            return text
 
     """
     @ param node
