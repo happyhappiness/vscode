@@ -1,0 +1,1 @@
+m_canvas->print(0, pos, "%3d %s ", done_percentage(e), priority);

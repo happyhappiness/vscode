@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Hash: %s", escape_string(m_download->get_download().get_hash()).c_str());

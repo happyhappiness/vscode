@@ -1,0 +1,1 @@
+m_canvas->print(0, pos++, "%c %s", itr == *m_focus ? '*' : ' ', print_download_status(*itr).c_str());

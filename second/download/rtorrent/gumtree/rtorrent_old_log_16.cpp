@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Done: %i%", (*m_focus)->get_chunks_done());

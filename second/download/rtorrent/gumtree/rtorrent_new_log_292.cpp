@@ -1,0 +1,1 @@
+write(m_logFd, *itr, std::strlen(*itr));

@@ -1,0 +1,1 @@
+m_canvas->print(55, pos, "Size");

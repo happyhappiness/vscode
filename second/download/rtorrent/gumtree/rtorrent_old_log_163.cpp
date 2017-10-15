@@ -1,0 +1,1 @@
+print_buffer(first, last, "%2i:%02i:%02i", (int)t / (24 * 3600), ((int)t / 3600) % 24, ((int)t / 60) % 60);

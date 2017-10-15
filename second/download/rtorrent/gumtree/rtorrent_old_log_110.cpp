@@ -1,0 +1,1 @@
+m_canvas->print(m_canvas->get_width() - pos, 0, "%s", buf);

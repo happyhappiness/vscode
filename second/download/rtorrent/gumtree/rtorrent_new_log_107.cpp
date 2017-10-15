@@ -1,0 +1,3 @@
+m_canvas->print(x, y, "%i/%i",
+		    p.outgoing_queue_size(),
+		    p.incoming_queue_size());

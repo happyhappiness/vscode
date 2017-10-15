@@ -1,0 +1,1 @@
+download->set_message("Hash check on download completion found bad chunks, consider using \"safe_sync\".");

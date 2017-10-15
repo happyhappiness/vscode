@@ -1,0 +1,1 @@
+print_buffer(first, last, " %s", d->info()->name().c_str());

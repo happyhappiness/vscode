@@ -1,0 +1,15 @@
+  position = print_status_info(buffer, last);
+  m_canvas->print(0, 0, "%s", buffer);
+
+  last = last - (position - buffer);
+
+  if (last > buffer) {
+    position = print_status_extra(buffer, last, m_control);
+    m_canvas->print(m_canvas->get_width() - (position - buffer), 0, "%s", buffer);
+  }
+
+
+  m_lastTick = m_control->tick();
+}
+
+}

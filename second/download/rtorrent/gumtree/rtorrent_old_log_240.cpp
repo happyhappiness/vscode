@@ -1,0 +1,1 @@
+torrent::client_error("TextElementList::print(...) columnEnd < first || columnEnd > last.");

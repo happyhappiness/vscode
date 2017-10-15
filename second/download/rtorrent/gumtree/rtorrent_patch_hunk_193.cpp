@@ -1,0 +1,132 @@
+ 
+   torrent::FileList* fl = m_download->download()->file_list();
+ 
+   if (fl->size_files() == 0 || m_canvas->height() < 2)
+     return;
+ 
+-  int pos = 0;
++  unsigned int pos = 0;
++  iterator itr = rak::advance_bidirectional<iterator>(iterator(fl->begin()), *m_selected, iterator(fl->end()), m_canvas->height() - 1).first;
+ 
+-  m_canvas->print( 2, pos, "File");
+-  m_canvas->print(55, pos, "Size");
+-  m_canvas->print(63, pos, "Pri");
+-  m_canvas->print(68, pos, "Cmpl");
+-  m_canvas->print(74, pos, "Encoding");
+-  m_canvas->print(84, pos, "Chunks");
+-
+-  ++pos;
+-
+-  if (*m_focus >= fl->size_files())
+-    throw std::logic_error("WindowFileList::redraw() called on an object with a bad focus value");
+-
+-  Range range = rak::advance_bidirectional<unsigned int>(0, *m_focus, fl->size_files(), m_canvas->height() - pos);
+-
+-  while (range.first != range.second) {
+-    torrent::File* e = *(fl->begin() + range.first);
+-
+-    std::string path = e->path()->as_string();
+-
+-    if (path.length() <= 50)
+-      path = path + std::string(50 - path.length(), ' ');
+-    else
+-      path = path.substr(0, 50);
+-
+-    std::string priority;
+-
+-    switch (e->priority()) {
+-    case torrent::PRIORITY_OFF:
+-      priority = "off";
+-      break;
+-
+-    case torrent::PRIORITY_NORMAL:
+-      priority = "   ";
+-      break;
+-
+-    case torrent::PRIORITY_HIGH:
+-      priority = "hig";
+-      break;
+-
+-    default:
+-      priority = "BUG";
+-      break;
+-    };
+-
+-    m_canvas->print(0, pos, "%c %s  %6.1f   %s   %3d  %9s",
+-                    range.first == *m_focus ? '*' : ' ',
+-                    path.c_str(),
+-                    (double)e->size_bytes() / (double)(1 << 20),
+-                    priority.c_str(),
+-                    done_percentage(e),
+-                    e->path()->encoding().c_str());
+-
+-    m_canvas->print(84, pos, "%i - %i %c%c",
+-                    e->range().first,
+-                    e->range().first != e->range().second ? (e->range().second - 1) : e->range().second,
+-                    e->is_created() ? 'E' : 'M',
+-                    e->is_correct_size() ? 'C' : 'W');
++  m_canvas->print(0, pos++, "Cmp Pri  Size   Filename");
+ 
+-    ++range.first;
++  while (pos != m_canvas->height() && itr != iterator(fl->end())) {
++    if (itr.is_empty()) {
++      m_canvas->print(16, pos, "EMPTY");
++
++    } else if (itr.is_entering()) {
++      m_canvas->print(16 + itr.depth(), pos, "\\ %s", 
++                      itr.depth() < (*itr)->path()->size() ? (*itr)->path()->at(itr.depth()).c_str() : "UNKNOWN");
++
++    } else if (itr.is_leaving()) {
++      m_canvas->print(16 + itr.depth() - 1, pos, "/");
++
++    } else if (itr.is_file()) {
++      torrent::File* e = *itr;
++
++      const char* priority;
++
++      switch (e->priority()) {
++      case torrent::PRIORITY_OFF:    priority = "off"; break;
++      case torrent::PRIORITY_NORMAL: priority = "   "; break;
++      case torrent::PRIORITY_HIGH:   priority = "hig"; break;
++      default: priority = "BUG"; break;
++      };
++
++      m_canvas->print(0, pos, "%3d %s", done_percentage(e), priority);
++
++      int64_t val = e->size_bytes();
++
++      if (val < (int64_t(1000) << 20))
++        m_canvas->print(8, pos, "%5.1f M", (double)val / (int64_t(1) << 20));
++      else if (val < (int64_t(1000) << 30))
++        m_canvas->print(8, pos, "%5.1f G", (double)val / (int64_t(1) << 30));
++      else
++        m_canvas->print(8, pos, "%5.1f T", (double)val / (int64_t(1) << 40));
++
++      m_canvas->print(16 + itr.depth(), pos, "| %s",
++                      itr.depth() < (*itr)->path()->size() ? (*itr)->path()->at(itr.depth()).c_str() : "UNKNOWN");
++
++//       m_canvas->print(104, pos, "%i - %i %c%c %u %u",
++//                       e->range().first,
++//                       e->range().first != e->range().second ? (e->range().second - 1) : e->range().second,
++//                       e->is_created() ? 'E' : 'M',
++//                       e->is_correct_size() ? 'C' : 'W',
++//                       e->match_depth_prev(),
++//                       e->match_depth_next());
++
++    } else {
++      m_canvas->print(0, pos, "BORK BORK");
++    }
++
++    if (itr == *m_selected)
++      m_canvas->set_attr(0, pos, m_canvas->width(), is_focused() ? A_REVERSE : A_BOLD, COLOR_PAIR(0));
++
++    ++itr;
+     ++pos;
+   }
+-
+ }
+ 
+ int
+ WindowFileList::done_percentage(torrent::File* e) {
+   int chunks = e->range().second - e->range().first;
+ 

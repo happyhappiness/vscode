@@ -1,0 +1,1 @@
+print_buffer(first, last, " %s]", rpc::call_command_d_string("get_d_priority_str", d).c_str());

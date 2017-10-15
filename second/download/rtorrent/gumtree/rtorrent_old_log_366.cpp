@@ -1,0 +1,1 @@
+write(m_logFd, "\n--- Background task ---\n", sizeof("\n--- Background task ---\n"));

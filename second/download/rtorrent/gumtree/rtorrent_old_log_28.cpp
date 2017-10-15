@@ -1,0 +1,1 @@
+m_canvas->print(0, pos++, "<date>: %s", itr->second.c_str());

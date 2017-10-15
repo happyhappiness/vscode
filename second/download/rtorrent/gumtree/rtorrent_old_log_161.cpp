@@ -1,0 +1,1 @@
+print_buffer(first, last, "%s", d->get_download().name().c_str());

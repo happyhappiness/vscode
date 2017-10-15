@@ -1,0 +1,1 @@
+m_manager->push_log_std(msg);

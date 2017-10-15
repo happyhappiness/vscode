@@ -1,0 +1,1 @@
+m_logImportant.push_front(msg);

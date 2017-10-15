@@ -1,0 +1,1 @@
+print_address(first, last, torrent::connection_manager()->bind_address());

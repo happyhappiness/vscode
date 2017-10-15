@@ -1,0 +1,1 @@
+(itr.is_empty();

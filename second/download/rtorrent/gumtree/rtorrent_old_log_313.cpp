@@ -1,0 +1,1 @@
+print_buffer(first, last, "/%3i KB]", torrent::down_throttle() / 1024);

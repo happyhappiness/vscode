@@ -1,0 +1,1 @@
+ThreadBase::acquire_global_lock();

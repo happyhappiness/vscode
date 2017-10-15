@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Priority:        %u", torrent::download_priority(*m_download->download()));

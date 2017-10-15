@@ -1,0 +1,1 @@
+m_errorHandler->print(buffer, buffer + m_canvas->width(), &attributes, m_target);

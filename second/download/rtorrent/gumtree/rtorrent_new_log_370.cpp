@@ -1,0 +1,1 @@
+m_log_important->lock_and_push_log(msg.c_str(), msg.size(), 0);

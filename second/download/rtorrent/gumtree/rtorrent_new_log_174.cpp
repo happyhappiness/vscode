@@ -1,0 +1,1 @@
+print_buffer(first, last, " [Port: %i]", (unsigned int)torrent::connection_manager()->listen_port());

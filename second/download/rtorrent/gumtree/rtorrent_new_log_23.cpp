@@ -1,0 +1,1 @@
+m_canvas->print(x, y, "%3i", done_percentage(*range.first));

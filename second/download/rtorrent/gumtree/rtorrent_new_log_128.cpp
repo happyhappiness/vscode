@@ -1,0 +1,1 @@
+print_buffer(first, last, "done %10.1f MB", (double)d->get_download().bytes_total() / (double)(1 << 20));

@@ -1,0 +1,1 @@
+sprintf(buffer, "%3d %s ", done_percentage(e), priority);

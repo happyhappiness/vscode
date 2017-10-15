@@ -1,0 +1,1 @@
+mvwprintw(m_window, y, x, str, a1);

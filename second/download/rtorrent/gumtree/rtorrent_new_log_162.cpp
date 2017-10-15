@@ -1,0 +1,1 @@
+fstr.write(data, size);

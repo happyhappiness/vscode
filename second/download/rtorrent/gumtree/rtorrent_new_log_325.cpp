@@ -1,0 +1,1 @@
+sprintf(buffer + 8, "%5.1f M", (double)val / (int64_t(1) << 20));

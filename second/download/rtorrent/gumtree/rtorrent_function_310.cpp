@@ -1,0 +1,1 @@
+void                set_error_handler(display::TextElement* t) { m_window->set_error_handler(t); }

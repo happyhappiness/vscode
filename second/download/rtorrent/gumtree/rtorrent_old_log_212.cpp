@@ -1,0 +1,1 @@
+print_buffer(first, last, " [%s]", core::Download::priority_to_string(d->priority()));

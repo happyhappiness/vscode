@@ -1,0 +1,1 @@
+m_canvas->print(0, 0, "%s> %s", m_title.c_str(), m_input != NULL ? m_input->c_str() : "<NULL>");
