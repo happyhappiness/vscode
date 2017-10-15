@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/gumtree/mutt_function_38.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">show_version<pos:position pos:line="1" pos:column="25"/></name> <parameter_list pos:line="1" pos:column="26">(<parameter><decl><type><name pos:line="1" pos:column="27">void<pos:position pos:line="1" pos:column="31"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="32"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <decl_stmt><decl><type><name><name pos:line="3" pos:column="3">struct<pos:position pos:line="3" pos:column="9"/></name> <name pos:line="3" pos:column="10">utsname<pos:position pos:line="3" pos:column="17"/></name></name></type> <name pos:line="3" pos:column="18">uts<pos:position pos:line="3" pos:column="21"/></name></decl>;<pos:position pos:line="3" pos:column="22"/></decl_stmt>
+
+  <expr_stmt><expr><call><name pos:line="5" pos:column="3">puts<pos:position pos:line="5" pos:column="7"/></name> <argument_list pos:line="5" pos:column="8">(<argument><expr><call><name pos:line="5" pos:column="9">mutt_make_version<pos:position pos:line="5" pos:column="26"/></name><argument_list pos:line="5" pos:column="26">()<pos:position pos:line="5" pos:column="28"/></argument_list></call></expr></argument>)<pos:position pos:line="5" pos:column="29"/></argument_list></call></expr>;<pos:position pos:line="5" pos:column="30"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="6" pos:column="3">puts<pos:position pos:line="6" pos:column="7"/></name> <argument_list pos:line="6" pos:column="8">(<argument><expr><call><name pos:line="6" pos:column="9">_<pos:position pos:line="6" pos:column="10"/></name><argument_list pos:line="6" pos:column="10">(<argument><expr><name pos:line="6" pos:column="11">Notice<pos:position pos:line="6" pos:column="17"/></name></expr></argument>)<pos:position pos:line="6" pos:column="18"/></argument_list></call></expr></argument>)<pos:position pos:line="6" pos:column="19"/></argument_list></call></expr>;<pos:position pos:line="6" pos:column="20"/></expr_stmt>
+
+  <expr_stmt><expr><call><name pos:line="8" pos:column="3">uname<pos:position pos:line="8" pos:column="8"/></name> <argument_list pos:line="8" pos:column="9">(<argument><expr><operator pos:line="8" pos:column="10">&amp;<pos:position pos:line="8" pos:column="15"/></operator><name pos:line="8" pos:column="11">uts<pos:position pos:line="8" pos:column="14"/></name></expr></argument>)<pos:position pos:line="8" pos:column="15"/></argument_list></call></expr>;<pos:position pos:line="8" pos:column="16"/></expr_stmt>
+
+<cpp:ifdef pos:line="10" pos:column="1">#<cpp:directive pos:line="10" pos:column="2">ifdef<pos:position pos:line="10" pos:column="7"/></cpp:directive> <name pos:line="10" pos:column="8">_AIX<pos:position pos:line="10" pos:column="12"/></name></cpp:ifdef>
+  <expr_stmt><expr><call><name pos:line="11" pos:column="3">printf<pos:position pos:line="11" pos:column="9"/></name> <argument_list pos:line="11" pos:column="10">(<argument><expr><literal type="string" pos:line="11" pos:column="11">"System: %s %s.%s"<pos:position pos:line="11" pos:column="29"/></literal></expr></argument>, <argument><expr><name><name pos:line="11" pos:column="31">uts<pos:position pos:line="11" pos:column="34"/></name><operator pos:line="11" pos:column="34">.<pos:position pos:line="11" pos:column="35"/></operator><name pos:line="11" pos:column="35">sysname<pos:position pos:line="11" pos:column="42"/></name></name></expr></argument>, <argument><expr><name><name pos:line="11" pos:column="44">uts<pos:position pos:line="11" pos:column="47"/></name><operator pos:line="11" pos:column="47">.<pos:position pos:line="11" pos:column="48"/></operator><name pos:line="11" pos:column="48">version<pos:position pos:line="11" pos:column="55"/></name></name></expr></argument>, <argument><expr><name><name pos:line="11" pos:column="57">uts<pos:position pos:line="11" pos:column="60"/></name><operator pos:line="11" pos:column="60">.<pos:position pos:line="11" pos:column="61"/></operator><name pos:line="11" pos:column="61">release<pos:position pos:line="11" pos:column="68"/></name></name></expr></argument>)<pos:position pos:line="11" pos:column="69"/></argument_list></call></expr>;<pos:position pos:line="11" pos:column="70"/></expr_stmt>
+<cpp:elif pos:line="12" pos:column="1">#<cpp:directive pos:line="12" pos:column="2">elif<pos:position pos:line="12" pos:column="6"/></cpp:directive> <expr><call><name pos:line="12" pos:column="7">defined<pos:position pos:line="12" pos:column="14"/></name> <argument_list pos:line="12" pos:column="15">(<argument><expr><name pos:line="12" pos:column="16">SCO<pos:position pos:line="12" pos:column="19"/></name></expr></argument>)<pos:position pos:line="12" pos:column="20"/></argument_list></call></expr></cpp:elif>
+  <expr_stmt><expr><call><name pos:line="13" pos:column="3">printf<pos:position pos:line="13" pos:column="9"/></name> <argument_list pos:line="13" pos:column="10">(<argument><expr><literal type="string" pos:line="13" pos:column="11">"System: SCO %s"<pos:position pos:line="13" pos:column="27"/></literal></expr></argument>, <argument><expr><name><name pos:line="13" pos:column="29">uts<pos:position pos:line="13" pos:column="32"/></name><operator pos:line="13" pos:column="32">.<pos:position pos:line="13" pos:column="33"/></operator><name pos:line="13" pos:column="33">release<pos:position pos:line="13" pos:column="40"/></name></name></expr></argument>)<pos:position pos:line="13" pos:column="41"/></argument_list></call></expr>;<pos:position pos:line="13" pos:column="42"/></expr_stmt>
+<cpp:else pos:line="14" pos:column="1">#<cpp:directive pos:line="14" pos:column="2">else<pos:position pos:line="14" pos:column="6"/></cpp:directive></cpp:else>
+  <expr_stmt><expr><call><name pos:line="15" pos:column="3">printf<pos:position pos:line="15" pos:column="9"/></name> <argument_list pos:line="15" pos:column="10">(<argument><expr><literal type="string" pos:line="15" pos:column="11">"System: %s %s"<pos:position pos:line="15" pos:column="26"/></literal></expr></argument>, <argument><expr><name><name pos:line="15" pos:column="28">uts<pos:position pos:line="15" pos:column="31"/></name><operator pos:line="15" pos:column="31">.<pos:position pos:line="15" pos:column="32"/></operator><name pos:line="15" pos:column="32">sysname<pos:position pos:line="15" pos:column="39"/></name></name></expr></argument>, <argument><expr><name><name pos:line="15" pos:column="41">uts<pos:position pos:line="15" pos:column="44"/></name><operator pos:line="15" pos:column="44">.<pos:position pos:line="15" pos:column="45"/></operator><name pos:line="15" pos:column="45">release<pos:position pos:line="15" pos:column="52"/></name></name></expr></argument>)<pos:position pos:line="15" pos:column="53"/></argument_list></call></expr>;<pos:position pos:line="15" pos:column="54"/></expr_stmt>
+<cpp:endif pos:line="16" pos:column="1">#<cpp:directive pos:line="16" pos:column="2">endif<pos:position pos:line="16" pos:column="7"/></cpp:directive></cpp:endif>
+
+  <expr_stmt><expr><call><name pos:line="18" pos:column="3">printf<pos:position pos:line="18" pos:column="9"/></name> <argument_list pos:line="18" pos:column="10">(<argument><expr><literal type="string" pos:line="18" pos:column="11">" (%s)"<pos:position pos:line="18" pos:column="18"/></literal></expr></argument>, <argument><expr><name><name pos:line="18" pos:column="20">uts<pos:position pos:line="18" pos:column="23"/></name><operator pos:line="18" pos:column="23">.<pos:position pos:line="18" pos:column="24"/></operator><name pos:line="18" pos:column="24">machine<pos:position pos:line="18" pos:column="31"/></name></name></expr></argument>)<pos:position pos:line="18" pos:column="32"/></argument_list></call></expr>;<pos:position pos:line="18" pos:column="33"/></expr_stmt>
+
+<cpp:ifdef pos:line="20" pos:column="1">#<cpp:directive pos:line="20" pos:column="2">ifdef<pos:position pos:line="20" pos:column="7"/></cpp:directive> <name pos:line="20" pos:column="8">NCURSES_VERSION<pos:position pos:line="20" pos:column="23"/></name></cpp:ifdef>
+  <expr_stmt><expr><call><name pos:line="21" pos:column="3">printf<pos:position pos:line="21" pos:column="9"/></name> <argument_list pos:line="21" pos:column="10">(<argument><expr><literal type="string" pos:line="21" pos:column="11">" [using ncurses %s]"<pos:position pos:line="21" pos:column="32"/></literal></expr></argument>, <argument><expr><name pos:line="21" pos:column="34">NCURSES_VERSION<pos:position pos:line="21" pos:column="49"/></name></expr></argument>)<pos:position pos:line="21" pos:column="50"/></argument_list></call></expr>;<pos:position pos:line="21" pos:column="51"/></expr_stmt>
+<cpp:elif pos:line="22" pos:column="1">#<cpp:directive pos:line="22" pos:column="2">elif<pos:position pos:line="22" pos:column="6"/></cpp:directive> <expr><call><name pos:line="22" pos:column="7">defined<pos:position pos:line="22" pos:column="14"/></name><argument_list pos:line="22" pos:column="14">(<argument><expr><name pos:line="22" pos:column="15">USE_SLANG_CURSES<pos:position pos:line="22" pos:column="31"/></name></expr></argument>)<pos:position pos:line="22" pos:column="32"/></argument_list></call></expr></cpp:elif>
+  <expr_stmt><expr><call><name pos:line="23" pos:column="3">printf<pos:position pos:line="23" pos:column="9"/></name> <argument_list pos:line="23" pos:column="10">(<argument><expr><literal type="string" pos:line="23" pos:column="11">" [using slang %d]"<pos:position pos:line="23" pos:column="30"/></literal></expr></argument>, <argument><expr><name pos:line="23" pos:column="32">SLANG_VERSION<pos:position pos:line="23" pos:column="45"/></name></expr></argument>)<pos:position pos:line="23" pos:column="46"/></argument_list></call></expr>;<pos:position pos:line="23" pos:column="47"/></expr_stmt>
+<cpp:endif pos:line="24" pos:column="1">#<cpp:directive pos:line="24" pos:column="2">endif<pos:position pos:line="24" pos:column="7"/></cpp:directive></cpp:endif>
+
+  <expr_stmt><expr><call><name pos:line="26" pos:column="3">puts<pos:position pos:line="26" pos:column="7"/></name> <argument_list pos:line="26" pos:column="8">(<argument><expr><call><name pos:line="26" pos:column="9">_<pos:position pos:line="26" pos:column="10"/></name><argument_list pos:line="26" pos:column="10">(<argument><expr><literal type="string" pos:line="26" pos:column="11">"\nCompile options:"<pos:position pos:line="26" pos:column="31"/></literal></expr></argument>)<pos:position pos:line="26" pos:column="32"/></argument_list></call></expr></argument>)<pos:position pos:line="26" pos:column="33"/></argument_list></call></expr>;<pos:position pos:line="26" pos:column="34"/></expr_stmt>
+
+<cpp:ifdef pos:line="28" pos:column="1">#<cpp:directive pos:line="28" pos:column="2">ifdef<pos:position pos:line="28" pos:column="7"/></cpp:directive> <name pos:line="28" pos:column="8">DOMAIN<pos:position pos:line="28" pos:column="14"/></name></cpp:ifdef>
+  <expr_stmt><expr><call><name pos:line="29" pos:column="3">printf<pos:position pos:line="29" pos:column="9"/></name> <argument_list pos:line="29" pos:column="10">(<argument><expr><literal type="string" pos:line="29" pos:column="11">"DOMAIN=\"%s\"\n"<pos:position pos:line="29" pos:column="28"/></literal></expr></argument>, <argument><expr><name pos:line="29" pos:column="30">DOMAIN<pos:position pos:line="29" pos:column="36"/></name></expr></argument>)<pos:position pos:line="29" pos:column="37"/></argument_list></call></expr>;<pos:position pos:line="29" pos:column="38"/></expr_stmt>
+<cpp:else pos:line="30" pos:column="1">#<cpp:directive pos:line="30" pos:column="2">else<pos:position pos:line="30" pos:column="6"/></cpp:directive></cpp:else>
+  <expr_stmt><expr><call><name pos:line="31" pos:column="3">puts<pos:position pos:line="31" pos:column="7"/></name> <argument_list pos:line="31" pos:column="8">(<argument><expr><literal type="string" pos:line="31" pos:column="9">"-DOMAIN"<pos:position pos:line="31" pos:column="18"/></literal></expr></argument>)<pos:position pos:line="31" pos:column="19"/></argument_list></call></expr>;<pos:position pos:line="31" pos:column="20"/></expr_stmt>
+<cpp:endif pos:line="32" pos:column="1">#<cpp:directive pos:line="32" pos:column="2">endif<pos:position pos:line="32" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="34" pos:column="1">#<cpp:directive pos:line="34" pos:column="2">ifdef<pos:position pos:line="34" pos:column="7"/></cpp:directive> <name pos:line="34" pos:column="8">DEBUG<pos:position pos:line="34" pos:column="13"/></name></cpp:ifdef>
+  <expr_stmt><expr><call><name pos:line="35" pos:column="3">puts<pos:position pos:line="35" pos:column="7"/></name> <argument_list pos:line="35" pos:column="8">(<argument><expr><literal type="string" pos:line="35" pos:column="9">"+DEBUG"<pos:position pos:line="35" pos:column="17"/></literal></expr></argument>)<pos:position pos:line="35" pos:column="18"/></argument_list></call></expr>;<pos:position pos:line="35" pos:column="19"/></expr_stmt>
+<cpp:else pos:line="36" pos:column="1">#<cpp:directive pos:line="36" pos:column="2">else<pos:position pos:line="36" pos:column="6"/></cpp:directive></cpp:else>
+  <expr_stmt><expr><call><name pos:line="37" pos:column="3">puts<pos:position pos:line="37" pos:column="7"/></name> <argument_list pos:line="37" pos:column="8">(<argument><expr><literal type="string" pos:line="37" pos:column="9">"-DEBUG"<pos:position pos:line="37" pos:column="17"/></literal></expr></argument>)<pos:position pos:line="37" pos:column="18"/></argument_list></call></expr>;<pos:position pos:line="37" pos:column="19"/></expr_stmt>
+<cpp:endif pos:line="38" pos:column="1">#<cpp:directive pos:line="38" pos:column="2">endif<pos:position pos:line="38" pos:column="7"/></cpp:directive></cpp:endif>
+  
+
+  
+  <expr_stmt><expr><call><name pos:line="42" pos:column="3">puts<pos:position pos:line="42" pos:column="7"/></name> <argument_list pos:line="42" pos:column="8">(
+
+<cpp:ifdef pos:line="44" pos:column="1">#<cpp:directive pos:line="44" pos:column="2">ifdef<pos:position pos:line="44" pos:column="7"/></cpp:directive> <name pos:line="44" pos:column="8">HOMESPOOL<pos:position pos:line="44" pos:column="17"/></name></cpp:ifdef>
+	<argument><expr><literal type="string" pos:line="45" pos:column="9">"+HOMESPOOL  "<pos:position pos:line="45" pos:column="23"/></literal>
+<cpp:else pos:line="46" pos:column="1">#<cpp:directive pos:line="46" pos:column="2">else<pos:position pos:line="46" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="47" pos:column="9">"-HOMESPOOL  "<pos:position pos:line="47" pos:column="23"/></literal>
+<cpp:endif pos:line="48" pos:column="1">#<cpp:directive pos:line="48" pos:column="2">endif<pos:position pos:line="48" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="50" pos:column="1">#<cpp:directive pos:line="50" pos:column="2">ifdef<pos:position pos:line="50" pos:column="7"/></cpp:directive> <name pos:line="50" pos:column="8">USE_SETGID<pos:position pos:line="50" pos:column="18"/></name></cpp:ifdef>
+	<literal type="string" pos:line="51" pos:column="9">"+USE_SETGID  "<pos:position pos:line="51" pos:column="24"/></literal>
+<cpp:else pos:line="52" pos:column="1">#<cpp:directive pos:line="52" pos:column="2">else<pos:position pos:line="52" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="53" pos:column="9">"-USE_SETGID  "<pos:position pos:line="53" pos:column="24"/></literal>
+<cpp:endif pos:line="54" pos:column="1">#<cpp:directive pos:line="54" pos:column="2">endif<pos:position pos:line="54" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="56" pos:column="1">#<cpp:directive pos:line="56" pos:column="2">ifdef<pos:position pos:line="56" pos:column="7"/></cpp:directive> <name pos:line="56" pos:column="8">USE_DOTLOCK<pos:position pos:line="56" pos:column="19"/></name></cpp:ifdef>
+	<literal type="string" pos:line="57" pos:column="9">"+USE_DOTLOCK  "<pos:position pos:line="57" pos:column="25"/></literal>
+<cpp:else pos:line="58" pos:column="1">#<cpp:directive pos:line="58" pos:column="2">else<pos:position pos:line="58" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="59" pos:column="9">"-USE_DOTLOCK  "<pos:position pos:line="59" pos:column="25"/></literal>
+<cpp:endif pos:line="60" pos:column="1">#<cpp:directive pos:line="60" pos:column="2">endif<pos:position pos:line="60" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="62" pos:column="1">#<cpp:directive pos:line="62" pos:column="2">ifdef<pos:position pos:line="62" pos:column="7"/></cpp:directive> <name pos:line="62" pos:column="8">DL_STANDALONE<pos:position pos:line="62" pos:column="21"/></name></cpp:ifdef>
+	<literal type="string" pos:line="63" pos:column="9">"+DL_STANDALONE  "<pos:position pos:line="63" pos:column="27"/></literal>
+<cpp:else pos:line="64" pos:column="1">#<cpp:directive pos:line="64" pos:column="2">else<pos:position pos:line="64" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="65" pos:column="9">"-DL_STANDALONE  "<pos:position pos:line="65" pos:column="27"/></literal>
+<cpp:endif pos:line="66" pos:column="1">#<cpp:directive pos:line="66" pos:column="2">endif<pos:position pos:line="66" pos:column="7"/></cpp:directive></cpp:endif>
+
+	<literal type="string" pos:line="68" pos:column="9">"\n"<pos:position pos:line="68" pos:column="13"/></literal>
+	
+<cpp:ifdef pos:line="70" pos:column="1">#<cpp:directive pos:line="70" pos:column="2">ifdef<pos:position pos:line="70" pos:column="7"/></cpp:directive> <name pos:line="70" pos:column="8">USE_FCNTL<pos:position pos:line="70" pos:column="17"/></name></cpp:ifdef>
+	<literal type="string" pos:line="71" pos:column="9">"+USE_FCNTL  "<pos:position pos:line="71" pos:column="23"/></literal>
+<cpp:else pos:line="72" pos:column="1">#<cpp:directive pos:line="72" pos:column="2">else<pos:position pos:line="72" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="73" pos:column="9">"-USE_FCNTL  "<pos:position pos:line="73" pos:column="23"/></literal>
+<cpp:endif pos:line="74" pos:column="1">#<cpp:directive pos:line="74" pos:column="2">endif<pos:position pos:line="74" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="76" pos:column="1">#<cpp:directive pos:line="76" pos:column="2">ifdef<pos:position pos:line="76" pos:column="7"/></cpp:directive> <name pos:line="76" pos:column="8">USE_FLOCK<pos:position pos:line="76" pos:column="17"/></name></cpp:ifdef>
+	<literal type="string" pos:line="77" pos:column="9">"+USE_FLOCK"<pos:position pos:line="77" pos:column="21"/></literal>
+<cpp:else pos:line="78" pos:column="1">#<cpp:directive pos:line="78" pos:column="2">else<pos:position pos:line="78" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="79" pos:column="9">"-USE_FLOCK"<pos:position pos:line="79" pos:column="21"/></literal></expr></argument>
+<cpp:endif pos:line="80" pos:column="1">#<cpp:directive pos:line="80" pos:column="2">endif<pos:position pos:line="80" pos:column="7"/></cpp:directive></cpp:endif>
+	)<pos:position pos:line="81" pos:column="10"/></argument_list></call></expr>;<pos:position pos:line="81" pos:column="11"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="82" pos:column="3">puts<pos:position pos:line="82" pos:column="7"/></name> <argument_list pos:line="82" pos:column="8">(
+<cpp:ifdef pos:line="83" pos:column="1">#<cpp:directive pos:line="83" pos:column="2">ifdef<pos:position pos:line="83" pos:column="7"/></cpp:directive> <name pos:line="83" pos:column="8">USE_POP<pos:position pos:line="83" pos:column="15"/></name></cpp:ifdef>
+	<argument><expr><literal type="string" pos:line="84" pos:column="9">"+USE_POP  "<pos:position pos:line="84" pos:column="21"/></literal>
+<cpp:else pos:line="85" pos:column="1">#<cpp:directive pos:line="85" pos:column="2">else<pos:position pos:line="85" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="86" pos:column="9">"-USE_POP  "<pos:position pos:line="86" pos:column="21"/></literal>
+<cpp:endif pos:line="87" pos:column="1">#<cpp:directive pos:line="87" pos:column="2">endif<pos:position pos:line="87" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="89" pos:column="1">#<cpp:directive pos:line="89" pos:column="2">ifdef<pos:position pos:line="89" pos:column="7"/></cpp:directive> <name pos:line="89" pos:column="8">USE_IMAP<pos:position pos:line="89" pos:column="16"/></name></cpp:ifdef>
+        <literal type="string" pos:line="90" pos:column="9">"+USE_IMAP  "<pos:position pos:line="90" pos:column="22"/></literal>
+<cpp:else pos:line="91" pos:column="1">#<cpp:directive pos:line="91" pos:column="2">else<pos:position pos:line="91" pos:column="6"/></cpp:directive></cpp:else>
+        <literal type="string" pos:line="92" pos:column="9">"-USE_IMAP  "<pos:position pos:line="92" pos:column="22"/></literal>
+<cpp:endif pos:line="93" pos:column="1">#<cpp:directive pos:line="93" pos:column="2">endif<pos:position pos:line="93" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="95" pos:column="1">#<cpp:directive pos:line="95" pos:column="2">ifdef<pos:position pos:line="95" pos:column="7"/></cpp:directive> <name pos:line="95" pos:column="8">USE_GSS<pos:position pos:line="95" pos:column="15"/></name></cpp:ifdef>
+	<literal type="string" pos:line="96" pos:column="9">"+USE_GSS  "<pos:position pos:line="96" pos:column="21"/></literal>
+<cpp:else pos:line="97" pos:column="1">#<cpp:directive pos:line="97" pos:column="2">else<pos:position pos:line="97" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="98" pos:column="9">"-USE_GSS  "<pos:position pos:line="98" pos:column="21"/></literal>
+<cpp:endif pos:line="99" pos:column="1">#<cpp:directive pos:line="99" pos:column="2">endif<pos:position pos:line="99" pos:column="7"/></cpp:directive></cpp:endif>
+
+	
+<cpp:ifdef pos:line="102" pos:column="1">#<cpp:directive pos:line="102" pos:column="2">ifdef<pos:position pos:line="102" pos:column="7"/></cpp:directive> <name pos:line="102" pos:column="8">USE_SSL<pos:position pos:line="102" pos:column="15"/></name></cpp:ifdef>
+	<literal type="string" pos:line="103" pos:column="9">"+USE_SSL  "<pos:position pos:line="103" pos:column="21"/></literal>
+<cpp:else pos:line="104" pos:column="1">#<cpp:directive pos:line="104" pos:column="2">else<pos:position pos:line="104" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="105" pos:column="9">"-USE_SSL  "<pos:position pos:line="105" pos:column="21"/></literal>
+<cpp:endif pos:line="106" pos:column="1">#<cpp:directive pos:line="106" pos:column="2">endif<pos:position pos:line="106" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="108" pos:column="1">#<cpp:directive pos:line="108" pos:column="2">ifdef<pos:position pos:line="108" pos:column="7"/></cpp:directive> <name pos:line="108" pos:column="8">USE_SASL<pos:position pos:line="108" pos:column="16"/></name></cpp:ifdef>
+	<literal type="string" pos:line="109" pos:column="9">"+USE_SASL  "<pos:position pos:line="109" pos:column="22"/></literal>
+<cpp:else pos:line="110" pos:column="1">#<cpp:directive pos:line="110" pos:column="2">else<pos:position pos:line="110" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="111" pos:column="9">"-USE_SASL  "<pos:position pos:line="111" pos:column="22"/></literal>
+<cpp:endif pos:line="112" pos:column="1">#<cpp:directive pos:line="112" pos:column="2">endif<pos:position pos:line="112" pos:column="7"/></cpp:directive></cpp:endif>
+	<literal type="string" pos:line="113" pos:column="9">"\n"<pos:position pos:line="113" pos:column="13"/></literal>
+	
+<cpp:ifdef pos:line="115" pos:column="1">#<cpp:directive pos:line="115" pos:column="2">ifdef<pos:position pos:line="115" pos:column="7"/></cpp:directive> <name pos:line="115" pos:column="8">HAVE_REGCOMP<pos:position pos:line="115" pos:column="20"/></name></cpp:ifdef>
+	<literal type="string" pos:line="116" pos:column="9">"+HAVE_REGCOMP  "<pos:position pos:line="116" pos:column="26"/></literal>
+<cpp:else pos:line="117" pos:column="1">#<cpp:directive pos:line="117" pos:column="2">else<pos:position pos:line="117" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="118" pos:column="9">"-HAVE_REGCOMP  "<pos:position pos:line="118" pos:column="26"/></literal>
+<cpp:endif pos:line="119" pos:column="1">#<cpp:directive pos:line="119" pos:column="2">endif<pos:position pos:line="119" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="121" pos:column="1">#<cpp:directive pos:line="121" pos:column="2">ifdef<pos:position pos:line="121" pos:column="7"/></cpp:directive> <name pos:line="121" pos:column="8">USE_GNU_REGEX<pos:position pos:line="121" pos:column="21"/></name></cpp:ifdef>
+	<literal type="string" pos:line="122" pos:column="9">"+USE_GNU_REGEX  "<pos:position pos:line="122" pos:column="27"/></literal>
+<cpp:else pos:line="123" pos:column="1">#<cpp:directive pos:line="123" pos:column="2">else<pos:position pos:line="123" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="124" pos:column="9">"-USE_GNU_REGEX  "<pos:position pos:line="124" pos:column="27"/></literal>
+<cpp:endif pos:line="125" pos:column="1">#<cpp:directive pos:line="125" pos:column="2">endif<pos:position pos:line="125" pos:column="7"/></cpp:directive></cpp:endif>
+
+	<literal type="string" pos:line="127" pos:column="9">"\n"<pos:position pos:line="127" pos:column="13"/></literal>
+	
+<cpp:ifdef pos:line="129" pos:column="1">#<cpp:directive pos:line="129" pos:column="2">ifdef<pos:position pos:line="129" pos:column="7"/></cpp:directive> <name pos:line="129" pos:column="8">HAVE_COLOR<pos:position pos:line="129" pos:column="18"/></name></cpp:ifdef>
+	<literal type="string" pos:line="130" pos:column="9">"+HAVE_COLOR  "<pos:position pos:line="130" pos:column="24"/></literal>
+<cpp:else pos:line="131" pos:column="1">#<cpp:directive pos:line="131" pos:column="2">else<pos:position pos:line="131" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="132" pos:column="9">"-HAVE_COLOR  "<pos:position pos:line="132" pos:column="24"/></literal>
+<cpp:endif pos:line="133" pos:column="1">#<cpp:directive pos:line="133" pos:column="2">endif<pos:position pos:line="133" pos:column="7"/></cpp:directive></cpp:endif>
+	
+<cpp:ifdef pos:line="135" pos:column="1">#<cpp:directive pos:line="135" pos:column="2">ifdef<pos:position pos:line="135" pos:column="7"/></cpp:directive> <name pos:line="135" pos:column="8">HAVE_START_COLOR<pos:position pos:line="135" pos:column="24"/></name></cpp:ifdef>
+	<literal type="string" pos:line="136" pos:column="9">"+HAVE_START_COLOR  "<pos:position pos:line="136" pos:column="30"/></literal>
+<cpp:else pos:line="137" pos:column="1">#<cpp:directive pos:line="137" pos:column="2">else<pos:position pos:line="137" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="138" pos:column="9">"-HAVE_START_COLOR  "<pos:position pos:line="138" pos:column="30"/></literal>
+<cpp:endif pos:line="139" pos:column="1">#<cpp:directive pos:line="139" pos:column="2">endif<pos:position pos:line="139" pos:column="7"/></cpp:directive></cpp:endif>
+	
+<cpp:ifdef pos:line="141" pos:column="1">#<cpp:directive pos:line="141" pos:column="2">ifdef<pos:position pos:line="141" pos:column="7"/></cpp:directive> <name pos:line="141" pos:column="8">HAVE_TYPEAHEAD<pos:position pos:line="141" pos:column="22"/></name></cpp:ifdef>
+	<literal type="string" pos:line="142" pos:column="9">"+HAVE_TYPEAHEAD  "<pos:position pos:line="142" pos:column="28"/></literal>
+<cpp:else pos:line="143" pos:column="1">#<cpp:directive pos:line="143" pos:column="2">else<pos:position pos:line="143" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="144" pos:column="9">"-HAVE_TYPEAHEAD  "<pos:position pos:line="144" pos:column="28"/></literal>
+<cpp:endif pos:line="145" pos:column="1">#<cpp:directive pos:line="145" pos:column="2">endif<pos:position pos:line="145" pos:column="7"/></cpp:directive></cpp:endif>
+	
+<cpp:ifdef pos:line="147" pos:column="1">#<cpp:directive pos:line="147" pos:column="2">ifdef<pos:position pos:line="147" pos:column="7"/></cpp:directive> <name pos:line="147" pos:column="8">HAVE_BKGDSET<pos:position pos:line="147" pos:column="20"/></name></cpp:ifdef>
+	<literal type="string" pos:line="148" pos:column="9">"+HAVE_BKGDSET  "<pos:position pos:line="148" pos:column="26"/></literal>
+<cpp:else pos:line="149" pos:column="1">#<cpp:directive pos:line="149" pos:column="2">else<pos:position pos:line="149" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="150" pos:column="9">"-HAVE_BKGDSET  "<pos:position pos:line="150" pos:column="26"/></literal>
+<cpp:endif pos:line="151" pos:column="1">#<cpp:directive pos:line="151" pos:column="2">endif<pos:position pos:line="151" pos:column="7"/></cpp:directive></cpp:endif>
+
+	<literal type="string" pos:line="153" pos:column="9">"\n"<pos:position pos:line="153" pos:column="13"/></literal>
+	
+<cpp:ifdef pos:line="155" pos:column="1">#<cpp:directive pos:line="155" pos:column="2">ifdef<pos:position pos:line="155" pos:column="7"/></cpp:directive> <name pos:line="155" pos:column="8">HAVE_CURS_SET<pos:position pos:line="155" pos:column="21"/></name></cpp:ifdef>
+	<literal type="string" pos:line="156" pos:column="9">"+HAVE_CURS_SET  "<pos:position pos:line="156" pos:column="27"/></literal>
+<cpp:else pos:line="157" pos:column="1">#<cpp:directive pos:line="157" pos:column="2">else<pos:position pos:line="157" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="158" pos:column="9">"-HAVE_CURS_SET  "<pos:position pos:line="158" pos:column="27"/></literal>
+<cpp:endif pos:line="159" pos:column="1">#<cpp:directive pos:line="159" pos:column="2">endif<pos:position pos:line="159" pos:column="7"/></cpp:directive></cpp:endif>
+	
+<cpp:ifdef pos:line="161" pos:column="1">#<cpp:directive pos:line="161" pos:column="2">ifdef<pos:position pos:line="161" pos:column="7"/></cpp:directive> <name pos:line="161" pos:column="8">HAVE_META<pos:position pos:line="161" pos:column="17"/></name></cpp:ifdef>
+	<literal type="string" pos:line="162" pos:column="9">"+HAVE_META  "<pos:position pos:line="162" pos:column="23"/></literal>
+<cpp:else pos:line="163" pos:column="1">#<cpp:directive pos:line="163" pos:column="2">else<pos:position pos:line="163" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="164" pos:column="9">"-HAVE_META  "<pos:position pos:line="164" pos:column="23"/></literal>
+<cpp:endif pos:line="165" pos:column="1">#<cpp:directive pos:line="165" pos:column="2">endif<pos:position pos:line="165" pos:column="7"/></cpp:directive></cpp:endif>
+	
+<cpp:ifdef pos:line="167" pos:column="1">#<cpp:directive pos:line="167" pos:column="2">ifdef<pos:position pos:line="167" pos:column="7"/></cpp:directive> <name pos:line="167" pos:column="8">HAVE_RESIZETERM<pos:position pos:line="167" pos:column="23"/></name></cpp:ifdef>
+	<literal type="string" pos:line="168" pos:column="9">"+HAVE_RESIZETERM  "<pos:position pos:line="168" pos:column="29"/></literal>
+<cpp:else pos:line="169" pos:column="1">#<cpp:directive pos:line="169" pos:column="2">else<pos:position pos:line="169" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="170" pos:column="9">"-HAVE_RESIZETERM  "<pos:position pos:line="170" pos:column="29"/></literal></expr></argument>
+<cpp:endif pos:line="171" pos:column="1">#<cpp:directive pos:line="171" pos:column="2">endif<pos:position pos:line="171" pos:column="7"/></cpp:directive></cpp:endif>
+	
+	
+	)<pos:position pos:line="174" pos:column="10"/></argument_list></call></expr>;<pos:position pos:line="174" pos:column="11"/></expr_stmt>
+  
+  
+  <expr_stmt><expr><call><name pos:line="177" pos:column="3">puts<pos:position pos:line="177" pos:column="7"/></name> <argument_list pos:line="177" pos:column="8">(
+	
+<cpp:ifdef pos:line="179" pos:column="1">#<cpp:directive pos:line="179" pos:column="2">ifdef<pos:position pos:line="179" pos:column="7"/></cpp:directive> <name pos:line="179" pos:column="8">HAVE_PGP<pos:position pos:line="179" pos:column="16"/></name></cpp:ifdef>
+	<argument><expr><literal type="string" pos:line="180" pos:column="9">"+HAVE_PGP  "<pos:position pos:line="180" pos:column="22"/></literal>
+<cpp:else pos:line="181" pos:column="1">#<cpp:directive pos:line="181" pos:column="2">else<pos:position pos:line="181" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="182" pos:column="9">"-HAVE_PGP  "<pos:position pos:line="182" pos:column="22"/></literal>
+<cpp:endif pos:line="183" pos:column="1">#<cpp:directive pos:line="183" pos:column="2">endif<pos:position pos:line="183" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="185" pos:column="1">#<cpp:directive pos:line="185" pos:column="2">ifdef<pos:position pos:line="185" pos:column="7"/></cpp:directive> <name pos:line="185" pos:column="8">BUFFY_SIZE<pos:position pos:line="185" pos:column="18"/></name></cpp:ifdef>
+	<literal type="string" pos:line="186" pos:column="9">"+BUFFY_SIZE "<pos:position pos:line="186" pos:column="23"/></literal>
+<cpp:else pos:line="187" pos:column="1">#<cpp:directive pos:line="187" pos:column="2">else<pos:position pos:line="187" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="188" pos:column="9">"-BUFFY_SIZE "<pos:position pos:line="188" pos:column="23"/></literal>
+<cpp:endif pos:line="189" pos:column="1">#<cpp:directive pos:line="189" pos:column="2">endif<pos:position pos:line="189" pos:column="7"/></cpp:directive></cpp:endif>
+<cpp:ifdef pos:line="190" pos:column="1">#<cpp:directive pos:line="190" pos:column="2">ifdef<pos:position pos:line="190" pos:column="7"/></cpp:directive> <name pos:line="190" pos:column="8">EXACT_ADDRESS<pos:position pos:line="190" pos:column="21"/></name></cpp:ifdef>
+	<literal type="string" pos:line="191" pos:column="9">"+EXACT_ADDRESS  "<pos:position pos:line="191" pos:column="27"/></literal>
+<cpp:else pos:line="192" pos:column="1">#<cpp:directive pos:line="192" pos:column="2">else<pos:position pos:line="192" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="193" pos:column="9">"-EXACT_ADDRESS  "<pos:position pos:line="193" pos:column="27"/></literal>
+<cpp:endif pos:line="194" pos:column="1">#<cpp:directive pos:line="194" pos:column="2">endif<pos:position pos:line="194" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="196" pos:column="1">#<cpp:directive pos:line="196" pos:column="2">ifdef<pos:position pos:line="196" pos:column="7"/></cpp:directive> <name pos:line="196" pos:column="8">SUN_ATTACHMENT<pos:position pos:line="196" pos:column="22"/></name></cpp:ifdef>
+	<literal type="string" pos:line="197" pos:column="9">"+SUN_ATTACHMENT  "<pos:position pos:line="197" pos:column="28"/></literal>
+<cpp:else pos:line="198" pos:column="1">#<cpp:directive pos:line="198" pos:column="2">else<pos:position pos:line="198" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="199" pos:column="9">"-SUN_ATTACHMENT  "<pos:position pos:line="199" pos:column="28"/></literal>
+<cpp:endif pos:line="200" pos:column="1">#<cpp:directive pos:line="200" pos:column="2">endif<pos:position pos:line="200" pos:column="7"/></cpp:directive></cpp:endif>
+
+	<literal type="string" pos:line="202" pos:column="9">"\n"<pos:position pos:line="202" pos:column="13"/></literal>
+	
+<cpp:ifdef pos:line="204" pos:column="1">#<cpp:directive pos:line="204" pos:column="2">ifdef<pos:position pos:line="204" pos:column="7"/></cpp:directive> <name pos:line="204" pos:column="8">ENABLE_NLS<pos:position pos:line="204" pos:column="18"/></name></cpp:ifdef>
+	<literal type="string" pos:line="205" pos:column="9">"+ENABLE_NLS  "<pos:position pos:line="205" pos:column="24"/></literal>
+<cpp:else pos:line="206" pos:column="1">#<cpp:directive pos:line="206" pos:column="2">else<pos:position pos:line="206" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="207" pos:column="9">"-ENABLE_NLS  "<pos:position pos:line="207" pos:column="24"/></literal>
+<cpp:endif pos:line="208" pos:column="1">#<cpp:directive pos:line="208" pos:column="2">endif<pos:position pos:line="208" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="210" pos:column="1">#<cpp:directive pos:line="210" pos:column="2">ifdef<pos:position pos:line="210" pos:column="7"/></cpp:directive> <name pos:line="210" pos:column="8">LOCALES_HACK<pos:position pos:line="210" pos:column="20"/></name></cpp:ifdef>
+	<literal type="string" pos:line="211" pos:column="9">"+LOCALES_HACK  "<pos:position pos:line="211" pos:column="26"/></literal>
+<cpp:else pos:line="212" pos:column="1">#<cpp:directive pos:line="212" pos:column="2">else<pos:position pos:line="212" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="213" pos:column="9">"-LOCALES_HACK  "<pos:position pos:line="213" pos:column="26"/></literal>
+<cpp:endif pos:line="214" pos:column="1">#<cpp:directive pos:line="214" pos:column="2">endif<pos:position pos:line="214" pos:column="7"/></cpp:directive></cpp:endif>
+	      
+<cpp:ifdef pos:line="216" pos:column="1">#<cpp:directive pos:line="216" pos:column="2">ifdef<pos:position pos:line="216" pos:column="7"/></cpp:directive> <name pos:line="216" pos:column="8">HAVE_WC_FUNCS<pos:position pos:line="216" pos:column="21"/></name></cpp:ifdef>
+	<literal type="string" pos:line="217" pos:column="9">"+HAVE_WC_FUNCS  "<pos:position pos:line="217" pos:column="27"/></literal>
+<cpp:else pos:line="218" pos:column="1">#<cpp:directive pos:line="218" pos:column="2">else<pos:position pos:line="218" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="219" pos:column="9">"-HAVE_WC_FUNCS  "<pos:position pos:line="219" pos:column="27"/></literal>
+<cpp:endif pos:line="220" pos:column="1">#<cpp:directive pos:line="220" pos:column="2">endif<pos:position pos:line="220" pos:column="7"/></cpp:directive></cpp:endif>
+	
+<cpp:ifdef pos:line="222" pos:column="1">#<cpp:directive pos:line="222" pos:column="2">ifdef<pos:position pos:line="222" pos:column="7"/></cpp:directive> <name pos:line="222" pos:column="8">HAVE_LANGINFO_CODESET<pos:position pos:line="222" pos:column="29"/></name></cpp:ifdef>
+	<literal type="string" pos:line="223" pos:column="9">"+HAVE_LANGINFO_CODESET  "<pos:position pos:line="223" pos:column="35"/></literal>
+<cpp:else pos:line="224" pos:column="1">#<cpp:directive pos:line="224" pos:column="2">else<pos:position pos:line="224" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="225" pos:column="9">"-HAVE_LANGINFO_CODESET  "<pos:position pos:line="225" pos:column="35"/></literal>
+<cpp:endif pos:line="226" pos:column="1">#<cpp:directive pos:line="226" pos:column="2">endif<pos:position pos:line="226" pos:column="7"/></cpp:directive></cpp:endif>
+
+	
+<cpp:ifdef pos:line="229" pos:column="1">#<cpp:directive pos:line="229" pos:column="2">ifdef<pos:position pos:line="229" pos:column="7"/></cpp:directive> <name pos:line="229" pos:column="8">HAVE_LANGINFO_YESEXPR<pos:position pos:line="229" pos:column="29"/></name></cpp:ifdef>
+ 	<literal type="string" pos:line="230" pos:column="9">"+HAVE_LANGINFO_YESEXPR  "<pos:position pos:line="230" pos:column="35"/></literal>
+<cpp:else pos:line="231" pos:column="1">#<cpp:directive pos:line="231" pos:column="2">else<pos:position pos:line="231" pos:column="6"/></cpp:directive></cpp:else>
+ 	<literal type="string" pos:line="232" pos:column="9">"-HAVE_LANGINFO_YESEXPR  "<pos:position pos:line="232" pos:column="35"/></literal>
+<cpp:endif pos:line="233" pos:column="1">#<cpp:directive pos:line="233" pos:column="2">endif<pos:position pos:line="233" pos:column="7"/></cpp:directive></cpp:endif>
+	
+	<literal type="string" pos:line="235" pos:column="9">"\n"<pos:position pos:line="235" pos:column="13"/></literal>
+
+<cpp:if pos:line="237" pos:column="1">#<cpp:directive pos:line="237" pos:column="2">if<pos:position pos:line="237" pos:column="4"/></cpp:directive> <expr><name pos:line="237" pos:column="5">HAVE_ICONV<pos:position pos:line="237" pos:column="15"/></name></expr></cpp:if>
+	<literal type="string" pos:line="238" pos:column="9">"+HAVE_ICONV  "<pos:position pos:line="238" pos:column="24"/></literal>
+<cpp:else pos:line="239" pos:column="1">#<cpp:directive pos:line="239" pos:column="2">else<pos:position pos:line="239" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="240" pos:column="9">"-HAVE_ICONV  "<pos:position pos:line="240" pos:column="24"/></literal>
+<cpp:endif pos:line="241" pos:column="1">#<cpp:directive pos:line="241" pos:column="2">endif<pos:position pos:line="241" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:if pos:line="243" pos:column="1">#<cpp:directive pos:line="243" pos:column="2">if<pos:position pos:line="243" pos:column="4"/></cpp:directive> <expr><name pos:line="243" pos:column="5">ICONV_NONTRANS<pos:position pos:line="243" pos:column="19"/></name></expr></cpp:if>
+	<literal type="string" pos:line="244" pos:column="9">"+ICONV_NONTRANS  "<pos:position pos:line="244" pos:column="28"/></literal>
+<cpp:else pos:line="245" pos:column="1">#<cpp:directive pos:line="245" pos:column="2">else<pos:position pos:line="245" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="246" pos:column="9">"-ICONV_NONTRANS  "<pos:position pos:line="246" pos:column="28"/></literal>
+<cpp:endif pos:line="247" pos:column="1">#<cpp:directive pos:line="247" pos:column="2">endif<pos:position pos:line="247" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:if pos:line="249" pos:column="1">#<cpp:directive pos:line="249" pos:column="2">if<pos:position pos:line="249" pos:column="4"/></cpp:directive> <expr><name pos:line="249" pos:column="5">HAVE_GETSID<pos:position pos:line="249" pos:column="16"/></name></expr></cpp:if>
+	<literal type="string" pos:line="250" pos:column="9">"+HAVE_GETSID  "<pos:position pos:line="250" pos:column="25"/></literal>
+<cpp:else pos:line="251" pos:column="1">#<cpp:directive pos:line="251" pos:column="2">else<pos:position pos:line="251" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="252" pos:column="9">"-HAVE_GETSID  "<pos:position pos:line="252" pos:column="25"/></literal>
+<cpp:endif pos:line="253" pos:column="1">#<cpp:directive pos:line="253" pos:column="2">endif<pos:position pos:line="253" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:if pos:line="255" pos:column="1">#<cpp:directive pos:line="255" pos:column="2">if<pos:position pos:line="255" pos:column="4"/></cpp:directive> <expr><name pos:line="255" pos:column="5">HAVE_GETADDRINFO<pos:position pos:line="255" pos:column="21"/></name></expr></cpp:if>
+	<literal type="string" pos:line="256" pos:column="9">"+HAVE_GETADDRINFO  "<pos:position pos:line="256" pos:column="30"/></literal>
+<cpp:else pos:line="257" pos:column="1">#<cpp:directive pos:line="257" pos:column="2">else<pos:position pos:line="257" pos:column="6"/></cpp:directive></cpp:else>
+	<literal type="string" pos:line="258" pos:column="9">"-HAVE_GETADDRINFO  "<pos:position pos:line="258" pos:column="30"/></literal></expr></argument>
+<cpp:endif pos:line="259" pos:column="1">#<cpp:directive pos:line="259" pos:column="2">endif<pos:position pos:line="259" pos:column="7"/></cpp:directive></cpp:endif>
+
+	)<pos:position pos:line="261" pos:column="10"/></argument_list></call></expr>;<pos:position pos:line="261" pos:column="11"/></expr_stmt>
+
+<cpp:ifdef pos:line="263" pos:column="1">#<cpp:directive pos:line="263" pos:column="2">ifdef<pos:position pos:line="263" pos:column="7"/></cpp:directive> <name pos:line="263" pos:column="8">ISPELL<pos:position pos:line="263" pos:column="14"/></name></cpp:ifdef>
+  <expr_stmt><expr><call><name pos:line="264" pos:column="3">printf<pos:position pos:line="264" pos:column="9"/></name> <argument_list pos:line="264" pos:column="10">(<argument><expr><literal type="string" pos:line="264" pos:column="11">"ISPELL=\"%s\"\n"<pos:position pos:line="264" pos:column="28"/></literal></expr></argument>, <argument><expr><name pos:line="264" pos:column="30">ISPELL<pos:position pos:line="264" pos:column="36"/></name></expr></argument>)<pos:position pos:line="264" pos:column="37"/></argument_list></call></expr>;<pos:position pos:line="264" pos:column="38"/></expr_stmt>
+<cpp:else pos:line="265" pos:column="1">#<cpp:directive pos:line="265" pos:column="2">else<pos:position pos:line="265" pos:column="6"/></cpp:directive></cpp:else>
+  <expr_stmt><expr><call><name pos:line="266" pos:column="3">puts<pos:position pos:line="266" pos:column="7"/></name> <argument_list pos:line="266" pos:column="8">(<argument><expr><literal type="string" pos:line="266" pos:column="9">"-ISPELL"<pos:position pos:line="266" pos:column="18"/></literal></expr></argument>)<pos:position pos:line="266" pos:column="19"/></argument_list></call></expr>;<pos:position pos:line="266" pos:column="20"/></expr_stmt>
+<cpp:endif pos:line="267" pos:column="1">#<cpp:directive pos:line="267" pos:column="2">endif<pos:position pos:line="267" pos:column="7"/></cpp:directive></cpp:endif>
+
+  <expr_stmt><expr><call><name pos:line="269" pos:column="3">printf<pos:position pos:line="269" pos:column="9"/></name> <argument_list pos:line="269" pos:column="10">(<argument><expr><literal type="string" pos:line="269" pos:column="11">"SENDMAIL=\"%s\"\n"<pos:position pos:line="269" pos:column="30"/></literal></expr></argument>, <argument><expr><name pos:line="269" pos:column="32">SENDMAIL<pos:position pos:line="269" pos:column="40"/></name></expr></argument>)<pos:position pos:line="269" pos:column="41"/></argument_list></call></expr>;<pos:position pos:line="269" pos:column="42"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="270" pos:column="3">printf<pos:position pos:line="270" pos:column="9"/></name> <argument_list pos:line="270" pos:column="10">(<argument><expr><literal type="string" pos:line="270" pos:column="11">"MAILPATH=\"%s\"\n"<pos:position pos:line="270" pos:column="30"/></literal></expr></argument>, <argument><expr><name pos:line="270" pos:column="32">MAILPATH<pos:position pos:line="270" pos:column="40"/></name></expr></argument>)<pos:position pos:line="270" pos:column="41"/></argument_list></call></expr>;<pos:position pos:line="270" pos:column="42"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="271" pos:column="3">printf<pos:position pos:line="271" pos:column="9"/></name> <argument_list pos:line="271" pos:column="10">(<argument><expr><literal type="string" pos:line="271" pos:column="11">"PKGDATADIR=\"%s\"\n"<pos:position pos:line="271" pos:column="32"/></literal></expr></argument>, <argument><expr><name pos:line="271" pos:column="34">PKGDATADIR<pos:position pos:line="271" pos:column="44"/></name></expr></argument>)<pos:position pos:line="271" pos:column="45"/></argument_list></call></expr>;<pos:position pos:line="271" pos:column="46"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="272" pos:column="3">printf<pos:position pos:line="272" pos:column="9"/></name> <argument_list pos:line="272" pos:column="10">(<argument><expr><literal type="string" pos:line="272" pos:column="11">"SYSCONFDIR=\"%s\"\n"<pos:position pos:line="272" pos:column="32"/></literal></expr></argument>, <argument><expr><name pos:line="272" pos:column="34">SYSCONFDIR<pos:position pos:line="272" pos:column="44"/></name></expr></argument>)<pos:position pos:line="272" pos:column="45"/></argument_list></call></expr>;<pos:position pos:line="272" pos:column="46"/></expr_stmt>
+  <expr_stmt><expr><call><name pos:line="273" pos:column="3">printf<pos:position pos:line="273" pos:column="9"/></name> <argument_list pos:line="273" pos:column="10">(<argument><expr><literal type="string" pos:line="273" pos:column="11">"EXECSHELL=\"%s\"\n"<pos:position pos:line="273" pos:column="31"/></literal></expr></argument>, <argument><expr><name pos:line="273" pos:column="33">EXECSHELL<pos:position pos:line="273" pos:column="42"/></name></expr></argument>)<pos:position pos:line="273" pos:column="43"/></argument_list></call></expr>;<pos:position pos:line="273" pos:column="44"/></expr_stmt>
+<cpp:ifdef pos:line="274" pos:column="1">#<cpp:directive pos:line="274" pos:column="2">ifdef<pos:position pos:line="274" pos:column="7"/></cpp:directive> <name pos:line="274" pos:column="8">MIXMASTER<pos:position pos:line="274" pos:column="17"/></name></cpp:ifdef>
+  <expr_stmt><expr><call><name pos:line="275" pos:column="3">printf<pos:position pos:line="275" pos:column="9"/></name> <argument_list pos:line="275" pos:column="10">(<argument><expr><literal type="string" pos:line="275" pos:column="11">"MIXMASTER=\"%s\"\n"<pos:position pos:line="275" pos:column="31"/></literal></expr></argument>, <argument><expr><name pos:line="275" pos:column="33">MIXMASTER<pos:position pos:line="275" pos:column="42"/></name></expr></argument>)<pos:position pos:line="275" pos:column="43"/></argument_list></call></expr>;<pos:position pos:line="275" pos:column="44"/></expr_stmt>
+<cpp:else pos:line="276" pos:column="1">#<cpp:directive pos:line="276" pos:column="2">else<pos:position pos:line="276" pos:column="6"/></cpp:directive></cpp:else>
+  <expr_stmt><expr><call><name pos:line="277" pos:column="3">puts<pos:position pos:line="277" pos:column="7"/></name> <argument_list pos:line="277" pos:column="8">(<argument><expr><literal type="string" pos:line="277" pos:column="9">"-MIXMASTER"<pos:position pos:line="277" pos:column="21"/></literal></expr></argument>)<pos:position pos:line="277" pos:column="22"/></argument_list></call></expr>;<pos:position pos:line="277" pos:column="23"/></expr_stmt>
+<cpp:endif pos:line="278" pos:column="1">#<cpp:directive pos:line="278" pos:column="2">endif<pos:position pos:line="278" pos:column="7"/></cpp:directive></cpp:endif>
+
+  <expr_stmt><expr><call><name pos:line="280" pos:column="3">puts<pos:position pos:line="280" pos:column="7"/></name><argument_list pos:line="280" pos:column="7">(<argument><expr><call><name pos:line="280" pos:column="8">_<pos:position pos:line="280" pos:column="9"/></name><argument_list pos:line="280" pos:column="9">(<argument><expr><name pos:line="280" pos:column="10">ReachingUs<pos:position pos:line="280" pos:column="20"/></name></expr></argument>)<pos:position pos:line="280" pos:column="21"/></argument_list></call></expr></argument>)<pos:position pos:line="280" pos:column="22"/></argument_list></call></expr>;<pos:position pos:line="280" pos:column="23"/></expr_stmt>
+
+  <expr_stmt><expr><call><name pos:line="282" pos:column="3">mutt_print_patchlist<pos:position pos:line="282" pos:column="23"/></name><argument_list pos:line="282" pos:column="23">()<pos:position pos:line="282" pos:column="25"/></argument_list></call></expr>;<pos:position pos:line="282" pos:column="26"/></expr_stmt>
+  
+  <expr_stmt><expr><call><name pos:line="284" pos:column="3">exit<pos:position pos:line="284" pos:column="7"/></name> <argument_list pos:line="284" pos:column="8">(<argument><expr><literal type="number" pos:line="284" pos:column="9">0<pos:position pos:line="284" pos:column="10"/></literal></expr></argument>)<pos:position pos:line="284" pos:column="11"/></argument_list></call></expr>;<pos:position pos:line="284" pos:column="12"/></expr_stmt>
+}<pos:position pos:line="285" pos:column="2"/></block></function></unit>

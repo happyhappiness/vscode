@@ -1,0 +1,1 @@
+(fputs (MMDF_SEP, msg->fp);

@@ -1,0 +1,1 @@
+fprintf (tmp, "%s\n", linebuf);

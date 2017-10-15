@@ -1,0 +1,1 @@
+(fputs (mb, s->fpout);

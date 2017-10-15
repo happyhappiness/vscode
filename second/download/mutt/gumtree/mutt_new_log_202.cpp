@@ -1,0 +1,1 @@
+state_puts (_("created: "), s);

@@ -1,0 +1,1 @@
+state_puts (_("Error: copy data failed\n"), s);

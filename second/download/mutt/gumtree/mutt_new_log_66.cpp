@@ -1,0 +1,1 @@
+fprintf (pgpin, "%s\n", PgpPass);

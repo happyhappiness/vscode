@@ -1,0 +1,1 @@
+mutt_yesorno (tmp, MUTT_YES);

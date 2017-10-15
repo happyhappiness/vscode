@@ -1,0 +1,1 @@
+fprintf (msg->fp, "C<%s>", SmimeCryptAlg);

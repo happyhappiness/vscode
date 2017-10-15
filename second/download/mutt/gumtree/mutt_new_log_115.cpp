@@ -1,0 +1,1 @@
+printf ("fpr:::::::::%s:\n", p->fingerprint);

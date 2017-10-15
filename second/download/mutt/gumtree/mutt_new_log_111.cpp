@@ -1,0 +1,1 @@
+fprintf(stderr, "%s%s%s", tsl, str, fsl);

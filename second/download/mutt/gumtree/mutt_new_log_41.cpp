@@ -1,0 +1,1 @@
+printf ("\nhcache backend: %s", mutt_hcache_backend ());

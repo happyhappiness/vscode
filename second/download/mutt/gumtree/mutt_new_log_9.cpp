@@ -1,0 +1,1 @@
+mutt_paddstr (COLS, buf);

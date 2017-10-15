@@ -1,0 +1,1 @@
+printw ("%s ([%s]/%s): ", msg, def ? yes : no, def ? no : yes);

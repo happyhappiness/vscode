@@ -1,0 +1,1 @@
+fputs (_("Fingerprint: "), fp);

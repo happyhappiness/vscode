@@ -1,0 +1,1 @@
+fprintf (fpout, "Content-Length: " OFF_T_FMT "\n", new_length);

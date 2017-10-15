@@ -1,0 +1,1 @@
+printw ("%s", SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));

@@ -1,0 +1,1 @@
+state_attach_puts (_("[-- The following data is signed --]\n\n"), s);

@@ -1,0 +1,1 @@
+state_attach_puts (_("[-- Error: malformed PGP/MIME message! --]\n\n"), s);

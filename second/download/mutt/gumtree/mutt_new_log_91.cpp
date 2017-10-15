@@ -1,0 +1,1 @@
+fprintf (fp, "%s%s: ", NONULL (pfx), tag);

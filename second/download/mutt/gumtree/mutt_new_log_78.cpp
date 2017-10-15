@@ -1,0 +1,1 @@
+printf ("%02X", p->fingerprint[i]);

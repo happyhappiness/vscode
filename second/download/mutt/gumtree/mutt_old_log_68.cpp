@@ -1,0 +1,1 @@
+state_attach_puts(_("[-- Error: Inconsistent multipart/signed structure! --]\n\n"), s);

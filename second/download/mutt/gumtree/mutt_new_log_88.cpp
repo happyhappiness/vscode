@@ -1,0 +1,1 @@
+!ascii_strncasecmp ("user-agent", tmp->data, 10);

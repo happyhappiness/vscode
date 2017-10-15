@@ -1,0 +1,1 @@
+printw ("%s", PgpSignAs ? PgpSignAs : _("<default>"));

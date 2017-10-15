@@ -1,0 +1,1 @@
+(mutt_yesorno (_("Error saving flags. Close anyway?"), 0);

@@ -1,0 +1,1 @@
+(mutt_yesorno (_("Exit Mutt?"), MUTT_YES);

@@ -1,0 +1,1 @@
+printf("\nCurrent attachments settings:\n\n");

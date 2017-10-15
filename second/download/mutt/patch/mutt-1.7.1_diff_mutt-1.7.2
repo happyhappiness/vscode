@@ -1,0 +1,2317 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/ChangeLog	2016-10-09 03:53:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/ChangeLog	2016-12-05 07:58:37.000000000 +0800
+@@ -1,6 +1,101 @@
++2016-11-26 00:57 +0100  Vincent Lefevre  <vincent@vinc17.net>  (a0a970530a8b)
++
++	* crypt-gpgme.c, crypt-gpgme.h, crypt-mod-pgp-gpgme.c: Fix build
++	failure with GPGME 1.8: do not steal the gpgme_ prefix.
++
++2016-11-19 19:35 -0800  Kevin McCarthy  <kevin@8t8.us>  (10c4761cea89)
++
++	* mutt_ssl.c: More openssl1.1 fixes: remove uses of X509->name in
++	debugging. (closes #3870)
++
++	X509->name was a shortcut for the longer name = X509_NAME_oneline
++	(X509_get_subject_name (cert), buf, sizeof (buf)); invocation.
++	Change the debugging to print the cert name and chain names in the
++	ssl_check_certificate() loop instead.
++
++2016-09-07 20:00 -0700  TAKAHASHI Tamotsu  <ttakah@lapis.plala.or.jp>  (2c1d79d3edd5)
++
++	* configure.ac, mutt_ssl.c: Fix openssl 1.1 compilation issues.
++	(closes #3870)
++
++	With these changes, Mutt will no longer compile for versions less
++	than 0.9.6.
++
++2016-10-23 14:46 -0700  Kevin McCarthy  <kevin@8t8.us>  (c6704c7f8e23)
++
++	* pager.c: Fix pager segfault when lineInfo.chunks overflows. (closes
++	#3888)
++
++	The reporter had an html attachment with extremely long lines,
++	combined with a color pattern of "color body default default ." This
++	overflowed the lineInfo.chunks, causing a segfault.
++
++	Abort the body color patterns if this happens.
++
++2016-10-23 13:43 -0700  Kevin McCarthy  <kevin@8t8.us>  (a8203b4463c1)
++
++	* date.c: Prevent an integer overflow in mutt_mktime() (closes #3880)
++
++	Check to make sure the year passed in isn't bigger than can be
++	represented using time_t on the platform.
++
++	Also add a (time_t) cast to an intermediate "years * 365"
++	calculation to prevent an overflow there.
++
++	Thanks to TAKAHASHI Tamotsu for his patch, and to Vincent Lefèvre
++	for his improvement. I merely took their code and commited it.
++
++2016-10-17 11:22 -0700  Kevin McCarthy  <kevin@8t8.us>  (113b73b0b616)
++
++	* crypt-gpgme.c: Actually fix gpgme segfault in
++	create_recipient_set().
++
++	Changeset 6e44bfa16096 did not fix the segv. (Sorry, I made the fix
++	based off a report on IRC but didn't trigger the segv myself: it was
++	caused by an out-of-tree patch).
++
++	The actual problem was that the rset was only resized on a
++	successful gpgme_get_key(). However, on error, the array still needs
++	to be NULL-terminated before calling free_recipient_set().
++
++	Move the resize so it always takes place. This obviates the need for
++	the NULL check added in 6e44bfa16096.
++
++2016-10-16 15:12 -0700  Kevin McCarthy  <kevin@8t8.us>  (783dce6dfcd4)
++
++	* sidebar.c: Use mutt_strlen and mutt_strncmp in sidebar.c.
++
++	This prevents a segv if folder is unset.
++
++2016-10-16 14:16 -0700  Kevin McCarthy  <kevin@8t8.us>  (6e44bfa16096)
++
++	* crypt-gpgme.c: Fix gpgme segfault in create_recipient_set().
++
++	If gpgme_get_key() errors on the first key, the rset will not be
++	allocated yet. Attempting to null-terminate (and then free) the
++	array causes a segfault.
++
++2016-10-08 12:57 -0700  Kevin McCarthy  <kevin@8t8.us>  (58f4b38312bf)
++
++	* .hgsigs: mutt-1.7.1 signed
++
++2016-10-08 12:56 -0700  Kevin McCarthy  <kevin@8t8.us>  (e8d9ae6f41d3)
++
++	* .hgtags: Added tag mutt-1-7-1-rel for changeset 0ce5f9bff1fd
++
++2016-10-08 12:56 -0700  Kevin McCarthy  <kevin@8t8.us>  (0ce5f9bff1fd)
++
++	* ChangeLog, UPDATING, VERSION, po/bg.po, po/ca.po, po/cs.po,
++	po/da.po, po/de.po, po/el.po, po/eo.po, po/es.po, po/et.po,
++	po/eu.po, po/fr.po, po/ga.po, po/gl.po, po/hu.po, po/id.po,
++	po/it.po, po/ja.po, po/ko.po, po/lt.po, po/nl.po, po/pl.po,
++	po/pt_BR.po, po/ru.po, po/sk.po, po/sv.po, po/tr.po, po/uk.po,
++	po/zh_CN.po, po/zh_TW.po: automatic post-release commit for
++	mutt-1.7.1
++
+ 2016-10-04 11:13 -0700  Kevin McCarthy  <kevin@8t8.us>  (5c5848dfa4ea)
+ 
+ 	* muttlib.c: Preserve forwarded attachment names in d_filename.
+ 
+ 	When forwarding an attachment with an non-ascii name,
+ 	mutt_copy_body() mangles the filename when calling mutt_adv_mktemp.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/config.guess	2016-10-09 03:47:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/config.guess	2016-12-05 07:57:07.000000000 +0800
+@@ -1,11 +1,11 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+ #   Copyright 1992-2016 Free Software Foundation, Inc.
+ 
+-timestamp='2016-04-02'
++timestamp='2016-10-02'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+@@ -183,15 +183,18 @@
+ 		endian=`echo ${UNAME_MACHINE_ARCH} | sed -ne 's,^.*\(eb\)$,\1,p'`
+ 		machine=${arch}${endian}-unknown
+ 		;;
+ 	    *) machine=${UNAME_MACHINE_ARCH}-unknown ;;
+ 	esac
+ 	# The Operating System including object format, if it has switched
+-	# to ELF recently, or will in the future.
++	# to ELF recently (or will in the future) and ABI.
+ 	case "${UNAME_MACHINE_ARCH}" in
+-	    arm*|earm*|i386|m68k|ns32k|sh3*|sparc|vax)
++	    earm*)
++		os=netbsdelf
++		;;
++	    arm*|i386|m68k|ns32k|sh3*|sparc|vax)
+ 		eval $set_cc_for_build
+ 		if echo __ELF__ | $CC_FOR_BUILD -E - 2>/dev/null \
+ 			| grep -q __ELF__
+ 		then
+ 		    # Once all utilities can be ECOFF (netbsdecoff) or a.out (netbsdaout).
+ 		    # Return netbsd for either.  FIX?
+@@ -994,12 +997,15 @@
+ 	#endif
+ 	#endif
+ EOF
+ 	eval `$CC_FOR_BUILD -E $dummy.c 2>/dev/null | grep '^CPU'`
+ 	test x"${CPU}" != x && { echo "${CPU}-unknown-linux-${LIBC}"; exit; }
+ 	;;
++    mips64el:Linux:*:*)
++	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
++	exit ;;
+     openrisc*:Linux:*:*)
+ 	echo or1k-unknown-linux-${LIBC}
+ 	exit ;;
+     or32:Linux:*:* | or1k*:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
+ 	exit ;;
+@@ -1026,12 +1032,15 @@
+     ppc64le:Linux:*:*)
+ 	echo powerpc64le-unknown-linux-${LIBC}
+ 	exit ;;
+     ppcle:Linux:*:*)
+ 	echo powerpcle-unknown-linux-${LIBC}
+ 	exit ;;
++    riscv32:Linux:*:* | riscv64:Linux:*:*)
++	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
++	exit ;;
+     s390:Linux:*:* | s390x:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-ibm-linux-${LIBC}
+ 	exit ;;
+     sh64*:Linux:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
+ 	exit ;;
+@@ -1405,24 +1414,23 @@
+ 	exit ;;
+ esac
+ 
+ cat >&2 <<EOF
+ $0: unable to guess system type
+ 
+-This script, last modified $timestamp, has failed to recognize
+-the operating system you are using. It is advised that you
+-download the most up to date version of the config scripts from
++This script (version $timestamp), has failed to recognize the
++operating system you are using. If your script is old, overwrite
++config.guess and config.sub with the latest versions from:
+ 
+   http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess
+ and
+   http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub
+ 
+-If the version you run ($0) is already up to date, please
+-send the following data and any information you think might be
+-pertinent to <config-patches@gnu.org> in order to provide the needed
+-information to handle your system.
++If $0 has already been updated, send the following data and any
++information you think might be pertinent to config-patches@gnu.org to
++provide the necessary information to handle your system.
+ 
+ config.guess timestamp = $timestamp
+ 
+ uname -m = `(uname -m) 2>/dev/null || echo unknown`
+ uname -r = `(uname -r) 2>/dev/null || echo unknown`
+ uname -s = `(uname -s) 2>/dev/null || echo unknown`
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/config.h.in	2016-10-09 03:40:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/config.h.in	2016-12-05 07:55:57.000000000 +0800
+@@ -72,12 +72,20 @@
+ #undef HAVE_DCGETTEXT
+ 
+ /* Define to 1 if you have the declaration of
+    `GNUTLS_VERIFY_DISABLE_TIME_CHECKS', and to 0 if you don't. */
+ #undef HAVE_DECL_GNUTLS_VERIFY_DISABLE_TIME_CHECKS
+ 
++/* Define to 1 if you have the declaration of `SSL_MODE_AUTO_RETRY', and to 0
++   if you don't. */
++#undef HAVE_DECL_SSL_MODE_AUTO_RETRY
++
++/* Define to 1 if you have the declaration of `SSL_set_mode', and to 0 if you
++   don't. */
++#undef HAVE_DECL_SSL_SET_MODE
++
+ /* Define to 1 if you have the declaration of `sys_siglist', and to 0 if you
+    don't. */
+ #undef HAVE_DECL_SYS_SIGLIST
+ 
+ /* Define to 1 if your system has the dirent::d_ino member */
+ #undef HAVE_DIRENT_D_INO
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/config.sub /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/config.sub
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/config.sub	2016-10-09 03:47:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/config.sub	2016-12-05 07:57:07.000000000 +0800
+@@ -1,11 +1,11 @@
+ #! /bin/sh
+ # Configuration validation subroutine script.
+ #   Copyright 1992-2016 Free Software Foundation, Inc.
+ 
+-timestamp='2016-03-30'
++timestamp='2016-11-04'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 3 of the License, or
+ # (at your option) any later version.
+ #
+@@ -114,13 +114,13 @@
+ # Here we must recognize all the valid KERNEL-OS combinations.
+ maybe_os=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\2/'`
+ case $maybe_os in
+   nto-qnx* | linux-gnu* | linux-android* | linux-dietlibc | linux-newlib* | \
+   linux-musl* | linux-uclibc* | uclinux-uclibc* | uclinux-gnu* | kfreebsd*-gnu* | \
+   knetbsd*-gnu* | netbsd*-gnu* | netbsd*-eabi* | \
+-  kopensolaris*-gnu* | \
++  kopensolaris*-gnu* | cloudabi*-eabi* | \
+   storm-chaos* | os2-emx* | rtmk-nova*)
+     os=-$maybe_os
+     basic_machine=`echo $1 | sed 's/^\(.*\)-\([^-]*-[^-]*\)$/\1/'`
+     ;;
+   android-linux)
+     os=-linux-android
+@@ -298,12 +298,13 @@
+ 	| nds32 | nds32le | nds32be \
+ 	| nios | nios2 | nios2eb | nios2el \
+ 	| ns16k | ns32k \
+ 	| open8 | or1k | or1knd | or32 \
+ 	| pdp10 | pdp11 | pj | pjl \
+ 	| powerpc | powerpc64 | powerpc64le | powerpcle \
++	| pru \
+ 	| pyramid \
+ 	| riscv32 | riscv64 \
+ 	| rl78 | rx \
+ 	| score \
+ 	| sh | sh[1234] | sh[24]a | sh[24]aeb | sh[23]e | sh[234]eb | sheb | shbe | shle | sh[1234]le | sh3ele \
+ 	| sh64 | sh64le \
+@@ -425,12 +426,13 @@
+ 	| none-* | np1-* | ns16k-* | ns32k-* \
+ 	| open8-* \
+ 	| or1k*-* \
+ 	| orion-* \
+ 	| pdp10-* | pdp11-* | pj-* | pjl-* | pn-* | power-* \
+ 	| powerpc-* | powerpc64-* | powerpc64le-* | powerpcle-* \
++	| pru-* \
+ 	| pyramid-* \
+ 	| riscv32-* | riscv64-* \
+ 	| rl78-* | romp-* | rs6000-* | rx-* \
+ 	| sh-* | sh[1234]-* | sh[24]a-* | sh[24]aeb-* | sh[23]e-* | sh[34]eb-* | sheb-* | shbe-* \
+ 	| shle-* | sh[1234]le-* | sh3ele-* | sh64-* | sh64le-* \
+ 	| sparc-* | sparc64-* | sparc64b-* | sparc64v-* | sparc86x-* | sparclet-* \
+@@ -640,12 +642,20 @@
+ 		os=-bosx
+ 		;;
+ 	dpx2* | dpx2*-bull)
+ 		basic_machine=m68k-bull
+ 		os=-sysv3
+ 		;;
++	e500v[12])
++		basic_machine=powerpc-unknown
++		os=$os"spe"
++		;;
++	e500v[12]-*)
++		basic_machine=powerpc-`echo $basic_machine | sed 's/^[^-]*-//'`
++		os=$os"spe"
++		;;
+ 	ebmon29k)
+ 		basic_machine=a29k-amd
+ 		os=-ebmon
+ 		;;
+ 	elxsi)
+ 		basic_machine=elxsi-elxsi
+@@ -1019,23 +1029,23 @@
+ 		;;
+ 	ppc | ppcbe)	basic_machine=powerpc-unknown
+ 		;;
+ 	ppc-* | ppcbe-*)
+ 		basic_machine=powerpc-`echo $basic_machine | sed 's/^[^-]*-//'`
+ 		;;
+-	ppcle | powerpclittle | ppc-le | powerpc-little)
++	ppcle | powerpclittle)
+ 		basic_machine=powerpcle-unknown
+ 		;;
+ 	ppcle-* | powerpclittle-*)
+ 		basic_machine=powerpcle-`echo $basic_machine | sed 's/^[^-]*-//'`
+ 		;;
+ 	ppc64)	basic_machine=powerpc64-unknown
+ 		;;
+ 	ppc64-*) basic_machine=powerpc64-`echo $basic_machine | sed 's/^[^-]*-//'`
+ 		;;
+-	ppc64le | powerpc64little | ppc64-le | powerpc64-little)
++	ppc64le | powerpc64little)
+ 		basic_machine=powerpc64le-unknown
+ 		;;
+ 	ppc64le-* | powerpc64little-*)
+ 		basic_machine=powerpc64le-`echo $basic_machine | sed 's/^[^-]*-//'`
+ 		;;
+ 	ps2)
+@@ -1386,23 +1396,23 @@
+ 	      | -ekkobsd* | -kfreebsd* | -freebsd* | -riscix* | -lynxos* \
+ 	      | -bosx* | -nextstep* | -cxux* | -aout* | -elf* | -oabi* \
+ 	      | -ptx* | -coff* | -ecoff* | -winnt* | -domain* | -vsta* \
+ 	      | -udi* | -eabi* | -lites* | -ieee* | -go32* | -aux* \
+ 	      | -chorusos* | -chorusrdb* | -cegcc* \
+ 	      | -cygwin* | -msys* | -pe* | -psos* | -moss* | -proelf* | -rtems* \
+-	      | -mingw32* | -mingw64* | -linux-gnu* | -linux-android* \
++	      | -midipix* | -mingw32* | -mingw64* | -linux-gnu* | -linux-android* \
+ 	      | -linux-newlib* | -linux-musl* | -linux-uclibc* \
+ 	      | -uxpv* | -beos* | -mpeix* | -udk* | -moxiebox* \
+ 	      | -interix* | -uwin* | -mks* | -rhapsody* | -darwin* | -opened* \
+ 	      | -openstep* | -oskit* | -conix* | -pw32* | -nonstopux* \
+ 	      | -storm-chaos* | -tops10* | -tenex* | -tops20* | -its* \
+ 	      | -os2* | -vos* | -palmos* | -uclinux* | -nucleus* \
+ 	      | -morphos* | -superux* | -rtmk* | -rtmk-nova* | -windiss* \
+ 	      | -powermax* | -dnix* | -nx6 | -nx7 | -sei* | -dragonfly* \
+ 	      | -skyos* | -haiku* | -rdos* | -toppers* | -drops* | -es* \
+-	      | -onefs* | -tirtos*)
++	      | -onefs* | -tirtos* | -phoenix* | -fuchsia*)
+ 	# Remember, each alternative MUST END IN *, to match a version number.
+ 		;;
+ 	-qnx*)
+ 		case $basic_machine in
+ 		    x86-* | i*86-*)
+ 			;;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/configure	2016-10-09 03:40:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/configure	2016-12-05 07:53:16.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.69 for mutt 1.7.1.
++# Generated by GNU Autoconf 2.69 for mutt 1.7.2.
+ #
+ #
+ # Copyright (C) 1992-1996, 1998-2012 Free Software Foundation, Inc.
+ #
+ #
+ # This configure script is free software; the Free Software Foundation
+@@ -574,14 +574,14 @@
+ MFLAGS=
+ MAKEFLAGS=
+ 
+ # Identity of this package.
+ PACKAGE_NAME='mutt'
+ PACKAGE_TARNAME='mutt'
+-PACKAGE_VERSION='1.7.1'
+-PACKAGE_STRING='mutt 1.7.1'
++PACKAGE_VERSION='1.7.2'
++PACKAGE_STRING='mutt 1.7.2'
+ PACKAGE_BUGREPORT=''
+ PACKAGE_URL=''
+ 
+ ac_unique_file="mutt.h"
+ # Factoring default headers for most tests.
+ ac_includes_default="\
+@@ -1380,13 +1380,13 @@
+ # Report the --help message.
+ #
+ if test "$ac_init_help" = "long"; then
+   # Omit some internal or obsolete options to make the list less imposing.
+   # This message is too long to be a string in the A/UX 3.1 sh.
+   cat <<_ACEOF
+-\`configure' configures mutt 1.7.1 to adapt to many kinds of systems.
++\`configure' configures mutt 1.7.2 to adapt to many kinds of systems.
+ 
+ Usage: $0 [OPTION]... [VAR=VALUE]...
+ 
+ To assign environment variables (e.g., CC, CFLAGS...), specify them as
+ VAR=VALUE.  See below for descriptions of some of the useful variables.
+ 
+@@ -1451,13 +1451,13 @@
+   --host=HOST       cross-compile to build programs to run on HOST [BUILD]
+ _ACEOF
+ fi
+ 
+ if test -n "$ac_init_help"; then
+   case $ac_init_help in
+-     short | recursive ) echo "Configuration of mutt 1.7.1:";;
++     short | recursive ) echo "Configuration of mutt 1.7.2:";;
+    esac
+   cat <<\_ACEOF
+ 
+ Optional Features:
+   --disable-option-checking  ignore unrecognized --enable/--with options
+   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
+@@ -1591,13 +1591,13 @@
+   done
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+-mutt configure 1.7.1
++mutt configure 1.7.2
+ generated by GNU Autoconf 2.69
+ 
+ Copyright (C) 2012 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+@@ -2239,13 +2239,13 @@
+ 
+ } # ac_fn_c_check_decl
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+-It was created by mutt $as_me 1.7.1, which was
++It was created by mutt $as_me 1.7.2, which was
+ generated by GNU Autoconf 2.69.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+@@ -3106,13 +3106,13 @@
+   fi
+ fi
+ 
+ 
+ # Define the identity of the package.
+  PACKAGE='mutt'
+- VERSION='1.7.1'
++ VERSION='1.7.2'
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define PACKAGE "$PACKAGE"
+ _ACEOF
+ 
+@@ -10051,15 +10051,15 @@
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_z_deflate" >&5
+ $as_echo "$ac_cv_lib_z_deflate" >&6; }
+ if test "x$ac_cv_lib_z_deflate" = xyes; then :
+   crypto_libs=-lz
+ fi
+ 
+-            { $as_echo "$as_me:${as_lineno-$LINENO}: checking for X509_new in -lcrypto" >&5
+-$as_echo_n "checking for X509_new in -lcrypto... " >&6; }
+-if ${ac_cv_lib_crypto_X509_new+:} false; then :
++            { $as_echo "$as_me:${as_lineno-$LINENO}: checking for X509_STORE_CTX_new in -lcrypto" >&5
++$as_echo_n "checking for X509_STORE_CTX_new in -lcrypto... " >&6; }
++if ${ac_cv_lib_crypto_X509_STORE_CTX_new+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lcrypto $crypto_libs $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -10067,34 +10067,36 @@
+ /* Override any GCC internal prototype to avoid an error.
+    Use char because int might match the return type of a GCC
+    builtin and then its argument prototype would still apply.  */
+ #ifdef __cplusplus
+ extern "C"
+ #endif
+-char X509_new ();
++char X509_STORE_CTX_new ();
+ int
+ main ()
+ {
+-return X509_new ();
++return X509_STORE_CTX_new ();
+   ;
+   return 0;
+ }
+ _ACEOF
+ if ac_fn_c_try_link "$LINENO"; then :
+-  ac_cv_lib_crypto_X509_new=yes
++  ac_cv_lib_crypto_X509_STORE_CTX_new=yes
+ else
+-  ac_cv_lib_crypto_X509_new=no
++  ac_cv_lib_crypto_X509_STORE_CTX_new=no
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_X509_new" >&5
+-$as_echo "$ac_cv_lib_crypto_X509_new" >&6; }
+-if test "x$ac_cv_lib_crypto_X509_new" = xyes; then :
++{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_X509_STORE_CTX_new" >&5
++$as_echo "$ac_cv_lib_crypto_X509_STORE_CTX_new" >&6; }
++if test "x$ac_cv_lib_crypto_X509_STORE_CTX_new" = xyes; then :
+   crypto_libs="-lcrypto $crypto_libs"
++else
++  as_fn_error $? "Unable to find SSL library" "$LINENO" 5
+ fi
+ 
+             { $as_echo "$as_me:${as_lineno-$LINENO}: checking for SSL_new in -lssl" >&5
+ $as_echo_n "checking for SSL_new in -lssl... " >&6; }
+ if ${ac_cv_lib_ssl_SSL_new+:} false; then :
+   $as_echo_n "(cached) " >&6
+@@ -10152,12 +10154,45 @@
+ #define `$as_echo "HAVE_$ac_func" | $as_tr_cpp` 1
+ _ACEOF
+ 
+ fi
+ done
+ 
++            ac_fn_c_check_decl "$LINENO" "SSL_set_mode" "ac_cv_have_decl_SSL_set_mode" "#include <openssl/ssl.h>
++"
++if test "x$ac_cv_have_decl_SSL_set_mode" = xyes; then :
++  ac_have_decl=1
++else
++  ac_have_decl=0
++fi
++
++cat >>confdefs.h <<_ACEOF
++#define HAVE_DECL_SSL_SET_MODE $ac_have_decl
++_ACEOF
++if test $ac_have_decl = 1; then :
++
++else
++  as_fn_error $? "Unable to find decent SSL header" "$LINENO" 5
++fi
++ac_fn_c_check_decl "$LINENO" "SSL_MODE_AUTO_RETRY" "ac_cv_have_decl_SSL_MODE_AUTO_RETRY" "#include <openssl/ssl.h>
++"
++if test "x$ac_cv_have_decl_SSL_MODE_AUTO_RETRY" = xyes; then :
++  ac_have_decl=1
++else
++  ac_have_decl=0
++fi
++
++cat >>confdefs.h <<_ACEOF
++#define HAVE_DECL_SSL_MODE_AUTO_RETRY $ac_have_decl
++_ACEOF
++if test $ac_have_decl = 1; then :
++
++else
++  as_fn_error $? "Unable to find decent SSL header" "$LINENO" 5
++fi
++
+ 
+ 
+ $as_echo "#define USE_SSL 1" >>confdefs.h
+ 
+ 
+ $as_echo "#define USE_SSL_OPENSSL 1" >>confdefs.h
+@@ -13518,13 +13553,13 @@
+ 
+ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
+ # Save the log message, to keep $0 and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+-This file was extended by mutt $as_me 1.7.1, which was
++This file was extended by mutt $as_me 1.7.2, which was
+ generated by GNU Autoconf 2.69.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+@@ -13584,13 +13619,13 @@
+ Report bugs to the package provider."
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+ ac_cs_config="`$as_echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`"
+ ac_cs_version="\\
+-mutt config.status 1.7.1
++mutt config.status 1.7.2
+ configured by $0, generated by GNU Autoconf 2.69,
+   with options \\"\$ac_cs_config\\"
+ 
+ Copyright (C) 2012 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/configure.ac /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/configure.ac
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/configure.ac	2016-10-09 03:35:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/configure.ac	2016-12-05 07:46:59.000000000 +0800
+@@ -686,19 +686,22 @@
+              CPPFLAGS="$CPPFLAGS -I$withval/include"
+             fi
+             saved_LIBS="$LIBS"
+ 
+             crypto_libs=""
+             AC_CHECK_LIB(z, deflate, [crypto_libs=-lz])
+-            AC_CHECK_LIB(crypto, X509_new,
+-              [crypto_libs="-lcrypto $crypto_libs"],, [$crypto_libs])
++            AC_CHECK_LIB(crypto, X509_STORE_CTX_new,
++              [crypto_libs="-lcrypto $crypto_libs"],
++              AC_MSG_ERROR([Unable to find SSL library]), [$crypto_libs])
+             AC_CHECK_LIB(ssl, SSL_new,,
+               AC_MSG_ERROR([Unable to find SSL library]), [$crypto_libs])
+ 
+             LIBS="$LIBS $crypto_libs"
+             AC_CHECK_FUNCS(RAND_status RAND_egd)
++            AC_CHECK_DECLS([SSL_set_mode, SSL_MODE_AUTO_RETRY],,
++              AC_MSG_ERROR([Unable to find decent SSL header]), [[#include <openssl/ssl.h>]])
+ 
+             AC_DEFINE(USE_SSL,1,[ Define if you want support for SSL. ])
+             AC_DEFINE(USE_SSL_OPENSSL,1,[ Define if you want support for SSL via OpenSSL. ])
+             LIBS="$saved_LIBS"
+             MUTTLIBS="$MUTTLIBS -lssl $crypto_libs"
+             MUTT_LIB_OBJECTS="$MUTT_LIB_OBJECTS mutt_ssl.o"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/crypt-gpgme.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/crypt-gpgme.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/crypt-gpgme.c	2016-10-09 03:35:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/crypt-gpgme.c	2016-12-05 07:46:59.000000000 +0800
+@@ -670,17 +670,15 @@
+ 		  key->uids->validity = GPGME_VALIDITY_FULL;
+ 		buf[i-1] = '!';
+ 	      }
+ 	    else
+ 	      err = gpgme_get_key (context, buf, &key, 0);
+ 
++            safe_realloc (&rset, sizeof (*rset) * (rset_n + 1));
+ 	    if (! err)
+-	      {
+-		safe_realloc (&rset, sizeof (*rset) * (rset_n + 1));
+-		rset[rset_n++] = key;
+-	      }
++              rset[rset_n++] = key;
+ 	    else
+ 	      {
+ 		mutt_error (_("error adding recipient `%s': %s\n"),
+ 			    buf, gpgme_strerror (err));
+ 		rset[rset_n] = NULL;
+ 		free_recipient_set (&rset);
+@@ -4943,13 +4941,13 @@
+ 
+ int smime_gpgme_verify_sender (HEADER *h)
+ {
+   return verify_sender (h, GPGME_PROTOCOL_CMS);
+ }
+ 
+-void gpgme_set_sender (const char *sender)
++void mutt_gpgme_set_sender (const char *sender)
+ {
+   mutt_error ("[setting sender] mailbox: %s\n", sender);
+   FREE (&current_sender);
+   current_sender = safe_strdup (sender);
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/crypt-gpgme.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/crypt-gpgme.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/crypt-gpgme.h	2016-10-09 03:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/crypt-gpgme.h	2016-12-05 07:27:32.000000000 +0800
+@@ -50,9 +50,9 @@
+ 
+ int pgp_gpgme_send_menu (HEADER *msg, int *redraw);
+ int smime_gpgme_send_menu (HEADER *msg, int *redraw);
+ 
+ int smime_gpgme_verify_sender (HEADER *h);
+ 
+-void gpgme_set_sender (const char *sender);
++void mutt_gpgme_set_sender (const char *sender);
+ 
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/crypt-mod-pgp-gpgme.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/crypt-mod-pgp-gpgme.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/crypt-mod-pgp-gpgme.c	2016-10-09 03:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/crypt-mod-pgp-gpgme.c	2016-12-05 07:27:32.000000000 +0800
+@@ -101,13 +101,13 @@
+   return pgp_gpgme_make_key_attachment (tempf);
+ }
+ #endif
+ 
+ static void crypt_mod_pgp_set_sender (const char *sender)
+ {
+-  gpgme_set_sender (sender);
++  mutt_gpgme_set_sender (sender);
+ }
+ 
+ struct crypt_module_specs crypt_mod_pgp_gpgme =
+   { APPLICATION_PGP,
+     {
+       /* Common.  */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/date.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/date.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/date.c	2016-10-09 03:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/date.c	2016-12-05 07:46:59.000000000 +0800
+@@ -60,34 +60,42 @@
+   /* need to make a copy because gmtime/localtime return a pointer to
+      static memory (grr!) */
+   memcpy (&utc, ptm, sizeof (utc));
+   return (compute_tz (t, &utc));
+ }
+ 
++/* theoretically time_t can be float but it is integer on most (if not all) systems */
++#define TIME_T_MAX ((((time_t) 1 << (sizeof(time_t) * 8 - 2)) - 1) * 2 + 1)
++#define TM_YEAR_MAX (1970 + (((((TIME_T_MAX - 59) / 60) - 59) / 60) - 23) / 24 / 366)
++
+ /* converts struct tm to time_t, but does not take the local timezone into
+    account unless ``local'' is nonzero */
+ time_t mutt_mktime (struct tm *t, int local)
+ {
+   time_t g;
+ 
+   static const int AccumDaysPerMonth[12] = {
+     0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
+   };
+ 
++  /* Prevent an integer overflow */
++  if (t->tm_year > TM_YEAR_MAX)
++    return TIME_T_MAX;
++
+   /* Compute the number of days since January 1 in the same year */
+   g = AccumDaysPerMonth [t->tm_mon % 12];
+ 
+   /* The leap years are 1972 and every 4. year until 2096,
+    * but this algorithm will fail after year 2099 */
+   g += t->tm_mday;
+   if ((t->tm_year % 4) || t->tm_mon < 2)
+     g--;
+   t->tm_yday = g;
+ 
+   /* Compute the number of days since January 1, 1970 */
+-  g += (t->tm_year - 70) * 365;
++  g += (t->tm_year - 70) * (time_t)365;
+   g += (t->tm_year - 69) / 4;
+ 
+   /* Compute the number of hours */
+   g *= 24;
+   g += t->tm_hour;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/doc/index.html /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/doc/index.html
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/doc/index.html	2016-10-09 03:55:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/doc/index.html	2016-12-05 08:00:06.000000000 +0800
+@@ -23,10 +23,10 @@
+ div.note { margin-bottom: 5px; }
+ .command { font-family: monospace; font-weight: normal; }
+ .command strong { font-weight: normal; }
+ tr { vertical-align: top; }
+ .comment { color:#707070; }
+ 
+-    </style></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">The Mutt E-Mail Client</th></tr><tr><td width="20%" align="left"> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="intro.html">Next</a></td></tr></table><hr /></div><div class="book"><div class="titlepage"><div><div><h1 class="title"><a id="idm1"></a>The Mutt E-Mail Client</h1></div><div><div class="author"><h3 class="author"><span class="firstname">Michael</span> <span class="surname">Elkins</span></h3><code class="email">&lt;<a class="email" href="mailto:me@cs.hmc.edu">me@cs.hmc.edu</a>&gt;</code></div></div><div><p class="releaseinfo">version 1.7.1 (2016-10-04)</p></div><div><div class="abstract"><p class="title"><strong>Abstract</strong></p><p>
++    </style></head><body><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">The Mutt E-Mail Client</th></tr><tr><td width="20%" align="left"> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="intro.html">Next</a></td></tr></table><hr /></div><div class="book"><div class="titlepage"><div><div><h1 class="title"><a id="idm1"></a>The Mutt E-Mail Client</h1></div><div><div class="author"><h3 class="author"><span class="firstname">Michael</span> <span class="surname">Elkins</span></h3><code class="email">&lt;<a class="email" href="mailto:me@cs.hmc.edu">me@cs.hmc.edu</a>&gt;</code></div></div><div><p class="releaseinfo">version 1.7.2 (2016-11-26)</p></div><div><div class="abstract"><p class="title"><strong>Abstract</strong></p><p>
+ <span class="quote">“<span class="quote">All mail clients suck.  This one just sucks less.</span>”</span> —
+ me, circa 1995
+ </p></div></div></div><hr /></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="chapter"><a href="intro.html">1. Introduction</a></span></dt><dd><dl><dt><span class="sect1"><a href="intro.html#homepage">1. Mutt Home Page</a></span></dt><dt><span class="sect1"><a href="intro.html#muttlists">2. Mailing Lists</a></span></dt><dt><span class="sect1"><a href="intro.html#distribution">3. Getting Mutt</a></span></dt><dt><span class="sect1"><a href="intro.html#irc">4. Mutt Online Resources</a></span></dt><dt><span class="sect1"><a href="intro.html#contrib">5. Contributing to Mutt</a></span></dt><dt><span class="sect1"><a href="intro.html#typo">6. Typographical Conventions</a></span></dt><dt><span class="sect1"><a href="intro.html#copyright">7. Copyright</a></span></dt></dl></dd><dt><span class="chapter"><a href="gettingstarted.html">2. Getting Started</a></span></dt><dd><dl><dt><span class="sect1"><a href="gettingstarted.html#core-concepts">1. Core Concepts</a></span></dt><dt><span class="sect1"><a href="gettingstarted.html#concept-screens-and-menus">2. Screens and Menus</a></span></dt><dd><dl><dt><span class="sect2"><a href="gettingstarted.html#intro-index">2.1. Index</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-pager">2.2. Pager</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-browser">2.3. File Browser</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-sidebar">2.4. Sidebar</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-help">2.5. Help</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-compose">2.6. Compose Menu</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-alias">2.7. Alias Menu</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#intro-attach">2.8. Attachment Menu</a></span></dt></dl></dd><dt><span class="sect1"><a href="gettingstarted.html#menus">3. Moving Around in Menus</a></span></dt><dt><span class="sect1"><a href="gettingstarted.html#editing">4. Editing Input Fields</a></span></dt><dd><dl><dt><span class="sect2"><a href="gettingstarted.html#editing-intro">4.1. Introduction</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#editing-history">4.2. History</a></span></dt></dl></dd><dt><span class="sect1"><a href="gettingstarted.html#reading">5. Reading Mail</a></span></dt><dd><dl><dt><span class="sect2"><a href="gettingstarted.html#index-menu">5.1. The Message Index</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#pager-menu">5.2. The Pager</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#threads">5.3. Threaded Mode</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#reading-misc">5.4. Miscellaneous Functions</a></span></dt></dl></dd><dt><span class="sect1"><a href="gettingstarted.html#sending">6. Sending Mail</a></span></dt><dd><dl><dt><span class="sect2"><a href="gettingstarted.html#sending-intro">6.1. Introduction</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#edit-header">6.2. Editing the Message Header</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#sending-crypto">6.3. Sending Cryptographically Signed/Encrypted Messages</a></span></dt><dt><span class="sect2"><a href="gettingstarted.html#ff">6.4. Sending Format=Flowed Messages</a></span></dt></dl></dd><dt><span class="sect1"><a href="gettingstarted.html#forwarding-mail">7. Forwarding and Bouncing Mail</a></span></dt><dt><span class="sect1"><a href="gettingstarted.html#postponing-mail">8. Postponing Mail</a></span></dt></dl></dd><dt><span class="chapter"><a href="configuration.html">3. Configuration</a></span></dt><dd><dl><dt><span class="sect1"><a href="configuration.html#configuration-files">1. Location of Initialization Files</a></span></dt><dt><span class="sect1"><a href="configuration.html#muttrc-syntax">2. Syntax of Initialization Files</a></span></dt><dt><span class="sect1"><a href="configuration.html#addrgroup">3. Address Groups</a></span></dt><dt><span class="sect1"><a href="configuration.html#alias">4. Defining/Using Aliases</a></span></dt><dt><span class="sect1"><a href="configuration.html#bind">5. Changing the Default Key Bindings</a></span></dt><dt><span class="sect1"><a href="configuration.html#charset-hook">6. Defining Aliases for Character Sets</a></span></dt><dt><span class="sect1"><a href="configuration.html#folder-hook">7. Setting Variables Based Upon Mailbox</a></span></dt><dt><span class="sect1"><a href="configuration.html#macro">8. Keyboard Macros</a></span></dt><dt><span class="sect1"><a href="configuration.html#color">9. Using Color and Mono Video Attributes</a></span></dt><dt><span class="sect1"><a href="configuration.html#msg-hdr-display">10. Message Header Display</a></span></dt><dd><dl><dt><span class="sect2"><a href="configuration.html#hdr-folding">10.1. Header Display</a></span></dt><dt><span class="sect2"><a href="configuration.html#ignore">10.2. Selecting Headers</a></span></dt><dt><span class="sect2"><a href="configuration.html#hdr-order">10.3. Ordering Displayed Headers</a></span></dt></dl></dd><dt><span class="sect1"><a href="configuration.html#alternates">11. Alternative Addresses</a></span></dt><dt><span class="sect1"><a href="configuration.html#lists">12. Mailing Lists</a></span></dt><dt><span class="sect1"><a href="configuration.html#mbox-hook">13. Using Multiple Spool Mailboxes</a></span></dt><dt><span class="sect1"><a href="configuration.html#mailboxes">14. Monitoring Incoming Mail</a></span></dt><dt><span class="sect1"><a href="configuration.html#my-hdr">15. User-Defined Headers</a></span></dt><dt><span class="sect1"><a href="configuration.html#save-hook">16. Specify Default Save Mailbox</a></span></dt><dt><span class="sect1"><a href="configuration.html#fcc-hook">17. Specify Default Fcc: Mailbox When Composing</a></span></dt><dt><span class="sect1"><a href="configuration.html#fcc-save-hook">18. Specify Default Save Filename and Default Fcc: Mailbox at Once</a></span></dt><dt><span class="sect1"><a href="configuration.html#send-hook">19. Change Settings Based Upon Message Recipients</a></span></dt><dt><span class="sect1"><a href="configuration.html#message-hook">20. Change Settings Before Formatting a Message</a></span></dt><dt><span class="sect1"><a href="configuration.html#crypt-hook">21. Choosing the Cryptographic Key of the Recipient</a></span></dt><dt><span class="sect1"><a href="configuration.html#push">22. Adding Key Sequences to the Keyboard Buffer</a></span></dt><dt><span class="sect1"><a href="configuration.html#exec">23. Executing Functions</a></span></dt><dt><span class="sect1"><a href="configuration.html#score-command">24. Message Scoring</a></span></dt><dt><span class="sect1"><a href="configuration.html#spam">25. Spam Detection</a></span></dt><dt><span class="sect1"><a href="configuration.html#set">26. Setting and Querying Variables</a></span></dt><dd><dl><dt><span class="sect2"><a href="configuration.html#var-types">26.1. Variable Types</a></span></dt><dt><span class="sect2"><a href="configuration.html#set-commands">26.2. Commands</a></span></dt><dt><span class="sect2"><a href="configuration.html#set-myvar">26.3. User-Defined Variables</a></span></dt><dt><span class="sect2"><a href="configuration.html#set-conversions">26.4. Type Conversions</a></span></dt></dl></dd><dt><span class="sect1"><a href="configuration.html#source">27. Reading Initialization Commands From Another File</a></span></dt><dt><span class="sect1"><a href="configuration.html#unhook">28. Removing Hooks</a></span></dt><dt><span class="sect1"><a href="configuration.html#formatstrings">29. Format Strings</a></span></dt><dd><dl><dt><span class="sect2"><a href="configuration.html#formatstrings-basics">29.1. Basic usage</a></span></dt><dt><span class="sect2"><a href="configuration.html#formatstrings-conditionals">29.2. Conditionals</a></span></dt><dt><span class="sect2"><a href="configuration.html#formatstrings-filters">29.3. Filters</a></span></dt><dt><span class="sect2"><a href="configuration.html#formatstrings-padding">29.4. Padding</a></span></dt></dl></dd><dt><span class="sect1"><a href="configuration.html#mailto-allow">30. Control allowed header fields in a mailto: URL</a></span></dt></dl></dd><dt><span class="chapter"><a href="advancedusage.html">4. Advanced Usage</a></span></dt><dd><dl><dt><span class="sect1"><a href="advancedusage.html#charset-handling">1. Character Set Handling</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#regexp">2. Regular Expressions</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#patterns">3. Patterns: Searching, Limiting and Tagging</a></span></dt><dd><dl><dt><span class="sect2"><a href="advancedusage.html#patterns-modifier">3.1. Pattern Modifier</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#simple-searches">3.2. Simple Searches</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#complex-patterns">3.3. Nesting and Boolean Operators</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#date-patterns">3.4. Searching by Date</a></span></dt></dl></dd><dt><span class="sect1"><a href="advancedusage.html#tags">4. Using Tags</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#hooks">5. Using Hooks</a></span></dt><dd><dl><dt><span class="sect2"><a href="advancedusage.html#pattern-hook">5.1. Message Matching in Hooks</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#mailbox-hook">5.2. Mailbox Matching in Hooks</a></span></dt></dl></dd><dt><span class="sect1"><a href="advancedusage.html#query">6. External Address Queries</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#mailbox-formats">7. Mailbox Formats</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#shortcuts">8. Mailbox Shortcuts</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#using-lists">9. Handling Mailing Lists</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#new-mail">10. New Mail Detection</a></span></dt><dd><dl><dt><span class="sect2"><a href="advancedusage.html#new-mail-formats">10.1. How New Mail Detection Works</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#new-mail-polling">10.2. Polling For New Mail</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#calc-mailbox-counts">10.3. Calculating Mailbox Message Counts</a></span></dt></dl></dd><dt><span class="sect1"><a href="advancedusage.html#editing-threads">11. Editing Threads</a></span></dt><dd><dl><dt><span class="sect2"><a href="advancedusage.html#link-threads">11.1. Linking Threads</a></span></dt><dt><span class="sect2"><a href="advancedusage.html#break-threads">11.2. Breaking Threads</a></span></dt></dl></dd><dt><span class="sect1"><a href="advancedusage.html#dsn">12. Delivery Status Notification (DSN) Support</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#urlview">13. Start a WWW Browser on URLs</a></span></dt><dt><span class="sect1"><a href="advancedusage.html#misc-topics">14. Miscellany</a></span></dt></dl></dd><dt><span class="chapter"><a href="mimesupport.html">5. Mutt's MIME Support</a></span></dt><dd><dl><dt><span class="sect1"><a href="mimesupport.html#using-mime">1. Using MIME in Mutt</a></span></dt><dd><dl><dt><span class="sect2"><a href="mimesupport.html#mime-overview">1.1. MIME Overview</a></span></dt><dt><span class="sect2"><a href="mimesupport.html#mime-pager">1.2. Viewing MIME Messages in the Pager</a></span></dt><dt><span class="sect2"><a href="mimesupport.html#attach-menu">1.3. The Attachment Menu</a></span></dt><dt><span class="sect2"><a href="mimesupport.html#compose-menu">1.4. The Compose Menu</a></span></dt></dl></dd><dt><span class="sect1"><a href="mimesupport.html#mime-types">2. MIME Type Configuration with <code class="literal">mime.types</code></a></span></dt><dt><span class="sect1"><a href="mimesupport.html#mailcap">3. MIME Viewer Configuration with Mailcap</a></span></dt><dd><dl><dt><span class="sect2"><a href="mimesupport.html#mailcap-basics">3.1. The Basics of the Mailcap File</a></span></dt><dt><span class="sect2"><a href="mimesupport.html#secure-mailcap">3.2. Secure Use of Mailcap</a></span></dt><dt><span class="sect2"><a href="mimesupport.html#advanced-mailcap">3.3. Advanced Mailcap Usage</a></span></dt><dt><span class="sect2"><a href="mimesupport.html#mailcap-example">3.4. Example Mailcap Files</a></span></dt></dl></dd><dt><span class="sect1"><a href="mimesupport.html#auto-view">4. MIME Autoview</a></span></dt><dt><span class="sect1"><a href="mimesupport.html#alternative-order">5. MIME Multipart/Alternative</a></span></dt><dt><span class="sect1"><a href="mimesupport.html#attachments">6. Attachment Searching and Counting</a></span></dt><dt><span class="sect1"><a href="mimesupport.html#mime-lookup">7. MIME Lookup</a></span></dt></dl></dd><dt><span class="chapter"><a href="optionalfeatures.html">6. Optional Features</a></span></dt><dd><dl><dt><span class="sect1"><a href="optionalfeatures.html#optionalfeatures-notes">1. General Notes</a></span></dt><dd><dl><dt><span class="sect2"><a href="optionalfeatures.html#compile-time-features">1.1. Enabling/Disabling Features</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#url-syntax">1.2. URL Syntax</a></span></dt></dl></dd><dt><span class="sect1"><a href="optionalfeatures.html#ssl">2. SSL/TLS Support</a></span></dt><dt><span class="sect1"><a href="optionalfeatures.html#pop">3. POP3 Support</a></span></dt><dt><span class="sect1"><a href="optionalfeatures.html#imap">4. IMAP Support</a></span></dt><dd><dl><dt><span class="sect2"><a href="optionalfeatures.html#imap-browser">4.1. The IMAP Folder Browser</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#imap-authentication">4.2. Authentication</a></span></dt></dl></dd><dt><span class="sect1"><a href="optionalfeatures.html#smtp">5. SMTP Support</a></span></dt><dt><span class="sect1"><a href="optionalfeatures.html#account-hook">6. Managing Multiple Accounts</a></span></dt><dt><span class="sect1"><a href="optionalfeatures.html#caching">7. Local Caching</a></span></dt><dd><dl><dt><span class="sect2"><a href="optionalfeatures.html#header-caching">7.1. Header Caching</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#body-caching">7.2. Body Caching</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#cache-dirs">7.3. Cache Directories</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#maint-cache">7.4. Maintenance</a></span></dt></dl></dd><dt><span class="sect1"><a href="optionalfeatures.html#exact-address">8. Exact Address Generation</a></span></dt><dt><span class="sect1"><a href="optionalfeatures.html#sending-mixmaster">9. Sending Anonymous Messages via Mixmaster</a></span></dt><dt><span class="sect1"><a href="optionalfeatures.html#sidebar">10. Sidebar</a></span></dt><dd><dl><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-intro">10.1. Introduction</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-variables">10.2. Variables</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-functions">10.3. Functions</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-commands">10.4. Commands</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-colors">10.5. Colors</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-sort">10.6. Sort</a></span></dt><dt><span class="sect2"><a href="optionalfeatures.html#sidebar-see-also">10.7. See Also</a></span></dt></dl></dd></dl></dd><dt><span class="chapter"><a href="security.html">7. Security Considerations</a></span></dt><dd><dl><dt><span class="sect1"><a href="security.html#security-passwords">1. Passwords</a></span></dt><dt><span class="sect1"><a href="security.html#security-tempfiles">2. Temporary Files</a></span></dt><dt><span class="sect1"><a href="security.html#security-leaks">3. Information Leaks</a></span></dt><dd><dl><dt><span class="sect2"><a href="security.html#security-leaks-mid">3.1. Message-Id: headers</a></span></dt><dt><span class="sect2"><a href="security.html#security-leaks-mailto">3.2. <code class="literal">mailto:</code>-style Links</a></span></dt></dl></dd><dt><span class="sect1"><a href="security.html#security-external">4. External Applications</a></span></dt></dl></dd><dt><span class="chapter"><a href="tuning.html">8. Performance Tuning</a></span></dt><dd><dl><dt><span class="sect1"><a href="tuning.html#tuning-mailboxes">1. Reading and Writing Mailboxes</a></span></dt><dt><span class="sect1"><a href="tuning.html#tuning-messages">2. Reading Messages from Remote Folders</a></span></dt><dt><span class="sect1"><a href="tuning.html#tuning-search">3. Searching and Limiting</a></span></dt></dl></dd><dt><span class="chapter"><a href="reference.html">9. Reference</a></span></dt><dd><dl><dt><span class="sect1"><a href="reference.html#commandline">1. Command-Line Options</a></span></dt><dt><span class="sect1"><a href="reference.html#commands">2. Configuration Commands</a></span></dt><dt><span class="sect1"><a href="reference.html#variables">3. Configuration Variables</a></span></dt><dd><dl><dt><span class="sect2"><a href="reference.html#abort-nosubject">3.1. abort_nosubject</a></span></dt><dt><span class="sect2"><a href="reference.html#abort-unmodified">3.2. abort_unmodified</a></span></dt><dt><span class="sect2"><a href="reference.html#alias-file">3.3. alias_file</a></span></dt><dt><span class="sect2"><a href="reference.html#alias-format">3.4. alias_format</a></span></dt><dt><span class="sect2"><a href="reference.html#allow-8bit">3.5. allow_8bit</a></span></dt><dt><span class="sect2"><a href="reference.html#allow-ansi">3.6. allow_ansi</a></span></dt><dt><span class="sect2"><a href="reference.html#arrow-cursor">3.7. arrow_cursor</a></span></dt><dt><span class="sect2"><a href="reference.html#ascii-chars">3.8. ascii_chars</a></span></dt><dt><span class="sect2"><a href="reference.html#askbcc">3.9. askbcc</a></span></dt><dt><span class="sect2"><a href="reference.html#askcc">3.10. askcc</a></span></dt><dt><span class="sect2"><a href="reference.html#assumed-charset">3.11. assumed_charset</a></span></dt><dt><span class="sect2"><a href="reference.html#attach-charset">3.12. attach_charset</a></span></dt><dt><span class="sect2"><a href="reference.html#attach-format">3.13. attach_format</a></span></dt><dt><span class="sect2"><a href="reference.html#attach-sep">3.14. attach_sep</a></span></dt><dt><span class="sect2"><a href="reference.html#attach-split">3.15. attach_split</a></span></dt><dt><span class="sect2"><a href="reference.html#attribution">3.16. attribution</a></span></dt><dt><span class="sect2"><a href="reference.html#auto-tag">3.17. auto_tag</a></span></dt><dt><span class="sect2"><a href="reference.html#autoedit">3.18. autoedit</a></span></dt><dt><span class="sect2"><a href="reference.html#beep">3.19. beep</a></span></dt><dt><span class="sect2"><a href="reference.html#beep-new">3.20. beep_new</a></span></dt><dt><span class="sect2"><a href="reference.html#bounce">3.21. bounce</a></span></dt><dt><span class="sect2"><a href="reference.html#bounce-delivered">3.22. bounce_delivered</a></span></dt><dt><span class="sect2"><a href="reference.html#braille-friendly">3.23. braille_friendly</a></span></dt><dt><span class="sect2"><a href="reference.html#certificate-file">3.24. certificate_file</a></span></dt><dt><span class="sect2"><a href="reference.html#charset">3.25. charset</a></span></dt><dt><span class="sect2"><a href="reference.html#check-mbox-size">3.26. check_mbox_size</a></span></dt><dt><span class="sect2"><a href="reference.html#check-new">3.27. check_new</a></span></dt><dt><span class="sect2"><a href="reference.html#collapse-unread">3.28. collapse_unread</a></span></dt><dt><span class="sect2"><a href="reference.html#compose-format">3.29. compose_format</a></span></dt><dt><span class="sect2"><a href="reference.html#config-charset">3.30. config_charset</a></span></dt><dt><span class="sect2"><a href="reference.html#confirmappend">3.31. confirmappend</a></span></dt><dt><span class="sect2"><a href="reference.html#confirmcreate">3.32. confirmcreate</a></span></dt><dt><span class="sect2"><a href="reference.html#connect-timeout">3.33. connect_timeout</a></span></dt><dt><span class="sect2"><a href="reference.html#content-type">3.34. content_type</a></span></dt><dt><span class="sect2"><a href="reference.html#copy">3.35. copy</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-autoencrypt">3.36. crypt_autoencrypt</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-autopgp">3.37. crypt_autopgp</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-autosign">3.38. crypt_autosign</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-autosmime">3.39. crypt_autosmime</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-confirmhook">3.40. crypt_confirmhook</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-opportunistic-encrypt">3.41. crypt_opportunistic_encrypt</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-replyencrypt">3.42. crypt_replyencrypt</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-replysign">3.43. crypt_replysign</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-replysignencrypted">3.44. crypt_replysignencrypted</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-timestamp">3.45. crypt_timestamp</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-use-gpgme">3.46. crypt_use_gpgme</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-use-pka">3.47. crypt_use_pka</a></span></dt><dt><span class="sect2"><a href="reference.html#crypt-verify-sig">3.48. crypt_verify_sig</a></span></dt><dt><span class="sect2"><a href="reference.html#date-format">3.49. date_format</a></span></dt><dt><span class="sect2"><a href="reference.html#default-hook">3.50. default_hook</a></span></dt><dt><span class="sect2"><a href="reference.html#delete">3.51. delete</a></span></dt><dt><span class="sect2"><a href="reference.html#delete-untag">3.52. delete_untag</a></span></dt><dt><span class="sect2"><a href="reference.html#digest-collapse">3.53. digest_collapse</a></span></dt><dt><span class="sect2"><a href="reference.html#display-filter">3.54. display_filter</a></span></dt><dt><span class="sect2"><a href="reference.html#dotlock-program">3.55. dotlock_program</a></span></dt><dt><span class="sect2"><a href="reference.html#dsn-notify">3.56. dsn_notify</a></span></dt><dt><span class="sect2"><a href="reference.html#dsn-return">3.57. dsn_return</a></span></dt><dt><span class="sect2"><a href="reference.html#duplicate-threads">3.58. duplicate_threads</a></span></dt><dt><span class="sect2"><a href="reference.html#edit-headers">3.59. edit_headers</a></span></dt><dt><span class="sect2"><a href="reference.html#editor">3.60. editor</a></span></dt><dt><span class="sect2"><a href="reference.html#encode-from">3.61. encode_from</a></span></dt><dt><span class="sect2"><a href="reference.html#entropy-file">3.62. entropy_file</a></span></dt><dt><span class="sect2"><a href="reference.html#envelope-from-address">3.63. envelope_from_address</a></span></dt><dt><span class="sect2"><a href="reference.html#escape">3.64. escape</a></span></dt><dt><span class="sect2"><a href="reference.html#fast-reply">3.65. fast_reply</a></span></dt><dt><span class="sect2"><a href="reference.html#fcc-attach">3.66. fcc_attach</a></span></dt><dt><span class="sect2"><a href="reference.html#fcc-clear">3.67. fcc_clear</a></span></dt><dt><span class="sect2"><a href="reference.html#folder">3.68. folder</a></span></dt><dt><span class="sect2"><a href="reference.html#folder-format">3.69. folder_format</a></span></dt><dt><span class="sect2"><a href="reference.html#followup-to">3.70. followup_to</a></span></dt><dt><span class="sect2"><a href="reference.html#force-name">3.71. force_name</a></span></dt><dt><span class="sect2"><a href="reference.html#forward-decode">3.72. forward_decode</a></span></dt><dt><span class="sect2"><a href="reference.html#forward-decrypt">3.73. forward_decrypt</a></span></dt><dt><span class="sect2"><a href="reference.html#forward-edit">3.74. forward_edit</a></span></dt><dt><span class="sect2"><a href="reference.html#forward-format">3.75. forward_format</a></span></dt><dt><span class="sect2"><a href="reference.html#forward-quote">3.76. forward_quote</a></span></dt><dt><span class="sect2"><a href="reference.html#from">3.77. from</a></span></dt><dt><span class="sect2"><a href="reference.html#gecos-mask">3.78. gecos_mask</a></span></dt><dt><span class="sect2"><a href="reference.html#hdrs">3.79. hdrs</a></span></dt><dt><span class="sect2"><a href="reference.html#header">3.80. header</a></span></dt><dt><span class="sect2"><a href="reference.html#header-cache">3.81. header_cache</a></span></dt><dt><span class="sect2"><a href="reference.html#header-cache-compress">3.82. header_cache_compress</a></span></dt><dt><span class="sect2"><a href="reference.html#header-cache-pagesize">3.83. header_cache_pagesize</a></span></dt><dt><span class="sect2"><a href="reference.html#help">3.84. help</a></span></dt><dt><span class="sect2"><a href="reference.html#hidden-host">3.85. hidden_host</a></span></dt><dt><span class="sect2"><a href="reference.html#hide-limited">3.86. hide_limited</a></span></dt><dt><span class="sect2"><a href="reference.html#hide-missing">3.87. hide_missing</a></span></dt><dt><span class="sect2"><a href="reference.html#hide-thread-subject">3.88. hide_thread_subject</a></span></dt><dt><span class="sect2"><a href="reference.html#hide-top-limited">3.89. hide_top_limited</a></span></dt><dt><span class="sect2"><a href="reference.html#hide-top-missing">3.90. hide_top_missing</a></span></dt><dt><span class="sect2"><a href="reference.html#history">3.91. history</a></span></dt><dt><span class="sect2"><a href="reference.html#history-file">3.92. history_file</a></span></dt><dt><span class="sect2"><a href="reference.html#honor-disposition">3.93. honor_disposition</a></span></dt><dt><span class="sect2"><a href="reference.html#honor-followup-to">3.94. honor_followup_to</a></span></dt><dt><span class="sect2"><a href="reference.html#hostname">3.95. hostname</a></span></dt><dt><span class="sect2"><a href="reference.html#idn-decode">3.96. idn_decode</a></span></dt><dt><span class="sect2"><a href="reference.html#idn-encode">3.97. idn_encode</a></span></dt><dt><span class="sect2"><a href="reference.html#ignore-linear-white-space">3.98. ignore_linear_white_space</a></span></dt><dt><span class="sect2"><a href="reference.html#ignore-list-reply-to">3.99. ignore_list_reply_to</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-authenticators">3.100. imap_authenticators</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-check-subscribed">3.101. imap_check_subscribed</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-delim-chars">3.102. imap_delim_chars</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-headers">3.103. imap_headers</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-idle">3.104. imap_idle</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-keepalive">3.105. imap_keepalive</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-list-subscribed">3.106. imap_list_subscribed</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-login">3.107. imap_login</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-pass">3.108. imap_pass</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-passive">3.109. imap_passive</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-peek">3.110. imap_peek</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-pipeline-depth">3.111. imap_pipeline_depth</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-servernoise">3.112. imap_servernoise</a></span></dt><dt><span class="sect2"><a href="reference.html#imap-user">3.113. imap_user</a></span></dt><dt><span class="sect2"><a href="reference.html#implicit-autoview">3.114. implicit_autoview</a></span></dt><dt><span class="sect2"><a href="reference.html#include">3.115. include</a></span></dt><dt><span class="sect2"><a href="reference.html#include-onlyfirst">3.116. include_onlyfirst</a></span></dt><dt><span class="sect2"><a href="reference.html#indent-string">3.117. indent_string</a></span></dt><dt><span class="sect2"><a href="reference.html#index-format">3.118. index_format</a></span></dt><dt><span class="sect2"><a href="reference.html#ispell">3.119. ispell</a></span></dt><dt><span class="sect2"><a href="reference.html#keep-flagged">3.120. keep_flagged</a></span></dt><dt><span class="sect2"><a href="reference.html#locale">3.121. locale</a></span></dt><dt><span class="sect2"><a href="reference.html#mail-check">3.122. mail_check</a></span></dt><dt><span class="sect2"><a href="reference.html#mail-check-recent">3.123. mail_check_recent</a></span></dt><dt><span class="sect2"><a href="reference.html#mail-check-stats">3.124. mail_check_stats</a></span></dt><dt><span class="sect2"><a href="reference.html#mail-check-stats-interval">3.125. mail_check_stats_interval</a></span></dt><dt><span class="sect2"><a href="reference.html#mailcap-path">3.126. mailcap_path</a></span></dt><dt><span class="sect2"><a href="reference.html#mailcap-sanitize">3.127. mailcap_sanitize</a></span></dt><dt><span class="sect2"><a href="reference.html#maildir-header-cache-verify">3.128. maildir_header_cache_verify</a></span></dt><dt><span class="sect2"><a href="reference.html#maildir-trash">3.129. maildir_trash</a></span></dt><dt><span class="sect2"><a href="reference.html#maildir-check-cur">3.130. maildir_check_cur</a></span></dt><dt><span class="sect2"><a href="reference.html#mark-old">3.131. mark_old</a></span></dt><dt><span class="sect2"><a href="reference.html#markers">3.132. markers</a></span></dt><dt><span class="sect2"><a href="reference.html#mask">3.133. mask</a></span></dt><dt><span class="sect2"><a href="reference.html#mbox">3.134. mbox</a></span></dt><dt><span class="sect2"><a href="reference.html#mbox-type">3.135. mbox_type</a></span></dt><dt><span class="sect2"><a href="reference.html#menu-context">3.136. menu_context</a></span></dt><dt><span class="sect2"><a href="reference.html#menu-move-off">3.137. menu_move_off</a></span></dt><dt><span class="sect2"><a href="reference.html#menu-scroll">3.138. menu_scroll</a></span></dt><dt><span class="sect2"><a href="reference.html#message-cache-clean">3.139. message_cache_clean</a></span></dt><dt><span class="sect2"><a href="reference.html#message-cachedir">3.140. message_cachedir</a></span></dt><dt><span class="sect2"><a href="reference.html#message-format">3.141. message_format</a></span></dt><dt><span class="sect2"><a href="reference.html#meta-key">3.142. meta_key</a></span></dt><dt><span class="sect2"><a href="reference.html#metoo">3.143. metoo</a></span></dt><dt><span class="sect2"><a href="reference.html#mh-purge">3.144. mh_purge</a></span></dt><dt><span class="sect2"><a href="reference.html#mh-seq-flagged">3.145. mh_seq_flagged</a></span></dt><dt><span class="sect2"><a href="reference.html#mh-seq-replied">3.146. mh_seq_replied</a></span></dt><dt><span class="sect2"><a href="reference.html#mh-seq-unseen">3.147. mh_seq_unseen</a></span></dt><dt><span class="sect2"><a href="reference.html#mime-forward">3.148. mime_forward</a></span></dt><dt><span class="sect2"><a href="reference.html#mime-forward-decode">3.149. mime_forward_decode</a></span></dt><dt><span class="sect2"><a href="reference.html#mime-forward-rest">3.150. mime_forward_rest</a></span></dt><dt><span class="sect2"><a href="reference.html#mix-entry-format">3.151. mix_entry_format</a></span></dt><dt><span class="sect2"><a href="reference.html#mixmaster">3.152. mixmaster</a></span></dt><dt><span class="sect2"><a href="reference.html#move">3.153. move</a></span></dt><dt><span class="sect2"><a href="reference.html#narrow-tree">3.154. narrow_tree</a></span></dt><dt><span class="sect2"><a href="reference.html#net-inc">3.155. net_inc</a></span></dt><dt><span class="sect2"><a href="reference.html#pager">3.156. pager</a></span></dt><dt><span class="sect2"><a href="reference.html#pager-context">3.157. pager_context</a></span></dt><dt><span class="sect2"><a href="reference.html#pager-format">3.158. pager_format</a></span></dt><dt><span class="sect2"><a href="reference.html#pager-index-lines">3.159. pager_index_lines</a></span></dt><dt><span class="sect2"><a href="reference.html#pager-stop">3.160. pager_stop</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-auto-decode">3.161. pgp_auto_decode</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-autoinline">3.162. pgp_autoinline</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-check-exit">3.163. pgp_check_exit</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-clearsign-command">3.164. pgp_clearsign_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-decode-command">3.165. pgp_decode_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-decrypt-command">3.166. pgp_decrypt_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-decryption-okay">3.167. pgp_decryption_okay</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-encrypt-only-command">3.168. pgp_encrypt_only_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-encrypt-sign-command">3.169. pgp_encrypt_sign_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-entry-format">3.170. pgp_entry_format</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-export-command">3.171. pgp_export_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-getkeys-command">3.172. pgp_getkeys_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-good-sign">3.173. pgp_good_sign</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-ignore-subkeys">3.174. pgp_ignore_subkeys</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-import-command">3.175. pgp_import_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-list-pubring-command">3.176. pgp_list_pubring_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-list-secring-command">3.177. pgp_list_secring_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-long-ids">3.178. pgp_long_ids</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-mime-auto">3.179. pgp_mime_auto</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-replyinline">3.180. pgp_replyinline</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-retainable-sigs">3.181. pgp_retainable_sigs</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-show-unusable">3.182. pgp_show_unusable</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-sign-as">3.183. pgp_sign_as</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-sign-command">3.184. pgp_sign_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-sort-keys">3.185. pgp_sort_keys</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-strict-enc">3.186. pgp_strict_enc</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-timeout">3.187. pgp_timeout</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-use-gpg-agent">3.188. pgp_use_gpg_agent</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-verify-command">3.189. pgp_verify_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-verify-key-command">3.190. pgp_verify_key_command</a></span></dt><dt><span class="sect2"><a href="reference.html#pipe-decode">3.191. pipe_decode</a></span></dt><dt><span class="sect2"><a href="reference.html#pipe-sep">3.192. pipe_sep</a></span></dt><dt><span class="sect2"><a href="reference.html#pipe-split">3.193. pipe_split</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-auth-try-all">3.194. pop_auth_try_all</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-authenticators">3.195. pop_authenticators</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-checkinterval">3.196. pop_checkinterval</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-delete">3.197. pop_delete</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-host">3.198. pop_host</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-last">3.199. pop_last</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-pass">3.200. pop_pass</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-reconnect">3.201. pop_reconnect</a></span></dt><dt><span class="sect2"><a href="reference.html#pop-user">3.202. pop_user</a></span></dt><dt><span class="sect2"><a href="reference.html#post-indent-string">3.203. post_indent_string</a></span></dt><dt><span class="sect2"><a href="reference.html#postpone">3.204. postpone</a></span></dt><dt><span class="sect2"><a href="reference.html#postponed">3.205. postponed</a></span></dt><dt><span class="sect2"><a href="reference.html#postpone-encrypt">3.206. postpone_encrypt</a></span></dt><dt><span class="sect2"><a href="reference.html#postpone-encrypt-as">3.207. postpone_encrypt_as</a></span></dt><dt><span class="sect2"><a href="reference.html#preconnect">3.208. preconnect</a></span></dt><dt><span class="sect2"><a href="reference.html#print">3.209. print</a></span></dt><dt><span class="sect2"><a href="reference.html#print-command">3.210. print_command</a></span></dt><dt><span class="sect2"><a href="reference.html#print-decode">3.211. print_decode</a></span></dt><dt><span class="sect2"><a href="reference.html#print-split">3.212. print_split</a></span></dt><dt><span class="sect2"><a href="reference.html#prompt-after">3.213. prompt_after</a></span></dt><dt><span class="sect2"><a href="reference.html#query-command">3.214. query_command</a></span></dt><dt><span class="sect2"><a href="reference.html#query-format">3.215. query_format</a></span></dt><dt><span class="sect2"><a href="reference.html#quit">3.216. quit</a></span></dt><dt><span class="sect2"><a href="reference.html#quote-regexp">3.217. quote_regexp</a></span></dt><dt><span class="sect2"><a href="reference.html#read-inc">3.218. read_inc</a></span></dt><dt><span class="sect2"><a href="reference.html#read-only">3.219. read_only</a></span></dt><dt><span class="sect2"><a href="reference.html#realname">3.220. realname</a></span></dt><dt><span class="sect2"><a href="reference.html#recall">3.221. recall</a></span></dt><dt><span class="sect2"><a href="reference.html#record">3.222. record</a></span></dt><dt><span class="sect2"><a href="reference.html#reflow-space-quotes">3.223. reflow_space_quotes</a></span></dt><dt><span class="sect2"><a href="reference.html#reflow-text">3.224. reflow_text</a></span></dt><dt><span class="sect2"><a href="reference.html#reflow-wrap">3.225. reflow_wrap</a></span></dt><dt><span class="sect2"><a href="reference.html#reply-regexp">3.226. reply_regexp</a></span></dt><dt><span class="sect2"><a href="reference.html#reply-self">3.227. reply_self</a></span></dt><dt><span class="sect2"><a href="reference.html#reply-to">3.228. reply_to</a></span></dt><dt><span class="sect2"><a href="reference.html#resolve">3.229. resolve</a></span></dt><dt><span class="sect2"><a href="reference.html#resume-draft-files">3.230. resume_draft_files</a></span></dt><dt><span class="sect2"><a href="reference.html#resume-edited-draft-files">3.231. resume_edited_draft_files</a></span></dt><dt><span class="sect2"><a href="reference.html#reverse-alias">3.232. reverse_alias</a></span></dt><dt><span class="sect2"><a href="reference.html#reverse-name">3.233. reverse_name</a></span></dt><dt><span class="sect2"><a href="reference.html#reverse-realname">3.234. reverse_realname</a></span></dt><dt><span class="sect2"><a href="reference.html#rfc2047-parameters">3.235. rfc2047_parameters</a></span></dt><dt><span class="sect2"><a href="reference.html#save-address">3.236. save_address</a></span></dt><dt><span class="sect2"><a href="reference.html#save-empty">3.237. save_empty</a></span></dt><dt><span class="sect2"><a href="reference.html#save-history">3.238. save_history</a></span></dt><dt><span class="sect2"><a href="reference.html#save-name">3.239. save_name</a></span></dt><dt><span class="sect2"><a href="reference.html#score">3.240. score</a></span></dt><dt><span class="sect2"><a href="reference.html#score-threshold-delete">3.241. score_threshold_delete</a></span></dt><dt><span class="sect2"><a href="reference.html#score-threshold-flag">3.242. score_threshold_flag</a></span></dt><dt><span class="sect2"><a href="reference.html#score-threshold-read">3.243. score_threshold_read</a></span></dt><dt><span class="sect2"><a href="reference.html#search-context">3.244. search_context</a></span></dt><dt><span class="sect2"><a href="reference.html#send-charset">3.245. send_charset</a></span></dt><dt><span class="sect2"><a href="reference.html#sendmail">3.246. sendmail</a></span></dt><dt><span class="sect2"><a href="reference.html#sendmail-wait">3.247. sendmail_wait</a></span></dt><dt><span class="sect2"><a href="reference.html#shell">3.248. shell</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-delim-chars">3.249. sidebar_delim_chars</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-divider-char">3.250. sidebar_divider_char</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-folder-indent">3.251. sidebar_folder_indent</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-format">3.252. sidebar_format</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-indent-string">3.253. sidebar_indent_string</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-new-mail-only">3.254. sidebar_new_mail_only</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-next-new-wrap">3.255. sidebar_next_new_wrap</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-short-path">3.256. sidebar_short_path</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-sort-method">3.257. sidebar_sort_method</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-visible">3.258. sidebar_visible</a></span></dt><dt><span class="sect2"><a href="reference.html#sidebar-width">3.259. sidebar_width</a></span></dt><dt><span class="sect2"><a href="reference.html#sig-dashes">3.260. sig_dashes</a></span></dt><dt><span class="sect2"><a href="reference.html#sig-on-top">3.261. sig_on_top</a></span></dt><dt><span class="sect2"><a href="reference.html#signature">3.262. signature</a></span></dt><dt><span class="sect2"><a href="reference.html#simple-search">3.263. simple_search</a></span></dt><dt><span class="sect2"><a href="reference.html#sleep-time">3.264. sleep_time</a></span></dt><dt><span class="sect2"><a href="reference.html#smart-wrap">3.265. smart_wrap</a></span></dt><dt><span class="sect2"><a href="reference.html#smileys">3.266. smileys</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-ask-cert-label">3.267. smime_ask_cert_label</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-ca-location">3.268. smime_ca_location</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-certificates">3.269. smime_certificates</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-decrypt-command">3.270. smime_decrypt_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-decrypt-use-default-key">3.271. smime_decrypt_use_default_key</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-default-key">3.272. smime_default_key</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-encrypt-command">3.273. smime_encrypt_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-encrypt-with">3.274. smime_encrypt_with</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-get-cert-command">3.275. smime_get_cert_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-get-cert-email-command">3.276. smime_get_cert_email_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-get-signer-cert-command">3.277. smime_get_signer_cert_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-import-cert-command">3.278. smime_import_cert_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-is-default">3.279. smime_is_default</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-keys">3.280. smime_keys</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-pk7out-command">3.281. smime_pk7out_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-sign-command">3.282. smime_sign_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-sign-digest-alg">3.283. smime_sign_digest_alg</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-sign-opaque-command">3.284. smime_sign_opaque_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-timeout">3.285. smime_timeout</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-verify-command">3.286. smime_verify_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-verify-opaque-command">3.287. smime_verify_opaque_command</a></span></dt><dt><span class="sect2"><a href="reference.html#smtp-authenticators">3.288. smtp_authenticators</a></span></dt><dt><span class="sect2"><a href="reference.html#smtp-pass">3.289. smtp_pass</a></span></dt><dt><span class="sect2"><a href="reference.html#smtp-url">3.290. smtp_url</a></span></dt><dt><span class="sect2"><a href="reference.html#sort">3.291. sort</a></span></dt><dt><span class="sect2"><a href="reference.html#sort-alias">3.292. sort_alias</a></span></dt><dt><span class="sect2"><a href="reference.html#sort-aux">3.293. sort_aux</a></span></dt><dt><span class="sect2"><a href="reference.html#sort-browser">3.294. sort_browser</a></span></dt><dt><span class="sect2"><a href="reference.html#sort-re">3.295. sort_re</a></span></dt><dt><span class="sect2"><a href="reference.html#spam-separator">3.296. spam_separator</a></span></dt><dt><span class="sect2"><a href="reference.html#spoolfile">3.297. spoolfile</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-ca-certificates-file">3.298. ssl_ca_certificates_file</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-client-cert">3.299. ssl_client_cert</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-force-tls">3.300. ssl_force_tls</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-min-dh-prime-bits">3.301. ssl_min_dh_prime_bits</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-starttls">3.302. ssl_starttls</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-use-sslv2">3.303. ssl_use_sslv2</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-use-sslv3">3.304. ssl_use_sslv3</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-use-tlsv1">3.305. ssl_use_tlsv1</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-use-tlsv1-1">3.306. ssl_use_tlsv1_1</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-use-tlsv1-2">3.307. ssl_use_tlsv1_2</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-usesystemcerts">3.308. ssl_usesystemcerts</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-verify-dates">3.309. ssl_verify_dates</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-verify-host">3.310. ssl_verify_host</a></span></dt><dt><span class="sect2"><a href="reference.html#ssl-ciphers">3.311. ssl_ciphers</a></span></dt><dt><span class="sect2"><a href="reference.html#status-chars">3.312. status_chars</a></span></dt><dt><span class="sect2"><a href="reference.html#status-format">3.313. status_format</a></span></dt><dt><span class="sect2"><a href="reference.html#status-on-top">3.314. status_on_top</a></span></dt><dt><span class="sect2"><a href="reference.html#strict-threads">3.315. strict_threads</a></span></dt><dt><span class="sect2"><a href="reference.html#suspend">3.316. suspend</a></span></dt><dt><span class="sect2"><a href="reference.html#text-flowed">3.317. text_flowed</a></span></dt><dt><span class="sect2"><a href="reference.html#thorough-search">3.318. thorough_search</a></span></dt><dt><span class="sect2"><a href="reference.html#thread-received">3.319. thread_received</a></span></dt><dt><span class="sect2"><a href="reference.html#tilde">3.320. tilde</a></span></dt><dt><span class="sect2"><a href="reference.html#time-inc">3.321. time_inc</a></span></dt><dt><span class="sect2"><a href="reference.html#timeout">3.322. timeout</a></span></dt><dt><span class="sect2"><a href="reference.html#tmpdir">3.323. tmpdir</a></span></dt><dt><span class="sect2"><a href="reference.html#to-chars">3.324. to_chars</a></span></dt><dt><span class="sect2"><a href="reference.html#trash">3.325. trash</a></span></dt><dt><span class="sect2"><a href="reference.html#ts-icon-format">3.326. ts_icon_format</a></span></dt><dt><span class="sect2"><a href="reference.html#ts-enabled">3.327. ts_enabled</a></span></dt><dt><span class="sect2"><a href="reference.html#ts-status-format">3.328. ts_status_format</a></span></dt><dt><span class="sect2"><a href="reference.html#tunnel">3.329. tunnel</a></span></dt><dt><span class="sect2"><a href="reference.html#uncollapse-jump">3.330. uncollapse_jump</a></span></dt><dt><span class="sect2"><a href="reference.html#use-8bitmime">3.331. use_8bitmime</a></span></dt><dt><span class="sect2"><a href="reference.html#use-domain">3.332. use_domain</a></span></dt><dt><span class="sect2"><a href="reference.html#use-envelope-from">3.333. use_envelope_from</a></span></dt><dt><span class="sect2"><a href="reference.html#use-from">3.334. use_from</a></span></dt><dt><span class="sect2"><a href="reference.html#use-ipv6">3.335. use_ipv6</a></span></dt><dt><span class="sect2"><a href="reference.html#user-agent">3.336. user_agent</a></span></dt><dt><span class="sect2"><a href="reference.html#visual">3.337. visual</a></span></dt><dt><span class="sect2"><a href="reference.html#wait-key">3.338. wait_key</a></span></dt><dt><span class="sect2"><a href="reference.html#weed">3.339. weed</a></span></dt><dt><span class="sect2"><a href="reference.html#wrap">3.340. wrap</a></span></dt><dt><span class="sect2"><a href="reference.html#wrap-headers">3.341. wrap_headers</a></span></dt><dt><span class="sect2"><a href="reference.html#wrap-search">3.342. wrap_search</a></span></dt><dt><span class="sect2"><a href="reference.html#wrapmargin">3.343. wrapmargin</a></span></dt><dt><span class="sect2"><a href="reference.html#write-bcc">3.344. write_bcc</a></span></dt><dt><span class="sect2"><a href="reference.html#write-inc">3.345. write_inc</a></span></dt></dl></dd><dt><span class="sect1"><a href="reference.html#functions">4. Functions</a></span></dt><dd><dl><dt><span class="sect2"><a href="reference.html#generic-map">4.1. Generic Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#index-map">4.2. Index Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#pager-map">4.3. Pager Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#alias-map">4.4. Alias Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#query-map">4.5. Query Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#attachment-map">4.6. Attachment Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#compose-map">4.7. Compose Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#postpone-map">4.8. Postpone Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#browser-map">4.9. Browser Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#pgp-map">4.10. Pgp Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#smime-map">4.11. Smime Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#mixmaster-map">4.12. Mixmaster Menu</a></span></dt><dt><span class="sect2"><a href="reference.html#editor-map">4.13. Editor Menu</a></span></dt></dl></dd></dl></dd><dt><span class="chapter"><a href="miscellany.html">10. Miscellany</a></span></dt><dd><dl><dt><span class="sect1"><a href="miscellany.html#acknowledgements">1. Acknowledgements</a></span></dt><dt><span class="sect1"><a href="miscellany.html#about">2. About This Document</a></span></dt></dl></dd></dl></div><div class="list-of-tables"><p><strong>List of Tables</strong></p><dl><dt>1.1. <a href="intro.html#tab-typo">Typographical conventions for special terms</a></dt><dt>2.1. <a href="gettingstarted.html#tab-keys-nav-line">Most common navigation keys in entry-based menus</a></dt><dt>2.2. <a href="gettingstarted.html#tab-keys-nav-page">Most common navigation keys in page-based menus</a></dt><dt>2.3. <a href="gettingstarted.html#tab-keys-editor">Most common line editor keys</a></dt><dt>2.4. <a href="gettingstarted.html#tab-key-index">Most common message index keys</a></dt><dt>2.5. <a href="gettingstarted.html#tab-msg-status-flags">Message status flags</a></dt><dt>2.6. <a href="gettingstarted.html#tab-msg-recip-flags">Message recipient flags</a></dt><dt>2.7. <a href="gettingstarted.html#tab-key-pager">Most common pager keys</a></dt><dt>2.8. <a href="gettingstarted.html#tab-ansi-esc">ANSI escape sequences</a></dt><dt>2.9. <a href="gettingstarted.html#tab-color">Color sequences</a></dt><dt>2.10. <a href="gettingstarted.html#tab-key-threads">Most common thread mode keys</a></dt><dt>2.11. <a href="gettingstarted.html#tab-key-send">Most common mail sending keys</a></dt><dt>2.12. <a href="gettingstarted.html#tab-func-compose">Most common compose menu keys</a></dt><dt>2.13. <a href="gettingstarted.html#tab-pgp-menuflags">PGP key menu flags</a></dt><dt>3.1. <a href="configuration.html#tab-key-names">Symbolic key names</a></dt><dt>4.1. <a href="advancedusage.html#posix-regex-char-classes">POSIX regular expression character classes</a></dt><dt>4.2. <a href="advancedusage.html#regex-repeat">Regular expression repetition operators</a></dt><dt>4.3. <a href="advancedusage.html#regex-gnu-ext">GNU regular expression extensions</a></dt><dt>4.4. <a href="advancedusage.html#tab-patterns">Pattern modifiers</a></dt><dt>4.5. <a href="advancedusage.html#tab-simplesearch-keywords">Simple search keywords</a></dt><dt>4.6. <a href="advancedusage.html#tab-date-units">Date units</a></dt><dt>4.7. <a href="advancedusage.html#tab-mailbox-shortcuts">Mailbox shortcuts</a></dt><dt>5.1. <a href="mimesupport.html#supported-mime-types">Supported MIME types</a></dt><dt>6.1. <a href="optionalfeatures.html#table-sidebar-variables">Sidebar Variables</a></dt><dt>6.2. <a href="optionalfeatures.html#table-sidebar-functions">Sidebar Functions</a></dt><dt>6.3. <a href="optionalfeatures.html#table-sidebar-colors">Sidebar Colors</a></dt><dt>6.4. <a href="optionalfeatures.html#table-sidebar-sort">Sidebar Sort</a></dt><dt>9.1. <a href="reference.html#tab-commandline-options">Command line options</a></dt><dt>9.2. <a href="reference.html#tab-generic-bindings">Default Generic Menu Bindings</a></dt><dt>9.3. <a href="reference.html#tab-index-bindings">Default Index Menu Bindings</a></dt><dt>9.4. <a href="reference.html#tab-pager-bindings">Default Pager Menu Bindings</a></dt><dt>9.5. <a href="reference.html#tab-alias-bindings">Default Alias Menu Bindings</a></dt><dt>9.6. <a href="reference.html#tab-query-bindings">Default Query Menu Bindings</a></dt><dt>9.7. <a href="reference.html#tab-attachment-bindings">Default Attachment Menu Bindings</a></dt><dt>9.8. <a href="reference.html#tab-compose-bindings">Default Compose Menu Bindings</a></dt><dt>9.9. <a href="reference.html#tab-postpone-bindings">Default Postpone Menu Bindings</a></dt><dt>9.10. <a href="reference.html#tab-browser-bindings">Default Browser Menu Bindings</a></dt><dt>9.11. <a href="reference.html#tab-pgp-bindings">Default Pgp Menu Bindings</a></dt><dt>9.12. <a href="reference.html#tab-smime-bindings">Default Smime Menu Bindings</a></dt><dt>9.13. <a href="reference.html#tab-mixmaster-bindings">Default Mixmaster Menu Bindings</a></dt><dt>9.14. <a href="reference.html#tab-editor-bindings">Default Editor Menu Bindings</a></dt></dl></div><div class="list-of-examples"><p><strong>List of Examples</strong></p><dl><dt>3.1. <a href="configuration.html#ex-rc-multiple-cmds">Multiple configuration commands per line</a></dt><dt>3.2. <a href="configuration.html#ex-ec-comment">Commenting configuration files</a></dt><dt>3.3. <a href="configuration.html#ex-rc-quote">Escaping quotes in configuration files</a></dt><dt>3.4. <a href="configuration.html#ex-rc-split">Splitting long configuration commands over several lines</a></dt><dt>3.5. <a href="configuration.html#ex-rc-backtick">Using external command's output in configuration files</a></dt><dt>3.6. <a href="configuration.html#ex-rc-env">Using environment variables in configuration files</a></dt><dt>3.7. <a href="configuration.html#ex-alias-external">Configuring external alias files</a></dt><dt>3.8. <a href="configuration.html#ex-folder-sorting">Setting sort method based on mailbox name</a></dt><dt>3.9. <a href="configuration.html#ex-header-weeding">Header weeding</a></dt><dt>3.10. <a href="configuration.html#ex-hdr-order">Configuring header display order</a></dt><dt>3.11. <a href="configuration.html#ex-my-hdr">Defining custom headers</a></dt><dt>3.12. <a href="configuration.html#ex-save-hook-exando">Using %-expandos in <span class="command">save-hook</span></a></dt><dt>3.13. <a href="configuration.html#ex-folder-hook-push">Embedding <span class="command">push</span> in <span class="command">folder-hook</span></a></dt><dt>3.14. <a href="configuration.html#ex-spam">Configuring spam detection</a></dt><dt>3.15. <a href="configuration.html#ex-myvar1">Using user-defined variables for config file readability</a></dt><dt>3.16. <a href="configuration.html#ex-myvar2">Using user-defined variables for backing up other config option values</a></dt><dt>3.17. <a href="configuration.html#ex-myvar3">Deferring user-defined variable expansion to runtime</a></dt><dt>3.18. <a href="configuration.html#ex-myvar4">Type conversions using variables</a></dt><dt>3.19. <a href="configuration.html#ex-fmtpipe">Using external filters in format strings</a></dt><dt>4.1. <a href="advancedusage.html#ex-recips">Matching all addresses in address lists</a></dt><dt>4.2. <a href="advancedusage.html#ex-pattern-bool">Using boolean operators in patterns</a></dt><dt>4.3. <a href="advancedusage.html#ex-default-hook">Specifying a <span class="quote">“<span class="quote">default</span>”</span> hook</a></dt><dt>5.1. <a href="mimesupport.html#ex-mime-types"><code class="literal">mime.types</code></a></dt><dt>5.2. <a href="mimesupport.html#ex-attach-count">Attachment counting</a></dt><dt>6.1. <a href="optionalfeatures.html#ex-url">URLs</a></dt><dt>6.2. <a href="optionalfeatures.html#ex-multiaccount">Managing multiple accounts</a></dt></dl></div></div><div class="navfooter"><hr /><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"> </td><td width="20%" align="center"> </td><td width="40%" align="right"> <a accesskey="n" href="intro.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top"> </td><td width="20%" align="center"> </td><td width="40%" align="right" valign="top"> Chapter 1. Introduction</td></tr></table></div></body></html>
+\ No newline at end of file
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/doc/manual.html /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/doc/manual.html
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/doc/manual.html	2016-10-09 03:55:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/doc/manual.html	2016-12-05 08:00:09.000000000 +0800
+@@ -23,13 +23,13 @@
+ div.note { margin-bottom: 5px; }
+ .command { font-family: monospace; font-weight: normal; }
+ .command strong { font-weight: normal; }
+ tr { vertical-align: top; }
+ .comment { color:#707070; }
+ 
+-    </style></head><body><div class="book"><div class="titlepage"><div><div><h1 class="title"><a id="idm1"></a>The Mutt E-Mail Client</h1></div><div><div class="author"><h3 class="author"><span class="firstname">Michael</span> <span class="surname">Elkins</span></h3><code class="email">&lt;<a class="email" href="mailto:me@cs.hmc.edu">me@cs.hmc.edu</a>&gt;</code></div></div><div><p class="releaseinfo">version 1.7.1 (2016-10-04)</p></div><div><div class="abstract"><p class="title"><strong>Abstract</strong></p><p>
++    </style></head><body><div class="book"><div class="titlepage"><div><div><h1 class="title"><a id="idm1"></a>The Mutt E-Mail Client</h1></div><div><div class="author"><h3 class="author"><span class="firstname">Michael</span> <span class="surname">Elkins</span></h3><code class="email">&lt;<a class="email" href="mailto:me@cs.hmc.edu">me@cs.hmc.edu</a>&gt;</code></div></div><div><p class="releaseinfo">version 1.7.2 (2016-11-26)</p></div><div><div class="abstract"><p class="title"><strong>Abstract</strong></p><p>
+ <span class="quote">“<span class="quote">All mail clients suck.  This one just sucks less.</span>”</span> —
+ me, circa 1995
+ </p></div></div></div><hr /></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="chapter"><a href="#intro">1. Introduction</a></span></dt><dd><dl><dt><span class="sect1"><a href="#homepage">1. Mutt Home Page</a></span></dt><dt><span class="sect1"><a href="#muttlists">2. Mailing Lists</a></span></dt><dt><span class="sect1"><a href="#distribution">3. Getting Mutt</a></span></dt><dt><span class="sect1"><a href="#irc">4. Mutt Online Resources</a></span></dt><dt><span class="sect1"><a href="#contrib">5. Contributing to Mutt</a></span></dt><dt><span class="sect1"><a href="#typo">6. Typographical Conventions</a></span></dt><dt><span class="sect1"><a href="#copyright">7. Copyright</a></span></dt></dl></dd><dt><span class="chapter"><a href="#gettingstarted">2. Getting Started</a></span></dt><dd><dl><dt><span class="sect1"><a href="#core-concepts">1. Core Concepts</a></span></dt><dt><span class="sect1"><a href="#concept-screens-and-menus">2. Screens and Menus</a></span></dt><dd><dl><dt><span class="sect2"><a href="#intro-index">2.1. Index</a></span></dt><dt><span class="sect2"><a href="#intro-pager">2.2. Pager</a></span></dt><dt><span class="sect2"><a href="#intro-browser">2.3. File Browser</a></span></dt><dt><span class="sect2"><a href="#intro-sidebar">2.4. Sidebar</a></span></dt><dt><span class="sect2"><a href="#intro-help">2.5. Help</a></span></dt><dt><span class="sect2"><a href="#intro-compose">2.6. Compose Menu</a></span></dt><dt><span class="sect2"><a href="#intro-alias">2.7. Alias Menu</a></span></dt><dt><span class="sect2"><a href="#intro-attach">2.8. Attachment Menu</a></span></dt></dl></dd><dt><span class="sect1"><a href="#menus">3. Moving Around in Menus</a></span></dt><dt><span class="sect1"><a href="#editing">4. Editing Input Fields</a></span></dt><dd><dl><dt><span class="sect2"><a href="#editing-intro">4.1. Introduction</a></span></dt><dt><span class="sect2"><a href="#editing-history">4.2. History</a></span></dt></dl></dd><dt><span class="sect1"><a href="#reading">5. Reading Mail</a></span></dt><dd><dl><dt><span class="sect2"><a href="#index-menu">5.1. The Message Index</a></span></dt><dt><span class="sect2"><a href="#pager-menu">5.2. The Pager</a></span></dt><dt><span class="sect2"><a href="#threads">5.3. Threaded Mode</a></span></dt><dt><span class="sect2"><a href="#reading-misc">5.4. Miscellaneous Functions</a></span></dt></dl></dd><dt><span class="sect1"><a href="#sending">6. Sending Mail</a></span></dt><dd><dl><dt><span class="sect2"><a href="#sending-intro">6.1. Introduction</a></span></dt><dt><span class="sect2"><a href="#edit-header">6.2. Editing the Message Header</a></span></dt><dt><span class="sect2"><a href="#sending-crypto">6.3. Sending Cryptographically Signed/Encrypted Messages</a></span></dt><dt><span class="sect2"><a href="#ff">6.4. Sending Format=Flowed Messages</a></span></dt></dl></dd><dt><span class="sect1"><a href="#forwarding-mail">7. Forwarding and Bouncing Mail</a></span></dt><dt><span class="sect1"><a href="#postponing-mail">8. Postponing Mail</a></span></dt></dl></dd><dt><span class="chapter"><a href="#configuration">3. Configuration</a></span></dt><dd><dl><dt><span class="sect1"><a href="#configuration-files">1. Location of Initialization Files</a></span></dt><dt><span class="sect1"><a href="#muttrc-syntax">2. Syntax of Initialization Files</a></span></dt><dt><span class="sect1"><a href="#addrgroup">3. Address Groups</a></span></dt><dt><span class="sect1"><a href="#alias">4. Defining/Using Aliases</a></span></dt><dt><span class="sect1"><a href="#bind">5. Changing the Default Key Bindings</a></span></dt><dt><span class="sect1"><a href="#charset-hook">6. Defining Aliases for Character Sets</a></span></dt><dt><span class="sect1"><a href="#folder-hook">7. Setting Variables Based Upon Mailbox</a></span></dt><dt><span class="sect1"><a href="#macro">8. Keyboard Macros</a></span></dt><dt><span class="sect1"><a href="#color">9. Using Color and Mono Video Attributes</a></span></dt><dt><span class="sect1"><a href="#msg-hdr-display">10. Message Header Display</a></span></dt><dd><dl><dt><span class="sect2"><a href="#hdr-folding">10.1. Header Display</a></span></dt><dt><span class="sect2"><a href="#ignore">10.2. Selecting Headers</a></span></dt><dt><span class="sect2"><a href="#hdr-order">10.3. Ordering Displayed Headers</a></span></dt></dl></dd><dt><span class="sect1"><a href="#alternates">11. Alternative Addresses</a></span></dt><dt><span class="sect1"><a href="#lists">12. Mailing Lists</a></span></dt><dt><span class="sect1"><a href="#mbox-hook">13. Using Multiple Spool Mailboxes</a></span></dt><dt><span class="sect1"><a href="#mailboxes">14. Monitoring Incoming Mail</a></span></dt><dt><span class="sect1"><a href="#my-hdr">15. User-Defined Headers</a></span></dt><dt><span class="sect1"><a href="#save-hook">16. Specify Default Save Mailbox</a></span></dt><dt><span class="sect1"><a href="#fcc-hook">17. Specify Default Fcc: Mailbox When Composing</a></span></dt><dt><span class="sect1"><a href="#fcc-save-hook">18. Specify Default Save Filename and Default Fcc: Mailbox at Once</a></span></dt><dt><span class="sect1"><a href="#send-hook">19. Change Settings Based Upon Message Recipients</a></span></dt><dt><span class="sect1"><a href="#message-hook">20. Change Settings Before Formatting a Message</a></span></dt><dt><span class="sect1"><a href="#crypt-hook">21. Choosing the Cryptographic Key of the Recipient</a></span></dt><dt><span class="sect1"><a href="#push">22. Adding Key Sequences to the Keyboard Buffer</a></span></dt><dt><span class="sect1"><a href="#exec">23. Executing Functions</a></span></dt><dt><span class="sect1"><a href="#score-command">24. Message Scoring</a></span></dt><dt><span class="sect1"><a href="#spam">25. Spam Detection</a></span></dt><dt><span class="sect1"><a href="#set">26. Setting and Querying Variables</a></span></dt><dd><dl><dt><span class="sect2"><a href="#var-types">26.1. Variable Types</a></span></dt><dt><span class="sect2"><a href="#set-commands">26.2. Commands</a></span></dt><dt><span class="sect2"><a href="#set-myvar">26.3. User-Defined Variables</a></span></dt><dt><span class="sect2"><a href="#set-conversions">26.4. Type Conversions</a></span></dt></dl></dd><dt><span class="sect1"><a href="#source">27. Reading Initialization Commands From Another File</a></span></dt><dt><span class="sect1"><a href="#unhook">28. Removing Hooks</a></span></dt><dt><span class="sect1"><a href="#formatstrings">29. Format Strings</a></span></dt><dd><dl><dt><span class="sect2"><a href="#formatstrings-basics">29.1. Basic usage</a></span></dt><dt><span class="sect2"><a href="#formatstrings-conditionals">29.2. Conditionals</a></span></dt><dt><span class="sect2"><a href="#formatstrings-filters">29.3. Filters</a></span></dt><dt><span class="sect2"><a href="#formatstrings-padding">29.4. Padding</a></span></dt></dl></dd><dt><span class="sect1"><a href="#mailto-allow">30. Control allowed header fields in a mailto: URL</a></span></dt></dl></dd><dt><span class="chapter"><a href="#advancedusage">4. Advanced Usage</a></span></dt><dd><dl><dt><span class="sect1"><a href="#charset-handling">1. Character Set Handling</a></span></dt><dt><span class="sect1"><a href="#regexp">2. Regular Expressions</a></span></dt><dt><span class="sect1"><a href="#patterns">3. Patterns: Searching, Limiting and Tagging</a></span></dt><dd><dl><dt><span class="sect2"><a href="#patterns-modifier">3.1. Pattern Modifier</a></span></dt><dt><span class="sect2"><a href="#simple-searches">3.2. Simple Searches</a></span></dt><dt><span class="sect2"><a href="#complex-patterns">3.3. Nesting and Boolean Operators</a></span></dt><dt><span class="sect2"><a href="#date-patterns">3.4. Searching by Date</a></span></dt></dl></dd><dt><span class="sect1"><a href="#tags">4. Using Tags</a></span></dt><dt><span class="sect1"><a href="#hooks">5. Using Hooks</a></span></dt><dd><dl><dt><span class="sect2"><a href="#pattern-hook">5.1. Message Matching in Hooks</a></span></dt><dt><span class="sect2"><a href="#mailbox-hook">5.2. Mailbox Matching in Hooks</a></span></dt></dl></dd><dt><span class="sect1"><a href="#query">6. External Address Queries</a></span></dt><dt><span class="sect1"><a href="#mailbox-formats">7. Mailbox Formats</a></span></dt><dt><span class="sect1"><a href="#shortcuts">8. Mailbox Shortcuts</a></span></dt><dt><span class="sect1"><a href="#using-lists">9. Handling Mailing Lists</a></span></dt><dt><span class="sect1"><a href="#new-mail">10. New Mail Detection</a></span></dt><dd><dl><dt><span class="sect2"><a href="#new-mail-formats">10.1. How New Mail Detection Works</a></span></dt><dt><span class="sect2"><a href="#new-mail-polling">10.2. Polling For New Mail</a></span></dt><dt><span class="sect2"><a href="#calc-mailbox-counts">10.3. Calculating Mailbox Message Counts</a></span></dt></dl></dd><dt><span class="sect1"><a href="#editing-threads">11. Editing Threads</a></span></dt><dd><dl><dt><span class="sect2"><a href="#link-threads">11.1. Linking Threads</a></span></dt><dt><span class="sect2"><a href="#break-threads">11.2. Breaking Threads</a></span></dt></dl></dd><dt><span class="sect1"><a href="#dsn">12. Delivery Status Notification (DSN) Support</a></span></dt><dt><span class="sect1"><a href="#urlview">13. Start a WWW Browser on URLs</a></span></dt><dt><span class="sect1"><a href="#misc-topics">14. Miscellany</a></span></dt></dl></dd><dt><span class="chapter"><a href="#mimesupport">5. Mutt's MIME Support</a></span></dt><dd><dl><dt><span class="sect1"><a href="#using-mime">1. Using MIME in Mutt</a></span></dt><dd><dl><dt><span class="sect2"><a href="#mime-overview">1.1. MIME Overview</a></span></dt><dt><span class="sect2"><a href="#mime-pager">1.2. Viewing MIME Messages in the Pager</a></span></dt><dt><span class="sect2"><a href="#attach-menu">1.3. The Attachment Menu</a></span></dt><dt><span class="sect2"><a href="#compose-menu">1.4. The Compose Menu</a></span></dt></dl></dd><dt><span class="sect1"><a href="#mime-types">2. MIME Type Configuration with <code class="literal">mime.types</code></a></span></dt><dt><span class="sect1"><a href="#mailcap">3. MIME Viewer Configuration with Mailcap</a></span></dt><dd><dl><dt><span class="sect2"><a href="#mailcap-basics">3.1. The Basics of the Mailcap File</a></span></dt><dt><span class="sect2"><a href="#secure-mailcap">3.2. Secure Use of Mailcap</a></span></dt><dt><span class="sect2"><a href="#advanced-mailcap">3.3. Advanced Mailcap Usage</a></span></dt><dt><span class="sect2"><a href="#mailcap-example">3.4. Example Mailcap Files</a></span></dt></dl></dd><dt><span class="sect1"><a href="#auto-view">4. MIME Autoview</a></span></dt><dt><span class="sect1"><a href="#alternative-order">5. MIME Multipart/Alternative</a></span></dt><dt><span class="sect1"><a href="#attachments">6. Attachment Searching and Counting</a></span></dt><dt><span class="sect1"><a href="#mime-lookup">7. MIME Lookup</a></span></dt></dl></dd><dt><span class="chapter"><a href="#optionalfeatures">6. Optional Features</a></span></dt><dd><dl><dt><span class="sect1"><a href="#optionalfeatures-notes">1. General Notes</a></span></dt><dd><dl><dt><span class="sect2"><a href="#compile-time-features">1.1. Enabling/Disabling Features</a></span></dt><dt><span class="sect2"><a href="#url-syntax">1.2. URL Syntax</a></span></dt></dl></dd><dt><span class="sect1"><a href="#ssl">2. SSL/TLS Support</a></span></dt><dt><span class="sect1"><a href="#pop">3. POP3 Support</a></span></dt><dt><span class="sect1"><a href="#imap">4. IMAP Support</a></span></dt><dd><dl><dt><span class="sect2"><a href="#imap-browser">4.1. The IMAP Folder Browser</a></span></dt><dt><span class="sect2"><a href="#imap-authentication">4.2. Authentication</a></span></dt></dl></dd><dt><span class="sect1"><a href="#smtp">5. SMTP Support</a></span></dt><dt><span class="sect1"><a href="#account-hook">6. Managing Multiple Accounts</a></span></dt><dt><span class="sect1"><a href="#caching">7. Local Caching</a></span></dt><dd><dl><dt><span class="sect2"><a href="#header-caching">7.1. Header Caching</a></span></dt><dt><span class="sect2"><a href="#body-caching">7.2. Body Caching</a></span></dt><dt><span class="sect2"><a href="#cache-dirs">7.3. Cache Directories</a></span></dt><dt><span class="sect2"><a href="#maint-cache">7.4. Maintenance</a></span></dt></dl></dd><dt><span class="sect1"><a href="#exact-address">8. Exact Address Generation</a></span></dt><dt><span class="sect1"><a href="#sending-mixmaster">9. Sending Anonymous Messages via Mixmaster</a></span></dt><dt><span class="sect1"><a href="#sidebar">10. Sidebar</a></span></dt><dd><dl><dt><span class="sect2"><a href="#sidebar-intro">10.1. Introduction</a></span></dt><dt><span class="sect2"><a href="#sidebar-variables">10.2. Variables</a></span></dt><dt><span class="sect2"><a href="#sidebar-functions">10.3. Functions</a></span></dt><dt><span class="sect2"><a href="#sidebar-commands">10.4. Commands</a></span></dt><dt><span class="sect2"><a href="#sidebar-colors">10.5. Colors</a></span></dt><dt><span class="sect2"><a href="#sidebar-sort">10.6. Sort</a></span></dt><dt><span class="sect2"><a href="#sidebar-see-also">10.7. See Also</a></span></dt></dl></dd></dl></dd><dt><span class="chapter"><a href="#security">7. Security Considerations</a></span></dt><dd><dl><dt><span class="sect1"><a href="#security-passwords">1. Passwords</a></span></dt><dt><span class="sect1"><a href="#security-tempfiles">2. Temporary Files</a></span></dt><dt><span class="sect1"><a href="#security-leaks">3. Information Leaks</a></span></dt><dd><dl><dt><span class="sect2"><a href="#security-leaks-mid">3.1. Message-Id: headers</a></span></dt><dt><span class="sect2"><a href="#security-leaks-mailto">3.2. <code class="literal">mailto:</code>-style Links</a></span></dt></dl></dd><dt><span class="sect1"><a href="#security-external">4. External Applications</a></span></dt></dl></dd><dt><span class="chapter"><a href="#tuning">8. Performance Tuning</a></span></dt><dd><dl><dt><span class="sect1"><a href="#tuning-mailboxes">1. Reading and Writing Mailboxes</a></span></dt><dt><span class="sect1"><a href="#tuning-messages">2. Reading Messages from Remote Folders</a></span></dt><dt><span class="sect1"><a href="#tuning-search">3. Searching and Limiting</a></span></dt></dl></dd><dt><span class="chapter"><a href="#reference">9. Reference</a></span></dt><dd><dl><dt><span class="sect1"><a href="#commandline">1. Command-Line Options</a></span></dt><dt><span class="sect1"><a href="#commands">2. Configuration Commands</a></span></dt><dt><span class="sect1"><a href="#variables">3. Configuration Variables</a></span></dt><dd><dl><dt><span class="sect2"><a href="#abort-nosubject">3.1. abort_nosubject</a></span></dt><dt><span class="sect2"><a href="#abort-unmodified">3.2. abort_unmodified</a></span></dt><dt><span class="sect2"><a href="#alias-file">3.3. alias_file</a></span></dt><dt><span class="sect2"><a href="#alias-format">3.4. alias_format</a></span></dt><dt><span class="sect2"><a href="#allow-8bit">3.5. allow_8bit</a></span></dt><dt><span class="sect2"><a href="#allow-ansi">3.6. allow_ansi</a></span></dt><dt><span class="sect2"><a href="#arrow-cursor">3.7. arrow_cursor</a></span></dt><dt><span class="sect2"><a href="#ascii-chars">3.8. ascii_chars</a></span></dt><dt><span class="sect2"><a href="#askbcc">3.9. askbcc</a></span></dt><dt><span class="sect2"><a href="#askcc">3.10. askcc</a></span></dt><dt><span class="sect2"><a href="#assumed-charset">3.11. assumed_charset</a></span></dt><dt><span class="sect2"><a href="#attach-charset">3.12. attach_charset</a></span></dt><dt><span class="sect2"><a href="#attach-format">3.13. attach_format</a></span></dt><dt><span class="sect2"><a href="#attach-sep">3.14. attach_sep</a></span></dt><dt><span class="sect2"><a href="#attach-split">3.15. attach_split</a></span></dt><dt><span class="sect2"><a href="#attribution">3.16. attribution</a></span></dt><dt><span class="sect2"><a href="#auto-tag">3.17. auto_tag</a></span></dt><dt><span class="sect2"><a href="#autoedit">3.18. autoedit</a></span></dt><dt><span class="sect2"><a href="#beep">3.19. beep</a></span></dt><dt><span class="sect2"><a href="#beep-new">3.20. beep_new</a></span></dt><dt><span class="sect2"><a href="#bounce">3.21. bounce</a></span></dt><dt><span class="sect2"><a href="#bounce-delivered">3.22. bounce_delivered</a></span></dt><dt><span class="sect2"><a href="#braille-friendly">3.23. braille_friendly</a></span></dt><dt><span class="sect2"><a href="#certificate-file">3.24. certificate_file</a></span></dt><dt><span class="sect2"><a href="#charset">3.25. charset</a></span></dt><dt><span class="sect2"><a href="#check-mbox-size">3.26. check_mbox_size</a></span></dt><dt><span class="sect2"><a href="#check-new">3.27. check_new</a></span></dt><dt><span class="sect2"><a href="#collapse-unread">3.28. collapse_unread</a></span></dt><dt><span class="sect2"><a href="#compose-format">3.29. compose_format</a></span></dt><dt><span class="sect2"><a href="#config-charset">3.30. config_charset</a></span></dt><dt><span class="sect2"><a href="#confirmappend">3.31. confirmappend</a></span></dt><dt><span class="sect2"><a href="#confirmcreate">3.32. confirmcreate</a></span></dt><dt><span class="sect2"><a href="#connect-timeout">3.33. connect_timeout</a></span></dt><dt><span class="sect2"><a href="#content-type">3.34. content_type</a></span></dt><dt><span class="sect2"><a href="#copy">3.35. copy</a></span></dt><dt><span class="sect2"><a href="#crypt-autoencrypt">3.36. crypt_autoencrypt</a></span></dt><dt><span class="sect2"><a href="#crypt-autopgp">3.37. crypt_autopgp</a></span></dt><dt><span class="sect2"><a href="#crypt-autosign">3.38. crypt_autosign</a></span></dt><dt><span class="sect2"><a href="#crypt-autosmime">3.39. crypt_autosmime</a></span></dt><dt><span class="sect2"><a href="#crypt-confirmhook">3.40. crypt_confirmhook</a></span></dt><dt><span class="sect2"><a href="#crypt-opportunistic-encrypt">3.41. crypt_opportunistic_encrypt</a></span></dt><dt><span class="sect2"><a href="#crypt-replyencrypt">3.42. crypt_replyencrypt</a></span></dt><dt><span class="sect2"><a href="#crypt-replysign">3.43. crypt_replysign</a></span></dt><dt><span class="sect2"><a href="#crypt-replysignencrypted">3.44. crypt_replysignencrypted</a></span></dt><dt><span class="sect2"><a href="#crypt-timestamp">3.45. crypt_timestamp</a></span></dt><dt><span class="sect2"><a href="#crypt-use-gpgme">3.46. crypt_use_gpgme</a></span></dt><dt><span class="sect2"><a href="#crypt-use-pka">3.47. crypt_use_pka</a></span></dt><dt><span class="sect2"><a href="#crypt-verify-sig">3.48. crypt_verify_sig</a></span></dt><dt><span class="sect2"><a href="#date-format">3.49. date_format</a></span></dt><dt><span class="sect2"><a href="#default-hook">3.50. default_hook</a></span></dt><dt><span class="sect2"><a href="#delete">3.51. delete</a></span></dt><dt><span class="sect2"><a href="#delete-untag">3.52. delete_untag</a></span></dt><dt><span class="sect2"><a href="#digest-collapse">3.53. digest_collapse</a></span></dt><dt><span class="sect2"><a href="#display-filter">3.54. display_filter</a></span></dt><dt><span class="sect2"><a href="#dotlock-program">3.55. dotlock_program</a></span></dt><dt><span class="sect2"><a href="#dsn-notify">3.56. dsn_notify</a></span></dt><dt><span class="sect2"><a href="#dsn-return">3.57. dsn_return</a></span></dt><dt><span class="sect2"><a href="#duplicate-threads">3.58. duplicate_threads</a></span></dt><dt><span class="sect2"><a href="#edit-headers">3.59. edit_headers</a></span></dt><dt><span class="sect2"><a href="#editor">3.60. editor</a></span></dt><dt><span class="sect2"><a href="#encode-from">3.61. encode_from</a></span></dt><dt><span class="sect2"><a href="#entropy-file">3.62. entropy_file</a></span></dt><dt><span class="sect2"><a href="#envelope-from-address">3.63. envelope_from_address</a></span></dt><dt><span class="sect2"><a href="#escape">3.64. escape</a></span></dt><dt><span class="sect2"><a href="#fast-reply">3.65. fast_reply</a></span></dt><dt><span class="sect2"><a href="#fcc-attach">3.66. fcc_attach</a></span></dt><dt><span class="sect2"><a href="#fcc-clear">3.67. fcc_clear</a></span></dt><dt><span class="sect2"><a href="#folder">3.68. folder</a></span></dt><dt><span class="sect2"><a href="#folder-format">3.69. folder_format</a></span></dt><dt><span class="sect2"><a href="#followup-to">3.70. followup_to</a></span></dt><dt><span class="sect2"><a href="#force-name">3.71. force_name</a></span></dt><dt><span class="sect2"><a href="#forward-decode">3.72. forward_decode</a></span></dt><dt><span class="sect2"><a href="#forward-decrypt">3.73. forward_decrypt</a></span></dt><dt><span class="sect2"><a href="#forward-edit">3.74. forward_edit</a></span></dt><dt><span class="sect2"><a href="#forward-format">3.75. forward_format</a></span></dt><dt><span class="sect2"><a href="#forward-quote">3.76. forward_quote</a></span></dt><dt><span class="sect2"><a href="#from">3.77. from</a></span></dt><dt><span class="sect2"><a href="#gecos-mask">3.78. gecos_mask</a></span></dt><dt><span class="sect2"><a href="#hdrs">3.79. hdrs</a></span></dt><dt><span class="sect2"><a href="#header">3.80. header</a></span></dt><dt><span class="sect2"><a href="#header-cache">3.81. header_cache</a></span></dt><dt><span class="sect2"><a href="#header-cache-compress">3.82. header_cache_compress</a></span></dt><dt><span class="sect2"><a href="#header-cache-pagesize">3.83. header_cache_pagesize</a></span></dt><dt><span class="sect2"><a href="#help">3.84. help</a></span></dt><dt><span class="sect2"><a href="#hidden-host">3.85. hidden_host</a></span></dt><dt><span class="sect2"><a href="#hide-limited">3.86. hide_limited</a></span></dt><dt><span class="sect2"><a href="#hide-missing">3.87. hide_missing</a></span></dt><dt><span class="sect2"><a href="#hide-thread-subject">3.88. hide_thread_subject</a></span></dt><dt><span class="sect2"><a href="#hide-top-limited">3.89. hide_top_limited</a></span></dt><dt><span class="sect2"><a href="#hide-top-missing">3.90. hide_top_missing</a></span></dt><dt><span class="sect2"><a href="#history">3.91. history</a></span></dt><dt><span class="sect2"><a href="#history-file">3.92. history_file</a></span></dt><dt><span class="sect2"><a href="#honor-disposition">3.93. honor_disposition</a></span></dt><dt><span class="sect2"><a href="#honor-followup-to">3.94. honor_followup_to</a></span></dt><dt><span class="sect2"><a href="#hostname">3.95. hostname</a></span></dt><dt><span class="sect2"><a href="#idn-decode">3.96. idn_decode</a></span></dt><dt><span class="sect2"><a href="#idn-encode">3.97. idn_encode</a></span></dt><dt><span class="sect2"><a href="#ignore-linear-white-space">3.98. ignore_linear_white_space</a></span></dt><dt><span class="sect2"><a href="#ignore-list-reply-to">3.99. ignore_list_reply_to</a></span></dt><dt><span class="sect2"><a href="#imap-authenticators">3.100. imap_authenticators</a></span></dt><dt><span class="sect2"><a href="#imap-check-subscribed">3.101. imap_check_subscribed</a></span></dt><dt><span class="sect2"><a href="#imap-delim-chars">3.102. imap_delim_chars</a></span></dt><dt><span class="sect2"><a href="#imap-headers">3.103. imap_headers</a></span></dt><dt><span class="sect2"><a href="#imap-idle">3.104. imap_idle</a></span></dt><dt><span class="sect2"><a href="#imap-keepalive">3.105. imap_keepalive</a></span></dt><dt><span class="sect2"><a href="#imap-list-subscribed">3.106. imap_list_subscribed</a></span></dt><dt><span class="sect2"><a href="#imap-login">3.107. imap_login</a></span></dt><dt><span class="sect2"><a href="#imap-pass">3.108. imap_pass</a></span></dt><dt><span class="sect2"><a href="#imap-passive">3.109. imap_passive</a></span></dt><dt><span class="sect2"><a href="#imap-peek">3.110. imap_peek</a></span></dt><dt><span class="sect2"><a href="#imap-pipeline-depth">3.111. imap_pipeline_depth</a></span></dt><dt><span class="sect2"><a href="#imap-servernoise">3.112. imap_servernoise</a></span></dt><dt><span class="sect2"><a href="#imap-user">3.113. imap_user</a></span></dt><dt><span class="sect2"><a href="#implicit-autoview">3.114. implicit_autoview</a></span></dt><dt><span class="sect2"><a href="#include">3.115. include</a></span></dt><dt><span class="sect2"><a href="#include-onlyfirst">3.116. include_onlyfirst</a></span></dt><dt><span class="sect2"><a href="#indent-string">3.117. indent_string</a></span></dt><dt><span class="sect2"><a href="#index-format">3.118. index_format</a></span></dt><dt><span class="sect2"><a href="#ispell">3.119. ispell</a></span></dt><dt><span class="sect2"><a href="#keep-flagged">3.120. keep_flagged</a></span></dt><dt><span class="sect2"><a href="#locale">3.121. locale</a></span></dt><dt><span class="sect2"><a href="#mail-check">3.122. mail_check</a></span></dt><dt><span class="sect2"><a href="#mail-check-recent">3.123. mail_check_recent</a></span></dt><dt><span class="sect2"><a href="#mail-check-stats">3.124. mail_check_stats</a></span></dt><dt><span class="sect2"><a href="#mail-check-stats-interval">3.125. mail_check_stats_interval</a></span></dt><dt><span class="sect2"><a href="#mailcap-path">3.126. mailcap_path</a></span></dt><dt><span class="sect2"><a href="#mailcap-sanitize">3.127. mailcap_sanitize</a></span></dt><dt><span class="sect2"><a href="#maildir-header-cache-verify">3.128. maildir_header_cache_verify</a></span></dt><dt><span class="sect2"><a href="#maildir-trash">3.129. maildir_trash</a></span></dt><dt><span class="sect2"><a href="#maildir-check-cur">3.130. maildir_check_cur</a></span></dt><dt><span class="sect2"><a href="#mark-old">3.131. mark_old</a></span></dt><dt><span class="sect2"><a href="#markers">3.132. markers</a></span></dt><dt><span class="sect2"><a href="#mask">3.133. mask</a></span></dt><dt><span class="sect2"><a href="#mbox">3.134. mbox</a></span></dt><dt><span class="sect2"><a href="#mbox-type">3.135. mbox_type</a></span></dt><dt><span class="sect2"><a href="#menu-context">3.136. menu_context</a></span></dt><dt><span class="sect2"><a href="#menu-move-off">3.137. menu_move_off</a></span></dt><dt><span class="sect2"><a href="#menu-scroll">3.138. menu_scroll</a></span></dt><dt><span class="sect2"><a href="#message-cache-clean">3.139. message_cache_clean</a></span></dt><dt><span class="sect2"><a href="#message-cachedir">3.140. message_cachedir</a></span></dt><dt><span class="sect2"><a href="#message-format">3.141. message_format</a></span></dt><dt><span class="sect2"><a href="#meta-key">3.142. meta_key</a></span></dt><dt><span class="sect2"><a href="#metoo">3.143. metoo</a></span></dt><dt><span class="sect2"><a href="#mh-purge">3.144. mh_purge</a></span></dt><dt><span class="sect2"><a href="#mh-seq-flagged">3.145. mh_seq_flagged</a></span></dt><dt><span class="sect2"><a href="#mh-seq-replied">3.146. mh_seq_replied</a></span></dt><dt><span class="sect2"><a href="#mh-seq-unseen">3.147. mh_seq_unseen</a></span></dt><dt><span class="sect2"><a href="#mime-forward">3.148. mime_forward</a></span></dt><dt><span class="sect2"><a href="#mime-forward-decode">3.149. mime_forward_decode</a></span></dt><dt><span class="sect2"><a href="#mime-forward-rest">3.150. mime_forward_rest</a></span></dt><dt><span class="sect2"><a href="#mix-entry-format">3.151. mix_entry_format</a></span></dt><dt><span class="sect2"><a href="#mixmaster">3.152. mixmaster</a></span></dt><dt><span class="sect2"><a href="#move">3.153. move</a></span></dt><dt><span class="sect2"><a href="#narrow-tree">3.154. narrow_tree</a></span></dt><dt><span class="sect2"><a href="#net-inc">3.155. net_inc</a></span></dt><dt><span class="sect2"><a href="#pager">3.156. pager</a></span></dt><dt><span class="sect2"><a href="#pager-context">3.157. pager_context</a></span></dt><dt><span class="sect2"><a href="#pager-format">3.158. pager_format</a></span></dt><dt><span class="sect2"><a href="#pager-index-lines">3.159. pager_index_lines</a></span></dt><dt><span class="sect2"><a href="#pager-stop">3.160. pager_stop</a></span></dt><dt><span class="sect2"><a href="#pgp-auto-decode">3.161. pgp_auto_decode</a></span></dt><dt><span class="sect2"><a href="#pgp-autoinline">3.162. pgp_autoinline</a></span></dt><dt><span class="sect2"><a href="#pgp-check-exit">3.163. pgp_check_exit</a></span></dt><dt><span class="sect2"><a href="#pgp-clearsign-command">3.164. pgp_clearsign_command</a></span></dt><dt><span class="sect2"><a href="#pgp-decode-command">3.165. pgp_decode_command</a></span></dt><dt><span class="sect2"><a href="#pgp-decrypt-command">3.166. pgp_decrypt_command</a></span></dt><dt><span class="sect2"><a href="#pgp-decryption-okay">3.167. pgp_decryption_okay</a></span></dt><dt><span class="sect2"><a href="#pgp-encrypt-only-command">3.168. pgp_encrypt_only_command</a></span></dt><dt><span class="sect2"><a href="#pgp-encrypt-sign-command">3.169. pgp_encrypt_sign_command</a></span></dt><dt><span class="sect2"><a href="#pgp-entry-format">3.170. pgp_entry_format</a></span></dt><dt><span class="sect2"><a href="#pgp-export-command">3.171. pgp_export_command</a></span></dt><dt><span class="sect2"><a href="#pgp-getkeys-command">3.172. pgp_getkeys_command</a></span></dt><dt><span class="sect2"><a href="#pgp-good-sign">3.173. pgp_good_sign</a></span></dt><dt><span class="sect2"><a href="#pgp-ignore-subkeys">3.174. pgp_ignore_subkeys</a></span></dt><dt><span class="sect2"><a href="#pgp-import-command">3.175. pgp_import_command</a></span></dt><dt><span class="sect2"><a href="#pgp-list-pubring-command">3.176. pgp_list_pubring_command</a></span></dt><dt><span class="sect2"><a href="#pgp-list-secring-command">3.177. pgp_list_secring_command</a></span></dt><dt><span class="sect2"><a href="#pgp-long-ids">3.178. pgp_long_ids</a></span></dt><dt><span class="sect2"><a href="#pgp-mime-auto">3.179. pgp_mime_auto</a></span></dt><dt><span class="sect2"><a href="#pgp-replyinline">3.180. pgp_replyinline</a></span></dt><dt><span class="sect2"><a href="#pgp-retainable-sigs">3.181. pgp_retainable_sigs</a></span></dt><dt><span class="sect2"><a href="#pgp-show-unusable">3.182. pgp_show_unusable</a></span></dt><dt><span class="sect2"><a href="#pgp-sign-as">3.183. pgp_sign_as</a></span></dt><dt><span class="sect2"><a href="#pgp-sign-command">3.184. pgp_sign_command</a></span></dt><dt><span class="sect2"><a href="#pgp-sort-keys">3.185. pgp_sort_keys</a></span></dt><dt><span class="sect2"><a href="#pgp-strict-enc">3.186. pgp_strict_enc</a></span></dt><dt><span class="sect2"><a href="#pgp-timeout">3.187. pgp_timeout</a></span></dt><dt><span class="sect2"><a href="#pgp-use-gpg-agent">3.188. pgp_use_gpg_agent</a></span></dt><dt><span class="sect2"><a href="#pgp-verify-command">3.189. pgp_verify_command</a></span></dt><dt><span class="sect2"><a href="#pgp-verify-key-command">3.190. pgp_verify_key_command</a></span></dt><dt><span class="sect2"><a href="#pipe-decode">3.191. pipe_decode</a></span></dt><dt><span class="sect2"><a href="#pipe-sep">3.192. pipe_sep</a></span></dt><dt><span class="sect2"><a href="#pipe-split">3.193. pipe_split</a></span></dt><dt><span class="sect2"><a href="#pop-auth-try-all">3.194. pop_auth_try_all</a></span></dt><dt><span class="sect2"><a href="#pop-authenticators">3.195. pop_authenticators</a></span></dt><dt><span class="sect2"><a href="#pop-checkinterval">3.196. pop_checkinterval</a></span></dt><dt><span class="sect2"><a href="#pop-delete">3.197. pop_delete</a></span></dt><dt><span class="sect2"><a href="#pop-host">3.198. pop_host</a></span></dt><dt><span class="sect2"><a href="#pop-last">3.199. pop_last</a></span></dt><dt><span class="sect2"><a href="#pop-pass">3.200. pop_pass</a></span></dt><dt><span class="sect2"><a href="#pop-reconnect">3.201. pop_reconnect</a></span></dt><dt><span class="sect2"><a href="#pop-user">3.202. pop_user</a></span></dt><dt><span class="sect2"><a href="#post-indent-string">3.203. post_indent_string</a></span></dt><dt><span class="sect2"><a href="#postpone">3.204. postpone</a></span></dt><dt><span class="sect2"><a href="#postponed">3.205. postponed</a></span></dt><dt><span class="sect2"><a href="#postpone-encrypt">3.206. postpone_encrypt</a></span></dt><dt><span class="sect2"><a href="#postpone-encrypt-as">3.207. postpone_encrypt_as</a></span></dt><dt><span class="sect2"><a href="#preconnect">3.208. preconnect</a></span></dt><dt><span class="sect2"><a href="#print">3.209. print</a></span></dt><dt><span class="sect2"><a href="#print-command">3.210. print_command</a></span></dt><dt><span class="sect2"><a href="#print-decode">3.211. print_decode</a></span></dt><dt><span class="sect2"><a href="#print-split">3.212. print_split</a></span></dt><dt><span class="sect2"><a href="#prompt-after">3.213. prompt_after</a></span></dt><dt><span class="sect2"><a href="#query-command">3.214. query_command</a></span></dt><dt><span class="sect2"><a href="#query-format">3.215. query_format</a></span></dt><dt><span class="sect2"><a href="#quit">3.216. quit</a></span></dt><dt><span class="sect2"><a href="#quote-regexp">3.217. quote_regexp</a></span></dt><dt><span class="sect2"><a href="#read-inc">3.218. read_inc</a></span></dt><dt><span class="sect2"><a href="#read-only">3.219. read_only</a></span></dt><dt><span class="sect2"><a href="#realname">3.220. realname</a></span></dt><dt><span class="sect2"><a href="#recall">3.221. recall</a></span></dt><dt><span class="sect2"><a href="#record">3.222. record</a></span></dt><dt><span class="sect2"><a href="#reflow-space-quotes">3.223. reflow_space_quotes</a></span></dt><dt><span class="sect2"><a href="#reflow-text">3.224. reflow_text</a></span></dt><dt><span class="sect2"><a href="#reflow-wrap">3.225. reflow_wrap</a></span></dt><dt><span class="sect2"><a href="#reply-regexp">3.226. reply_regexp</a></span></dt><dt><span class="sect2"><a href="#reply-self">3.227. reply_self</a></span></dt><dt><span class="sect2"><a href="#reply-to">3.228. reply_to</a></span></dt><dt><span class="sect2"><a href="#resolve">3.229. resolve</a></span></dt><dt><span class="sect2"><a href="#resume-draft-files">3.230. resume_draft_files</a></span></dt><dt><span class="sect2"><a href="#resume-edited-draft-files">3.231. resume_edited_draft_files</a></span></dt><dt><span class="sect2"><a href="#reverse-alias">3.232. reverse_alias</a></span></dt><dt><span class="sect2"><a href="#reverse-name">3.233. reverse_name</a></span></dt><dt><span class="sect2"><a href="#reverse-realname">3.234. reverse_realname</a></span></dt><dt><span class="sect2"><a href="#rfc2047-parameters">3.235. rfc2047_parameters</a></span></dt><dt><span class="sect2"><a href="#save-address">3.236. save_address</a></span></dt><dt><span class="sect2"><a href="#save-empty">3.237. save_empty</a></span></dt><dt><span class="sect2"><a href="#save-history">3.238. save_history</a></span></dt><dt><span class="sect2"><a href="#save-name">3.239. save_name</a></span></dt><dt><span class="sect2"><a href="#score">3.240. score</a></span></dt><dt><span class="sect2"><a href="#score-threshold-delete">3.241. score_threshold_delete</a></span></dt><dt><span class="sect2"><a href="#score-threshold-flag">3.242. score_threshold_flag</a></span></dt><dt><span class="sect2"><a href="#score-threshold-read">3.243. score_threshold_read</a></span></dt><dt><span class="sect2"><a href="#search-context">3.244. search_context</a></span></dt><dt><span class="sect2"><a href="#send-charset">3.245. send_charset</a></span></dt><dt><span class="sect2"><a href="#sendmail">3.246. sendmail</a></span></dt><dt><span class="sect2"><a href="#sendmail-wait">3.247. sendmail_wait</a></span></dt><dt><span class="sect2"><a href="#shell">3.248. shell</a></span></dt><dt><span class="sect2"><a href="#sidebar-delim-chars">3.249. sidebar_delim_chars</a></span></dt><dt><span class="sect2"><a href="#sidebar-divider-char">3.250. sidebar_divider_char</a></span></dt><dt><span class="sect2"><a href="#sidebar-folder-indent">3.251. sidebar_folder_indent</a></span></dt><dt><span class="sect2"><a href="#sidebar-format">3.252. sidebar_format</a></span></dt><dt><span class="sect2"><a href="#sidebar-indent-string">3.253. sidebar_indent_string</a></span></dt><dt><span class="sect2"><a href="#sidebar-new-mail-only">3.254. sidebar_new_mail_only</a></span></dt><dt><span class="sect2"><a href="#sidebar-next-new-wrap">3.255. sidebar_next_new_wrap</a></span></dt><dt><span class="sect2"><a href="#sidebar-short-path">3.256. sidebar_short_path</a></span></dt><dt><span class="sect2"><a href="#sidebar-sort-method">3.257. sidebar_sort_method</a></span></dt><dt><span class="sect2"><a href="#sidebar-visible">3.258. sidebar_visible</a></span></dt><dt><span class="sect2"><a href="#sidebar-width">3.259. sidebar_width</a></span></dt><dt><span class="sect2"><a href="#sig-dashes">3.260. sig_dashes</a></span></dt><dt><span class="sect2"><a href="#sig-on-top">3.261. sig_on_top</a></span></dt><dt><span class="sect2"><a href="#signature">3.262. signature</a></span></dt><dt><span class="sect2"><a href="#simple-search">3.263. simple_search</a></span></dt><dt><span class="sect2"><a href="#sleep-time">3.264. sleep_time</a></span></dt><dt><span class="sect2"><a href="#smart-wrap">3.265. smart_wrap</a></span></dt><dt><span class="sect2"><a href="#smileys">3.266. smileys</a></span></dt><dt><span class="sect2"><a href="#smime-ask-cert-label">3.267. smime_ask_cert_label</a></span></dt><dt><span class="sect2"><a href="#smime-ca-location">3.268. smime_ca_location</a></span></dt><dt><span class="sect2"><a href="#smime-certificates">3.269. smime_certificates</a></span></dt><dt><span class="sect2"><a href="#smime-decrypt-command">3.270. smime_decrypt_command</a></span></dt><dt><span class="sect2"><a href="#smime-decrypt-use-default-key">3.271. smime_decrypt_use_default_key</a></span></dt><dt><span class="sect2"><a href="#smime-default-key">3.272. smime_default_key</a></span></dt><dt><span class="sect2"><a href="#smime-encrypt-command">3.273. smime_encrypt_command</a></span></dt><dt><span class="sect2"><a href="#smime-encrypt-with">3.274. smime_encrypt_with</a></span></dt><dt><span class="sect2"><a href="#smime-get-cert-command">3.275. smime_get_cert_command</a></span></dt><dt><span class="sect2"><a href="#smime-get-cert-email-command">3.276. smime_get_cert_email_command</a></span></dt><dt><span class="sect2"><a href="#smime-get-signer-cert-command">3.277. smime_get_signer_cert_command</a></span></dt><dt><span class="sect2"><a href="#smime-import-cert-command">3.278. smime_import_cert_command</a></span></dt><dt><span class="sect2"><a href="#smime-is-default">3.279. smime_is_default</a></span></dt><dt><span class="sect2"><a href="#smime-keys">3.280. smime_keys</a></span></dt><dt><span class="sect2"><a href="#smime-pk7out-command">3.281. smime_pk7out_command</a></span></dt><dt><span class="sect2"><a href="#smime-sign-command">3.282. smime_sign_command</a></span></dt><dt><span class="sect2"><a href="#smime-sign-digest-alg">3.283. smime_sign_digest_alg</a></span></dt><dt><span class="sect2"><a href="#smime-sign-opaque-command">3.284. smime_sign_opaque_command</a></span></dt><dt><span class="sect2"><a href="#smime-timeout">3.285. smime_timeout</a></span></dt><dt><span class="sect2"><a href="#smime-verify-command">3.286. smime_verify_command</a></span></dt><dt><span class="sect2"><a href="#smime-verify-opaque-command">3.287. smime_verify_opaque_command</a></span></dt><dt><span class="sect2"><a href="#smtp-authenticators">3.288. smtp_authenticators</a></span></dt><dt><span class="sect2"><a href="#smtp-pass">3.289. smtp_pass</a></span></dt><dt><span class="sect2"><a href="#smtp-url">3.290. smtp_url</a></span></dt><dt><span class="sect2"><a href="#sort">3.291. sort</a></span></dt><dt><span class="sect2"><a href="#sort-alias">3.292. sort_alias</a></span></dt><dt><span class="sect2"><a href="#sort-aux">3.293. sort_aux</a></span></dt><dt><span class="sect2"><a href="#sort-browser">3.294. sort_browser</a></span></dt><dt><span class="sect2"><a href="#sort-re">3.295. sort_re</a></span></dt><dt><span class="sect2"><a href="#spam-separator">3.296. spam_separator</a></span></dt><dt><span class="sect2"><a href="#spoolfile">3.297. spoolfile</a></span></dt><dt><span class="sect2"><a href="#ssl-ca-certificates-file">3.298. ssl_ca_certificates_file</a></span></dt><dt><span class="sect2"><a href="#ssl-client-cert">3.299. ssl_client_cert</a></span></dt><dt><span class="sect2"><a href="#ssl-force-tls">3.300. ssl_force_tls</a></span></dt><dt><span class="sect2"><a href="#ssl-min-dh-prime-bits">3.301. ssl_min_dh_prime_bits</a></span></dt><dt><span class="sect2"><a href="#ssl-starttls">3.302. ssl_starttls</a></span></dt><dt><span class="sect2"><a href="#ssl-use-sslv2">3.303. ssl_use_sslv2</a></span></dt><dt><span class="sect2"><a href="#ssl-use-sslv3">3.304. ssl_use_sslv3</a></span></dt><dt><span class="sect2"><a href="#ssl-use-tlsv1">3.305. ssl_use_tlsv1</a></span></dt><dt><span class="sect2"><a href="#ssl-use-tlsv1-1">3.306. ssl_use_tlsv1_1</a></span></dt><dt><span class="sect2"><a href="#ssl-use-tlsv1-2">3.307. ssl_use_tlsv1_2</a></span></dt><dt><span class="sect2"><a href="#ssl-usesystemcerts">3.308. ssl_usesystemcerts</a></span></dt><dt><span class="sect2"><a href="#ssl-verify-dates">3.309. ssl_verify_dates</a></span></dt><dt><span class="sect2"><a href="#ssl-verify-host">3.310. ssl_verify_host</a></span></dt><dt><span class="sect2"><a href="#ssl-ciphers">3.311. ssl_ciphers</a></span></dt><dt><span class="sect2"><a href="#status-chars">3.312. status_chars</a></span></dt><dt><span class="sect2"><a href="#status-format">3.313. status_format</a></span></dt><dt><span class="sect2"><a href="#status-on-top">3.314. status_on_top</a></span></dt><dt><span class="sect2"><a href="#strict-threads">3.315. strict_threads</a></span></dt><dt><span class="sect2"><a href="#suspend">3.316. suspend</a></span></dt><dt><span class="sect2"><a href="#text-flowed">3.317. text_flowed</a></span></dt><dt><span class="sect2"><a href="#thorough-search">3.318. thorough_search</a></span></dt><dt><span class="sect2"><a href="#thread-received">3.319. thread_received</a></span></dt><dt><span class="sect2"><a href="#tilde">3.320. tilde</a></span></dt><dt><span class="sect2"><a href="#time-inc">3.321. time_inc</a></span></dt><dt><span class="sect2"><a href="#timeout">3.322. timeout</a></span></dt><dt><span class="sect2"><a href="#tmpdir">3.323. tmpdir</a></span></dt><dt><span class="sect2"><a href="#to-chars">3.324. to_chars</a></span></dt><dt><span class="sect2"><a href="#trash">3.325. trash</a></span></dt><dt><span class="sect2"><a href="#ts-icon-format">3.326. ts_icon_format</a></span></dt><dt><span class="sect2"><a href="#ts-enabled">3.327. ts_enabled</a></span></dt><dt><span class="sect2"><a href="#ts-status-format">3.328. ts_status_format</a></span></dt><dt><span class="sect2"><a href="#tunnel">3.329. tunnel</a></span></dt><dt><span class="sect2"><a href="#uncollapse-jump">3.330. uncollapse_jump</a></span></dt><dt><span class="sect2"><a href="#use-8bitmime">3.331. use_8bitmime</a></span></dt><dt><span class="sect2"><a href="#use-domain">3.332. use_domain</a></span></dt><dt><span class="sect2"><a href="#use-envelope-from">3.333. use_envelope_from</a></span></dt><dt><span class="sect2"><a href="#use-from">3.334. use_from</a></span></dt><dt><span class="sect2"><a href="#use-ipv6">3.335. use_ipv6</a></span></dt><dt><span class="sect2"><a href="#user-agent">3.336. user_agent</a></span></dt><dt><span class="sect2"><a href="#visual">3.337. visual</a></span></dt><dt><span class="sect2"><a href="#wait-key">3.338. wait_key</a></span></dt><dt><span class="sect2"><a href="#weed">3.339. weed</a></span></dt><dt><span class="sect2"><a href="#wrap">3.340. wrap</a></span></dt><dt><span class="sect2"><a href="#wrap-headers">3.341. wrap_headers</a></span></dt><dt><span class="sect2"><a href="#wrap-search">3.342. wrap_search</a></span></dt><dt><span class="sect2"><a href="#wrapmargin">3.343. wrapmargin</a></span></dt><dt><span class="sect2"><a href="#write-bcc">3.344. write_bcc</a></span></dt><dt><span class="sect2"><a href="#write-inc">3.345. write_inc</a></span></dt></dl></dd><dt><span class="sect1"><a href="#functions">4. Functions</a></span></dt><dd><dl><dt><span class="sect2"><a href="#generic-map">4.1. Generic Menu</a></span></dt><dt><span class="sect2"><a href="#index-map">4.2. Index Menu</a></span></dt><dt><span class="sect2"><a href="#pager-map">4.3. Pager Menu</a></span></dt><dt><span class="sect2"><a href="#alias-map">4.4. Alias Menu</a></span></dt><dt><span class="sect2"><a href="#query-map">4.5. Query Menu</a></span></dt><dt><span class="sect2"><a href="#attachment-map">4.6. Attachment Menu</a></span></dt><dt><span class="sect2"><a href="#compose-map">4.7. Compose Menu</a></span></dt><dt><span class="sect2"><a href="#postpone-map">4.8. Postpone Menu</a></span></dt><dt><span class="sect2"><a href="#browser-map">4.9. Browser Menu</a></span></dt><dt><span class="sect2"><a href="#pgp-map">4.10. Pgp Menu</a></span></dt><dt><span class="sect2"><a href="#smime-map">4.11. Smime Menu</a></span></dt><dt><span class="sect2"><a href="#mixmaster-map">4.12. Mixmaster Menu</a></span></dt><dt><span class="sect2"><a href="#editor-map">4.13. Editor Menu</a></span></dt></dl></dd></dl></dd><dt><span class="chapter"><a href="#miscellany">10. Miscellany</a></span></dt><dd><dl><dt><span class="sect1"><a href="#acknowledgements">1. Acknowledgements</a></span></dt><dt><span class="sect1"><a href="#about">2. About This Document</a></span></dt></dl></dd></dl></div><div class="list-of-tables"><p><strong>List of Tables</strong></p><dl><dt>1.1. <a href="#tab-typo">Typographical conventions for special terms</a></dt><dt>2.1. <a href="#tab-keys-nav-line">Most common navigation keys in entry-based menus</a></dt><dt>2.2. <a href="#tab-keys-nav-page">Most common navigation keys in page-based menus</a></dt><dt>2.3. <a href="#tab-keys-editor">Most common line editor keys</a></dt><dt>2.4. <a href="#tab-key-index">Most common message index keys</a></dt><dt>2.5. <a href="#tab-msg-status-flags">Message status flags</a></dt><dt>2.6. <a href="#tab-msg-recip-flags">Message recipient flags</a></dt><dt>2.7. <a href="#tab-key-pager">Most common pager keys</a></dt><dt>2.8. <a href="#tab-ansi-esc">ANSI escape sequences</a></dt><dt>2.9. <a href="#tab-color">Color sequences</a></dt><dt>2.10. <a href="#tab-key-threads">Most common thread mode keys</a></dt><dt>2.11. <a href="#tab-key-send">Most common mail sending keys</a></dt><dt>2.12. <a href="#tab-func-compose">Most common compose menu keys</a></dt><dt>2.13. <a href="#tab-pgp-menuflags">PGP key menu flags</a></dt><dt>3.1. <a href="#tab-key-names">Symbolic key names</a></dt><dt>4.1. <a href="#posix-regex-char-classes">POSIX regular expression character classes</a></dt><dt>4.2. <a href="#regex-repeat">Regular expression repetition operators</a></dt><dt>4.3. <a href="#regex-gnu-ext">GNU regular expression extensions</a></dt><dt>4.4. <a href="#tab-patterns">Pattern modifiers</a></dt><dt>4.5. <a href="#tab-simplesearch-keywords">Simple search keywords</a></dt><dt>4.6. <a href="#tab-date-units">Date units</a></dt><dt>4.7. <a href="#tab-mailbox-shortcuts">Mailbox shortcuts</a></dt><dt>5.1. <a href="#supported-mime-types">Supported MIME types</a></dt><dt>6.1. <a href="#table-sidebar-variables">Sidebar Variables</a></dt><dt>6.2. <a href="#table-sidebar-functions">Sidebar Functions</a></dt><dt>6.3. <a href="#table-sidebar-colors">Sidebar Colors</a></dt><dt>6.4. <a href="#table-sidebar-sort">Sidebar Sort</a></dt><dt>9.1. <a href="#tab-commandline-options">Command line options</a></dt><dt>9.2. <a href="#tab-generic-bindings">Default Generic Menu Bindings</a></dt><dt>9.3. <a href="#tab-index-bindings">Default Index Menu Bindings</a></dt><dt>9.4. <a href="#tab-pager-bindings">Default Pager Menu Bindings</a></dt><dt>9.5. <a href="#tab-alias-bindings">Default Alias Menu Bindings</a></dt><dt>9.6. <a href="#tab-query-bindings">Default Query Menu Bindings</a></dt><dt>9.7. <a href="#tab-attachment-bindings">Default Attachment Menu Bindings</a></dt><dt>9.8. <a href="#tab-compose-bindings">Default Compose Menu Bindings</a></dt><dt>9.9. <a href="#tab-postpone-bindings">Default Postpone Menu Bindings</a></dt><dt>9.10. <a href="#tab-browser-bindings">Default Browser Menu Bindings</a></dt><dt>9.11. <a href="#tab-pgp-bindings">Default Pgp Menu Bindings</a></dt><dt>9.12. <a href="#tab-smime-bindings">Default Smime Menu Bindings</a></dt><dt>9.13. <a href="#tab-mixmaster-bindings">Default Mixmaster Menu Bindings</a></dt><dt>9.14. <a href="#tab-editor-bindings">Default Editor Menu Bindings</a></dt></dl></div><div class="list-of-examples"><p><strong>List of Examples</strong></p><dl><dt>3.1. <a href="#ex-rc-multiple-cmds">Multiple configuration commands per line</a></dt><dt>3.2. <a href="#ex-ec-comment">Commenting configuration files</a></dt><dt>3.3. <a href="#ex-rc-quote">Escaping quotes in configuration files</a></dt><dt>3.4. <a href="#ex-rc-split">Splitting long configuration commands over several lines</a></dt><dt>3.5. <a href="#ex-rc-backtick">Using external command's output in configuration files</a></dt><dt>3.6. <a href="#ex-rc-env">Using environment variables in configuration files</a></dt><dt>3.7. <a href="#ex-alias-external">Configuring external alias files</a></dt><dt>3.8. <a href="#ex-folder-sorting">Setting sort method based on mailbox name</a></dt><dt>3.9. <a href="#ex-header-weeding">Header weeding</a></dt><dt>3.10. <a href="#ex-hdr-order">Configuring header display order</a></dt><dt>3.11. <a href="#ex-my-hdr">Defining custom headers</a></dt><dt>3.12. <a href="#ex-save-hook-exando">Using %-expandos in <span class="command">save-hook</span></a></dt><dt>3.13. <a href="#ex-folder-hook-push">Embedding <span class="command">push</span> in <span class="command">folder-hook</span></a></dt><dt>3.14. <a href="#ex-spam">Configuring spam detection</a></dt><dt>3.15. <a href="#ex-myvar1">Using user-defined variables for config file readability</a></dt><dt>3.16. <a href="#ex-myvar2">Using user-defined variables for backing up other config option values</a></dt><dt>3.17. <a href="#ex-myvar3">Deferring user-defined variable expansion to runtime</a></dt><dt>3.18. <a href="#ex-myvar4">Type conversions using variables</a></dt><dt>3.19. <a href="#ex-fmtpipe">Using external filters in format strings</a></dt><dt>4.1. <a href="#ex-recips">Matching all addresses in address lists</a></dt><dt>4.2. <a href="#ex-pattern-bool">Using boolean operators in patterns</a></dt><dt>4.3. <a href="#ex-default-hook">Specifying a <span class="quote">“<span class="quote">default</span>”</span> hook</a></dt><dt>5.1. <a href="#ex-mime-types"><code class="literal">mime.types</code></a></dt><dt>5.2. <a href="#ex-attach-count">Attachment counting</a></dt><dt>6.1. <a href="#ex-url">URLs</a></dt><dt>6.2. <a href="#ex-multiaccount">Managing multiple accounts</a></dt></dl></div><div class="chapter"><div class="titlepage"><div><div><h1 class="title"><a id="intro"></a>Chapter 1. Introduction</h1></div></div></div><div class="toc"><p><strong>Table of Contents</strong></p><dl class="toc"><dt><span class="sect1"><a href="#homepage">1. Mutt Home Page</a></span></dt><dt><span class="sect1"><a href="#muttlists">2. Mailing Lists</a></span></dt><dt><span class="sect1"><a href="#distribution">3. Getting Mutt</a></span></dt><dt><span class="sect1"><a href="#irc">4. Mutt Online Resources</a></span></dt><dt><span class="sect1"><a href="#contrib">5. Contributing to Mutt</a></span></dt><dt><span class="sect1"><a href="#typo">6. Typographical Conventions</a></span></dt><dt><span class="sect1"><a href="#copyright">7. Copyright</a></span></dt></dl></div><p>
+ <span class="bold"><strong>Mutt</strong></span> is a small but very powerful
+ text-based MIME mail client.  Mutt is highly configurable, and is well
+ suited to the mail power user with advanced features like key bindings,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/doc/manual.txt /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/doc/manual.txt
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/doc/manual.txt	2016-10-09 03:55:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/doc/manual.txt	2016-12-05 08:00:09.000000000 +0800
+@@ -1,13 +1,13 @@
+ The Mutt E-Mail Client
+ 
+ Michael Elkins
+ 
+    <[1]mmee@@ccss..hhmmcc..eedduu>
+ 
+-   version 1.7.1 (2016-10-04)
++   version 1.7.2 (2016-11-26)
+ 
+    _A_b_s_t_r_a_c_t
+ 
+    "All mail clients suck. This one just sucks less." -- me, circa 1995
+      __________________________________________________________________
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/mutt_ssl.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/mutt_ssl.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/mutt_ssl.c	2016-10-09 03:35:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/mutt_ssl.c	2016-12-05 07:46:59.000000000 +0800
+@@ -34,18 +34,12 @@
+ #include "mutt_socket.h"
+ #include "mutt_menu.h"
+ #include "mutt_curses.h"
+ #include "mutt_ssl.h"
+ #include "mutt_idna.h"
+ 
+-#if OPENSSL_VERSION_NUMBER >= 0x00904000L
+-#define READ_X509_KEY(fp, key)	PEM_read_X509(fp, key, NULL, NULL)
+-#else
+-#define READ_X509_KEY(fp, key)	PEM_read_X509(fp, key, NULL)
+-#endif
+-
+ /* Just in case OpenSSL doesn't define DEVRANDOM */
+ #ifndef DEVRANDOM
+ #define DEVRANDOM "/dev/urandom"
+ #endif
+ 
+ /* This is ugly, but as RAND_status came in on OpenSSL version 0.9.5
+@@ -403,17 +397,13 @@
+  *   SSL over the wire, including certificate checks. */
+ static int ssl_negotiate (CONNECTION *conn, sslsockdata* ssldata)
+ {
+   int err;
+   const char* errmsg;
+ 
+-#if OPENSSL_VERSION_NUMBER >= 0x00906000L
+-  /* This only exists in 0.9.6 and above. Without it we may get interrupted
+-   *   reads or writes. Bummer. */
+   SSL_set_mode (ssldata->ssl, SSL_MODE_AUTO_RETRY);
+-#endif
+ 
+   if ((err = SSL_connect (ssldata->ssl)) != 1)
+   {
+     switch (SSL_get_error (ssldata->ssl, err))
+     {
+     case SSL_ERROR_SYSCALL:
+@@ -628,13 +618,13 @@
+ 
+   return buf;
+ }
+ 
+ static int check_certificate_by_signer (X509 *peercert)
+ {
+-  X509_STORE_CTX xsc;
++  X509_STORE_CTX *xsc;
+   X509_STORE *ctx;
+   int pass = 0, i;
+ 
+   ctx = X509_STORE_new ();
+   if (ctx == NULL) return 0;
+ 
+@@ -658,29 +648,30 @@
+   {
+     /* nothing to do */
+     X509_STORE_free (ctx);
+     return 0;
+   }
+ 
+-  X509_STORE_CTX_init (&xsc, ctx, peercert, SslSessionCerts);
++  xsc = X509_STORE_CTX_new();
++  if (xsc == NULL) return 0;
++  X509_STORE_CTX_init (xsc, ctx, peercert, SslSessionCerts);
+ 
+-  pass = (X509_verify_cert (&xsc) > 0);
++  pass = (X509_verify_cert (xsc) > 0);
+ #ifdef DEBUG
+   if (! pass)
+   {
+     char buf[SHORT_STRING];
+     int err;
+ 
+-    err = X509_STORE_CTX_get_error (&xsc);
++    err = X509_STORE_CTX_get_error (xsc);
+     snprintf (buf, sizeof (buf), "%s (%d)",
+ 	X509_verify_cert_error_string(err), err);
+     dprint (2, (debugfile, "X509_verify_cert: %s\n", buf));
+-    dprint (2, (debugfile, " [%s]\n", peercert->name));
+   }
+ #endif
+-  X509_STORE_CTX_cleanup (&xsc);
++  X509_STORE_CTX_free (xsc);
+   X509_STORE_free (ctx);
+ 
+   return pass;
+ }
+ 
+ static int compare_certificates (X509 *cert, X509 *peercert,
+@@ -763,13 +754,13 @@
+   if (!X509_digest (peercert, EVP_sha1(), peermd, &peermdlen))
+   {
+     safe_fclose (&fp);
+     return 0;
+   }
+ 
+-  while ((cert = READ_X509_KEY (fp, &cert)) != NULL)
++  while ((cert = PEM_read_X509 (fp, &cert, NULL, NULL)) != NULL)
+   {
+     pass = compare_certificates (cert, peercert, peermd, peermdlen) ? 0 : 1;
+ 
+     if (pass)
+       break;
+   }
+@@ -919,13 +910,13 @@
+ 
+   return rc;
+ }
+ 
+ static int ssl_cache_trusted_cert (X509 *c)
+ {
+-  dprint (1, (debugfile, "trusted: %s\n", c->name));
++  dprint (1, (debugfile, "ssl_cache_trusted_cert: trusted\n"));
+   if (!SslSessionCerts)
+     SslSessionCerts = sk_X509_new_null();
+   return (sk_X509_push (SslSessionCerts, X509_dup(c)));
+ }
+ 
+ /* check whether cert is preauthorized. If host is not null, verify that
+@@ -972,12 +963,19 @@
+ 
+ static int ssl_check_certificate (CONNECTION *conn, sslsockdata *data)
+ {
+   int i, preauthrc, chain_len;
+   STACK_OF(X509) *chain;
+   X509 *cert;
++#ifdef DEBUG
++  char buf[STRING];
++
++  dprint (1, (debugfile, "ssl_check_certificate: checking cert %s\n",
++              X509_NAME_oneline (X509_get_subject_name (data->cert),
++                                 buf, sizeof (buf))));
++#endif
+ 
+   if ((preauthrc = ssl_check_preauth (data->cert, conn->account.host)) > 0)
+     return preauthrc;
+ 
+   chain = SSL_get_peer_cert_chain (data->ssl);
+   chain_len = sk_X509_num (chain);
+@@ -988,12 +986,16 @@
+ 
+   /* check the chain from root to peer. */
+   for (i = chain_len-1; i >= 0; i--)
+   {
+     cert = sk_X509_value (chain, i);
+ 
++    dprint (1, (debugfile, "ssl_check_certificate: checking cert chain entry %s\n",
++                X509_NAME_oneline (X509_get_subject_name (cert),
++                                   buf, sizeof (buf))));
++
+     /* if the certificate validates or is manually accepted, then add it to
+      * the trusted set and recheck the peer certificate */
+     if (ssl_check_preauth (cert, NULL)
+ 	|| interactive_check_cert (cert, i, chain_len))
+     {
+       ssl_cache_trusted_cert (cert);
+@@ -1014,25 +1016,22 @@
+   char title[STRING];
+   MUTTMENU *menu = mutt_new_menu (MENU_GENERIC);
+   int done, row, i;
+   FILE *fp;
+   char *name = NULL, *c;
+ 
+-  dprint (2, (debugfile, "interactive_check_cert: %s\n", cert->name));
+-
+   menu->max = 19;
+   menu->dialog = (char **) safe_calloc (1, menu->max * sizeof (char *));
+   for (i = 0; i < menu->max; i++)
+     menu->dialog[i] = (char *) safe_calloc (1, SHORT_STRING * sizeof (char));
+ 
+   row = 0;
+   strfcpy (menu->dialog[row], _("This certificate belongs to:"), SHORT_STRING);
+   row++;
+   name = X509_NAME_oneline (X509_get_subject_name (cert),
+ 			    buf, sizeof (buf));
+-  dprint (2, (debugfile, "oneline: %s\n", name));
+ 
+   for (i = 0; i < 5; i++)
+   {
+     c = x509_get_part (name, part[i]);
+     snprintf (menu->dialog[row++], SHORT_STRING, "   %s", c);
+   }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/pager.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/pager.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/pager.c	2016-10-09 03:35:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/pager.c	2016-12-05 07:46:59.000000000 +0800
+@@ -865,12 +865,19 @@
+ 		     (offset ? REG_NOTBOL : 0)) == 0)
+ 	{
+ 	  if (pmatch[0].rm_eo != pmatch[0].rm_so)
+ 	  {
+ 	    if (!found)
+ 	    {
++              /* Abort if we fill up chunks.
++               * Yes, this really happened. See #3888 */
++              if (lineInfo[n].chunks == SHRT_MAX)
++              {
++                null_rx = 0;
++                break;
++              }
+ 	      if (++(lineInfo[n].chunks) > 1)
+ 		safe_realloc (&(lineInfo[n].syntax), 
+ 			      (lineInfo[n].chunks) * sizeof (struct syntax_t));
+ 	    }
+ 	    i = lineInfo[n].chunks - 1;
+ 	    pmatch[0].rm_so += offset;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/po/mutt.pot /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/po/mutt.pot
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/po/mutt.pot	2016-10-09 03:54:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/po/mutt.pot	2016-12-05 08:00:01.000000000 +0800
+@@ -5,13 +5,13 @@
+ #
+ #, fuzzy
+ msgid ""
+ msgstr ""
+ "Project-Id-Version: PACKAGE VERSION\n"
+ "Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2016-10-08 12:54-0700\n"
++"POT-Creation-Date: 2016-12-04 16:00-0800\n"
+ "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+ "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+ "Language-Team: LANGUAGE <LL@li.org>\n"
+ "Language: \n"
+ "MIME-Version: 1.0\n"
+ "Content-Type: text/plain; charset=CHARSET\n"
+@@ -24,31 +24,31 @@
+ 
+ #: account.c:224
+ #, c-format
+ msgid "Password for %s@%s: "
+ msgstr ""
+ 
+-#: addrbook.c:37 browser.c:46 pager.c:1553 postpone.c:41 query.c:48
++#: addrbook.c:37 browser.c:46 pager.c:1560 postpone.c:41 query.c:48
+ #: recvattach.c:53
+ msgid "Exit"
+ msgstr ""
+ 
+-#: addrbook.c:38 curs_main.c:487 pager.c:1560 postpone.c:42
++#: addrbook.c:38 curs_main.c:487 pager.c:1567 postpone.c:42
+ msgid "Del"
+ msgstr ""
+ 
+ #: addrbook.c:39 curs_main.c:488 postpone.c:43
+ msgid "Undel"
+ msgstr ""
+ 
+ #: addrbook.c:40
+ msgid "Select"
+ msgstr ""
+ 
+-#: addrbook.c:41 browser.c:49 compose.c:96 crypt-gpgme.c:4023 curs_main.c:493
+-#: mutt_ssl.c:1084 mutt_ssl_gnutls.c:1003 pager.c:1656 pgpkey.c:523
++#: addrbook.c:41 browser.c:49 compose.c:96 crypt-gpgme.c:4021 curs_main.c:493
++#: mutt_ssl.c:1083 mutt_ssl_gnutls.c:1003 pager.c:1663 pgpkey.c:523
+ #: postpone.c:44 query.c:53 recvattach.c:57 smime.c:440
+ msgid "Help"
+ msgstr ""
+ 
+ #: addrbook.c:145
+ msgid "You have no aliases!"
+@@ -782,13 +782,13 @@
+ 
+ #: crypt-gpgme.c:423
+ #, c-format
+ msgid "error creating gpgme data object: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:489 crypt-gpgme.c:507 crypt-gpgme.c:1538 crypt-gpgme.c:2248
++#: crypt-gpgme.c:489 crypt-gpgme.c:507 crypt-gpgme.c:1536 crypt-gpgme.c:2246
+ #, c-format
+ msgid "error allocating data object: %s\n"
+ msgstr ""
+ 
+ #: crypt-gpgme.c:525
+ #, c-format
+@@ -797,598 +797,598 @@
+ 
+ #: crypt-gpgme.c:547 crypt-gpgme.c:600
+ #, c-format
+ msgid "error reading data object: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:573 crypt-gpgme.c:3637 pgpkey.c:560 pgpkey.c:741
++#: crypt-gpgme.c:573 crypt-gpgme.c:3635 pgpkey.c:560 pgpkey.c:741
+ msgid "Can't create temporary file"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:683
++#: crypt-gpgme.c:681
+ #, c-format
+ msgid "error adding recipient `%s': %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:723
++#: crypt-gpgme.c:721
+ #, c-format
+ msgid "secret key `%s' not found: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:733
++#: crypt-gpgme.c:731
+ #, c-format
+ msgid "ambiguous specification of secret key `%s'\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:745
++#: crypt-gpgme.c:743
+ #, c-format
+ msgid "error setting secret key `%s': %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:762
++#: crypt-gpgme.c:760
+ #, c-format
+ msgid "error setting PKA signature notation: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:818
++#: crypt-gpgme.c:816
+ #, c-format
+ msgid "error encrypting data: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:937
++#: crypt-gpgme.c:935
+ #, c-format
+ msgid "error signing data: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:948
++#: crypt-gpgme.c:946
+ msgid "$pgp_sign_as unset and no default key specified in ~/.gnupg/gpg.conf"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1144
++#: crypt-gpgme.c:1142
+ msgid "Warning: One of the keys has been revoked\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1153
++#: crypt-gpgme.c:1151
+ msgid "Warning: The key used to create the signature expired at: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1159
++#: crypt-gpgme.c:1157
+ msgid "Warning: At least one certification key has expired\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1175
++#: crypt-gpgme.c:1173
+ msgid "Warning: The signature expired at: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1181
++#: crypt-gpgme.c:1179
+ msgid "Can't verify due to a missing key or certificate\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1186
++#: crypt-gpgme.c:1184
+ msgid "The CRL is not available\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1192
++#: crypt-gpgme.c:1190
+ msgid "Available CRL is too old\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1197
++#: crypt-gpgme.c:1195
+ msgid "A policy requirement was not met\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1206
++#: crypt-gpgme.c:1204
+ msgid "A system error occurred"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1240
++#: crypt-gpgme.c:1238
+ msgid "WARNING: PKA entry does not match signer's address: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1247
++#: crypt-gpgme.c:1245
+ msgid "PKA verified signer's address is: "
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:1264 crypt-gpgme.c:3468
++#: crypt-gpgme.c:1262 crypt-gpgme.c:3466
+ msgid "Fingerprint: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1324
++#: crypt-gpgme.c:1322
+ msgid ""
+ "WARNING: We have NO indication whether the key belongs to the person named "
+ "as shown above\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1331
++#: crypt-gpgme.c:1329
+ msgid "WARNING: The key does NOT BELONG to the person named as shown above\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1335
++#: crypt-gpgme.c:1333
+ msgid ""
+ "WARNING: It is NOT certain that the key belongs to the person named as shown "
+ "above\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1370
++#: crypt-gpgme.c:1368
+ msgid "aka: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1380
++#: crypt-gpgme.c:1378
+ msgid "KeyID "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1390
++#: crypt-gpgme.c:1388
+ msgid "created: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1462
++#: crypt-gpgme.c:1460
+ #, c-format
+ msgid "Error getting key information for KeyID %s: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1469 crypt-gpgme.c:1484
++#: crypt-gpgme.c:1467 crypt-gpgme.c:1482
+ msgid "Good signature from:"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1476
++#: crypt-gpgme.c:1474
+ msgid "*BAD* signature from:"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1492
++#: crypt-gpgme.c:1490
+ msgid "Problem signature from:"
+ msgstr ""
+ 
+ #. L10N:
+ #. This is trying to match the width of the
+ #. "Problem signature from:" translation just above.
+-#: crypt-gpgme.c:1499
++#: crypt-gpgme.c:1497
+ msgid "               expires: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1546 crypt-gpgme.c:1764 crypt-gpgme.c:2465
++#: crypt-gpgme.c:1544 crypt-gpgme.c:1762 crypt-gpgme.c:2463
+ msgid "[-- Begin signature information --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1558
++#: crypt-gpgme.c:1556
+ #, c-format
+ msgid "Error: verification failed: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1607
++#: crypt-gpgme.c:1605
+ #, c-format
+ msgid "*** Begin Notation (signature by: %s) ***\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1629
++#: crypt-gpgme.c:1627
+ msgid "*** End Notation ***\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1637 crypt-gpgme.c:1777 crypt-gpgme.c:2478
++#: crypt-gpgme.c:1635 crypt-gpgme.c:1775 crypt-gpgme.c:2476
+ msgid ""
+ "[-- End signature information --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:1732
++#: crypt-gpgme.c:1730
+ #, c-format
+ msgid ""
+ "[-- Error: decryption failed: %s --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2255
++#: crypt-gpgme.c:2253
+ msgid "Error extracting key data!\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2441
++#: crypt-gpgme.c:2439
+ #, c-format
+ msgid "Error: decryption/verification failed: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2486
++#: crypt-gpgme.c:2484
+ msgid "Error: copy data failed\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2507 pgp.c:519
++#: crypt-gpgme.c:2505 pgp.c:519
+ msgid ""
+ "[-- BEGIN PGP MESSAGE --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2509 pgp.c:521
++#: crypt-gpgme.c:2507 pgp.c:521
+ msgid "[-- BEGIN PGP PUBLIC KEY BLOCK --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2512 pgp.c:523
++#: crypt-gpgme.c:2510 pgp.c:523
+ msgid ""
+ "[-- BEGIN PGP SIGNED MESSAGE --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2539 pgp.c:566
++#: crypt-gpgme.c:2537 pgp.c:566
+ msgid "[-- END PGP MESSAGE --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2541 pgp.c:573
++#: crypt-gpgme.c:2539 pgp.c:573
+ msgid "[-- END PGP PUBLIC KEY BLOCK --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2543 pgp.c:575
++#: crypt-gpgme.c:2541 pgp.c:575
+ msgid "[-- END PGP SIGNED MESSAGE --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2566 pgp.c:608
++#: crypt-gpgme.c:2564 pgp.c:608
+ msgid ""
+ "[-- Error: could not find beginning of PGP message! --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2597 crypt-gpgme.c:2670 pgp.c:1091
++#: crypt-gpgme.c:2595 crypt-gpgme.c:2668 pgp.c:1091
+ msgid "[-- Error: could not create temporary file! --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2609
++#: crypt-gpgme.c:2607
+ msgid ""
+ "[-- The following data is PGP/MIME signed and encrypted --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2610 pgp.c:1100
++#: crypt-gpgme.c:2608 pgp.c:1100
+ msgid ""
+ "[-- The following data is PGP/MIME encrypted --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2632
++#: crypt-gpgme.c:2630
+ msgid "[-- End of PGP/MIME signed and encrypted data --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2633 pgp.c:1120
++#: crypt-gpgme.c:2631 pgp.c:1120
+ msgid "[-- End of PGP/MIME encrypted data --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2638 pgp.c:570 pgp.c:1125
++#: crypt-gpgme.c:2636 pgp.c:570 pgp.c:1125
+ msgid "PGP message successfully decrypted."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2642 pgp.c:505 pgp.c:568 pgp.c:1129
++#: crypt-gpgme.c:2640 pgp.c:505 pgp.c:568 pgp.c:1129
+ msgid "Could not decrypt PGP message"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2682
++#: crypt-gpgme.c:2680
+ msgid ""
+ "[-- The following data is S/MIME signed --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2683
++#: crypt-gpgme.c:2681
+ msgid ""
+ "[-- The following data is S/MIME encrypted --]\n"
+ "\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2713
++#: crypt-gpgme.c:2711
+ msgid "[-- End of S/MIME signed data --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:2714
++#: crypt-gpgme.c:2712
+ msgid "[-- End of S/MIME encrypted data --]\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3299
++#: crypt-gpgme.c:3297
+ msgid "[Can't display this user ID (unknown encoding)]"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3301
++#: crypt-gpgme.c:3299
+ msgid "[Can't display this user ID (invalid encoding)]"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3306
++#: crypt-gpgme.c:3304
+ msgid "[Can't display this user ID (invalid DN)]"
+ msgstr ""
+ 
+ #. L10N:
+ #. Fill dots to make the DOTFILL entries the same length.
+ #. In English, msgid "Fingerprint: " is the longest entry for this menu.
+ #. Your language may vary.
+-#: crypt-gpgme.c:3389
++#: crypt-gpgme.c:3387
+ msgid " aka ......: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3389
++#: crypt-gpgme.c:3387
+ msgid "Name ......: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3392 crypt-gpgme.c:3539
++#: crypt-gpgme.c:3390 crypt-gpgme.c:3537
+ msgid "[Invalid]"
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3413 crypt-gpgme.c:3564
++#: crypt-gpgme.c:3411 crypt-gpgme.c:3562
+ #, c-format
+ msgid "Valid From : %s\n"
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3427 crypt-gpgme.c:3578
++#: crypt-gpgme.c:3425 crypt-gpgme.c:3576
+ #, c-format
+ msgid "Valid To ..: %s\n"
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3441 crypt-gpgme.c:3592
++#: crypt-gpgme.c:3439 crypt-gpgme.c:3590
+ #, c-format
+ msgid "Key Type ..: %s, %lu bit %s\n"
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3444 crypt-gpgme.c:3595
++#: crypt-gpgme.c:3442 crypt-gpgme.c:3593
+ #, c-format
+ msgid "Key Usage .: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3449 crypt-gpgme.c:3600
++#: crypt-gpgme.c:3447 crypt-gpgme.c:3598
+ msgid "encryption"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3450 crypt-gpgme.c:3455 crypt-gpgme.c:3460 crypt-gpgme.c:3601
+-#: crypt-gpgme.c:3606 crypt-gpgme.c:3611
++#: crypt-gpgme.c:3448 crypt-gpgme.c:3453 crypt-gpgme.c:3458 crypt-gpgme.c:3599
++#: crypt-gpgme.c:3604 crypt-gpgme.c:3609
+ msgid ", "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3454 crypt-gpgme.c:3605
++#: crypt-gpgme.c:3452 crypt-gpgme.c:3603
+ msgid "signing"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3459 crypt-gpgme.c:3610
++#: crypt-gpgme.c:3457 crypt-gpgme.c:3608
+ msgid "certification"
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3501
++#: crypt-gpgme.c:3499
+ #, c-format
+ msgid "Serial-No .: 0x%s\n"
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3510
++#: crypt-gpgme.c:3508
+ #, c-format
+ msgid "Issued By .: "
+ msgstr ""
+ 
+ #. L10N: DOTFILL
+-#: crypt-gpgme.c:3530
++#: crypt-gpgme.c:3528
+ #, c-format
+ msgid "Subkey ....: 0x%s"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3534
++#: crypt-gpgme.c:3532
+ msgid "[Revoked]"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3544
++#: crypt-gpgme.c:3542
+ msgid "[Expired]"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3549
++#: crypt-gpgme.c:3547
+ msgid "[Disabled]"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3640
++#: crypt-gpgme.c:3638
+ msgid "Collecting data..."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3666
++#: crypt-gpgme.c:3664
+ #, c-format
+ msgid "Error finding issuer key: %s\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3676
++#: crypt-gpgme.c:3674
+ msgid "Error: certification chain too long - stopping here\n"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3687 pgpkey.c:582
++#: crypt-gpgme.c:3685 pgpkey.c:582
+ #, c-format
+ msgid "Key ID: 0x%s"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3770
++#: crypt-gpgme.c:3768
+ #, c-format
+ msgid "gpgme_new failed: %s"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3809 crypt-gpgme.c:3884
++#: crypt-gpgme.c:3807 crypt-gpgme.c:3882
+ #, c-format
+ msgid "gpgme_op_keylist_start failed: %s"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3871 crypt-gpgme.c:3915
++#: crypt-gpgme.c:3869 crypt-gpgme.c:3913
+ #, c-format
+ msgid "gpgme_op_keylist_next failed: %s"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:3986
++#: crypt-gpgme.c:3984
+ msgid "All matching keys are marked expired/revoked."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4015 mutt_ssl.c:1082 mutt_ssl_gnutls.c:1001 pgpkey.c:516
++#: crypt-gpgme.c:4013 mutt_ssl.c:1081 mutt_ssl_gnutls.c:1001 pgpkey.c:516
+ #: smime.c:435
+ msgid "Exit  "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4017 pgpkey.c:518 smime.c:437
++#: crypt-gpgme.c:4015 pgpkey.c:518 smime.c:437
+ msgid "Select  "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4020 pgpkey.c:521
++#: crypt-gpgme.c:4018 pgpkey.c:521
+ msgid "Check key  "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4036
++#: crypt-gpgme.c:4034
+ msgid "PGP and S/MIME keys matching"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4038
++#: crypt-gpgme.c:4036
+ msgid "PGP keys matching"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4040
++#: crypt-gpgme.c:4038
+ msgid "S/MIME keys matching"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4042
++#: crypt-gpgme.c:4040
+ msgid "keys matching"
+ msgstr ""
+ 
+ #. L10N:
+ #. %1$s is one of the previous four entries.
+ #. %2$s is an address.
+ #. e.g. "S/MIME keys matching <me@mutt.org>."
+-#: crypt-gpgme.c:4049
++#: crypt-gpgme.c:4047
+ #, c-format
+ msgid "%s <%s>."
+ msgstr ""
+ 
+ #. L10N:
+ #. e.g. 'S/MIME keys matching "Michael Elkins".'
+-#: crypt-gpgme.c:4053
++#: crypt-gpgme.c:4051
+ #, c-format
+ msgid "%s \"%s\"."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4080 pgpkey.c:602
++#: crypt-gpgme.c:4078 pgpkey.c:602
+ msgid "This key can't be used: expired/disabled/revoked."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4094 pgpkey.c:614 smime.c:467
++#: crypt-gpgme.c:4092 pgpkey.c:614 smime.c:467
+ msgid "ID is expired/disabled/revoked."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4102 pgpkey.c:618 smime.c:470
++#: crypt-gpgme.c:4100 pgpkey.c:618 smime.c:470
+ msgid "ID has undefined validity."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4105 pgpkey.c:621
++#: crypt-gpgme.c:4103 pgpkey.c:621
+ msgid "ID is not valid."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4108 pgpkey.c:624
++#: crypt-gpgme.c:4106 pgpkey.c:624
+ msgid "ID is only marginally valid."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4117 pgpkey.c:628 smime.c:477
++#: crypt-gpgme.c:4115 pgpkey.c:628 smime.c:477
+ #, c-format
+ msgid "%s Do you really want to use the key?"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4178 crypt-gpgme.c:4312 pgpkey.c:839 pgpkey.c:966
++#: crypt-gpgme.c:4176 crypt-gpgme.c:4310 pgpkey.c:839 pgpkey.c:966
+ #, c-format
+ msgid "Looking for keys matching \"%s\"..."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4467 pgp.c:1304
++#: crypt-gpgme.c:4465 pgp.c:1304
+ #, c-format
+ msgid "Use keyID = \"%s\" for %s?"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4525 pgp.c:1353 smime.c:796 smime.c:902
++#: crypt-gpgme.c:4523 pgp.c:1353 smime.c:796 smime.c:902
+ #, c-format
+ msgid "Enter keyID for %s: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4602 pgpkey.c:726
++#: crypt-gpgme.c:4600 pgpkey.c:726
+ msgid "Please enter the key ID: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4615
++#: crypt-gpgme.c:4613
+ #, c-format
+ msgid "Error exporting key: %s\n"
+ msgstr ""
+ 
+ #. L10N:
+ #. MIME description for exported (attached) keys.
+ #. You can translate this entry to a non-ASCII string (it will be encoded),
+ #. but it may be safer to keep it untranslated.
+-#: crypt-gpgme.c:4635
++#: crypt-gpgme.c:4633
+ #, c-format
+ msgid "PGP Key 0x%s."
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4677
++#: crypt-gpgme.c:4675
+ msgid "GPGME: OpenPGP protocol not available"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4685
++#: crypt-gpgme.c:4683
+ msgid "GPGME: CMS protocol not available"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4722
++#: crypt-gpgme.c:4720
+ msgid "S/MIME (s)ign, sign (a)s, (p)gp, (c)lear, or (o)ppenc mode off? "
+ msgstr ""
+ 
+ #. L10N: The 'f' is from "forget it", an old undocumented synonym of
+ #. 'clear'.  Please use a corresponding letter in your language.
+ #. Alternatively, you may duplicate the letter 'c' is translated to.
+ #. This comment also applies to the five following letter sequences.
+-#: crypt-gpgme.c:4727
++#: crypt-gpgme.c:4725
+ msgid "sapfco"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4732
++#: crypt-gpgme.c:4730
+ msgid "PGP (s)ign, sign (a)s, s/(m)ime, (c)lear, or (o)ppenc mode off? "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4733
++#: crypt-gpgme.c:4731
+ msgid "samfco"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4745
++#: crypt-gpgme.c:4743
+ msgid ""
+ "S/MIME (e)ncrypt, (s)ign, sign (a)s, (b)oth, (p)gp, (c)lear, or (o)ppenc "
+ "mode? "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4746
++#: crypt-gpgme.c:4744
+ msgid "esabpfco"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4751
++#: crypt-gpgme.c:4749
+ msgid ""
+ "PGP (e)ncrypt, (s)ign, sign (a)s, (b)oth, s/(m)ime, (c)lear, or (o)ppenc "
+ "mode? "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4752
++#: crypt-gpgme.c:4750
+ msgid "esabmfco"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4763
++#: crypt-gpgme.c:4761
+ msgid "S/MIME (e)ncrypt, (s)ign, sign (a)s, (b)oth, (p)gp or (c)lear? "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4764
++#: crypt-gpgme.c:4762
+ msgid "esabpfc"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4769
++#: crypt-gpgme.c:4767
+ msgid "PGP (e)ncrypt, (s)ign, sign (a)s, (b)oth, s/(m)ime or (c)lear? "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4770
++#: crypt-gpgme.c:4768
+ msgid "esabmfc"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4795 pgp.c:1818 smime.c:2222 smime.c:2237
++#: crypt-gpgme.c:4793 pgp.c:1818 smime.c:2222 smime.c:2237
+ msgid "Sign as: "
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4930
++#: crypt-gpgme.c:4928
+ msgid "Failed to verify sender"
+ msgstr ""
+ 
+-#: crypt-gpgme.c:4933
++#: crypt-gpgme.c:4931
+ msgid "Failed to figure out sender"
+ msgstr ""
+ 
+ #: crypt.c:68
+ #, c-format
+ msgid " (current time: %c)"
+@@ -1490,13 +1490,13 @@
+ msgstr ""
+ 
+ #: curs_lib.c:326
+ msgid "Exit Mutt?"
+ msgstr ""
+ 
+-#: curs_lib.c:675 mutt_socket.c:577 mutt_ssl.c:426
++#: curs_lib.c:675 mutt_socket.c:577 mutt_ssl.c:416
+ msgid "unknown error"
+ msgstr ""
+ 
+ #: curs_lib.c:695
+ msgid "Press any key to continue..."
+ msgstr ""
+@@ -1552,13 +1552,13 @@
+ msgstr ""
+ 
+ #: curs_main.c:490 query.c:49
+ msgid "Mail"
+ msgstr ""
+ 
+-#: curs_main.c:491 pager.c:1561
++#: curs_main.c:491 pager.c:1568
+ msgid "Reply"
+ msgstr ""
+ 
+ #: curs_main.c:492
+ msgid "Group"
+ msgstr ""
+@@ -1597,13 +1597,13 @@
+ 
+ #: curs_main.c:873
+ msgid "Invalid message number."
+ msgstr ""
+ 
+ #. L10N: CHECK_ACL
+-#: curs_main.c:887 curs_main.c:2004 pager.c:2450
++#: curs_main.c:887 curs_main.c:2004 pager.c:2457
+ msgid "Cannot delete message(s)"
+ msgstr ""
+ 
+ #: curs_main.c:890
+ msgid "Delete messages matching: "
+ msgstr ""
+@@ -1623,22 +1623,22 @@
+ msgstr ""
+ 
+ #: curs_main.c:949
+ msgid "To view all messages, limit to \"all\"."
+ msgstr ""
+ 
+-#: curs_main.c:961 pager.c:1997
++#: curs_main.c:961 pager.c:2004
+ msgid "Quit Mutt?"
+ msgstr ""
+ 
+ #: curs_main.c:1051
+ msgid "Tag messages matching: "
+ msgstr ""
+ 
+ #. L10N: CHECK_ACL
+-#: curs_main.c:1061 curs_main.c:2304 pager.c:2765
++#: curs_main.c:1061 curs_main.c:2304 pager.c:2772
+ msgid "Cannot undelete message(s)"
+ msgstr ""
+ 
+ #: curs_main.c:1063
+ msgid "Undelete messages matching: "
+ msgstr ""
+@@ -1715,17 +1715,17 @@
+ msgstr ""
+ 
+ #: curs_main.c:1487 curs_main.c:1511
+ msgid "You are on the first message."
+ msgstr ""
+ 
+-#: curs_main.c:1586 menu.c:773 pager.c:2115 pattern.c:1494
++#: curs_main.c:1586 menu.c:773 pager.c:2122 pattern.c:1494
+ msgid "Search wrapped to top."
+ msgstr ""
+ 
+-#: curs_main.c:1595 pager.c:2137 pattern.c:1505
++#: curs_main.c:1595 pager.c:2144 pattern.c:1505
+ msgid "Search wrapped to bottom."
+ msgstr ""
+ 
+ #: curs_main.c:1639
+ msgid "No new messages in this limited view."
+ msgstr ""
+@@ -1745,13 +1745,13 @@
+ #. L10N: CHECK_ACL
+ #: curs_main.c:1666
+ msgid "Cannot flag message"
+ msgstr ""
+ 
+ #. L10N: CHECK_ACL
+-#: curs_main.c:1704 pager.c:2728
++#: curs_main.c:1704 pager.c:2735
+ msgid "Cannot toggle new"
+ msgstr ""
+ 
+ #: curs_main.c:1781
+ msgid "No more threads."
+ msgstr ""
+@@ -1762,13 +1762,13 @@
+ 
+ #: curs_main.c:1864
+ msgid "Thread contains unread messages."
+ msgstr ""
+ 
+ #. L10N: CHECK_ACL
+-#: curs_main.c:1960 pager.c:2417
++#: curs_main.c:1960 pager.c:2424
+ msgid "Cannot delete message"
+ msgstr ""
+ 
+ #. L10N: CHECK_ACL
+ #: curs_main.c:2046
+ msgid "Cannot edit message"
+@@ -1777,13 +1777,13 @@
+ #. L10N: CHECK_ACL
+ #: curs_main.c:2178
+ msgid "Cannot mark message(s) as read"
+ msgstr ""
+ 
+ #. L10N: CHECK_ACL
+-#: curs_main.c:2274 pager.c:2748
++#: curs_main.c:2274 pager.c:2755
+ msgid "Cannot undelete message"
+ msgstr ""
+ 
+ #: edit.c:41
+ msgid ""
+ "~~\t\tinsert a line beginning with a single ~\n"
+@@ -2835,21 +2835,21 @@
+ msgstr ""
+ 
+ #: menu.c:669
+ msgid "You are on the first entry."
+ msgstr ""
+ 
+-#: menu.c:747 pager.c:2159 pattern.c:1433
++#: menu.c:747 pager.c:2166 pattern.c:1433
+ msgid "Search for: "
+ msgstr ""
+ 
+-#: menu.c:747 pager.c:2159 pattern.c:1433
++#: menu.c:747 pager.c:2166 pattern.c:1433
+ msgid "Reverse search for: "
+ msgstr ""
+ 
+-#: menu.c:791 pager.c:2112 pager.c:2134 pager.c:2254 pattern.c:1548
++#: menu.c:791 pager.c:2119 pager.c:2141 pager.c:2261 pattern.c:1548
+ msgid "Not found."
+ msgstr ""
+ 
+ #: menu.c:922
+ msgid "No tagged entries."
+ msgstr ""
+@@ -2939,154 +2939,154 @@
+ 
+ #: mutt_socket.c:576
+ #, c-format
+ msgid "Could not connect to %s (%s)."
+ msgstr ""
+ 
+-#: mutt_ssl.c:226
++#: mutt_ssl.c:220
+ msgid "Failed to find enough entropy on your system"
+ msgstr ""
+ 
+-#: mutt_ssl.c:250
++#: mutt_ssl.c:244
+ #, c-format
+ msgid "Filling entropy pool: %s...\n"
+ msgstr ""
+ 
+-#: mutt_ssl.c:258
++#: mutt_ssl.c:252
+ #, c-format
+ msgid "%s has insecure permissions!"
+ msgstr ""
+ 
+-#: mutt_ssl.c:277
++#: mutt_ssl.c:271
+ msgid "SSL disabled due to the lack of entropy"
+ msgstr ""
+ 
+ #. L10N: an SSL context is a data structure returned by the OpenSSL
+ #. *       function SSL_CTX_new().  In this case it returned NULL: an
+ #. *       error condition.
+ #.
+-#: mutt_ssl.c:344
++#: mutt_ssl.c:338
+ msgid "Unable to create SSL context"
+ msgstr ""
+ 
+-#: mutt_ssl.c:420
++#: mutt_ssl.c:410
+ msgid "I/O error"
+ msgstr ""
+ 
+-#: mutt_ssl.c:429
++#: mutt_ssl.c:419
+ #, c-format
+ msgid "SSL failed: %s"
+ msgstr ""
+ 
+-#: mutt_ssl.c:438 mutt_ssl_gnutls.c:1079 mutt_ssl_gnutls.c:1114
++#: mutt_ssl.c:428 mutt_ssl_gnutls.c:1079 mutt_ssl_gnutls.c:1114
+ #: mutt_ssl_gnutls.c:1124
+ msgid "Unable to get certificate from peer"
+ msgstr ""
+ 
+ #. L10N:
+ #. %1$s is version (e.g. "TLSv1.2")
+ #. %2$s is cipher_version (e.g. "TLSv1/SSLv3")
+ #. %3$s is cipher_name (e.g. "ECDHE-RSA-AES128-GCM-SHA256")
+-#: mutt_ssl.c:450
++#: mutt_ssl.c:440
+ #, c-format
+ msgid "%s connection using %s (%s)"
+ msgstr ""
+ 
+-#: mutt_ssl.c:576
++#: mutt_ssl.c:566
+ msgid "Unknown"
+ msgstr ""
+ 
+-#: mutt_ssl.c:601 mutt_ssl_gnutls.c:598
++#: mutt_ssl.c:591 mutt_ssl_gnutls.c:598
+ #, c-format
+ msgid "[unable to calculate]"
+ msgstr ""
+ 
+-#: mutt_ssl.c:619 mutt_ssl_gnutls.c:621
++#: mutt_ssl.c:609 mutt_ssl_gnutls.c:621
+ msgid "[invalid date]"
+ msgstr ""
+ 
+-#: mutt_ssl.c:747
++#: mutt_ssl.c:738
+ msgid "Server certificate is not yet valid"
+ msgstr ""
+ 
+-#: mutt_ssl.c:754
++#: mutt_ssl.c:745
+ msgid "Server certificate has expired"
+ msgstr ""
+ 
+-#: mutt_ssl.c:876
++#: mutt_ssl.c:867
+ msgid "cannot get certificate subject"
+ msgstr ""
+ 
+-#: mutt_ssl.c:886 mutt_ssl.c:895
++#: mutt_ssl.c:877 mutt_ssl.c:886
+ msgid "cannot get certificate common name"
+ msgstr ""
+ 
+-#: mutt_ssl.c:909
++#: mutt_ssl.c:900
+ #, c-format
+ msgid "certificate owner does not match hostname %s"
+ msgstr ""
+ 
+-#: mutt_ssl.c:950
++#: mutt_ssl.c:941
+ #, c-format
+ msgid "Certificate host check failed: %s"
+ msgstr ""
+ 
+ #: mutt_ssl.c:1028 mutt_ssl_gnutls.c:860
+ msgid "This certificate belongs to:"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1041 mutt_ssl_gnutls.c:899
++#: mutt_ssl.c:1040 mutt_ssl_gnutls.c:899
+ msgid "This certificate was issued by:"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1052 mutt_ssl_gnutls.c:938
++#: mutt_ssl.c:1051 mutt_ssl_gnutls.c:938
+ #, c-format
+ msgid "This certificate is valid"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1053 mutt_ssl_gnutls.c:941
++#: mutt_ssl.c:1052 mutt_ssl_gnutls.c:941
+ #, c-format
+ msgid "   from %s"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1055 mutt_ssl_gnutls.c:945
++#: mutt_ssl.c:1054 mutt_ssl_gnutls.c:945
+ #, c-format
+ msgid "     to %s"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1061
++#: mutt_ssl.c:1060
+ #, c-format
+ msgid "Fingerprint: %s"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1064 mutt_ssl_gnutls.c:982
++#: mutt_ssl.c:1063 mutt_ssl_gnutls.c:982
+ #, c-format
+ msgid "SSL Certificate check (certificate %d of %d in chain)"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1072 mutt_ssl_gnutls.c:991
++#: mutt_ssl.c:1071 mutt_ssl_gnutls.c:991
+ msgid "(r)eject, accept (o)nce, (a)ccept always"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1073 mutt_ssl_gnutls.c:992
++#: mutt_ssl.c:1072 mutt_ssl_gnutls.c:992
+ msgid "roa"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1077 mutt_ssl_gnutls.c:996
++#: mutt_ssl.c:1076 mutt_ssl_gnutls.c:996
+ msgid "(r)eject, accept (o)nce"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1078 mutt_ssl_gnutls.c:997
++#: mutt_ssl.c:1077 mutt_ssl_gnutls.c:997
+ msgid "ro"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1109 mutt_ssl_gnutls.c:1046
++#: mutt_ssl.c:1108 mutt_ssl_gnutls.c:1046
+ msgid "Warning: Couldn't save certificate"
+ msgstr ""
+ 
+-#: mutt_ssl.c:1114 mutt_ssl_gnutls.c:1051
++#: mutt_ssl.c:1113 mutt_ssl_gnutls.c:1051
+ msgid "Certificate saved"
+ msgstr ""
+ 
+ #: mutt_ssl_gnutls.c:137 mutt_ssl_gnutls.c:164
+ msgid "Error: no TLS socket open"
+ msgstr ""
+@@ -3308,45 +3308,45 @@
+ msgstr ""
+ 
+ #: mx.c:1367
+ msgid "Integer overflow -- can't allocate memory."
+ msgstr ""
+ 
+-#: pager.c:1554
++#: pager.c:1561
+ msgid "PrevPg"
+ msgstr ""
+ 
+-#: pager.c:1555
++#: pager.c:1562
+ msgid "NextPg"
+ msgstr ""
+ 
+-#: pager.c:1559
++#: pager.c:1566
+ msgid "View Attachm."
+ msgstr ""
+ 
+-#: pager.c:1562
++#: pager.c:1569
+ msgid "Next"
+ msgstr ""
+ 
+-#: pager.c:2013 pager.c:2044 pager.c:2076 pager.c:2352
++#: pager.c:2020 pager.c:2051 pager.c:2083 pager.c:2359
+ msgid "Bottom of message is shown."
+ msgstr ""
+ 
+-#: pager.c:2029 pager.c:2051 pager.c:2058 pager.c:2065
++#: pager.c:2036 pager.c:2058 pager.c:2065 pager.c:2072
+ msgid "Top of message is shown."
+ msgstr ""
+ 
+-#: pager.c:2290
++#: pager.c:2297
+ msgid "Help is currently being shown."
+ msgstr ""
+ 
+-#: pager.c:2319
++#: pager.c:2326
+ msgid "No more quoted text."
+ msgstr ""
+ 
+-#: pager.c:2332
++#: pager.c:2339
+ msgid "No more unquoted text after quoted text."
+ msgstr ""
+ 
+ #: parse.c:588
+ msgid "multipart message has no boundary parameter!"
+ msgstr ""
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/sidebar.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/sidebar.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/sidebar.c	2016-10-09 03:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/sidebar.c	2016-12-05 07:46:59.000000000 +0800
+@@ -217,13 +217,13 @@
+   strfcpy (sbe->box, box, sizeof (sbe->box));
+ 
+   mutt_FormatString (buf, buflen, 0, width, NONULL(SidebarFormat), cb_format_str, (unsigned long) sbe, 0);
+ 
+   /* Force string to be exactly the right width */
+   int w = mutt_strwidth (buf);
+-  int s = strlen (buf);
++  int s = mutt_strlen (buf);
+   width = MIN(buflen, width);
+   if (w < width)
+   {
+     /* Pad with spaces */
+     memset (buf + s, ' ', width - w);
+     buf[s + width - w] = 0;
+@@ -584,30 +584,32 @@
+       b->msg_unread  = Context->unread;
+       b->msg_count   = Context->msgcount;
+       b->msg_flagged = Context->flagged;
+     }
+ 
+     /* compute length of Maildir without trailing separator */
+-    size_t maildirlen = strlen (Maildir);
+-    if (SidebarDelimChars && strchr (SidebarDelimChars, Maildir[maildirlen - 1]))
++    size_t maildirlen = mutt_strlen (Maildir);
++    if (maildirlen &&
++        SidebarDelimChars &&
++        strchr (SidebarDelimChars, Maildir[maildirlen - 1]))
+       maildirlen--;
+ 
+     /* check whether Maildir is a prefix of the current folder's path */
+     short maildir_is_prefix = 0;
+-    if ((strlen (b->path) > maildirlen) && (strncmp (Maildir, b->path, maildirlen) == 0))
++    if ((mutt_strlen (b->path) > maildirlen) && (mutt_strncmp (Maildir, b->path, maildirlen) == 0))
+       maildir_is_prefix = 1;
+ 
+     /* calculate depth of current folder and generate its display name with indented spaces */
+     int sidebar_folder_depth = 0;
+     char *sidebar_folder_name;
+     int i;
+     if (option (OPTSIDEBARSHORTPATH))
+     {
+       /* disregard a trailing separator, so strlen() - 2 */
+       sidebar_folder_name = b->path;
+-      for (i = strlen (sidebar_folder_name) - 2; i >= 0; i--)
++      for (i = mutt_strlen (sidebar_folder_name) - 2; i >= 0; i--)
+       {
+         if (SidebarDelimChars &&
+             strchr (SidebarDelimChars, sidebar_folder_name[i]))
+         {
+           sidebar_folder_name += (i + 1);
+           break;
+@@ -619,27 +621,27 @@
+ 
+     if (maildir_is_prefix && option (OPTSIDEBARFOLDERINDENT))
+     {
+       const char *tmp_folder_name;
+       int lastsep = 0;
+       tmp_folder_name = b->path + maildirlen + 1;
+-      int tmplen = (int) strlen (tmp_folder_name) - 1;
++      int tmplen = (int) mutt_strlen (tmp_folder_name) - 1;
+       for (i = 0; i < tmplen; i++)
+       {
+         if (SidebarDelimChars && strchr (SidebarDelimChars, tmp_folder_name[i]))
+         {
+           sidebar_folder_depth++;
+           lastsep = i + 1;
+         }
+       }
+       if (sidebar_folder_depth > 0)
+       {
+         if (option (OPTSIDEBARSHORTPATH))
+           tmp_folder_name += lastsep;  /* basename */
+-        int sfn_len = strlen (tmp_folder_name) +
+-                      sidebar_folder_depth*strlen (NONULL(SidebarIndentString)) + 1;
++        int sfn_len = mutt_strlen (tmp_folder_name) +
++                      sidebar_folder_depth*mutt_strlen (SidebarIndentString) + 1;
+         sidebar_folder_name = safe_malloc (sfn_len);
+         sidebar_folder_name[0]=0;
+         for (i=0; i < sidebar_folder_depth; i++)
+           safe_strcat (sidebar_folder_name, sfn_len, NONULL(SidebarIndentString));
+         safe_strcat (sidebar_folder_name, sfn_len, tmp_folder_name);
+       }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/UPDATING /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/UPDATING
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/UPDATING	2016-10-09 03:36:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/UPDATING	2016-12-05 07:51:39.000000000 +0800
+@@ -1,12 +1,17 @@
+ This file lists incompatible changes and additional/new features made to
+ mutt. Please read this file carefully when upgrading your installation.
+ 
+ The keys used are:
+   !: modified feature, -: deleted feature, +: new feature
+ 
++1.7.2 (2016-12-04):
++
++  ! Bug fix release.  No features were modified or added.
++  ! Fixes for OpenSSL 1.1.  Versions less than 0.9.6 are no longer supported.
++
+ 1.7.1 (2016-10-08):
+ 
+   ! Bug fix release.  No features were modified or added.
+ 
+ 1.7.0 (2016-08-18):
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/VERSION /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/VERSION
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.1/VERSION	2016-10-09 03:39:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/repos/mutt-1.7.2/VERSION	2016-12-05 07:52:01.000000000 +0800
+@@ -1 +1 @@
+-1.7.1
++1.7.2

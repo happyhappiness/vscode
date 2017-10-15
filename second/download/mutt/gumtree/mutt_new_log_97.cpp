@@ -1,0 +1,1 @@
+fprintf (f, "Resent-Message-ID: %s\n", msgid_str);
