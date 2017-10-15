@@ -1,0 +1,1 @@
+print_buffer(first, last, "/%3i KB]", torrent::down_throttle_global()->max_rate() / 1024);

@@ -1,0 +1,1 @@
+print_buffer(first, last, "[Throttle %3i", torrent::up_throttle_global()->max_rate() / 1024);

@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Hash: %s", utils::string_to_hex(d.get_hash()).c_str());

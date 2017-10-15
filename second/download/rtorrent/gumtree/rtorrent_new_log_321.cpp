@@ -1,0 +1,1 @@
+m_canvas->print(x, y, "%u", p->failed_counter());

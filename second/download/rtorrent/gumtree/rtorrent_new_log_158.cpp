@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Directory:       %s", m_download->variable_string("directory").c_str());

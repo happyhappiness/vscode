@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Hash:    %s", rak::transform_hex(d.info_hash()).c_str());

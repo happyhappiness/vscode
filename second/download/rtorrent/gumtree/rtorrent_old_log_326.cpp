@@ -1,0 +1,1 @@
+m_canvas->print(8, pos, "%5.1f G", (double)val / (int64_t(1) << 30));

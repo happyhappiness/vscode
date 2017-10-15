@@ -1,0 +1,1 @@
+print_buffer(first, last, "%s", d->get_message().c_str());

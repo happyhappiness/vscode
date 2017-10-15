@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Snubbed: %s", (*m_focus)->get_snubbed() ? "yes" : "no");

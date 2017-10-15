@@ -1,0 +1,1 @@
+m_canvas->print(x, y, "%.1f", (double)p.get_rate_down() / 1024);

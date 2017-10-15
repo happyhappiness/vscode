@@ -14,7 +14,8 @@
 # REPOS = 'httpd'
 # REPOS = 'redis'
 # REPOS = 'git'
-REPOS = 'mutt'
+# REPOS = 'mutt'
+REPOS = 'rtorrent'
 
 """
 stroed file name prefix

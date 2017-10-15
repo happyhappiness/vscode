@@ -1,0 +1,1 @@
+m_canvas->print(x, y, "%3i", (itr->get_chunks_done() * 100) / chunksTotal);

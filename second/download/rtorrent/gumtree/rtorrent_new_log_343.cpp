@@ -1,0 +1,1 @@
+write(m_logFd, m_capture.data(), m_capture.length());

@@ -1,0 +1,1 @@
+m_canvas->print(63, pos, "Pri");

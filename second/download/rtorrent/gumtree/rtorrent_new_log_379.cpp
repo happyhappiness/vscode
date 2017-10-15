@@ -1,0 +1,1 @@
+m_canvas->print(timeWidth, pos - 1, "%s", itr->message.substr(logWidth * (j - 1), m_canvas->width() - timeWidth).c_str());

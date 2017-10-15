@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Options: %s" , utils::string_to_hex(std::string((*m_focus)->get_options(), 8)).c_str());

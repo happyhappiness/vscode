@@ -1,0 +1,1 @@
+m_canvas->print(0, y, "%5u ", (int)(chunk - seen));

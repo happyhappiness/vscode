@@ -1,0 +1,1 @@
+set_message("Cannot change the directory of an open download after the files have been moved.");

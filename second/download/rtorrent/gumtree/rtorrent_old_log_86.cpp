@@ -1,0 +1,1 @@
+>m_stream->write((char*)data, size * nmemb);

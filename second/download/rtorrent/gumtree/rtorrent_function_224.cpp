@@ -1,0 +1,1 @@
+void                print(int x, int y, char* str)                          { mvwprintw(m_window, y, x, str); }

@@ -1,0 +1,1 @@
+m_canvas->print(0, 0, "%s", ("[View: " + m_view->name() + "]").c_str());

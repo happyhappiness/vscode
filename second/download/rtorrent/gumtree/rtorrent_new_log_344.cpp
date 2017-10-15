@@ -1,0 +1,1 @@
+write(m_parent->log_fd(), m_buffer, m_bufferSize);

@@ -1,0 +1,1 @@
+m_canvas->print(0, pos - 1, "(%s) %s", buffer, itr->message.c_str());

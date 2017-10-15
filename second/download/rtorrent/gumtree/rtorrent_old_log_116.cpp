@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Id: %s" , utils::escape_string((*m_focus)->id()).c_str());

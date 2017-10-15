@@ -1,0 +1,1 @@
+print_buffer(first, last, "[Throttle %3i", torrent::up_throttle() / 1024);

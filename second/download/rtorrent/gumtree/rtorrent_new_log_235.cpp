@@ -1,0 +1,1 @@
+m_canvas->print(xpos, ypos++, "%s", itr->substr(0, m_canvas->width() - xpos).c_str());

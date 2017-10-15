@@ -1,0 +1,1 @@
+m_window->set_error_handler(t);

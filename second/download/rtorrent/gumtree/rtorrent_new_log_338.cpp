@@ -1,0 +1,2 @@
+m_canvas->print(15, pos, "%*c %ls", 1 + itr.depth(), '|',
+                      itr.depth() < (*itr)->path()->size() ? wstring_width((*itr)->path()->at(itr.depth()), filenameWidth - itr.depth() - 1).c_str() : L"UNKNOWN");

@@ -1,0 +1,1 @@
+element->set_error_handler(new display::TextElementCString("No peer selected."));

@@ -1,0 +1,1 @@
+download->set_message("Hash check completed but the \"hashing\" variable is in an invalid state.");

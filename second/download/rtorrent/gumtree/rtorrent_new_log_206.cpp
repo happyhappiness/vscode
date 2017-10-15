@@ -1,0 +1,1 @@
+download->set_message("Download registered as completed, but hash check returned unfinished chunks.");

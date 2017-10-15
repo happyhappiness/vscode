@@ -1,0 +1,1 @@
+m_canvas->print(0, y++, "Id: %s" , rak::copy_escape_html((*m_focus)->id()).c_str());

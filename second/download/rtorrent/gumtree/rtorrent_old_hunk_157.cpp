@@ -1,0 +1,27 @@
+  static const uint32_t key_size = 3;
+
+  typedef uint32_t                               size_type;
+  typedef std::pair<char[key_size], const char*> value_type;
+  typedef std::vector<value_type>                container_type;
+  typedef container_type::iterator               iterator;
+
+  typedef enum {
+    TYPE_AZUREUS,
+    TYPE_COMPACT,
+    TYPE_MAINLINE,
+    TYPE_MAXSIZE
+  } Type;
+
+  ClientInfo();
+
+  void                insert(Type t, const char* key, const char* name);
+
+  char*               print(char* first, char* last, const char* id);
+
+  size_type           sizeof_key(Type t) {
+    switch (t) {
+    case TYPE_AZUREUS:  return 2;
+    case TYPE_COMPACT:  return 1;
+    case TYPE_MAINLINE: return 1;
+    default:
+    case TYPE_MAXSIZE:  return 0;

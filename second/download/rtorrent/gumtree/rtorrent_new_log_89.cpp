@@ -1,0 +1,1 @@
+m_canvas->print(74, pos, "Encoding");

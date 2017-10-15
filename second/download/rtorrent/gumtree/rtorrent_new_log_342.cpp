@@ -1,0 +1,1 @@
+write(m_logFd, "Captured output:\n", sizeof("Captured output:\n"));

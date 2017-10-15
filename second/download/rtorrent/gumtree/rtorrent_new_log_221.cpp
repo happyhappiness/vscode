@@ -1,0 +1,1 @@
+m_canvas->print(x, y, "%i", transfer->index());

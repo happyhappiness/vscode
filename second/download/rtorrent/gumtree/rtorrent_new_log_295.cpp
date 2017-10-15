@@ -1,0 +1,1 @@
+write(m_logFd, "\n--- Error ---\n", sizeof("\n--- Error ---\n"));
