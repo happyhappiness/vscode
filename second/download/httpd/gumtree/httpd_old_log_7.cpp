@@ -1,0 +1,1 @@
+ap_add_output_filter("CACHE_OUT", NULL, f->r, f->r->connection);

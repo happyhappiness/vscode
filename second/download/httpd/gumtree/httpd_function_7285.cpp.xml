@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_function_7285.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">register_hooks<pos:position pos:line="1" pos:column="27"/></name><parameter_list pos:line="1" pos:column="27">(<parameter><decl><type><name pos:line="1" pos:column="28">apr_pool_t<pos:position pos:line="1" pos:column="38"/></name> <modifier pos:line="1" pos:column="39">*<pos:position pos:line="1" pos:column="40"/></modifier></type><name pos:line="1" pos:column="40">p<pos:position pos:line="1" pos:column="41"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="42"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <comment type="block" pos:line="3" pos:column="5">/* cache initializer */</comment>
+    <comment type="block" pos:line="4" pos:column="5">/* cache quick handler */</comment>
+    <expr_stmt><expr><call><name pos:line="5" pos:column="5">ap_hook_quick_handler<pos:position pos:line="5" pos:column="26"/></name><argument_list pos:line="5" pos:column="26">(<argument><expr><name pos:line="5" pos:column="27">cache_quick_handler<pos:position pos:line="5" pos:column="46"/></name></expr></argument>, <argument><expr><name pos:line="5" pos:column="48">NULL<pos:position pos:line="5" pos:column="52"/></name></expr></argument>, <argument><expr><name pos:line="5" pos:column="54">NULL<pos:position pos:line="5" pos:column="58"/></name></expr></argument>, <argument><expr><name pos:line="5" pos:column="60">APR_HOOK_FIRST<pos:position pos:line="5" pos:column="74"/></name></expr></argument>)<pos:position pos:line="5" pos:column="75"/></argument_list></call></expr>;<pos:position pos:line="5" pos:column="76"/></expr_stmt>
+    <comment type="block" pos:line="6" pos:column="5">/* cache handler */</comment>
+    <expr_stmt><expr><call><name pos:line="7" pos:column="5">ap_hook_handler<pos:position pos:line="7" pos:column="20"/></name><argument_list pos:line="7" pos:column="20">(<argument><expr><name pos:line="7" pos:column="21">cache_handler<pos:position pos:line="7" pos:column="34"/></name></expr></argument>, <argument><expr><name pos:line="7" pos:column="36">NULL<pos:position pos:line="7" pos:column="40"/></name></expr></argument>, <argument><expr><name pos:line="7" pos:column="42">NULL<pos:position pos:line="7" pos:column="46"/></name></expr></argument>, <argument><expr><name pos:line="7" pos:column="48">APR_HOOK_REALLY_FIRST<pos:position pos:line="7" pos:column="69"/></name></expr></argument>)<pos:position pos:line="7" pos:column="70"/></argument_list></call></expr>;<pos:position pos:line="7" pos:column="71"/></expr_stmt>
+    <comment type="block" pos:line="8" pos:column="5">/* cache status */</comment>
+    <expr_stmt><expr><call><name pos:line="9" pos:column="5">cache_hook_cache_status<pos:position pos:line="9" pos:column="28"/></name><argument_list pos:line="9" pos:column="28">(<argument><expr><name pos:line="9" pos:column="29">cache_status<pos:position pos:line="9" pos:column="41"/></name></expr></argument>, <argument><expr><name pos:line="9" pos:column="43">NULL<pos:position pos:line="9" pos:column="47"/></name></expr></argument>, <argument><expr><name pos:line="9" pos:column="49">NULL<pos:position pos:line="9" pos:column="53"/></name></expr></argument>, <argument><expr><name pos:line="9" pos:column="55">APR_HOOK_MIDDLE<pos:position pos:line="9" pos:column="70"/></name></expr></argument>)<pos:position pos:line="9" pos:column="71"/></argument_list></call></expr>;<pos:position pos:line="9" pos:column="72"/></expr_stmt>
+    <comment type="block" pos:line="10" pos:column="5">/* cache error handler */</comment>
+    <expr_stmt><expr><call><name pos:line="11" pos:column="5">ap_hook_insert_error_filter<pos:position pos:line="11" pos:column="32"/></name><argument_list pos:line="11" pos:column="32">(<argument><expr><name pos:line="11" pos:column="33">cache_insert_error_filter<pos:position pos:line="11" pos:column="58"/></name></expr></argument>, <argument><expr><name pos:line="11" pos:column="60">NULL<pos:position pos:line="11" pos:column="64"/></name></expr></argument>, <argument><expr><name pos:line="11" pos:column="66">NULL<pos:position pos:line="11" pos:column="70"/></name></expr></argument>, <argument><expr><name pos:line="11" pos:column="72">APR_HOOK_MIDDLE<pos:position pos:line="11" pos:column="87"/></name></expr></argument>)<pos:position pos:line="11" pos:column="88"/></argument_list></call></expr>;<pos:position pos:line="11" pos:column="89"/></expr_stmt>
+    <comment type="block" pos:line="12" pos:column="5">/* cache filters
+     * XXX The cache filters need to run right after the handlers and before
+     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
+     *
+     * Depending on the type of request (subrequest / main request) they
+     * need to be run before AP_FTYPE_CONTENT_SET / after AP_FTYPE_CONTENT_SET
+     * filters. Thus create two filter handles for each type:
+     * cache_save_filter_handle / cache_out_filter_handle to be used by
+     * main requests and
+     * cache_save_subreq_filter_handle / cache_out_subreq_filter_handle
+     * to be run by subrequest
+     */</comment>
+    <comment type="block" pos:line="24" pos:column="5">/*
+     * CACHE is placed into the filter chain at an admin specified location,
+     * and when the cache_handler is run, the CACHE filter is swapped with
+     * the CACHE_OUT filter, or CACHE_SAVE filter as appropriate. This has
+     * the effect of offering optional fine control of where the cache is
+     * inserted into the filter chain.
+     */</comment>
+    <expr_stmt><expr><name pos:line="31" pos:column="5">cache_filter_handle<pos:position pos:line="31" pos:column="24"/></name> <operator pos:line="31" pos:column="25">=<pos:position pos:line="31" pos:column="26"/></operator>
+        <call><name pos:line="32" pos:column="9">ap_register_output_filter<pos:position pos:line="32" pos:column="34"/></name><argument_list pos:line="32" pos:column="34">(<argument><expr><literal type="string" pos:line="32" pos:column="35">"CACHE"<pos:position pos:line="32" pos:column="42"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="33" pos:column="35">cache_filter<pos:position pos:line="33" pos:column="47"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="34" pos:column="35">NULL<pos:position pos:line="34" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="35" pos:column="35">AP_FTYPE_RESOURCE<pos:position pos:line="35" pos:column="52"/></name></expr></argument>)<pos:position pos:line="35" pos:column="53"/></argument_list></call></expr>;<pos:position pos:line="35" pos:column="54"/></expr_stmt>
+    <comment type="block" pos:line="36" pos:column="5">/*
+     * CACHE_SAVE must go into the filter chain after a possible DEFLATE
+     * filter to ensure that the compressed content is stored.
+     * Incrementing filter type by 1 ensures this happens.
+     */</comment>
+    <expr_stmt><expr><name pos:line="41" pos:column="5">cache_save_filter_handle<pos:position pos:line="41" pos:column="29"/></name> <operator pos:line="41" pos:column="30">=<pos:position pos:line="41" pos:column="31"/></operator>
+        <call><name pos:line="42" pos:column="9">ap_register_output_filter<pos:position pos:line="42" pos:column="34"/></name><argument_list pos:line="42" pos:column="34">(<argument><expr><literal type="string" pos:line="42" pos:column="35">"CACHE_SAVE"<pos:position pos:line="42" pos:column="47"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="43" pos:column="35">cache_save_filter<pos:position pos:line="43" pos:column="52"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="44" pos:column="35">NULL<pos:position pos:line="44" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="45" pos:column="35">AP_FTYPE_CONTENT_SET<pos:position pos:line="45" pos:column="55"/></name><operator pos:line="45" pos:column="55">+<pos:position pos:line="45" pos:column="56"/></operator><literal type="number" pos:line="45" pos:column="56">1<pos:position pos:line="45" pos:column="57"/></literal></expr></argument>)<pos:position pos:line="45" pos:column="58"/></argument_list></call></expr>;<pos:position pos:line="45" pos:column="59"/></expr_stmt>
+    <comment type="block" pos:line="46" pos:column="5">/*
+     * CACHE_SAVE_SUBREQ must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this
+     * happens.
+     */</comment>
+    <expr_stmt><expr><name pos:line="51" pos:column="5">cache_save_subreq_filter_handle<pos:position pos:line="51" pos:column="36"/></name> <operator pos:line="51" pos:column="37">=<pos:position pos:line="51" pos:column="38"/></operator>
+        <call><name pos:line="52" pos:column="9">ap_register_output_filter<pos:position pos:line="52" pos:column="34"/></name><argument_list pos:line="52" pos:column="34">(<argument><expr><literal type="string" pos:line="52" pos:column="35">"CACHE_SAVE_SUBREQ"<pos:position pos:line="52" pos:column="54"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="53" pos:column="35">cache_save_filter<pos:position pos:line="53" pos:column="52"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="54" pos:column="35">NULL<pos:position pos:line="54" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="55" pos:column="35">AP_FTYPE_CONTENT_SET<pos:position pos:line="55" pos:column="55"/></name><operator pos:line="55" pos:column="55">-<pos:position pos:line="55" pos:column="56"/></operator><literal type="number" pos:line="55" pos:column="56">1<pos:position pos:line="55" pos:column="57"/></literal></expr></argument>)<pos:position pos:line="55" pos:column="58"/></argument_list></call></expr>;<pos:position pos:line="55" pos:column="59"/></expr_stmt>
+    <comment type="block" pos:line="56" pos:column="5">/*
+     * CACHE_OUT must go into the filter chain after a possible DEFLATE
+     * filter to ensure that already compressed cache objects do not
+     * get compressed again. Incrementing filter type by 1 ensures
+     * this happens.
+     */</comment>
+    <expr_stmt><expr><name pos:line="62" pos:column="5">cache_out_filter_handle<pos:position pos:line="62" pos:column="28"/></name> <operator pos:line="62" pos:column="29">=<pos:position pos:line="62" pos:column="30"/></operator>
+        <call><name pos:line="63" pos:column="9">ap_register_output_filter<pos:position pos:line="63" pos:column="34"/></name><argument_list pos:line="63" pos:column="34">(<argument><expr><literal type="string" pos:line="63" pos:column="35">"CACHE_OUT"<pos:position pos:line="63" pos:column="46"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="64" pos:column="35">cache_out_filter<pos:position pos:line="64" pos:column="51"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="65" pos:column="35">NULL<pos:position pos:line="65" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="66" pos:column="35">AP_FTYPE_CONTENT_SET<pos:position pos:line="66" pos:column="55"/></name><operator pos:line="66" pos:column="55">+<pos:position pos:line="66" pos:column="56"/></operator><literal type="number" pos:line="66" pos:column="56">1<pos:position pos:line="66" pos:column="57"/></literal></expr></argument>)<pos:position pos:line="66" pos:column="58"/></argument_list></call></expr>;<pos:position pos:line="66" pos:column="59"/></expr_stmt>
+    <comment type="block" pos:line="67" pos:column="5">/*
+     * CACHE_OUT_SUBREQ must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this
+     * happens.
+     */</comment>
+    <expr_stmt><expr><name pos:line="72" pos:column="5">cache_out_subreq_filter_handle<pos:position pos:line="72" pos:column="35"/></name> <operator pos:line="72" pos:column="36">=<pos:position pos:line="72" pos:column="37"/></operator>
+        <call><name pos:line="73" pos:column="9">ap_register_output_filter<pos:position pos:line="73" pos:column="34"/></name><argument_list pos:line="73" pos:column="34">(<argument><expr><literal type="string" pos:line="73" pos:column="35">"CACHE_OUT_SUBREQ"<pos:position pos:line="73" pos:column="53"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="74" pos:column="35">cache_out_filter<pos:position pos:line="74" pos:column="51"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="75" pos:column="35">NULL<pos:position pos:line="75" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="76" pos:column="35">AP_FTYPE_CONTENT_SET<pos:position pos:line="76" pos:column="55"/></name><operator pos:line="76" pos:column="55">-<pos:position pos:line="76" pos:column="56"/></operator><literal type="number" pos:line="76" pos:column="56">1<pos:position pos:line="76" pos:column="57"/></literal></expr></argument>)<pos:position pos:line="76" pos:column="58"/></argument_list></call></expr>;<pos:position pos:line="76" pos:column="59"/></expr_stmt>
+    <comment type="block" pos:line="77" pos:column="5">/* CACHE_REMOVE_URL has to be a protocol filter to ensure that is
+     * run even if the response is a canned error message, which
+     * removes the content filters.
+     */</comment>
+    <expr_stmt><expr><name pos:line="81" pos:column="5">cache_remove_url_filter_handle<pos:position pos:line="81" pos:column="35"/></name> <operator pos:line="81" pos:column="36">=<pos:position pos:line="81" pos:column="37"/></operator>
+        <call><name pos:line="82" pos:column="9">ap_register_output_filter<pos:position pos:line="82" pos:column="34"/></name><argument_list pos:line="82" pos:column="34">(<argument><expr><literal type="string" pos:line="82" pos:column="35">"CACHE_REMOVE_URL"<pos:position pos:line="82" pos:column="53"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="83" pos:column="35">cache_remove_url_filter<pos:position pos:line="83" pos:column="58"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="84" pos:column="35">NULL<pos:position pos:line="84" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="85" pos:column="35">AP_FTYPE_PROTOCOL<pos:position pos:line="85" pos:column="52"/></name></expr></argument>)<pos:position pos:line="85" pos:column="53"/></argument_list></call></expr>;<pos:position pos:line="85" pos:column="54"/></expr_stmt>
+    <expr_stmt><expr><name pos:line="86" pos:column="5">cache_invalidate_filter_handle<pos:position pos:line="86" pos:column="35"/></name> <operator pos:line="86" pos:column="36">=<pos:position pos:line="86" pos:column="37"/></operator>
+        <call><name pos:line="87" pos:column="9">ap_register_output_filter<pos:position pos:line="87" pos:column="34"/></name><argument_list pos:line="87" pos:column="34">(<argument><expr><literal type="string" pos:line="87" pos:column="35">"CACHE_INVALIDATE"<pos:position pos:line="87" pos:column="53"/></literal></expr></argument>,
+                                  <argument><expr><name pos:line="88" pos:column="35">cache_invalidate_filter<pos:position pos:line="88" pos:column="58"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="89" pos:column="35">NULL<pos:position pos:line="89" pos:column="39"/></name></expr></argument>,
+                                  <argument><expr><name pos:line="90" pos:column="35">AP_FTYPE_PROTOCOL<pos:position pos:line="90" pos:column="52"/></name></expr></argument>)<pos:position pos:line="90" pos:column="53"/></argument_list></call></expr>;<pos:position pos:line="90" pos:column="54"/></expr_stmt>
+    <expr_stmt><expr><call><name pos:line="91" pos:column="5">ap_hook_post_config<pos:position pos:line="91" pos:column="24"/></name><argument_list pos:line="91" pos:column="24">(<argument><expr><name pos:line="91" pos:column="25">cache_post_config<pos:position pos:line="91" pos:column="42"/></name></expr></argument>, <argument><expr><name pos:line="91" pos:column="44">NULL<pos:position pos:line="91" pos:column="48"/></name></expr></argument>, <argument><expr><name pos:line="91" pos:column="50">NULL<pos:position pos:line="91" pos:column="54"/></name></expr></argument>, <argument><expr><name pos:line="91" pos:column="56">APR_HOOK_REALLY_FIRST<pos:position pos:line="91" pos:column="77"/></name></expr></argument>)<pos:position pos:line="91" pos:column="78"/></argument_list></call></expr>;<pos:position pos:line="91" pos:column="79"/></expr_stmt>
+}<pos:position pos:line="92" pos:column="2"/></block></function></unit>

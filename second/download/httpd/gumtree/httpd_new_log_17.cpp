@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because "
-                          "CharsetOptions included 'NoImplicitAdd'");
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                            "invalid transfer log path %s.", name);

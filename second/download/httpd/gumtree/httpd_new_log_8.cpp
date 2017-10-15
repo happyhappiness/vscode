@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, status, r->server,
-                     "Cache lock file for '%s' too old, removing: %s",
-                     r->uri, lockname);
+ap_add_output_filter_handle(cache_in_filter_handle, NULL,
+                                    f->r, f->r->connection);

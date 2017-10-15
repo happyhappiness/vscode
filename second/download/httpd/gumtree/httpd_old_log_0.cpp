@@ -1,1 +1,1 @@
-fprintf(stderr, "    %-32s", kb);
+fprintf(stdout,"posn\tleft\tright\tparent\tminchild\t...\n");

@@ -1,4 +1,6 @@
 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Cache lock obtained for stale cached URL, "
-                     "revalidating entry: %s",
-                     r->unparsed_uri);
+                                 "cache: not caching streamed response for "
+                                 "%s because length %s", url,
+                                 (unresolved_length ?
+                                  "cannot be determined" :
+                                  "> CacheMaxStreamingBuffer"));

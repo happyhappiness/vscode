@@ -1,0 +1,1 @@
+fprintf(stdout,"posn\tleft\tright\tparent\tmaxchild\t...\n");

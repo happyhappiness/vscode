@@ -1,43 +1,32 @@
-static void xlate_insert_filter(request_rec *r)
+static void *ap_default_log_writer_init(apr_pool_t *p, server_rec *s, 
+                                        const char* name)
 {
-    /* Hey... don't be so quick to use reqinfo->dc here; reqinfo may be NULL */
-    charset_req_t *reqinfo = ap_get_module_config(r->request_config,
-                                                  &charset_lite_module);
-    charset_dir_t *dc = ap_get_module_config(r->per_dir_config,
-                                             &charset_lite_module);
+    if (*name == '|') {
+        piped_log *pl;
 
-    if (dc && (dc->implicit_add == IA_NOIMPADD)) { 
-        if (dc->debug >= DBGLVL_GORY) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because "
-                          "CharsetOptions included 'NoImplicitAdd'");
+        pl = ap_open_piped_log(p, name + 1);
+        if (pl == NULL) {
+           return NULL;;
         }
-        return;
+        return ap_piped_log_write_fd(pl);
     }
+    else {
+        const char *fname = ap_server_root_relative(p, name);
+        apr_file_t *fd;
+        apr_status_t rv;
 
-    if (reqinfo) {
-        if (reqinfo->output_ctx && !configured_on_output(r, XLATEOUT_FILTER_NAME)) {
-            ap_add_output_filter(XLATEOUT_FILTER_NAME, reqinfo->output_ctx, r,
-                                 r->connection);
+        if (!fname) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, APR_EBADPATH, s,
+                            "invalid transfer log path %s.", name);
+            return NULL;
         }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate output filter not added implicitly because %s",
-                          !reqinfo->output_ctx ?
-                          "no output configuration available" :
-                          "another module added the filter");
+        rv = apr_file_open(&fd, fname, xfer_flags, xfer_perms, p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                            "could not open transfer log file %s.", fname);
+            return NULL;
         }
-
-        if (reqinfo->input_ctx && !configured_on_input(r, XLATEIN_FILTER_NAME)) {
-            ap_add_input_filter(XLATEIN_FILTER_NAME, reqinfo->input_ctx, r,
-                                r->connection);
-        }
-        else if (dc->debug >= DBGLVL_FLOW) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "xlate input filter not added implicitly because %s",
-                          !reqinfo->input_ctx ?
-                          "no input configuration available" :
-                          "another module added the filter");
-        }
+        apr_file_inherit_set(fd);
+        return fd;
     }
 }
