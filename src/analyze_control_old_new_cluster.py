@@ -148,9 +148,9 @@ def cluster_edition_and_feature(z3_api=None):
 @ involve cluster by feature and edition
 """
 def cluster(z3_api=None):
+    cluster_edition()
     cluster_edition_and_feature(z3_api)
     cluster_feature(z3_api)
-    cluster_edition()
 
 """
 main function
