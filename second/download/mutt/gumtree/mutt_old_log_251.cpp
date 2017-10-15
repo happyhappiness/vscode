@@ -1,0 +1,1 @@
+fputs ("\n----- End forwarded message -----\n", fp);

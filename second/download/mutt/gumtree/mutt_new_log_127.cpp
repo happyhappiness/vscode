@@ -1,0 +1,1 @@
+fputs (_("Cannot use -E flag with stdin\n"), stderr);

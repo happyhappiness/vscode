@@ -1,0 +1,38 @@
+
+    Sort = SORT_ORDER;
+    qsort (ctx->hdrs, ctx->msgcount, sizeof (HEADER*),
+           mutt_get_sort_func (SORT_ORDER));
+  }
+
+  rc += sync_helper (idata, M_ACL_DELETE, M_DELETED, "\\Deleted");
+  rc += sync_helper (idata, M_ACL_WRITE, M_FLAG, "\\Flagged");
+  rc += sync_helper (idata, M_ACL_WRITE, M_OLD, "Old");
+  rc += sync_helper (idata, M_ACL_SEEN, M_READ, "\\Seen");
+  rc += sync_helper (idata, M_ACL_WRITE, M_REPLIED, "\\Answered");
+
+  if (oldsort != Sort)
+  {
+    Sort = oldsort;
+    FREE (&ctx->hdrs);
+    ctx->hdrs = hdrs;
+  }
+
+  if (rc && (imap_exec (idata, NULL, 0) != IMAP_CMD_OK))
+  {
+    if (ctx->closing)
+    {
+      if (mutt_yesorno (_("Error saving flags. Close anyway?"), 0) == M_YES)
+      {
+        rc = 0;
+        idata->state = IMAP_AUTHENTICATED;
+        goto out;
+      }
+    }
+    else
+      mutt_error _("Error saving flags");
+    goto out;
+  }
+
+  /* Update local record of server state to reflect the synchronization just
+   * completed.  imap_read_headers always overwrites hcache-origin flags, so
+   * there is no need to mutate the hcache after flag-only changes. */

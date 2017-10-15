@@ -1,0 +1,1 @@
+fputs ("----- Forwarded message from ", fp);

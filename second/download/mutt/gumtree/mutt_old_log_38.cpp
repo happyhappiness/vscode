@@ -1,0 +1,1 @@
+printf (" [using slang %d]", SLANG_VERSION);

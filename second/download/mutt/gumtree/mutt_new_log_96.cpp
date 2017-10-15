@@ -1,0 +1,1 @@
+fputs ("MIME-Version: 1.0\n", fp);

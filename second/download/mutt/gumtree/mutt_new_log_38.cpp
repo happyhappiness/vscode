@@ -1,0 +1,1 @@
+printf ("\nslang: %d", SLANG_VERSION);

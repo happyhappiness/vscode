@@ -1,0 +1,1 @@
+state_puts (_("Warning: One of the keys has been revoked\n"),s);

@@ -1,0 +1,1 @@
+state_attach_puts (_("Warning: The signature expired at: "), s);

@@ -1,0 +1,1 @@
+fprintf (fp, _("Subkey ....: 0x%s"), s);

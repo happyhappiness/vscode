@@ -1,0 +1,1 @@
+(mutt_yesorno (buff, MUTT_NO);

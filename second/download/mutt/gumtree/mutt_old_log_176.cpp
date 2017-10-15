@@ -1,0 +1,1 @@
+state_attach_puts (_("The CRL is not available\n"), s);

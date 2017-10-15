@@ -1,0 +1,1 @@
+fprintf (fp, _("%s, %lu bit %s\n"), s2, aval, s);

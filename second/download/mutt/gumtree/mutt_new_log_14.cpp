@@ -1,0 +1,1 @@
+fprintf (fpout, "Lines: %d\n", new_lines);

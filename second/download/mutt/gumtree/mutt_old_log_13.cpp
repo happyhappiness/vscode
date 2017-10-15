@@ -1,0 +1,1 @@
+fprintf (fpout, "Content-Length: %ld\n", new_length);

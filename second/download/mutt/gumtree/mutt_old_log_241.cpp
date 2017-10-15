@@ -1,0 +1,1 @@
+fprintf (fp, _("Valid To ..: %s\n"), shortbuf);

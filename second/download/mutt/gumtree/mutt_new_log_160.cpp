@@ -1,0 +1,1 @@
+mutt_yesorno(msg, MUTT_YES);

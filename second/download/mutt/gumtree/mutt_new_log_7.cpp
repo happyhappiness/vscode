@@ -1,0 +1,1 @@
+mutt_error (_("Bad IDN: '%s'"), err);

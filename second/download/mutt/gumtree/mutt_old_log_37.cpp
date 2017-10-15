@@ -1,0 +1,1 @@
+printf (" [using ncurses %s]", NCURSES_VERSION);

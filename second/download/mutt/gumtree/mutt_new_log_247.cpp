@@ -1,0 +1,1 @@
+printf ("\nCompilation CFLAGS: %s\n", (char *)cc_cflags);

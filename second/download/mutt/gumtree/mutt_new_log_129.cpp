@@ -1,0 +1,1 @@
+(mutt_yesorno (_("Warning: This alias name may not work.  Fix it?"), MUTT_YES);

@@ -1,0 +1,1 @@
+fprintf (msg->fp, "%s", mutt_make_date (buf, sizeof (buf)));

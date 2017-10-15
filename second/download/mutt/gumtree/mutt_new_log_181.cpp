@@ -1,0 +1,1 @@
+state_puts (t0, s);

@@ -1,0 +1,1 @@
+fprintf (fp, _("%s, %lu bit %s\n"), "PGP", aval, s);

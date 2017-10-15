@@ -1,0 +1,1 @@
+fputs (_("Failed to parse mailto: link\n"), stderr);

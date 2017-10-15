@@ -1,0 +1,1 @@
+printw ("%-*.*s", COLS, COLS, buf);

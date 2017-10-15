@@ -1,0 +1,1 @@
+printf ("\nConfigure options: %s\n", (char *)configure_options);

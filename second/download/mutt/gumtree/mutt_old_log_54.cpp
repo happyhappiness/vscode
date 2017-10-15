@@ -1,0 +1,1 @@
+(fputs(KENDRA_SEP, fp);

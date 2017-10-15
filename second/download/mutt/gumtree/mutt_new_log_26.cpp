@@ -1,0 +1,1 @@
+fprintf (f, "%d:", (int) hclass);

@@ -1,0 +1,1 @@
+fprintf (rc, "alias %s ", buf);

@@ -1,0 +1,1 @@
+fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), "PGP", aval, s);

@@ -1,0 +1,1 @@
+puts ((char *)cc_version);

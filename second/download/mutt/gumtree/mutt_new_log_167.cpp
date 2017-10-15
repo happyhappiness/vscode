@@ -1,0 +1,1 @@
+(fprintf(out, "X-Label: %s\n", h->env->x_label);

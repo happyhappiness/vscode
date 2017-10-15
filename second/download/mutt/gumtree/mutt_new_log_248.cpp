@@ -1,0 +1,1 @@
+printf ("%s", _("DEBUG was not defined during compilation.  Ignored.\n"));

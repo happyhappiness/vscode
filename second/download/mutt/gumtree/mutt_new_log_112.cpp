@@ -1,0 +1,1 @@
+fprintf(stderr, "\033]1;%s\007", str);

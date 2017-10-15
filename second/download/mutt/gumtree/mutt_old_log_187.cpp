@@ -1,0 +1,1 @@
+state_attach_puts (_("PKA verified signer's address is: "), s);

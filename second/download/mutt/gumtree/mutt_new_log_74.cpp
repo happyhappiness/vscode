@@ -1,0 +1,1 @@
+fprintf(stderr, "Command line usage: %s [flags] -- prefix [recipients]\n", progname);

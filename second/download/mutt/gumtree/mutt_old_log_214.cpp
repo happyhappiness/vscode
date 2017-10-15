@@ -1,0 +1,1 @@
+state_attach_puts (errbuf, s);
