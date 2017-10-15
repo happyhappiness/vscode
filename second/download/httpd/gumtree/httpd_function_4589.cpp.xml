@@ -1,0 +1,563 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_function_4589.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">apr_status_t<pos:position pos:line="1" pos:column="20"/></name></type> <name pos:line="1" pos:column="21">crypt_init<pos:position pos:line="1" pos:column="31"/></name><parameter_list pos:line="1" pos:column="31">(<parameter><decl><type><name pos:line="1" pos:column="32">request_rec<pos:position pos:line="1" pos:column="43"/></name> <modifier pos:line="1" pos:column="44">*<pos:position pos:line="1" pos:column="45"/></modifier></type> <name pos:line="1" pos:column="46">r<pos:position pos:line="1" pos:column="47"/></name></decl></parameter>, <parameter><decl><type><specifier pos:line="1" pos:column="49">const<pos:position pos:line="1" pos:column="54"/></specifier> <name pos:line="1" pos:column="55">apr_crypto_driver_t<pos:position pos:line="1" pos:column="74"/></name> <modifier pos:line="1" pos:column="75">*<pos:position pos:line="1" pos:column="76"/></modifier></type><name pos:line="1" pos:column="76">driver<pos:position pos:line="1" pos:column="82"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="84">apr_crypto_t<pos:position pos:line="1" pos:column="96"/></name> <modifier pos:line="1" pos:column="97">*<pos:position pos:line="1" pos:column="98"/></modifier><modifier pos:line="1" pos:column="98">*<pos:position pos:line="1" pos:column="99"/></modifier></type><name pos:line="1" pos:column="99">f<pos:position pos:line="1" pos:column="100"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="102">apr_crypto_key_t<pos:position pos:line="1" pos:column="118"/></name> <modifier pos:line="1" pos:column="119">*<pos:position pos:line="1" pos:column="120"/></modifier><modifier pos:line="1" pos:column="120">*<pos:position pos:line="1" pos:column="121"/></modifier></type><name pos:line="1" pos:column="121">key<pos:position pos:line="1" pos:column="124"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="126">apr_uuid_t<pos:position pos:line="1" pos:column="136"/></name> <modifier pos:line="1" pos:column="137">*<pos:position pos:line="1" pos:column="138"/></modifier></type><name pos:line="1" pos:column="138">salt<pos:position pos:line="1" pos:column="142"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="144">apr_size_t<pos:position pos:line="1" pos:column="154"/></name> <modifier pos:line="1" pos:column="155">*<pos:position pos:line="1" pos:column="156"/></modifier></type><name pos:line="1" pos:column="156">ivSize<pos:position pos:line="1" pos:column="162"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="164">session_crypto_dir_conf<pos:position pos:line="1" pos:column="187"/></name> <modifier pos:line="1" pos:column="188">*<pos:position pos:line="1" pos:column="189"/></modifier></type> <name pos:line="1" pos:column="190">dconf<pos:position pos:line="1" pos:column="195"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="196"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <decl_stmt><decl><type><name pos:line="3" pos:column="5">apr_status_t<pos:position pos:line="3" pos:column="17"/></name></type> <name pos:line="3" pos:column="18">res<pos:position pos:line="3" pos:column="21"/></name></decl>;<pos:position pos:line="3" pos:column="22"/></decl_stmt>
+
+    <if pos:line="5" pos:column="5">if <condition pos:line="5" pos:column="8">(<expr><operator pos:line="5" pos:column="9">!<pos:position pos:line="5" pos:column="10"/></operator><name pos:line="5" pos:column="10">driver<pos:position pos:line="5" pos:column="16"/></name></expr>)<pos:position pos:line="5" pos:column="17"/></condition><then pos:line="5" pos:column="17"> <block pos:line="5" pos:column="18">{
+        <expr_stmt><expr><call><name pos:line="6" pos:column="9">ap_log_rerror<pos:position pos:line="6" pos:column="22"/></name><argument_list pos:line="6" pos:column="22">(<argument><expr><name pos:line="6" pos:column="23">APLOG_MARK<pos:position pos:line="6" pos:column="33"/></name></expr></argument>, <argument><expr><name pos:line="6" pos:column="35">APLOG_ERR<pos:position pos:line="6" pos:column="44"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="6" pos:column="46">0<pos:position pos:line="6" pos:column="47"/></literal></expr></argument>, <argument><expr><name pos:line="6" pos:column="49">r<pos:position pos:line="6" pos:column="50"/></name></expr></argument>, <argument><expr><name pos:line="6" pos:column="52">LOG_PREFIX<pos:position pos:line="6" pos:column="62"/></name>
+                <literal type="string" pos:line="7" pos:column="17">"encryption driver not configured, "<pos:position pos:line="7" pos:column="53"/></literal>
+                <literal type="string" pos:line="8" pos:column="17">"no SessionCryptoDriver set"<pos:position pos:line="8" pos:column="45"/></literal></expr></argument>)<pos:position pos:line="8" pos:column="46"/></argument_list></call></expr>;<pos:position pos:line="8" pos:column="47"/></expr_stmt>
+        <return pos:line="9" pos:column="9">return <expr><name pos:line="9" pos:column="16">APR_EGENERAL<pos:position pos:line="9" pos:column="28"/></name></expr>;<pos:position pos:line="9" pos:column="29"/></return>
+    }<pos:position pos:line="10" pos:column="6"/></block></then></if>
+
+    <if pos:line="12" pos:column="5">if <condition pos:line="12" pos:column="8">(<expr><operator pos:line="12" pos:column="9">!<pos:position pos:line="12" pos:column="10"/></operator><name><name pos:line="12" pos:column="10">dconf<pos:position pos:line="12" pos:column="15"/></name><operator pos:line="12" pos:column="15">-&gt;<pos:position pos:line="12" pos:column="20"/></operator><name pos:line="12" pos:column="17">passphrase_set<pos:position pos:line="12" pos:column="31"/></name></name></expr>)<pos:position pos:line="12" pos:column="32"/></condition><then pos:line="12" pos:column="32"> <block pos:line="12" pos:column="33">{
+        <expr_stmt><expr><call><name pos:line="13" pos:column="9">ap_log_rerror<pos:position pos:line="13" pos:column="22"/></name><argument_list pos:line="13" pos:column="22">(<argument><expr><name pos:line="13" pos:column="23">APLOG_MARK<pos:position pos:line="13" pos:column="33"/></name></expr></argument>, <argument><expr><name pos:line="13" pos:column="35">APLOG_WARNING<pos:position pos:line="13" pos:column="48"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="13" pos:column="50">0<pos:position pos:line="13" pos:column="51"/></literal></expr></argument>, <argument><expr><name pos:line="13" pos:column="53">r<pos:position pos:line="13" pos:column="54"/></name></expr></argument>, <argument><expr><name pos:line="13" pos:column="56">LOG_PREFIX<pos:position pos:line="13" pos:column="66"/></name>
+                <literal type="string" pos:line="14" pos:column="17">"encryption not configured, "<pos:position pos:line="14" pos:column="46"/></literal>
+                <literal type="string" pos:line="15" pos:column="17">"no passphrase set"<pos:position pos:line="15" pos:column="36"/></literal></expr></argument>)<pos:position pos:line="15" pos:column="37"/></argument_list></call></expr>;<pos:position pos:line="15" pos:column="38"/></expr_stmt>
+        <return pos:line="16" pos:column="9">return <expr><name pos:line="16" pos:column="16">APR_EGENERAL<pos:position pos:line="16" pos:column="28"/></name></expr>;<pos:position pos:line="16" pos:column="29"/></return>
+    }<pos:position pos:line="17" pos:column="6"/></block></then></if>
+
+    <comment type="block" pos:line="19" pos:column="5">/* set up */</comment>
+    <expr_stmt><expr><name pos:line="20" pos:column="5">res<pos:position pos:line="20" pos:column="8"/></name> <operator pos:line="20" pos:column="9">=<pos:position pos:line="20" pos:column="10"/></operator> <call><name pos:line="20" pos:column="11">apr_crypto_make<pos:position pos:line="20" pos:column="26"/></name><argument_list pos:line="20" pos:column="26">(<argument><expr><name pos:line="20" pos:column="27">driver<pos:position pos:line="20" pos:column="33"/></name></expr></argument>, <argument><expr><name><name pos:line="20" pos:column="35">r<pos:position pos:line="20" pos:column="36"/></name><operator pos:line="20" pos:column="36">-&gt;<pos:position pos:line="20" pos:column="41"/></operator><name pos:line="20" pos:column="38">pool<pos:position pos:line="20" pos:column="42"/></name></name></expr></argument>, <argument><expr><name><name pos:line="20" pos:column="44">dconf<pos:position pos:line="20" pos:column="49"/></name><operator pos:line="20" pos:column="49">-&gt;<pos:position pos:line="20" pos:column="54"/></operator><name pos:line="20" pos:column="51">params<pos:position pos:line="20" pos:column="57"/></name></name></expr></argument>, <argument><expr><name pos:line="20" pos:column="59">f<pos:position pos:line="20" pos:column="60"/></name></expr></argument>)<pos:position pos:line="20" pos:column="61"/></argument_list></call></expr>;<pos:position pos:line="20" pos:column="62"/></expr_stmt>
+    <if pos:line="21" pos:column="5">if <condition pos:line="21" pos:column="8">(<expr><name pos:line="21" pos:column="9">APR_ENOTIMPL<pos:position pos:line="21" pos:column="21"/></name> <operator pos:line="21" pos:column="22">==<pos:position pos:line="21" pos:column="24"/></operator> <name pos:line="21" pos:column="25">res<pos:position pos:line="21" pos:column="28"/></name></expr>)<pos:position pos:line="21" pos:column="29"/></condition><then pos:line="21" pos:column="29"> <block pos:line="21" pos:column="30">{
+        <expr_stmt><expr><call><name pos:line="22" pos:column="9">ap_log_rerror<pos:position pos:line="22" pos:column="22"/></name><argument_list pos:line="22" pos:column="22">(<argument><expr><name pos:line="22" pos:column="23">APLOG_MARK<pos:position pos:line="22" pos:column="33"/></name></expr></argument>, <argument><expr><name pos:line="22" pos:column="35">APLOG_ERR<pos:position pos:line="22" pos:column="44"/></name></expr></argument>, <argument><expr><name pos:line="22" pos:column="46">res<pos:position pos:line="22" pos:column="49"/></name></expr></argument>, <argument><expr><name pos:line="22" pos:column="51">r<pos:position pos:line="22" pos:column="52"/></name></expr></argument>, <argument><expr><name pos:line="22" pos:column="54">LOG_PREFIX<pos:position pos:line="22" pos:column="64"/></name>
+                <literal type="string" pos:line="23" pos:column="17">"generic symmetrical encryption is not supported by this "<pos:position pos:line="23" pos:column="75"/></literal>
+                <literal type="string" pos:line="24" pos:column="17">"version of APR. session encryption not possible"<pos:position pos:line="24" pos:column="66"/></literal></expr></argument>)<pos:position pos:line="24" pos:column="67"/></argument_list></call></expr>;<pos:position pos:line="24" pos:column="68"/></expr_stmt>
+    }<pos:position pos:line="25" pos:column="6"/></block></then></if>
+
+    <if pos:line="27" pos:column="5">if <condition pos:line="27" pos:column="8">(<expr><name pos:line="27" pos:column="9">APR_SUCCESS<pos:position pos:line="27" pos:column="20"/></name> <operator pos:line="27" pos:column="21">==<pos:position pos:line="27" pos:column="23"/></operator> <name pos:line="27" pos:column="24">res<pos:position pos:line="27" pos:column="27"/></name></expr>)<pos:position pos:line="27" pos:column="28"/></condition><then pos:line="27" pos:column="28"> <block pos:line="27" pos:column="29">{
+<cpp:if pos:line="28" pos:column="1">#<cpp:directive pos:line="28" pos:column="2">if<pos:position pos:line="28" pos:column="4"/></cpp:directive> <expr><name pos:line="28" pos:column="5">CRYPTO_VERSION<pos:position pos:line="28" pos:column="19"/></name> <operator pos:line="28" pos:column="20">&lt;<pos:position pos:line="28" pos:column="24"/></operator> <literal type="number" pos:line="28" pos:column="22">200<pos:position pos:line="28" pos:column="25"/></literal></expr></cpp:if>
+        <expr_stmt><expr><name pos:line="29" pos:column="9">res<pos:position pos:line="29" pos:column="12"/></name> <operator pos:line="29" pos:column="13">=<pos:position pos:line="29" pos:column="14"/></operator> <macro><name pos:line="29" pos:column="15">apr_crypto_passphrase<pos:position pos:line="29" pos:column="36"/></name><argument_list pos:line="29" pos:column="36">(<argument pos:line="29" pos:column="37">driver<pos:position pos:line="29" pos:column="43"/></argument>, <argument pos:line="29" pos:column="45">r-&gt;pool<pos:position pos:line="29" pos:column="52"/></argument>, <argument pos:line="29" pos:column="54">*f<pos:position pos:line="29" pos:column="56"/></argument>, <argument pos:line="29" pos:column="58">dconf-&gt;passphrase<pos:position pos:line="29" pos:column="75"/></argument>,
+<cpp:else pos:line="30" pos:column="1">#<cpp:directive pos:line="30" pos:column="2">else<pos:position pos:line="30" pos:column="6"/></cpp:directive></cpp:else>
+        <argument pos:line="31" pos:column="9">res = apr_crypto_passphrase(r-&gt;pool, *f, dconf-&gt;passphrase,
+<cpp:endif pos:line="32" pos:column="1">#<cpp:directive pos:line="32" pos:column="2">endif<pos:position pos:line="32" pos:column="7"/></cpp:directive></cpp:endif>
+                strlen(dconf-&gt;passphrase),
+                (unsigned char *) salt, salt ? sizeof(apr_uuid_t) : <literal type="number" pos:line="34" pos:column="69">0<pos:position pos:line="34" pos:column="70"/></literal>, dconf-&gt;cipher,
+                MODE_CBC, <literal type="number" pos:line="35" pos:column="27">1<pos:position pos:line="35" pos:column="28"/></literal>, <literal type="number" pos:line="35" pos:column="30">4096<pos:position pos:line="35" pos:column="34"/></literal>, key, ivSize);
+    }
+
+    if (APR_STATUS_IS_ENOKEY(res)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="40" pos:column="17">"the passphrase '%s' was empty"<pos:position pos:line="40" pos:column="48"/></literal>, dconf-&gt;passphrase);
+    }
+    if (APR_STATUS_IS_EPADDING(res)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="44" pos:column="17">"padding is not supported for cipher"<pos:position pos:line="44" pos:column="54"/></literal>);
+    }
+    if (APR_STATUS_IS_EKEYTYPE(res)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="48" pos:column="17">"the key type is not known"<pos:position pos:line="48" pos:column="44"/></literal>);
+    }
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="52" pos:column="17">"encryption could not be configured. Please check the "<pos:position pos:line="52" pos:column="72"/></literal>
+                <literal type="string" pos:line="53" pos:column="17">"certificates and/or passphrase as appropriate"<pos:position pos:line="53" pos:column="64"/></literal>);
+        return APR_EGENERAL;
+    }
+
+    return APR_SUCCESS;
+}
+
+<comment type="block" format="doxygen" pos:line="60" pos:column="1">/**
+ * Encrypt the string given as per the current config.
+ *
+ * Returns APR_SUCCESS if successful.
+ */</comment>
+static apr_status_t encrypt_string(request_rec * r, const apr_crypto_driver_t *driver,
+        session_crypto_dir_conf *dconf,
+        const char *in, char **out)
+{
+    apr_status_t res;
+    apr_crypto_t *f = NULL;
+    apr_crypto_key_t *key = NULL;
+    apr_size_t ivSize = <literal type="number" pos:line="72" pos:column="25">0<pos:position pos:line="72" pos:column="26"/></literal>;
+    apr_crypto_block_t *block = NULL;
+    unsigned char *encrypt = NULL;
+    unsigned char *combined = NULL;
+    apr_size_t encryptlen<pos:position pos:line="76" pos:column="26"/></argument>, <argument pos:line="76" pos:column="28">tlen;
+    char *base64;
+    apr_size_t blockSize = <literal type="number" pos:line="78" pos:column="28">0<pos:position pos:line="78" pos:column="29"/></literal>;
+    const unsigned char *iv = NULL;
+    apr_uuid_t salt;
+
+    <comment type="block" pos:line="82" pos:column="5">/* by default, return an empty string */</comment>
+    *out = <literal type="string" pos:line="83" pos:column="12">""<pos:position pos:line="83" pos:column="14"/></literal>;
+
+    <comment type="block" pos:line="85" pos:column="5">/* don't attempt to encrypt an empty string, trying to do so causes a segfault */</comment>
+    if (!in || !*in) {
+        return APR_SUCCESS;
+    }
+
+    <comment type="block" pos:line="90" pos:column="5">/* use a uuid as a salt value, and prepend it to our result */</comment>
+    apr_uuid_get(&amp;salt);
+    res = crypt_init(r, driver, &amp;f, &amp;key, &amp;salt, &amp;ivSize, dconf);
+    if (res != APR_SUCCESS) {
+        return res;
+    }
+
+<cpp:if pos:line="97" pos:column="1">#<cpp:directive pos:line="97" pos:column="2">if<pos:position pos:line="97" pos:column="4"/></cpp:directive> <expr><name pos:line="97" pos:column="5">CRYPTO_VERSION<pos:position pos:line="97" pos:column="19"/></name> <operator pos:line="97" pos:column="20">&lt;<pos:position pos:line="97" pos:column="24"/></operator> <literal type="number" pos:line="97" pos:column="22">200<pos:position pos:line="97" pos:column="25"/></literal></expr></cpp:if>
+    res = apr_crypto_block_encrypt_init(driver, r-&gt;pool, f, key, &amp;iv, &amp;block,
+<cpp:else pos:line="99" pos:column="1">#<cpp:directive pos:line="99" pos:column="2">else<pos:position pos:line="99" pos:column="6"/></cpp:directive></cpp:else>
+    res = apr_crypto_block_encrypt_init(r-&gt;pool, f, key, &amp;iv, &amp;block,
+<cpp:endif pos:line="101" pos:column="1">#<cpp:directive pos:line="101" pos:column="2">endif<pos:position pos:line="101" pos:column="7"/></cpp:directive></cpp:endif>
+            &amp;blockSize);
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="105" pos:column="17">"apr_crypto_block_encrypt_init failed"<pos:position pos:line="105" pos:column="55"/></literal>);
+        return res;
+    }
+
+    <comment type="block" pos:line="109" pos:column="5">/* encrypt the given string */</comment>
+<cpp:if pos:line="110" pos:column="1">#<cpp:directive pos:line="110" pos:column="2">if<pos:position pos:line="110" pos:column="4"/></cpp:directive> <expr><name pos:line="110" pos:column="5">CRYPTO_VERSION<pos:position pos:line="110" pos:column="19"/></name> <operator pos:line="110" pos:column="20">&lt;<pos:position pos:line="110" pos:column="24"/></operator> <literal type="number" pos:line="110" pos:column="22">200<pos:position pos:line="110" pos:column="25"/></literal></expr></cpp:if>
+    res = apr_crypto_block_encrypt(driver, block, &amp;encrypt,
+<cpp:else pos:line="112" pos:column="1">#<cpp:directive pos:line="112" pos:column="2">else<pos:position pos:line="112" pos:column="6"/></cpp:directive></cpp:else>
+    res = apr_crypto_block_encrypt(f, block, &amp;encrypt,
+<cpp:endif pos:line="114" pos:column="1">#<cpp:directive pos:line="114" pos:column="2">endif<pos:position pos:line="114" pos:column="7"/></cpp:directive></cpp:endif>
+            &amp;encryptlen, (unsigned char *)in, strlen(in));
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="118" pos:column="17">"apr_crypto_block_encrypt failed"<pos:position pos:line="118" pos:column="50"/></literal>);
+        return res;
+    }
+<cpp:if pos:line="121" pos:column="1">#<cpp:directive pos:line="121" pos:column="2">if<pos:position pos:line="121" pos:column="4"/></cpp:directive> <expr><name pos:line="121" pos:column="5">CRYPTO_VERSION<pos:position pos:line="121" pos:column="19"/></name> <operator pos:line="121" pos:column="20">&lt;<pos:position pos:line="121" pos:column="24"/></operator> <literal type="number" pos:line="121" pos:column="22">200<pos:position pos:line="121" pos:column="25"/></literal></expr></cpp:if>
+    res = apr_crypto_block_encrypt_finish(driver, block, encrypt + encryptlen,
+<cpp:else pos:line="123" pos:column="1">#<cpp:directive pos:line="123" pos:column="2">else<pos:position pos:line="123" pos:column="6"/></cpp:directive></cpp:else>
+    res = apr_crypto_block_encrypt_finish(f, block, encrypt + encryptlen,
+<cpp:endif pos:line="125" pos:column="1">#<cpp:directive pos:line="125" pos:column="2">endif<pos:position pos:line="125" pos:column="7"/></cpp:directive></cpp:endif>
+            &amp;tlen);
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="129" pos:column="17">"apr_crypto_block_encrypt_finish failed"<pos:position pos:line="129" pos:column="57"/></literal>);
+        return res;
+    }
+    encryptlen += tlen;
+
+    <comment type="block" pos:line="134" pos:column="5">/* prepend the salt and the iv to the result */</comment>
+    combined = apr_palloc(r-&gt;pool, ivSize + encryptlen + sizeof(apr_uuid_t));
+    memcpy(combined, &amp;salt, sizeof(apr_uuid_t));
+    memcpy(combined + sizeof(apr_uuid_t), iv, ivSize);
+    memcpy(combined + sizeof(apr_uuid_t) + ivSize, encrypt, encryptlen);
+
+    <comment type="block" pos:line="140" pos:column="5">/* base64 encode the result */</comment>
+    base64 = apr_palloc(r-&gt;pool, apr_base64_encode_len(ivSize + encryptlen + sizeof(apr_uuid_t) + <literal type="number" pos:line="141" pos:column="99">1<pos:position pos:line="141" pos:column="100"/></literal>) * sizeof(char));
+    apr_base64_encode(base64, (const char *) combined, ivSize + encryptlen + sizeof(apr_uuid_t));
+    *out = base64;
+
+    return res;
+
+}
+
+<comment type="block" format="doxygen" pos:line="149" pos:column="1">/**
+ * Decrypt the string given as per the current config.
+ *
+ * Returns APR_SUCCESS if successful.
+ */</comment>
+static apr_status_t decrypt_string(request_rec * r, const apr_crypto_driver_t *driver,
+        session_crypto_dir_conf *dconf,
+        const char *in, char **out)
+{
+    apr_status_t res;
+    apr_crypto_t *f = NULL;
+    apr_crypto_key_t *key = NULL;
+    apr_size_t ivSize = <literal type="number" pos:line="161" pos:column="25">0<pos:position pos:line="161" pos:column="26"/></literal>;
+    apr_crypto_block_t *block = NULL;
+    unsigned char *decrypted = NULL;
+    apr_size_t decryptedlen, tlen;
+    apr_size_t decodedlen;
+    char *decoded;
+    apr_size_t blockSize = <literal type="number" pos:line="167" pos:column="28">0<pos:position pos:line="167" pos:column="29"/></literal>;
+
+    <comment type="block" pos:line="169" pos:column="5">/* strip base64 from the string */</comment>
+    decoded = apr_palloc(r-&gt;pool, apr_base64_decode_len(in));
+    decodedlen = apr_base64_decode(decoded, in);
+    decoded[decodedlen] = <literal type="char" pos:line="172" pos:column="27">'\0'<pos:position pos:line="172" pos:column="31"/></literal>;
+
+    res = crypt_init(r, driver, &amp;f, &amp;key, (apr_uuid_t *)decoded, &amp;ivSize, dconf);
+    if (res != APR_SUCCESS) {
+        return res;
+    }
+
+    <comment type="block" pos:line="179" pos:column="5">/* sanity check - decoded too short? */</comment>
+    if (decodedlen &lt; (sizeof(apr_uuid_t) + ivSize)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_SUCCESS, r, LOG_PREFIX
+                <literal type="string" pos:line="182" pos:column="17">"too short to decrypt, skipping"<pos:position pos:line="182" pos:column="49"/></literal>);
+        return APR_ECRYPT;
+    }
+
+    <comment type="block" pos:line="186" pos:column="5">/* bypass the salt at the start of the decoded block */</comment>
+    decoded += sizeof(apr_uuid_t);
+    decodedlen -= sizeof(apr_uuid_t);
+
+<cpp:if pos:line="190" pos:column="1">#<cpp:directive pos:line="190" pos:column="2">if<pos:position pos:line="190" pos:column="4"/></cpp:directive> <expr><name pos:line="190" pos:column="5">CRYPTO_VERSION<pos:position pos:line="190" pos:column="19"/></name> <operator pos:line="190" pos:column="20">&lt;<pos:position pos:line="190" pos:column="24"/></operator> <literal type="number" pos:line="190" pos:column="22">200<pos:position pos:line="190" pos:column="25"/></literal></expr></cpp:if>
+    res = apr_crypto_block_decrypt_init(driver, r-&gt;pool, f, key, (unsigned char *)decoded, &amp;block,
+<cpp:else pos:line="192" pos:column="1">#<cpp:directive pos:line="192" pos:column="2">else<pos:position pos:line="192" pos:column="6"/></cpp:directive></cpp:else>
+    res = apr_crypto_block_decrypt_init(r-&gt;pool, f, key, (unsigned char *)decoded, &amp;block,
+<cpp:endif pos:line="194" pos:column="1">#<cpp:directive pos:line="194" pos:column="2">endif<pos:position pos:line="194" pos:column="7"/></cpp:directive></cpp:endif>
+            &amp;blockSize);
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="198" pos:column="17">"apr_crypto_block_decrypt_init failed"<pos:position pos:line="198" pos:column="55"/></literal>);
+        return res;
+    }
+
+    <comment type="block" pos:line="202" pos:column="5">/* bypass the iv at the start of the decoded block */</comment>
+    decoded += ivSize;
+    decodedlen -= ivSize;
+
+    <comment type="block" pos:line="206" pos:column="5">/* decrypt the given string */</comment>
+<cpp:if pos:line="207" pos:column="1">#<cpp:directive pos:line="207" pos:column="2">if<pos:position pos:line="207" pos:column="4"/></cpp:directive> <expr><name pos:line="207" pos:column="5">CRYPTO_VERSION<pos:position pos:line="207" pos:column="19"/></name> <operator pos:line="207" pos:column="20">&lt;<pos:position pos:line="207" pos:column="24"/></operator> <literal type="number" pos:line="207" pos:column="22">200<pos:position pos:line="207" pos:column="25"/></literal></expr></cpp:if>
+    res = apr_crypto_block_decrypt(driver, block, &amp;decrypted,
+<cpp:else pos:line="209" pos:column="1">#<cpp:directive pos:line="209" pos:column="2">else<pos:position pos:line="209" pos:column="6"/></cpp:directive></cpp:else>
+    res = apr_crypto_block_decrypt(f, block, &amp;decrypted,
+<cpp:endif pos:line="211" pos:column="1">#<cpp:directive pos:line="211" pos:column="2">endif<pos:position pos:line="211" pos:column="7"/></cpp:directive></cpp:endif>
+            &amp;decryptedlen, (unsigned char *)decoded, decodedlen);
+    if (res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="215" pos:column="17">"apr_crypto_block_decrypt failed"<pos:position pos:line="215" pos:column="50"/></literal>);
+        return res;
+    }
+    *out = (char *) decrypted;
+
+<cpp:if pos:line="220" pos:column="1">#<cpp:directive pos:line="220" pos:column="2">if<pos:position pos:line="220" pos:column="4"/></cpp:directive> <expr><name pos:line="220" pos:column="5">CRYPTO_VERSION<pos:position pos:line="220" pos:column="19"/></name> <operator pos:line="220" pos:column="20">&lt;<pos:position pos:line="220" pos:column="24"/></operator> <literal type="number" pos:line="220" pos:column="22">200<pos:position pos:line="220" pos:column="25"/></literal></expr></cpp:if>
+    res = apr_crypto_block_decrypt_finish(driver, block, decrypted + decryptedlen,
+<cpp:else pos:line="222" pos:column="1">#<cpp:directive pos:line="222" pos:column="2">else<pos:position pos:line="222" pos:column="6"/></cpp:directive></cpp:else>
+    res = apr_crypto_block_decrypt_finish(f, block, decrypted + decryptedlen,
+<cpp:endif pos:line="224" pos:column="1">#<cpp:directive pos:line="224" pos:column="2">endif<pos:position pos:line="224" pos:column="7"/></cpp:directive></cpp:endif>
+            &amp;tlen);
+    if (APR_SUCCESS != res) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                <literal type="string" pos:line="228" pos:column="17">"apr_crypto_block_decrypt_finish failed"<pos:position pos:line="228" pos:column="57"/></literal>);
+        return res;
+    }
+    decryptedlen += tlen;
+    decrypted[decryptedlen] = <literal type="number" pos:line="232" pos:column="31">0<pos:position pos:line="232" pos:column="32"/></literal>;
+
+    return APR_SUCCESS;
+
+}
+
+<comment type="block" format="doxygen" pos:line="238" pos:column="1">/**
+ * Crypto encoding for the session.
+ *
+ * @param r The request pointer.
+ * @param z A pointer to where the session will be written.
+ */</comment>
+AP_DECLARE(int) ap_session_crypto_encode(request_rec * r, session_rec * z)
+{
+
+    char *encoded = NULL;
+    apr_status_t res;
+    const apr_crypto_driver_t *driver = NULL;
+    session_crypto_dir_conf *dconf = ap_get_module_config(r-&gt;per_dir_config,
+            &amp;session_crypto_module);
+
+    if (dconf-&gt;passphrase_set &amp;&amp; z-&gt;encoded &amp;&amp; *z-&gt;encoded) {
+        apr_pool_userdata_get((void **)&amp;driver, DRIVER_KEY, r-&gt;server-&gt;process-&gt;pconf);
+        res = encrypt_string(r, driver, dconf, z-&gt;encoded, &amp;encoded);
+        if (res != OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, res, r, LOG_PREFIX
+                    <literal type="string" pos:line="258" pos:column="21">"encrypt session failed"<pos:position pos:line="258" pos:column="45"/></literal>);
+            return res;
+        }
+        z-&gt;encoded = encoded;
+    }
+
+    return OK;
+
+}
+
+<comment type="block" format="doxygen" pos:line="268" pos:column="1">/**
+ * Crypto decoding for the session.
+ *
+ * @param r The request pointer.
+ * @param z A pointer to where the session will be written.
+ */</comment>
+AP_DECLARE(int) ap_session_crypto_decode(request_rec * r, session_rec * z)
+{
+
+    char *encoded = NULL;
+    apr_status_t res;
+    const apr_crypto_driver_t *driver = NULL;
+    session_crypto_dir_conf *dconf = ap_get_module_config(r-&gt;per_dir_config,
+            &amp;session_crypto_module);
+
+    if ((dconf-&gt;passphrase_set) &amp;&amp; z-&gt;encoded &amp;&amp; *z-&gt;encoded) {
+        apr_pool_userdata_get((void **)&amp;driver, DRIVER_KEY, r-&gt;server-&gt;process-&gt;pconf);
+        res = decrypt_string(r, driver, dconf, z-&gt;encoded, &amp;encoded);
+        if (res != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, LOG_PREFIX
+                    <literal type="string" pos:line="288" pos:column="21">"decrypt session failed, wrong passphrase?"<pos:position pos:line="288" pos:column="64"/></literal>);
+            return res;
+        }
+        z-&gt;encoded = encoded;
+    }
+
+    return OK;
+
+}
+
+<comment type="block" format="doxygen" pos:line="298" pos:column="1">/**
+ * Initialise the SSL in the post_config hook.
+ */</comment>
+AP_DECLARE(int) ap_session_crypto_init(apr_pool_t *p, apr_pool_t *plog,
+        apr_pool_t *ptemp, server_rec *s)
+{
+    void *data;
+    const apr_crypto_driver_t *driver = NULL;
+
+    session_crypto_conf *conf = ap_get_module_config(s-&gt;module_config,
+            &amp;session_crypto_module);
+
+    <comment type="block" pos:line="310" pos:column="5">/* session_crypto_init() will be called twice. Don't bother
+     * going through all of the initialization on the first call
+     * because it will just be thrown away.*/</comment>
+    apr_pool_userdata_get(&amp;data, INIT_KEY, s-&gt;process-&gt;pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)<literal type="number" pos:line="315" pos:column="45">1<pos:position pos:line="315" pos:column="46"/></literal>, INIT_KEY,
+                apr_pool_cleanup_null, s-&gt;process-&gt;pool);
+        return OK;
+    }
+
+    if (conf-&gt;library) {
+
+        const apu_err_t *err = NULL;
+        apr_status_t rv;
+
+        rv = apr_crypto_init(p, NULL);
+        if (APR_SUCCESS != rv) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, LOG_PREFIX
+                    <literal type="string" pos:line="328" pos:column="21">"APR crypto could not be initialised"<pos:position pos:line="328" pos:column="58"/></literal>);
+            return rv;
+        }
+
+        rv = apr_crypto_get_driver(p, conf-&gt;library, &amp;driver, conf-&gt;params, &amp;err);
+        if (APR_EREINIT == rv) {
+            if (!conf-&gt;noinit) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, LOG_PREFIX
+                        <literal type="string" pos:line="336" pos:column="25">"warning: crypto for '%s' was already initialised, "<pos:position pos:line="336" pos:column="77"/></literal>
+                        <literal type="string" pos:line="337" pos:column="25">"using existing configuration"<pos:position pos:line="337" pos:column="55"/></literal>, conf-&gt;library);
+            }
+            rv = APR_SUCCESS;
+        }
+        else {
+            if (conf-&gt;noinit) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s, LOG_PREFIX
+                        <literal type="string" pos:line="344" pos:column="25">"warning: crypto for '%s' was not previously initialised "<pos:position pos:line="344" pos:column="83"/></literal>
+                        <literal type="string" pos:line="345" pos:column="25">"when it was expected to be, initialised instead by "<pos:position pos:line="345" pos:column="78"/></literal>
+                        <literal type="string" pos:line="346" pos:column="25">"mod_session_crypto"<pos:position pos:line="346" pos:column="45"/></literal>, conf-&gt;library);
+            }
+        }
+        if (APR_SUCCESS != rv &amp;&amp; err) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, LOG_PREFIX
+                    <literal type="string" pos:line="351" pos:column="21">"%s"<pos:position pos:line="351" pos:column="25"/></literal>, err-&gt;msg);
+            return rv;
+        }
+        if (APR_ENOTIMPL == rv) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, LOG_PREFIX
+                    <literal type="string" pos:line="356" pos:column="21">"The crypto library '%s' could not be found"<pos:position pos:line="356" pos:column="65"/></literal>,
+                    conf-&gt;library);
+            return rv;
+        }
+        if (APR_SUCCESS != rv || !driver) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, LOG_PREFIX
+                    <literal type="string" pos:line="362" pos:column="21">"The crypto library '%s' could not be loaded"<pos:position pos:line="362" pos:column="66"/></literal>,
+                    conf-&gt;library);
+            return rv;
+        }
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, rv, s, LOG_PREFIX
+                <literal type="string" pos:line="368" pos:column="17">"The crypto library '%s' was loaded successfully"<pos:position pos:line="368" pos:column="66"/></literal>,
+                conf-&gt;library);
+
+        apr_pool_userdata_set((const void *)driver, DRIVER_KEY,
+                apr_pool_cleanup_null, s-&gt;process-&gt;pconf);
+
+    }
+
+    return OK;
+}
+
+static void *create_session_crypto_config(apr_pool_t * p, server_rec *s)
+{
+    session_crypto_conf *new =
+    (session_crypto_conf *) apr_pcalloc(p, sizeof(session_crypto_conf));
+
+    <comment type="block" pos:line="384" pos:column="5">/* if no library has been configured, set the recommended library
+     * as a sensible default.
+     */</comment>
+<cpp:ifdef pos:line="387" pos:column="1">#<cpp:directive pos:line="387" pos:column="2">ifdef<pos:position pos:line="387" pos:column="7"/></cpp:directive> <name pos:line="387" pos:column="8">APU_CRYPTO_RECOMMENDED_DRIVER<pos:position pos:line="387" pos:column="37"/></name></cpp:ifdef>
+    new-&gt;library = APU_CRYPTO_RECOMMENDED_DRIVER;
+<cpp:endif pos:line="389" pos:column="1">#<cpp:directive pos:line="389" pos:column="2">endif<pos:position pos:line="389" pos:column="7"/></cpp:directive></cpp:endif>
+
+    return (void *) new;
+}
+
+static void *create_session_crypto_dir_config(apr_pool_t * p, char *dummy)
+{
+    session_crypto_dir_conf *new =
+    (session_crypto_dir_conf *) apr_pcalloc(p, sizeof(session_crypto_dir_conf));
+
+    <comment type="block" pos:line="399" pos:column="5">/* default cipher AES256-SHA */</comment>
+    new-&gt;cipher = KEY_AES_256;
+
+    return (void *) new;
+}
+
+static void *merge_session_crypto_dir_config(apr_pool_t * p, void *basev, void *addv)
+{
+    session_crypto_dir_conf *new = (session_crypto_dir_conf *) apr_pcalloc(p, sizeof(session_crypto_dir_conf));
+    session_crypto_dir_conf *add = (session_crypto_dir_conf *) addv;
+    session_crypto_dir_conf *base = (session_crypto_dir_conf *) basev;
+
+    new-&gt;passphrase = (add-&gt;passphrase_set == <literal type="number" pos:line="411" pos:column="47">0<pos:position pos:line="411" pos:column="48"/></literal>) ? base-&gt;passphrase : add-&gt;passphrase;
+    new-&gt;params = (add-&gt;passphrase_set == <literal type="number" pos:line="412" pos:column="43">0<pos:position pos:line="412" pos:column="44"/></literal>) ? base-&gt;params : add-&gt;params;
+    new-&gt;passphrase_set = add-&gt;passphrase_set || base-&gt;passphrase_set;
+    new-&gt;cipher = (add-&gt;cipher_set == <literal type="number" pos:line="414" pos:column="39">0<pos:position pos:line="414" pos:column="40"/></literal>) ? base-&gt;cipher : add-&gt;cipher;
+    new-&gt;cipher_set = add-&gt;cipher_set || base-&gt;cipher_set;
+
+    return new;
+}
+
+static const char *set_crypto_driver(cmd_parms * cmd, void *config, const char *arg)
+{
+    char *word, *val;
+    int library_set = <literal type="number" pos:line="423" pos:column="23">0<pos:position pos:line="423" pos:column="24"/></literal>;
+    session_crypto_conf *conf =
+        (session_crypto_conf *)ap_get_module_config(cmd-&gt;server-&gt;module_config,
+            &amp;session_crypto_module);
+    apr_crypto_param_t *param;
+
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+
+    if (err != NULL) {
+        return err;
+    }
+
+    conf-&gt;params = apr_array_make(cmd-&gt;pool, <literal type="number" pos:line="435" pos:column="46">10<pos:position pos:line="435" pos:column="48"/></literal>, sizeof(apr_crypto_param_t));
+
+    while (*arg) {
+        word = ap_getword_conf(cmd-&gt;pool, &amp;arg);
+        val = strchr(word, <literal type="char" pos:line="439" pos:column="28">'='<pos:position pos:line="439" pos:column="31"/></literal>);
+        if (!val) {
+            if (!strcasecmp(word, <literal type="string" pos:line="441" pos:column="35">"noinit"<pos:position pos:line="441" pos:column="43"/></literal>)) {
+                conf-&gt;noinit = <literal type="number" pos:line="442" pos:column="32">1<pos:position pos:line="442" pos:column="33"/></literal>;
+                conf-&gt;noinit_set = <literal type="number" pos:line="443" pos:column="36">1<pos:position pos:line="443" pos:column="37"/></literal>;
+            }
+            else if (!library_set) {
+                conf-&gt;library = word;
+                conf-&gt;library_set = <literal type="number" pos:line="447" pos:column="37">1<pos:position pos:line="447" pos:column="38"/></literal>;
+                library_set = <literal type="number" pos:line="448" pos:column="31">1<pos:position pos:line="448" pos:column="32"/></literal>;
+            }
+            else {
+                return <literal type="string" pos:line="451" pos:column="24">"Invalid SessionCryptoDriver parameter. Parameter must "<pos:position pos:line="451" pos:column="80"/></literal>
+                <literal type="string" pos:line="452" pos:column="17">"be in the form 'key=value'."<pos:position pos:line="452" pos:column="46"/></literal>;
+            }
+        }
+        else {
+            *val++ = <literal type="char" pos:line="456" pos:column="22">'\0'<pos:position pos:line="456" pos:column="26"/></literal>;
+            if (!strcasecmp(word, <literal type="string" pos:line="457" pos:column="35">"dir"<pos:position pos:line="457" pos:column="40"/></literal>)) {
+                param = apr_array_push(conf-&gt;params);
+                param-&gt;type = APR_CRYPTO_CA_TYPE_DIR;
+                param-&gt;path = val;
+            }
+            else if (!strcasecmp(word, <literal type="string" pos:line="462" pos:column="40">"key3"<pos:position pos:line="462" pos:column="46"/></literal>)) {
+                param = apr_array_push(conf-&gt;params);
+                param-&gt;type = APR_CRYPTO_CERT_TYPE_KEY3_DB;
+                param-&gt;path = val;
+            }
+            else if (!strcasecmp(word, <literal type="string" pos:line="467" pos:column="40">"cert7"<pos:position pos:line="467" pos:column="47"/></literal>)) {
+                param = apr_array_push(conf-&gt;params);
+                param-&gt;type = APR_CRYPTO_CA_TYPE_CERT7_DB;
+                param-&gt;path = val;
+            }
+            else if (!strcasecmp(word, <literal type="string" pos:line="472" pos:column="40">"secmod"<pos:position pos:line="472" pos:column="48"/></literal>)) {
+                param = apr_array_push(conf-&gt;params);
+                param-&gt;type = APR_CRYPTO_CA_TYPE_SECMOD;
+                param-&gt;path = val;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static const char *set_crypto_passphrase(cmd_parms * cmd, void *config, const char *arg)
+{
+    char *word, *val;
+    int passphrase_set = <literal type="number" pos:line="486" pos:column="26">0<pos:position pos:line="486" pos:column="27"/></literal>;
+    session_crypto_dir_conf *dconf = (session_crypto_dir_conf *) config;
+    apr_crypto_param_t *param;
+    dconf-&gt;params = apr_array_make(cmd-&gt;pool, <literal type="number" pos:line="489" pos:column="47">10<pos:position pos:line="489" pos:column="49"/></literal>, sizeof(apr_crypto_param_t));
+
+    while (*arg) {
+        word = ap_getword_conf(cmd-&gt;pool, &amp;arg);
+        val = strchr(word, <literal type="char" pos:line="493" pos:column="28">'='<pos:position pos:line="493" pos:column="31"/></literal>);
+        if (!val) {
+            if (!passphrase_set) {
+                dconf-&gt;passphrase = word;
+                dconf-&gt;passphrase_set = <literal type="number" pos:line="497" pos:column="41">1<pos:position pos:line="497" pos:column="42"/></literal>;
+                passphrase_set = <literal type="number" pos:line="498" pos:column="34">1<pos:position pos:line="498" pos:column="35"/></literal>;
+            }
+            else {
+                return <literal type="string" pos:line="501" pos:column="24">"Invalid SessionCryptoPassphrase parameter. Parameter must "<pos:position pos:line="501" pos:column="84"/></literal>
+                <literal type="string" pos:line="502" pos:column="17">"be in the form 'key=value'."<pos:position pos:line="502" pos:column="46"/></literal>;
+            }
+        }
+        else {
+            *val++ = <literal type="char" pos:line="506" pos:column="22">'\0'<pos:position pos:line="506" pos:column="26"/></literal>;
+            if (!strcasecmp(word, <literal type="string" pos:line="507" pos:column="35">"engine"<pos:position pos:line="507" pos:column="43"/></literal>)) {
+                param = apr_array_push(dconf-&gt;params);
+                param-&gt;type = APR_CRYPTO_ENGINE;
+                param-&gt;path = val;
+            }
+            else if (!strcasecmp(word, <literal type="string" pos:line="512" pos:column="40">"cipher"<pos:position pos:line="512" pos:column="48"/></literal>)) {
+                if (!strcasecmp(val, <literal type="string" pos:line="513" pos:column="38">"3des192"<pos:position pos:line="513" pos:column="47"/></literal>)) {
+                    dconf-&gt;cipher = KEY_3DES_192;
+                    dconf-&gt;cipher_set = <literal type="number" pos:line="515" pos:column="41">1<pos:position pos:line="515" pos:column="42"/></literal>;
+                }
+                else if (!strcasecmp(val, <literal type="string" pos:line="517" pos:column="43">"aes256"<pos:position pos:line="517" pos:column="51"/></literal>)) {
+                    dconf-&gt;cipher = KEY_AES_256;
+                    dconf-&gt;cipher_set = <literal type="number" pos:line="519" pos:column="41">1<pos:position pos:line="519" pos:column="42"/></literal>;
+                }
+                else {
+                    return <literal type="string" pos:line="522" pos:column="28">"Invalid SessionCryptoPassphrase parameter. Cipher must "<pos:position pos:line="522" pos:column="85"/></literal>
+                    <literal type="string" pos:line="523" pos:column="21">"be '3des192' or 'aes256'."<pos:position pos:line="523" pos:column="48"/></literal>;
+                }
+            }
+            else {
+                return <literal type="string" pos:line="527" pos:column="24">"Invalid SessionCryptoPassphrase parameter. Parameters must "<pos:position pos:line="527" pos:column="85"/></literal>
+                <literal type="string" pos:line="528" pos:column="17">"be 'engine' or 'cipher'."<pos:position pos:line="528" pos:column="43"/></literal>;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+static const command_rec session_crypto_cmds[] =
+{
+    AP_INIT_RAW_ARGS(<literal type="string" pos:line="538" pos:column="22">"SessionCryptoPassphrase"<pos:position pos:line="538" pos:column="47"/></literal>, set_crypto_passphrase, NULL, RSRC_CONF|OR_AUTHCFG,
+            <literal type="string" pos:line="539" pos:column="13">"The passphrase used to encrypt the session"<pos:position pos:line="539" pos:column="57"/></literal>),
+    AP_INIT_RAW_ARGS(<literal type="string" pos:line="540" pos:column="22">"SessionCryptoDriver"<pos:position pos:line="540" pos:column="43"/></literal>, set_crypto_driver, NULL, RSRC_CONF,
+            <literal type="string" pos:line="541" pos:column="13">"The underlying crypto library driver to use"<pos:position pos:line="541" pos:column="58"/></literal>),
+    {    NULL}
+};
+
+static void register_hooks(apr_pool_t * p)
+{
+    ap_hook_session_encode(ap_session_crypto_encode, NULL, NULL, APR_HOOK_LAST);
+    ap_hook_session_decode(ap_session_crypto_decode, NULL, NULL, APR_HOOK_FIRST);
+    ap_hook_post_config(ap_session_crypto_init, NULL, NULL, APR_HOOK_FIRST);
+}
+
+AP_DECLARE_MODULE(session_crypto) =
+{
+    STANDARD20_MODULE_STUFF,
+    create_session_crypto_dir_config, <comment type="block" pos:line="555" pos:column="39">/* dir config creater */</comment>
+    merge_session_crypto_dir_config,  <comment type="block" pos:line="556" pos:column="39">/* dir merger --- default is to
+                                       * override */</comment>
+    create_session_crypto_config,     <comment type="block" pos:line="558" pos:column="39">/* server config */</comment>
+    NULL,                             <comment type="block" pos:line="559" pos:column="39">/* merge server config */</comment>
+    session_crypto_cmds,              <comment type="block" pos:line="560" pos:column="39">/* command apr_table_t */</comment>
+    register_hooks                    <comment type="block" pos:line="561" pos:column="39">/* register hooks */</comment>
+};<pos:position pos:line="562" pos:column="3"/></argument></argument_list></macro></expr></expr_stmt></block></then></if></block></function></unit>

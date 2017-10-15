@@ -1,103 +1,65 @@
-static apr_status_t store_body(cache_handle_t *h, request_rec *r,
-                               apr_bucket_brigade *bb)
+static int config_log_transaction(request_rec *r, config_log_state *cls,
+                                  apr_array_header_t *default_format)
 {
-    apr_bucket *e;
+    log_format_item *items;
+    const char **strs;
+    int *strl;
+    request_rec *orig;
+    int i;
+    apr_size_t len = 0;
+    apr_array_header_t *format;
+    char *envar;
     apr_status_t rv;
-    disk_cache_object_t *dobj = (disk_cache_object_t *) h->cache_obj->vobj;
-    disk_cache_conf *conf = ap_get_module_config(r->server->module_config,
-                                                 &disk_cache_module);
 
-    /* We write to a temp file and then atomically rename the file over
-     * in file_cache_el_final().
+    if (cls->fname == NULL) {
+        return DECLINED;
+    }
+
+    /*
+     * See if we've got any conditional envariable-controlled logging decisions
+     * to make.
      */
-    if (!dobj->tfd) {
-        rv = apr_file_mktemp(&dobj->tfd, dobj->tempfile,
-                             APR_CREATE | APR_WRITE | APR_BINARY |
-                             APR_BUFFERED | APR_EXCL, r->pool);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-        dobj->file_size = 0;
+    if (cls->condition_var != NULL) {
+	envar = cls->condition_var;
+	if (*envar != '!') {
+	    if (apr_table_get(r->subprocess_env, envar) == NULL) {
+		return DECLINED;
+	    }
+	}
+	else {
+	    if (apr_table_get(r->subprocess_env, &envar[1]) != NULL) {
+		return DECLINED;
+	    }
+	}
     }
 
-    for (e = APR_BRIGADE_FIRST(bb);
-         e != APR_BRIGADE_SENTINEL(bb);
-         e = APR_BUCKET_NEXT(e))
-    {
-        const char *str;
-        apr_size_t length, written;
-        rv = apr_bucket_read(e, &str, &length, APR_BLOCK_READ);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when reading bucket for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
-        }
-        rv = apr_file_write_full(dobj->tfd, str, length, &written);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                         "cache_disk: Error when writing cache file for URL %s",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return rv;
-        }
-        dobj->file_size += written;
-        if (dobj->file_size > conf->maxfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT " > %" APR_OFF_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->maxfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
+    format = cls->format ? cls->format : default_format;
+
+    strs = apr_palloc(r->pool, sizeof(char *) * (format->nelts));
+    strl = apr_palloc(r->pool, sizeof(int) * (format->nelts));
+    items = (log_format_item *) format->elts;
+
+    orig = r;
+    while (orig->prev) {
+        orig = orig->prev;
+    }
+    while (r->next) {
+        r = r->next;
     }
 
-    /* Was this the final bucket? If yes, close the temp file and perform
-     * sanity checks.
-     */
-    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-        const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
-
-        if (r->connection->aborted || r->no_cache) {
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "disk_cache: Discarding body for URL %s "
-                         "because connection has been aborted.",
-                         h->cache_obj->key);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
-        if (dobj->file_size < conf->minfs) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache_disk: URL %s failed the size check "
-                         "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
-                         h->cache_obj->key, dobj->file_size, conf->minfs);
-            /* Remove the intermediate cache file and return non-APR_SUCCESS */
-            file_cache_errorcleanup(dobj, r);
-            return APR_EGENERAL;
-        }
-        if (cl_header) {
-            apr_int64_t cl = apr_atoi64(cl_header);
-            if ((errno == 0) && (dobj->file_size != cl)) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                             "disk_cache: URL %s didn't receive complete response, not caching",
-                             h->cache_obj->key);
-                /* Remove the intermediate cache file and return non-APR_SUCCESS */
-                file_cache_errorcleanup(dobj, r);
-                return APR_EGENERAL;
-            }
-        }
-
-        /* All checks were fine. Move tempfile to final destination */
-        /* Link to the perm file, and close the descriptor */
-        file_cache_el_final(dobj, r);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "disk_cache: Body for URL %s cached.",  dobj->name);
+    for (i = 0; i < format->nelts; ++i) {
+        strs[i] = process_item(r, orig, &items[i]);
     }
 
-    return APR_SUCCESS;
+    for (i = 0; i < format->nelts; ++i) {
+        len += strl[i] = strlen(strs[i]);
+    }
+    if (!log_writer) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, r,
+                "log writer isn't correctly setup");
+         return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    rv = log_writer(r, cls->log_writer, strs, strl, format->nelts, len);
+    /* xxx: do we return an error on log_writer? */
+    return OK;
 }

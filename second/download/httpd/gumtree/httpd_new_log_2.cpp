@@ -1,1 +1,2 @@
-fprintf(stderr, "    %-32.*s", (int)key.dsize, key.dptr);
+ap_add_output_filter_handle(cache_in_filter_handle, NULL, r,
+                                        r->connection);
