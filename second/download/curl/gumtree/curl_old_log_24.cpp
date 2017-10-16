@@ -1,0 +1,17 @@
+puts(
+"          To post data purely binary, you should instead use  the\n"
+"          --data-binary option.\n"
+"\n"
+"          -d/--data is the same as --data-ascii.\n"
+"\n"
+"          If  this option is used several times, the ones follow�\n"
+"          ing the first will append data.\n"
+"\n"
+"     --data-ascii <data>\n"
+"          (HTTP) This is an alias for the -d/--data option.\n"
+"\n"
+"          If this option is used several times, the ones  follow�\n"
+"          ing the first will append data.\n"
+"\n"
+"     --data-binary <data>\n"
+);

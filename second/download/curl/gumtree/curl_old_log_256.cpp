@@ -1,0 +1,15 @@
+puts(
+"  The -P flag to curl supports a few different options. Your machine may have\n"
+"  several IP-addresses and/or network interfaces and curl allows you to select\n"
+"  which of them to use. Default address can also be used:\n"
+"\n"
+"        curl -P - ftp.download.com\n"
+"\n"
+"  Download with PORT but use the IP address of our 'le0' interface (this does\n"
+"  not work on windows):\n"
+"\n"
+"        curl -P le0 ftp.download.com\n"
+"\n"
+"  Download with PORT but use 192.168.0.10 as our IP address to use:\n"
+"\n"
+);

@@ -1,0 +1,15 @@
+fputs(
+"              Sets  proxy  server  to use if no protocol-specific\n"
+"              proxy is set.\n"
+"\n"
+"       NO_PROXY <comma-separated list of hosts>\n"
+"              list of host names that shouldn't  go  through  any\n"
+"              proxy. If set to a asterisk\n"
+"\n"
+"EXIT CODES\n"
+"       There  exists  a  bunch of different error codes and their\n"
+"       corresponding error messages that may  appear  during  bad\n"
+"       conditions.  At  the  time of this writing, the exit codes\n"
+"       are:\n"
+"\n"
+, stdout);

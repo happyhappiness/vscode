@@ -1,0 +1,12 @@
+fputs(
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
+"\n"
+"       --ftp-pret\n"
+"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
+"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
+"              command  for  directory  listings as well as up and downloads in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
+"\n"
+"       --ssl  (FTP, POP3, IMAP, SMTP) Try to use SSL/TLS for  the  connection.\n"
+, stdout);

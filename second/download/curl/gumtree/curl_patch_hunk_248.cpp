@@ -1,0 +1,28 @@
+ "\n"
+ , stdout);
+  fputs(
+ "              NTLM   NTLM authentication is supported.\n"
+ "\n"
+ "              GSS-Negotiate\n"
+-"                     Negotiate authentication is supported.\n"
++"                     Negotiate authentication and krb5 for ftp is supported.\n"
+ "\n"
+ "              Debug  This curl uses a libcurl built with Debug.  This  enables\n"
+ "                     more  error-tracking  and memory debugging etc. For curl-\n"
+ "                     developers only!\n"
+ "\n"
+ "              AsynchDNS\n"
+ "                     This curl uses asynchronous name resolves.\n"
+ "\n"
+-"              SPNEGO SPNEGO Negotiate authentication is supported.\n"
+-"\n"
+ , stdout);
+  fputs(
++"              SPNEGO SPNEGO Negotiate authentication is supported.\n"
++"\n"
+ "              Largefile\n"
+ "                     This curl supports transfers of large files, files larger\n"
+ "                     than 2GB.\n"
+ "\n"
+ "              IDN    This curl supports IDN - international domain names.\n"
+ "\n"

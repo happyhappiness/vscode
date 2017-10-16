@@ -1,0 +1,17 @@
+"       74     No such user (TFTP)\n"
+"\n"
+"       75     Character conversion failed\n"
+"\n"
+"       76     Character conversion functions required\n"
+"\n"
+"       XX     There will appear more error codes here in future releases.  The\n"
+"              existing ones are meant to never change.\n"
+"\n"
+"AUTHORS / CONTRIBUTORS\n"
+"       Daniel  Stenberg is the main author, but the whole list of contributors\n"
+"       is found in the separate THANKS file.\n"
+"\n"
+, stdout);
+ fputs(
+"WWW\n"
+"       http://curl.haxx.se\n"

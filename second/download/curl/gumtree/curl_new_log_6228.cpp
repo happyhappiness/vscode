@@ -1,0 +1,15 @@
+fputs(
+"        curl --limit-rate 10K www.far-away-site.com\n"
+"\n"
+"    or\n"
+"\n"
+"        curl --limit-rate 10240 www.far-away-site.com\n"
+"\n"
+"  Or prevent curl from uploading data faster than 1 megabyte per second:\n"
+"\n"
+"        curl -T upload --limit-rate 1M ftp://uploadshereplease.com\n"
+"\n"
+"  When using the --limit-rate option, the transfer rate is regulated on a\n"
+"  per-second basis, which will cause the total transfer speed to become lower\n"
+"  than the given number. Sometimes of course substantially lower, if your\n"
+, stdout);

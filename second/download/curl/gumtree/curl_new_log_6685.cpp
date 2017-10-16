@@ -1,0 +1,1 @@
+Curl_failf(conn->data, "base64-decoding: %s", curl_easy_strerror(result));

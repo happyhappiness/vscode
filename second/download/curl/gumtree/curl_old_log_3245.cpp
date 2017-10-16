@@ -1,0 +1,16 @@
+fputs(
+"  --trace or --trace-ascii options with a given file name to log to, like\n"
+"  this:\n"
+"\n"
+"        curl --trace trace.txt www.haxx.se\n"
+" \n"
+"\n"
+"DETAILED INFORMATION\n"
+"\n"
+"  Different protocols provide different ways of getting detailed information\n"
+"  about specific files/documents. To get curl to show detailed information\n"
+"  about a single file, you should use -I/--head option. It displays all\n"
+"  available info on a single file for HTTP and FTP. The HTTP information is a\n"
+"  lot more extensive.\n"
+"\n"
+, stdout);

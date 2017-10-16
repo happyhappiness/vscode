@@ -1,0 +1,14 @@
+fputs(
+" It does not have special support for FTP proxy servers since there are no\n"
+" standards for those, but it can still be made to work with many of them. You\n"
+" can also use both HTTP and SOCKS proxies to transfer files to and from FTP\n"
+" servers.\n"
+"\n"
+" Get an ftp file using an HTTP proxy named my-proxy that uses port 888:\n"
+"\n"
+"        curl -x my-proxy:888 ftp://ftp.leachsite.com/README\n"
+"\n"
+" Get a file from an HTTP server that requires user and password, using the\n"
+" same proxy as above:\n"
+"\n"
+, stdout);

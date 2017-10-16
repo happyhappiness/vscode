@@ -1,0 +1,16 @@
+fputs(
+"              versions (which it is if it is IPv6-capable), this option  tells\n"
+"              libcurl to resolve names to IPv6 addresses only.\n"
+"\n"
+"       -#/--progress-bar\n"
+"              Make curl display progress information as a progress bar instead\n"
+"              of the default statistics.\n"
+"\n"
+"FILES\n"
+"       ~/.curlrc\n"
+"              Default config file, see -K/--config for details.\n"
+"\n"
+"ENVIRONMENT\n"
+"       http_proxy [protocol://]<host>[:port]\n"
+"              Sets the proxy server to use for HTTP.\n"
+, stdout);

@@ -1,0 +1,1 @@
+warnf(config->global, "Invalid output struct data for write callback\n");

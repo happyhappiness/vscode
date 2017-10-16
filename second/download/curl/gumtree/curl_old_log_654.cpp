@@ -1,0 +1,15 @@
+fputs(
+"                curl http://{site,host}.host[1-5].com -o \"#1_#2\"\n"
+"\n"
+"              You may use this option as many times as  you  have\n"
+"              number of URLs.\n"
+"\n"
+"              See  also  the  --create-dirs  option to create the\n"
+"              local directories dynamically.\n"
+"\n"
+"       -O/--remote-name\n"
+"              Write output to a local file named like the  remote\n"
+"              file we get. (Only the file part of the remote file\n"
+"              is used, the path is cut off.)\n"
+"\n"
+, stdout);

@@ -1,0 +1,16 @@
+fputs(
+"              (Only  the file part of the remote file is used, the path is cut\n"
+"              off.)\n"
+"\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
+"\n"
+"              You  may  use  this  option  as many times as you have number of\n"
+"              URLs.\n"
+"\n"
+"       --pass <phrase>\n"
+"              (SSL/SSH) Pass phrase for the private key\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+, stdout);

@@ -1,0 +1,134 @@
+ "\n"
+ "  Example:\n"
+ "\n"
+ "        curl https://www.secure-site.com\n"
+ "\n"
+ "  Curl is also capable of using your personal certificates to get/post files\n"
++"  from sites that require valid certificates. The only drawback is that the\n"
+ , stdout);
+  fputs(
+-"  from sites that require valid certificates. The only drawback is that the\n"
+ "  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+ "  store certificates with, but it is not used by the most commonly used\n"
+ "  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
+ "  want curl to use the certificates you use with your (favourite) browser, you\n"
+ "  may need to download/compile a converter that can convert your browser's\n"
++"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+ , stdout);
+  fputs(
+-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+ "  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+ "  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
+ "  can get his patch (that requires an SSLeay installation) from his site at:\n"
+ "  http://www.drh-consultancy.demon.co.uk/\n"
+ "\n"
+ "  Example on how to automatically retrieve a document using a certificate with\n"
+ "  a personal password:\n"
+ "\n"
+-, stdout);
+- fputs(
+ "        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
+ "\n"
++, stdout);
++ fputs(
+ "  If you neglect to specify the password on the command line, you will be\n"
+ "  prompted for the correct password before any data can be received.\n"
+ "\n"
+-"  Many older SSL-servers have problems with SSLv3 or TLS, that newer versions\n"
+-"  of OpenSSL etc is using, therefore it is sometimes useful to specify what\n"
++"  Many older SSL-servers have problems with SSLv3 or TLS, which newer versions\n"
++"  of OpenSSL etc use, therefore it is sometimes useful to specify what\n"
+ "  SSL-version curl should use. Use -3, -2 or -1 to specify that exact SSL\n"
+ "  version to use (for SSLv3, SSLv2 or TLSv1 respectively):\n"
+-, stdout);
+- fputs(
+ "\n"
+ "        curl -2 https://secure.site.com/\n"
+ "\n"
++, stdout);
++ fputs(
+ "  Otherwise, curl will first attempt to use v3 and then v2.\n"
+ "\n"
+ "  To use OpenSSL to convert your favourite browser's certificate into a PEM\n"
+-"  formatted one that curl can use, do something like this (assuming netscape,\n"
+-"  but IE is likely to work similarly):\n"
++"  formatted one that curl can use, do something like this:\n"
+ "\n"
+-"    You start with hitting the 'security' menu button in netscape.\n"
++"    In Netscape, you start with hitting the 'Security' menu button.\n"
+ "\n"
+ "    Select 'certificates->yours' and then pick a certificate in the list\n"
+ "\n"
+-"    Press the 'export' button\n"
++"    Press the 'Export' button\n"
+ "\n"
+-, stdout);
+- fputs(
+ "    enter your PIN code for the certs\n"
+ "\n"
+ "    select a proper place to save it\n"
+ "\n"
++, stdout);
++ fputs(
+ "    Run the 'openssl' application to convert the certificate. If you cd to the\n"
+ "    openssl installation, you can do it like:\n"
+ "\n"
+ "     # ./apps/openssl pkcs12 -in [file you saved] -clcerts -out [PEMfile]\n"
+ "\n"
++"    In Firefox, select Options, then Advanced, then the Encryption tab,\n"
++"    View Certificates. This opens the Certificate Manager, where you can\n"
++"    Export. Be sure to select PEM for the Save as type.\n"
++"\n"
++"    In Internet Explorer, select Internet Options, then the Content tab, then\n"
++, stdout);
++ fputs(
++"    Certificates. Then you can Export, and depending on the format you may\n"
++"    need to convert to PEM.\n"
++"\n"
++"    In Chrome, select Settings, then Show Advanced Settings. Under HTTPS/SSL\n"
++"    select Manage Certificates.\n"
+ "\n"
+ "RESUMING FILE TRANSFERS\n"
+ "\n"
+ " To continue a file transfer where it was previously aborted, curl supports\n"
+-" resume on http(s) downloads as well as ftp uploads and downloads.\n"
++" resume on HTTP(S) downloads as well as FTP uploads and downloads.\n"
+ "\n"
+ " Continue downloading a document:\n"
+ "\n"
+-, stdout);
+- fputs(
+ "        curl -C - -o file ftp://ftp.server.com/path/file\n"
+ "\n"
++, stdout);
++ fputs(
+ " Continue uploading a document(*1):\n"
+ "\n"
+ "        curl -C - -T file ftp://ftp.server.com/path/file\n"
+ "\n"
+ " Continue downloading a document from a web server(*2):\n"
+ "\n"
+ "        curl -C - -o file http://www.server.com/\n"
+ "\n"
+-" (*1) = This requires that the ftp server supports the non-standard command\n"
++" (*1) = This requires that the FTP server supports the non-standard command\n"
+ "        SIZE. If it doesn't, curl will say so.\n"
+ "\n"
+ " (*2) = This requires that the web server supports at least HTTP/1.1. If it\n"
+ "        doesn't, curl will say so.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "TIME CONDITIONS\n"
+ "\n"
++, stdout);
++ fputs(
+ " HTTP allows a client to specify a time condition for the document it\n"
+-" requests. It is If-Modified-Since or If-Unmodified-Since. Curl allow you to\n"
++" requests. It is If-Modified-Since or If-Unmodified-Since. Curl allows you to\n"
+ " specify them with the -z/--time-cond flag.\n"
+ "\n"
+ " For example, you can easily make a download that only gets performed if the\n"
+ " remote file is newer than a local copy. It would be made like:\n"
+ "\n"
+ "        curl -z local.html http://remote.server.com/remote.html\n"

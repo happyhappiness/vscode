@@ -1,0 +1,1 @@
+voutf(config, WARN_PREFIX, fmt, ap);

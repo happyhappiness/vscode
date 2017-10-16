@@ -1,0 +1,16 @@
+fputs(
+"              binary option.\n"
+"\n"
+"              -d/--data is the same as --data-ascii.\n"
+"\n"
+"              If  this  option  is  used several times, the ones following the\n"
+"              first will append data.\n"
+"\n"
+"       --data-ascii <data>\n"
+"              (HTTP) This is an alias for the -d/--data option.\n"
+"\n"
+"              If this option is used several times,  the  ones  following  the\n"
+"              first will append data.\n"
+"\n"
+"       --data-binary <data>\n"
+, stdout);

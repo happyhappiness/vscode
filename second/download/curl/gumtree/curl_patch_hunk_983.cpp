@@ -1,0 +1,14 @@
+ "  SSL-version curl should use. Use -3 or -2 to specify that exact SSL version\n"
+ "  to use:\n"
+ "\n"
+ "        curl -2 https://secure.site.com/\n"
+ "\n"
+ "  Otherwise, curl will first attempt to use v3 and then v2.\n"
+-);
+- puts(
+ "\n"
+ "  To use OpenSSL to convert your favourite browser's certificate into a PEM\n"
+ "  formatted one that curl can use, do something like this (assuming netscape,\n"
+ "  but IE is likely to work similarly):\n"
+ "\n"
+ "    You start with hitting the 'security' menu button in netscape. \n"

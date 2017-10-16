@@ -1,0 +1,14 @@
+"\n"
+"        curl ftp://ftp.funet.fi/README\n"
+"\n"
+"  Get a gopher document from funet's gopher server:\n"
+"\n"
+"        curl gopher://gopher.funet.fi\n"
+);
+ puts(
+"\n"
+"  Get a web page from a server using port 8000:\n"
+"\n"
+"        curl http://www.weirdserver.com:8000/\n"
+"\n"
+"  Get a list of the root directory of an FTP site:\n"

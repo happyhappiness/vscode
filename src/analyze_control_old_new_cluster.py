@@ -11,6 +11,9 @@ import cluster_api
 import myUtil
 import my_constant
 
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
 """
 @ param
 @ return nothing

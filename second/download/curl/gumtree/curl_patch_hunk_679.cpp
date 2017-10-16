@@ -1,0 +1,94 @@
+ "\n"
+ "       17     FTP couldn't set binary.  Couldn't  change  transfer  method  to\n"
+ "              binary.\n"
+ "\n"
+ "       18     Partial file. Only a part of the file was transferred.\n"
+ "\n"
++"       19     FTP  couldn't download/access the given file, the RETR (or simi-\n"
+ , stdout);
+  fputs(
+-"       19     FTP  couldn't download/access the given file, the RETR (or simi-\n"
+ "              lar) command failed.\n"
+ "\n"
+ "       21     FTP quote error. A quote command returned error from the server.\n"
+ "       22     HTTP page not retrieved. The requested  url  was  not  found  or\n"
+ "              returned  another  error  with  the HTTP error code being 400 or\n"
+ "              above. This return code only appears if -f, --fail is used.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "       23     Write error. Curl couldn't write data to a local  filesystem  or\n"
+ "              similar.\n"
+ "\n"
++, stdout);
++ fputs(
+ "       25     FTP  couldn't  STOR  file. The server denied the STOR operation,\n"
+ "              used for FTP uploading.\n"
+ "\n"
+ "       26     Read error. Various reading problems.\n"
+ "\n"
+ "       27     Out of memory. A memory allocation request failed.\n"
+ "\n"
+ "       28     Operation timeout. The specified  time-out  period  was  reached\n"
+ "              according to the conditions.\n"
+ "\n"
++"       30     FTP  PORT  failed.  The PORT command failed. Not all FTP servers\n"
+ , stdout);
+  fputs(
+-"       30     FTP  PORT  failed.  The PORT command failed. Not all FTP servers\n"
+ "              support the PORT  command,  try  doing  a  transfer  using  PASV\n"
+ "              instead!\n"
+ "\n"
+ "       31     FTP  couldn't use REST. The REST command failed. This command is\n"
+ "              used for resumed FTP transfers.\n"
+ "\n"
+ "       33     HTTP range error. The range \"command\" didn't work.\n"
+ "\n"
+ "       34     HTTP post error. Internal post-request generation error.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "       35     SSL connect error. The SSL handshaking failed.\n"
+ "\n"
++, stdout);
++ fputs(
+ "       36     FTP bad download resume. Couldn't continue  an  earlier  aborted\n"
+ "              download.\n"
+ "\n"
+ "       37     FILE couldn't read file. Failed to open the file. Permissions?\n"
+ "\n"
+ "       38     LDAP cannot bind. LDAP bind operation failed.\n"
+ "\n"
+ "       39     LDAP search failed.\n"
+ "\n"
+ "       41     Function not found. A required LDAP function was not found.\n"
+ "\n"
+ "       42     Aborted by callback. An application told curl to abort the oper-\n"
+-, stdout);
+- fputs(
+ "              ation.\n"
+ "\n"
++, stdout);
++ fputs(
+ "       43     Internal error. A function was called with a bad parameter.\n"
+ "\n"
+ "       45     Interface error. A specified outgoing  interface  could  not  be\n"
+ "              used.\n"
+ "\n"
+ "       47     Too many redirects. When following redirects, curl hit the maxi-\n"
+ "              mum amount.\n"
+ "\n"
+ "       48     Unknown option specified to libcurl.  This  indicates  that  you\n"
+ "              passed  a weird option to curl that was passed on to libcurl and\n"
+-, stdout);
+- fputs(
+ "              rejected. Read up in the manual!\n"
+ "\n"
++, stdout);
++ fputs(
+ "       49     Malformed telnet option.\n"
+ "\n"
+ "       51     The peer's SSL certificate or SSH MD5 fingerprint was not OK.\n"
+ "\n"
+ "       52     The server didn't reply anything, which here  is  considered  an\n"
+ "              error.\n"

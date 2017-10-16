@@ -1,0 +1,17 @@
+fputs(
+"              used to seed the random engine for SSL connections.\n"
+"              See also the --edg-file option.\n"
+"\n"
+"       -r/--range <range>\n"
+"              (HTTP/FTP)  Retrieve  a  byte  range (i.e a partial\n"
+"              document) from a HTTP/1.1 or FTP server. Ranges can\n"
+"\n"
+"              be specified in a number of ways.\n"
+"\n"
+"              0-499     specifies the first 500 bytes\n"
+"\n"
+"              500-999   specifies the second 500 bytes\n"
+"\n"
+"              -500      specifies the last 500 bytes\n"
+"\n"
+, stdout);

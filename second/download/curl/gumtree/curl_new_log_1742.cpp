@@ -1,0 +1,16 @@
+fputs(
+"  RFC 2255, \"The LDAP URL Format\" http://www.rfc-editor.org/rfc/rfc2255.txt\n"
+"\n"
+"  To show you an example, this is now I can get all people from my local LDAP\n"
+"  server that has a certain sub-domain in their email address:\n"
+"\n"
+"        curl -B \"ldap://ldap.frontec.se/o=frontec??sub?mail=*sth.frontec.se\"\n"
+"\n"
+"  If I want the same info in HTML format, I can get it by not using the -B\n"
+"  (enforce ASCII) flag.\n"
+"\n"
+"ENVIRONMENT VARIABLES\n"
+"\n"
+"  Curl reads and understands the following environment variables:\n"
+"\n"
+, stdout);

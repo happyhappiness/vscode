@@ -1,0 +1,1 @@
+!tool_create_output_file(outs);

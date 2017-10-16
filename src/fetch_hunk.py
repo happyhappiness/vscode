@@ -235,7 +235,7 @@ def create_version_diff():
 @ involve sort dir by version
 """
 def get_version_number(version):
-    pattern = r'.*-(\d*)\.(\d*)\.(\d*)'
+    pattern = r'.*-(\d*)\.(\d*)\.*(\d*)'
     info = re.match(pattern, version)
     version_number = 0
     # 100 sub version
@@ -243,7 +243,8 @@ def get_version_number(version):
     if info:
         info = info.groups()
         for i in range(len(info)):
-            version_number += int(info[i]) * version_number_basis[i]
+            if info[i] != '':
+                version_number += int(info[i]) * version_number_basis[i]
     else:
         print 'error processing version dir %s' %version
     return version_number

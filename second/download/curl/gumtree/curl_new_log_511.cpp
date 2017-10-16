@@ -1,0 +1,15 @@
+fputs(
+"              multiple   IP  versions  (which  it  is  if  it  is\n"
+"              ipv6-capable), this option tells libcurl to resolve\n"
+"              names to IPv6 addresses only. (Added in 7.10.8)\n"
+"\n"
+"       -#/--progress-bar\n"
+"              Make   curl   display  progress  information  as  a\n"
+"              progress bar instead of the default statistics.\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable the progress bar.\n"
+"\n"
+"FILES\n"
+"       ~/.curlrc\n"
+, stdout);

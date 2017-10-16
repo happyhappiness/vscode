@@ -1,0 +1,15 @@
+fputs(
+"  -F instead of --form-string would allow a user to trick curl into\n"
+"  uploading a file.\n"
+"\n"
+"REFERRER\n"
+"\n"
+"  A HTTP request has the option to include information about which address\n"
+"  that referred to actual page.  Curl allows you to specify the\n"
+"  referrer to be used on the command line. It is especially useful to\n"
+"  fool or trick stupid servers or CGI scripts that rely on that information\n"
+"  being available or contain certain data.\n"
+"\n"
+"        curl -e www.coolsite.com http://www.showme.com/\n"
+"\n"
+, stdout);

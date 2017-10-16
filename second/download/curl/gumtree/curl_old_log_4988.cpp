@@ -1,0 +1,1 @@
+warnf(config, "Failed to create the file %s\n", out->filename);

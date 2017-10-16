@@ -1,0 +1,12 @@
+fputs(
+"              When  using this option, you must also provide a fake -u, --user\n"
+"              option to activate the authentication code properly.  Sending  a\n"
+"              '-u  :'  is  enough  as  the  user name and password from the -u\n"
+"              option aren't actually used.\n"
+"\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.\n"
+"\n"
+"       --no-keepalive\n"
+"              Disables the use of keepalive messages on the TCP connection, as\n"
+, stdout);

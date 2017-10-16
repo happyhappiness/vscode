@@ -1,0 +1,17 @@
+"\n"
+"     43   Internal error. A function was called with a bad param­\n"
+"          eter.\n"
+"\n"
+"     44   Internal error. A function was called in a bad order.\n"
+"\n"
+);
+ puts(
+"     45   Interface error. A specified outgoing interface could\n"
+"          not be used.\n"
+"\n"
+"     46   Bad password entered. An error was signalled when the\n"
+"          password was entered.\n"
+"\n"
+"     47   Too many redirects. When following redirects, curl hit\n"
+"          the maximum amount.\n"
+"\n"

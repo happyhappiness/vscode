@@ -1,0 +1,16 @@
+fputs(
+"              determines the amount.\n"
+"\n"
+"       -s/--silent\n"
+"              Silent mode. Don't show progress meter or error messages.  Makes\n"
+"              Curl mute.\n"
+"\n"
+"       -S/--show-error\n"
+"              When  used  with  -s  it  makes curl show an error message if it\n"
+"              fails.\n"
+"\n"
+"       --socks4 <host[:port]>\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
+"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
+"\n"
+, stdout);

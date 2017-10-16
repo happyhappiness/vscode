@@ -1,0 +1,18 @@
+fputs(
+"       If no protocol is specified in  the  proxy  string  or  if  the  string\n"
+"       doesn't  match  a  supported  one,  the proxy will be treated as a HTTP\n"
+"       proxy.\n"
+"\n"
+"       The supported proxy protocol prefixes are as follows:\n"
+"\n"
+"       socks4://\n"
+"              Makes it the equivalent of --socks4\n"
+"\n"
+"       socks4a://\n"
+"              Makes it the equivalent of --socks4a\n"
+"\n"
+"       socks5://\n"
+"              Makes it the equivalent of --socks5\n"
+"\n"
+"       socks5h://\n"
+, stdout);

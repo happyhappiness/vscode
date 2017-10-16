@@ -1,0 +1,16 @@
+fputs(
+"              that libcurl reports to support.\n"
+"\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
+"              libcurl reports to offer. Available features include:\n"
+"\n"
+"              IPv6   You can use IPv6 with this.\n"
+"\n"
+"              krb4   Krb4 for ftp is supported.\n"
+"\n"
+"              SSL    HTTPS and FTPS are supported.\n"
+"\n"
+"              libz   Automatic decompression of compressed files over HTTP  is\n"
+"                     supported.\n"
+"\n"
+, stdout);

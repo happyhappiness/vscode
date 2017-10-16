@@ -1,0 +1,18 @@
+fputs(
+"              libcurl reports to offer. Available features include:\n"
+"\n"
+"              IPv6   You can use IPv6 with this.\n"
+"\n"
+"              krb4   Krb4 for ftp is supported.\n"
+"\n"
+"              SSL    HTTPS and FTPS are supported.\n"
+"\n"
+"              libz   Automatic decompression of compressed files over HTTP  is\n"
+"                     supported.\n"
+"\n"
+"              NTLM   NTLM authentication is supported.\n"
+"\n"
+"              GSS-Negotiate\n"
+"                     Negotiate authentication and krb5 for ftp is supported.\n"
+"\n"
+, stdout);

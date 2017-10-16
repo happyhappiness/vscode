@@ -1,0 +1,16 @@
+fputs(
+"    Select 'certificates->yours' and then pick a certificate in the list\n"
+"\n"
+"    Press the 'Export' button\n"
+"\n"
+"    enter your PIN code for the certs\n"
+"\n"
+"    select a proper place to save it\n"
+"\n"
+"    Run the 'openssl' application to convert the certificate. If you cd to the\n"
+"    openssl installation, you can do it like:\n"
+"\n"
+"     # ./apps/openssl pkcs12 -in [file you saved] -clcerts -out [PEMfile]\n"
+"\n"
+"    In Firefox, select Options, then Advanced, then the Encryption tab,\n"
+, stdout);

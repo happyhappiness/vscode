@@ -1,0 +1,16 @@
+fputs(
+"              9500      specifies  the bytes from offset 9500 and\n"
+"                        forward\n"
+"\n"
+"              0-0,-1    specifies  the  first   and   last   byte\n"
+"                        only(*)(H)\n"
+"\n"
+"              500-700,600-799\n"
+"                        specifies 300 bytes from offset 500(H)\n"
+"\n"
+"              100-199,500-599\n"
+"                        specifies    two   separate   100   bytes\n"
+"                        ranges(*)(H)\n"
+"\n"
+"       (*) = NOTE that this will cause the server to reply with a\n"
+, stdout);

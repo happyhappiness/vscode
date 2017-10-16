@@ -1,0 +1,778 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/Android.mk /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/Android.mk
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/Android.mk	2011-11-05 06:32:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/Android.mk	2011-11-18 01:05:27.000000000 +0800
+@@ -1,11 +1,11 @@
+ # Google Android makefile for curl and libcurl
+ #
+ # Place the curl source (including this makefile) into external/curl/ in the
+ # Android source tree.  Then build them with 'make curl' or just 'make libcurl'
+-# from the Android root. Tested with Android 1.5 and 2.1
++# from the Android root. Tested with Android versions 1.5, 2.1-2.3
+ #
+ # Note: you must first create a curl_config.h file by running configure in the
+ # Android environment. The only way I've found to do this is tricky. Perform a
+ # normal Android build with libcurl in the source tree, providing the target
+ # "showcommands" to make. The build will eventually fail (because curl_config.h
+ # doesn't exist yet), but the compiler commands used to build curl will be
+@@ -39,13 +39,13 @@
+ #  /interwork/libgcc.a ..."
+ #
+ # Finally, copy the file COPYING to NOTICE so that the curl license gets put
+ # into the right place (but see the note about this below).
+ #
+ # Dan Fandrich
+-# August 2010
++# November 2011
+ 
+ LOCAL_PATH:= $(call my-dir)
+ 
+ common_CFLAGS := -Wpointer-arith -Wwrite-strings -Wunused -Winline -Wnested-externs -Wmissing-declarations -Wmissing-prototypes -Wno-long-long -Wfloat-equal -Wno-multichar -Wsign-compare -Wno-format-nonliteral -Wendif-labels -Wstrict-prototypes -Wdeclaration-after-statement -Wno-system-headers -DHAVE_CONFIG_H
+ 
+ #########################
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/CHANGES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/CHANGES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/CHANGES	2011-11-16 03:32:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/CHANGES	2011-11-18 01:18:46.000000000 +0800
+@@ -3,12 +3,34 @@
+                              / __| | | | |_) | |
+                             | (__| |_| |  _ <| |___
+                              \___|\___/|_| \_\_____|
+ 
+                                   Changelog
+ 
++Version 7.23.1 (17 Nov 2011)
++
++Daniel Stenberg (17 Nov 2011)
++- FindWin32CACert: return OK even if CA cert isn't found
++
++Version 7.23.1 (17 Nov 2011)
++  
++
++Version 7.23.1 (17 Nov 2011)
++  Bug: http://curl.haxx.se/mail/lib-2011-11/0180.html
++
++Version 7.23.1 (17 Nov 2011)
++  Reported by: Mark Brand
++
++Dan Fandrich (16 Nov 2011)
++- curl has been built on many Android versions
++
++Daniel Stenberg (15 Nov 2011)
++- 7.24.0: start the work
++
++- THANKS: added 18 new contributors from 7.23.0
++
+ Version 7.23.0 (14 Nov 2011)
+ 
+ Dan Fandrich (14 Nov 2011)
+ - curl_easy_setopt arguments should be of type long in the examples
+ 
+ Daniel Stenberg (12 Nov 2011)
+@@ -5060,30 +5082,6 @@
+ 
+ - axtls.c: cleanup
+   
+   Removed trailing whitespace
+   Removed several compiler warnings
+   Removed odd backslashes at some line endings
+-
+-- urldate: undef hideous memory defines
+-  
+-  The public axTLS header (at least as of 1.2.7) redefines the memory
+-  functions. We #undef those again immediately after the public header to
+-  limit the damage. This should be fixed in axTLS.
+-
+-- configure: make --with-axtls set prefix
+-  
+-  In tradition with other options, have this point to the directory prefix
+-  and not the lib directory. Otherwise we can't set the include path
+-  reliably.
+-
+-- [Eric Hu brought this change]
+-
+-  Minor fixes to pass tests 301 and 306 with a patched axTLS.
+-
+-- [Eric Hu brought this change]
+-
+-  Initial axTLS integration. Connections can be made and some tests pass.
+-  
+-  Failed HTTPS tests: 301, 306, 311, 312, 313, 560
+-  311, 312 need more detailed error reporting from axTLS.
+-  313 relates to CRL, which hasn't been implemented yet.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/docs/THANKS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/docs/THANKS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/docs/THANKS	2011-11-05 06:32:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/docs/THANKS	2011-11-16 03:43:57.000000000 +0800
+@@ -11,15 +11,17 @@
+ Adam Piggott
+ Adam Tkac
+ Adrian Schuur
+ Adriano Meirelles
+ Akos Pasztory
+ Alan Pinstein
++Albert Chin
+ Albert Chin-A-Young
+ Albert Choy
+ Ale Vesely
++Alejandro Alvarez
+ Aleksandar Milivojevic
+ Alessandro Vesely
+ Alex Bligh
+ Alex Fishman
+ Alex Neblett
+ Alex Suykov
+@@ -29,12 +31,13 @@
+ Alexander Krasnostavsky
+ Alexander Lazic
+ Alexander Zhuravlev
+ Alexey Borzov
+ Alexey Pesternikov
+ Alexey Simak
++Alexey Zakhlestin
+ Alexis Carvalho
+ Alfred Gebert
+ Allen Pulsifer
+ Amol Pattekar
+ Amr Shahin
+ Anatoli Tubman
+@@ -63,12 +66,13 @@
+ Andy Cedilnik
+ Andy Serpa
+ Andy Tsouladze
+ Angus Mackay
+ Anthony Bryan
+ Antoine Calando
++Anton Bychkov
+ Anton Kalmykov
+ Arkadiusz Miskiewicz
+ Armel Asselin
+ Arnaud Ebalard
+ Arve Knudsen
+ Ates Goral
+@@ -137,12 +141,13 @@
+ Christian Vogt
+ Christophe Demory
+ Christophe Legry
+ Christopher Conroy
+ Christopher Palow
+ Christopher R. Palmer
++Christopher Stone
+ Ciprian Badescu
+ Claes Jakobsson
+ Clarence Gardner
+ Clifford Wolf
+ Cody Jones
+ Colin Hogben
+@@ -222,12 +227,13 @@
+ Dmitry Kurochkin
+ Dmitry Popov
+ Dmitry Rechkin
+ Dolbneff A.V
+ Domenico Andreoli
+ Dominick Meglio
++Dominique Leuenberger
+ Doug Kaufman
+ Doug Porter
+ Douglas E. Wegscheid
+ Douglas Kilpatrick
+ Douglas R. Horner
+ Douglas Steinwand
+@@ -262,24 +268,26 @@
+ Erick Nuwendam
+ Erwan Legrand
+ Erwin Authried
+ Eugene Kotlyarov
+ Evan Jordan
+ Eygene Ryabinkin
++Fabian Hiernaux
+ Fabian Keil
+ Fabrizio Ammollo
+ Fedor Karpelevitch
+ Felix von Leitner
+ Feng Tu
+ Florian Schoppmann
+ Forrest Cahoon
+ Frank Hempel
+ Frank Keeney
+ Frank McGeough
+ Frank Meier
+ Frank Ticheler
++Frank Van Uffelen
+ Fred Machado
+ Fred New
+ Fred Noz
+ Frederic Lepied
+ Gabriel Kuri
+ Garrett Holmstrom
+@@ -303,12 +311,13 @@
+ Gilles Blanc
+ Gisle Vanem
+ Giuseppe Attardi
+ Giuseppe D'Ambrosio
+ Glen Nakamura
+ Glen Scott
++Gokhan Sengun
+ Grant Erickson
+ Greg Hewgill
+ Greg Morse
+ Greg Onufer
+ Greg Zavertnik
+ Grigory Entin
+@@ -390,12 +399,13 @@
+ Jeff Pohlmeyer
+ Jeff Weber
+ Jeffrey Pohlmeyer
+ Jeremy Friesner
+ Jerome Muffat-Meridol
+ Jerome Vouillon
++Jerry Wu
+ Jes Badwal
+ Jesper Jensen
+ Jesse Noller
+ Jim Drash
+ Jim Freeman
+ Jim Hollinger
+@@ -439,12 +449,13 @@
+ Juan Ignacio Hervás
+ Judson Bishop
+ Juergen Wilke
+ Jukka Pihl
+ Julian Noble
+ Julien Chaffraix
++Julien Royer
+ Jun-ichiro itojun Hagino
+ Jurij Smakov
+ Justin Fletcher
+ Jörg Mueller-Tolk
+ Jörn Hartroth
+ Kai Sommerfeld
+@@ -517,12 +528,13 @@
+ Manfred Schwarb
+ Manuel Massing
+ Marc Boucher
+ Marc Kleine-Budde
+ Marcel Roelofs
+ Marcelo Juchem
++Marcin Adamski
+ Marcin Konicki
+ Marco G. Salvagno
+ Marco Maggi
+ Marcus Sundberg
+ Marcus Webster
+ Mario Schroeder
+@@ -810,24 +822,27 @@
+ Sven Anders
+ Sven Neuhaus
+ Sven Wegener
+ Sébastien Willemijns
+ T. Bharath
+ T. Yamada
++Taneli Vahakangas
+ Tanguy Fautre
+ Temprimus
+ Thomas J. Moore
+ Thomas Klausner
++Thomas L. Shinnick
+ Thomas Lopatic
+ Thomas Schwinge
+ Thomas Tonino
+ Tim Ansell
+ Tim Baker
+ Tim Bartley
+ Tim Chen
+ Tim Costello
++Tim Harder
+ Tim Newsome
+ Tim Sneddon
+ Tinus van den Berg
+ Tobias Rundström
+ Toby Peterson
+ Todd A Ouska
+@@ -837,12 +852,13 @@
+ Tom Donovan
+ Tom Lee
+ Tom Mattison
+ Tom Moers
+ Tom Mueller
+ Tom Regner
++Tom Wright
+ Tom Zerucha
+ Tomas Pospisek
+ Tomas Szepe
+ Tomasz Lacki
+ Tommie Gannert
+ Tommy Tam
+@@ -866,12 +882,13 @@
+ Vincent Le Normand
+ Vincent Penquerc'h
+ Vincent Sanders
+ Vincent Torri
+ Vlad Grachov
+ Vlad Ureche
++Vladimir Grishchenko
+ Vladimir Lazarenko
+ Vojtech Janota
+ Vojtech Minarik
+ Vsevolod Novikov
+ Walter J. Mack
+ Wayne Haigh
+@@ -883,12 +900,13 @@
+ Wojciech Zwiefka
+ Wu Yongzheng
+ Xavier Bouchoux
+ Yang Tse
+ Yarram Sunil
+ Yehoshua Hershberg
++Yukihiro Kawada
+ Yuriy Sosov
+ Yves Lejeune
+ Zmey Petroff
+ Zvi Har'El
+ nk
+ swalkaus at yahoo.com
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/include/curl/curlver.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/include/curl/curlver.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/include/curl/curlver.h	2011-11-16 03:32:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/include/curl/curlver.h	2011-11-18 01:18:46.000000000 +0800
+@@ -27,19 +27,19 @@
+ 
+ /* This is the global package copyright */
+ #define LIBCURL_COPYRIGHT "1996 - 2011 Daniel Stenberg, <daniel@haxx.se>."
+ 
+ /* This is the version number of the libcurl package from which this header
+    file origins: */
+-#define LIBCURL_VERSION "7.23.0"
++#define LIBCURL_VERSION "7.23.1"
+ 
+ /* The numeric version number is also available "in parts" by using these
+    defines: */
+ #define LIBCURL_VERSION_MAJOR 7
+ #define LIBCURL_VERSION_MINOR 23
+-#define LIBCURL_VERSION_PATCH 0
++#define LIBCURL_VERSION_PATCH 1
+ 
+ /* This is the numeric version of the libcurl version number, meant for easier
+    parsing and comparions by programs. The LIBCURL_VERSION_NUM define will
+    always follow this syntax:
+ 
+          0xXXYYZZ
+@@ -50,20 +50,20 @@
+    appears as "0x090b07".
+ 
+    This 6-digit (24 bits) hexadecimal number does not show pre-release number,
+    and it is always a greater number in a more recent release. It makes
+    comparisons with greater than and less than work.
+ */
+-#define LIBCURL_VERSION_NUM 0x071700
++#define LIBCURL_VERSION_NUM 0x071701
+ 
+ /*
+  * This is the date and time when the full source package was created. The
+  * timestamp is not stored in git, as the timestamp is properly set in the
+  * tarballs by the maketgz script.
+  *
+  * The format of the date should follow this template:
+  *
+  * "Mon Feb 12 11:35:33 UTC 2007"
+  */
+-#define LIBCURL_TIMESTAMP "Tue Nov 15 19:30:34 UTC 2011"
++#define LIBCURL_TIMESTAMP "Thu Nov 17 17:17:45 UTC 2011"
+ 
+ #endif /* __CURL_CURLVER_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/include/curl/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/include/curl/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/include/curl/Makefile.in	2011-11-06 07:16:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/include/curl/Makefile.in	2011-11-16 03:45:41.000000000 +0800
+@@ -314,15 +314,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  include/curl/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  include/curl/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  include/curl/Makefile
++	  $(AUTOMAKE) --gnu  include/curl/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/lib/libcurl.plist /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/lib/libcurl.plist
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/lib/libcurl.plist	2011-11-16 03:32:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/lib/libcurl.plist	2011-11-18 01:18:46.000000000 +0800
+@@ -12,24 +12,24 @@
+ 	<string>curl</string>
+ 	
+ 	<key>CFBundleIdentifier</key>
+ 	<string>com.libcurl.libcurl</string>
+ 	
+ 	<key>CFBundleVersion</key>
+-	<string>7.23.0</string>
++	<string>7.23.1</string>
+ 
+ 	<key>CFBundleName</key>
+ 	<string>libcurl</string>
+ 
+ 	<key>CFBundlePackageType</key>
+ 	<string>FMWK</string>	
+ 	 
+ 	<key>CFBundleSignature</key>
+ 	<string>????</string>	
+ 	
+ 	<key>CFBundleShortVersionString</key>
+-	<string>libcurl 7.23.0</string>
++	<string>libcurl 7.23.1</string>
+ 	
+ 	<key>CFBundleGetInfoString</key>
+-	<string>libcurl.plist 7.23.0</string>
++	<string>libcurl.plist 7.23.1</string>
+ </dict>
+ </plist>
+\ No newline at end of file
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/AIX/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/AIX/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/AIX/Makefile.in	2011-11-06 07:16:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/AIX/Makefile.in	2011-11-16 03:45:42.000000000 +0800
+@@ -269,15 +269,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/AIX/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/AIX/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/AIX/Makefile
++	  $(AUTOMAKE) --gnu  packages/AIX/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/AIX/RPM/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/AIX/RPM/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/AIX/RPM/Makefile.in	2011-11-06 07:16:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/AIX/RPM/Makefile.in	2011-11-16 03:45:42.000000000 +0800
+@@ -260,15 +260,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/AIX/RPM/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/AIX/RPM/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/AIX/RPM/Makefile
++	  $(AUTOMAKE) --gnu  packages/AIX/RPM/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Linux/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Linux/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Linux/Makefile.in	2011-11-06 07:16:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Linux/Makefile.in	2011-11-16 03:45:42.000000000 +0800
+@@ -268,15 +268,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/Linux/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/Linux/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/Linux/Makefile
++	  $(AUTOMAKE) --gnu  packages/Linux/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Linux/RPM/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Linux/RPM/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Linux/RPM/Makefile.in	2011-11-06 07:16:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Linux/RPM/Makefile.in	2011-11-16 03:45:42.000000000 +0800
+@@ -260,15 +260,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/Linux/RPM/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/Linux/RPM/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/Linux/RPM/Makefile
++	  $(AUTOMAKE) --gnu  packages/Linux/RPM/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Makefile.in	2011-11-06 07:16:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -298,15 +298,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/Makefile
++	  $(AUTOMAKE) --gnu  packages/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Solaris/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Solaris/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Solaris/Makefile.in	2011-11-06 07:16:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Solaris/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -266,15 +266,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/Solaris/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/Solaris/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/Solaris/Makefile
++	  $(AUTOMAKE) --gnu  packages/Solaris/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/vms/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/vms/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/vms/Makefile.in	2011-11-06 07:16:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/vms/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -275,15 +275,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/vms/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/vms/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/vms/Makefile
++	  $(AUTOMAKE) --gnu  packages/vms/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Win32/cygwin/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Win32/cygwin/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Win32/cygwin/Makefile.in	2011-11-06 07:16:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Win32/cygwin/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -276,15 +276,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/Win32/cygwin/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/Win32/cygwin/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/Win32/cygwin/Makefile
++	  $(AUTOMAKE) --gnu  packages/Win32/cygwin/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Win32/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Win32/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/packages/Win32/Makefile.in	2011-11-06 07:16:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/packages/Win32/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -269,15 +269,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  packages/Win32/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  packages/Win32/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  packages/Win32/Makefile
++	  $(AUTOMAKE) --gnu  packages/Win32/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/RELEASE-NOTES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/RELEASE-NOTES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/RELEASE-NOTES	2011-11-12 17:09:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/RELEASE-NOTES	2011-11-18 01:17:40.000000000 +0800
+@@ -1,70 +1,24 @@
+-Curl and libcurl 7.23.0
++Curl and libcurl 7.23.1
+ 
+- Public curl releases:         125
++ Public curl releases:         126
+  Command line options:         149
+  curl_easy_setopt() options:   192
+  Public functions in libcurl:  58
+  Known libcurl bindings:       39
+- Contributors:                 873
+-
+-This release includes the following changes:
+-
+- o Empty headers can be sent in HTTP requests by terminating with a semicolon
+- o SSL session sharing support added to curl_share_setopt()
+- o Added support to MAIL FROM for the optional SIZE parameter
+- o smtp: Added support for NTLM authentication
+- o curl tool: code split into tool_*.[ch] files
++ Contributors:                 907
+ 
+ This release includes the following bugfixes:
+ 
+- o handle HTTP redirects to "//hostname/path"
+- o SMTP without --mail-from caused segfault
+- o prevent extra progress meter headers between multiple files
+- o allow Content-Length to be replaced when sending HTTP requests
+- o curl now always sets postfieldsize to allow --data-binary and --data
+-   to be mixed in the same command line
+- o curl_multi_fdset: avoid FD_SET out of bounds
+- o lots of MinGW build tweaks
+- o Curl_gethostname: return un-qualified machine name
+- o fixed the openssl version number configure check
+- o nss: certificates from files are no longer looked up by file base names
+- o returning abort from the progress function when using the multi interface
+-   would not properly cancel the transfer and close the connection
+- o fix libcurl.m4 to not fail with modern gcc versions
+- o ftp: improved the failed PORT host name resolved error message
+- o TFTP timeout and unexpected block adjustments
+- o HTTP and GOPHER test server-side connection closing adjustments
+- o fix endless loop upon transport connection timeout
+- o don't clobber errno on failed connect
+- o typecheck: allow NULL to unset CURLOPT_ERRORBUFFER
+- o formdata: ack read callback abort
+- o make --show-error properly position independent
+- o set the ipv6-connection boolean correctly on connect
+- o SMTP: fix end-of-body string escaping
+- o gtls: only call gnutls_transport_set_lowat with <gnutls-2.12.0
+- o HTTP: handle multiple auths in a single WWW-Authenticate line
+- o curl_multi_fdset: correct fdset with FTP PORT use
+- o windbuild: fix the static build
+- o fix builds with GnuTLS version 3
+- o fix calling of OpenSSL's ERR_remove_state(0)
+- o HTTP auth: fix proxy Negotiate bug when Negotiate not requested
+- o ftp PORT: don't hang if bind() fails
+- o -# would crash on terminals wider than 256 columns
++ o Windows: curl would fail if it found no CA cert, unless -k was used. Even
++   if a non-SSL protocol URL was used
+ 
+ This release includes the following known bugs:
+ 
+  o see docs/KNOWN_BUGS (http://curl.haxx.se/docs/knownbugs.html)
+ 
+ This release would not have looked like this without help, code, reports and
+ advice from friends like these:
+ 
+- Yukihiro Kawada, Dave Reisner, Gisle Vanem, Guenter Knauf, Steve Holme,
+- Yang Tse, Christopher Stone, Taneli Vahakangas, Albert Chin,
+- Alejandro Alvarez, Dan Fandrich, Julien Royer, Georg Lippitsch,
+- Vladimir Grishchenko, Dominique Leuenberger, Marcin Adamski,
+- Jerry Wu, Michal Marek, Frank Van Uffelen, Fabian Hiernaux, Anton Bychkov,
+- Andreas Olsson, Kamil Dudka, Thomas L. Shinnick, Tim Harder, Nick Zitzmann,
+- Gokhan Sengun, Tom Wright, Patrick Monnerat, Rene Bernhardt,
+- Alexey Zakhlestin
++ Mark Brand
+ 
+         Thanks! (and sorry if I forgot to mention someone)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/src/tool_doswin.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/src/tool_doswin.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/src/tool_doswin.c	2011-11-05 06:32:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/src/tool_doswin.c	2011-11-18 01:05:27.000000000 +0800
+@@ -282,14 +282,12 @@
+     if(res_len > 0) {
+       Curl_safefree(config->cacert);
+       config->cacert = strdup(buf);
+       if(!config->cacert)
+         result = CURLE_OUT_OF_MEMORY;
+     }
+-    else
+-      result = CURLE_SSL_CACERT;
+ 
+     Curl_safefree(buf);
+   }
+ 
+   return result;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/src/tool_version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/src/tool_version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/src/tool_version.h	2011-11-16 03:32:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/src/tool_version.h	2011-11-18 01:18:46.000000000 +0800
+@@ -22,13 +22,13 @@
+  *
+  ***************************************************************************/
+ #include <curl/curlver.h>
+ 
+ #define CURL_NAME "curl"
+ #define CURL_COPYRIGHT LIBCURL_COPYRIGHT
+-#define CURL_VERSION "7.23.0"
++#define CURL_VERSION "7.23.1"
+ #define CURL_VERSION_MAJOR LIBCURL_VERSION_MAJOR
+ #define CURL_VERSION_MINOR LIBCURL_VERSION_MINOR
+ #define CURL_VERSION_PATCH LIBCURL_VERSION_PATCH
+ #define CURL_ID CURL_NAME " " CURL_VERSION " (" OS ") "
+ 
+ #endif /* HEADER_CURL_TOOL_VERSION_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/tests/data/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/tests/data/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/tests/data/Makefile.in	2011-11-16 03:32:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/tests/data/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -340,15 +340,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  tests/data/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  tests/data/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  tests/data/Makefile
++	  $(AUTOMAKE) --gnu  tests/data/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/tests/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/tests/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.0/tests/Makefile.in	2011-11-06 07:16:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.23.1/tests/Makefile.in	2011-11-16 03:45:43.000000000 +0800
+@@ -313,15 +313,15 @@
+ 	    *$$dep*) \
+ 	      cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh \
+ 		&& exit 0; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign  tests/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu  tests/Makefile'; \
+ 	cd $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign  tests/Makefile
++	  $(AUTOMAKE) --gnu  tests/Makefile
+ .PRECIOUS: Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \

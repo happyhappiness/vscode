@@ -1,0 +1,65 @@
+"              not try using EPSV.\n"
+"\n"
+"              --epsv can be used to explicitly enable EPRT again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
+"\n"
+"              Disabling EPSV only changes the passive behavior. If you want to\n"
+"              switch to active mode you need to use -P/--ftp-port.\n"
+"\n"
+"       -D/--dump-header <file>\n"
+, stdout);
+ fputs(
+"              Write the protocol headers to the specified file.\n"
+"\n"
+"              This option is handy to use when you want to store  the  headers\n"
+"              that  a  HTTP  site sends to you. Cookies from the headers could\n"
+"              then  be  read  in  a  second  curl  invocation  by  using   the\n"
+"              -b/--cookie option! The -c/--cookie-jar option is however a bet-\n"
+"              ter way to store cookies.\n"
+"\n"
+, stdout);
+ fputs(
+"              When used in FTP, the FTP server response lines  are  considered\n"
+"              being \"headers\" and thus are saved there.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -e/--referer <URL>\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H/--header flag of course.   When\n"
+"              used  with -L/--location you can append \";auto\" to the --referer\n"
+, stdout);
+ fputs(
+"              URL to make curl automatically set the previous URL when it fol-\n"
+"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
+"              even if you don't set an initial --referer.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --engine <name>\n"
+"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
+"              Use  --engine  list  to  print  a  list  of build-time supported\n"
+, stdout);
+ fputs(
+"              engines. Note that not all (or  none)  of  the  engines  may  be\n"
+"              available at run-time.\n"
+"\n"
+"       --environment\n"
+"              (RISC  OS ONLY) Sets a range of environment variables, using the\n"
+"              names the -w option supports, to allow easier extraction of use-\n"
+"              ful information after having run curl.\n"
+"\n"
+"       --egd-file <file>\n"
+"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
+, stdout);
+ fputs(
+"              socket. The socket is used to seed the  random  engine  for  SSL\n"
+"              connections. See also the --random-file option.\n"
+"\n"
+"       -E/--cert <certificate[:password]>\n"
+"              (SSL)  Tells  curl  to use the specified client certificate file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col.  The  certificate  must  be in PEM format.  If the optional\n"
+"              password isn't specified, it will be queried for on  the  termi-\n"
+, stdout);
+ fputs(

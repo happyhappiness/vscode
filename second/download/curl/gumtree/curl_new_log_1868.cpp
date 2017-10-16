@@ -1,0 +1,18 @@
+fputs(
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
+"              or\n"
+"\n"
+"              curl -F \"name=daniel;type=text/foo\" url.com\n"
+"\n"
+"              You can also explicitly change the name field of an file  upload\n"
+"              part by setting filename=, like this:\n"
+"\n"
+"              curl -F \"file=@localfile;filename=nameinpost\" url.com\n"
+"\n"
+"              See further examples and details in the MANUAL.\n"
+"\n"
+"              This option can be used multiple times.\n"
+"\n"
+"       --form-string <name=string>\n"
+, stdout);

@@ -1,0 +1,15 @@
+fputs(
+"              To  read  the file's content from stdin instead of a file, use -\n"
+"              where the file name should've been. This goes for both @  and  <\n"
+"              constructs.\n"
+"\n"
+"              You  can  also  tell  curl  what  Content-Type  to  use by using\n"
+"              'type=', in a manner similar to:\n"
+"\n"
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
+"              or\n"
+"\n"
+"              curl -F \"name=daniel;type=text/foo\" url.com\n"
+"\n"
+, stdout);

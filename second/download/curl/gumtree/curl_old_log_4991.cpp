@@ -1,0 +1,16 @@
+fputs(
+"                                  _   _ ____  _     \n"
+"  Project                     ___| | | |  _ \\| |    \n"
+"                             / __| | | | |_) | |    \n"
+"                            | (__| |_| |  _ <| |___ \n"
+"                             \\___|\\___/|_| \\_\\_____|\n"
+"\n"
+"NAME\n"
+"       curl - transfer a URL\n"
+"\n"
+"SYNOPSIS\n"
+"       curl [options] [URL...]\n"
+"\n"
+"DESCRIPTION\n"
+"       curl  is  a tool to transfer data from or to a server, using one of the\n"
+, stdout);

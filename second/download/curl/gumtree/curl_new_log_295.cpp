@@ -1,0 +1,18 @@
+puts(
+"    Run the 'openssl' application to convert the certificate. If you cd to the\n"
+"    openssl installation, you can do it like:\n"
+"\n"
+"     # ./apps/openssl pkcs12 -in [file you saved] -clcerts -out [PEMfile]\n"
+"\n"
+"\n"
+"RESUMING FILE TRANSFERS\n"
+"\n"
+" To continue a file transfer where it was previously aborted, curl supports\n"
+" resume on http(s) downloads as well as ftp uploads and downloads.\n"
+"\n"
+" Continue downloading a document:\n"
+"\n"
+"        curl -C - -o file ftp://ftp.server.com/path/file\n"
+"\n"
+" Continue uploading a document(*1):\n"
+);

@@ -1,0 +1,15 @@
+fputs(
+"              If this option is used twice, the second will again\n"
+"              disable silent failure.\n"
+"\n"
+"       --ftp-pasv\n"
+"              (FTP) Use PASV when transfering. PASV is the inter-\n"
+"              nal default behavior, but using this option can  be\n"
+"              used  to  override  a  previos  --ftp-port  option.\n"
+"              (Added in 7.11.0)\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable silent failure.\n"
+"\n"
+"       --ftp-ssl\n"
+, stdout);

@@ -1,0 +1,16 @@
+"\n"
+"       -y/--speed-time <time>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
+"\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
+, stdout);
+ fputs(
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y/--speed-limit <speed>\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"

@@ -1,0 +1,36 @@
+, stdout);
+ fputs(
+"              (Added in 7.20.0)\n"
+"       --tftp-no-options\n"
+"              (TFTP) Tells curl not to send TFTP options requests.\n"
+"\n"
+"              This  option  improves  interop with some legacy servers that do\n"
+"              not acknowledge or properly implement TFTP  options.  When  this\n"
+"              option is used --tftp-blksize is ignored.\n"
+"\n"
+"              (Added in 7.48.0)\n"
+"\n"
+"       --tlsauthtype <authtype>\n"
+"              Set  TLS  authentication  type.  Currently,  the  only supported\n"
+, stdout);
+ fputs(
+"              option is \"SRP\",  for  TLS-SRP  (RFC  5054).  If  --tlsuser  and\n"
+"              --tlspassword  are specified but --tlsauthtype is not, then this\n"
+"              option defaults to \"SRP\".  (Added in 7.21.4)\n"
+"\n"
+"       --tlspassword <password>\n"
+"              Set password for use with the TLS authentication  method  speci-\n"
+"              fied  with  --tlsauthtype.  Requires that --tlsuser also be set.\n"
+"              (Added in 7.21.4)\n"
+"\n"
+"       --tlsuser <user>\n"
+, stdout);
+ fputs(
+"              Set username for use with the TLS authentication  method  speci-\n"
+"              fied  with  --tlsauthtype.  Requires  that --tlspassword also be\n"
+"              set.  (Added in 7.21.4)\n"
+"\n"
+"       --tlsv1.0\n"
+"              (SSL) Forces curl to use TLS version 1.0 when negotiating with a\n"
+"              remote TLS server.  (Added in 7.34.0)\n"
+"\n"

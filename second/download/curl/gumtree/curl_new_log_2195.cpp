@@ -1,0 +1,16 @@
+fputs(
+"   SSL-specific options for certificates etc.\n"
+"\n"
+"   Note that using FTPS:// as prefix is the \"implicit\" way as described in the\n"
+"   standards while the recommended \"explicit\" way is done by using FTP:// and\n"
+"   the --ftp-ssl option.\n"
+"\n"
+" HTTP\n"
+"\n"
+"   The HTTP URL doesn't support user and password in the URL string. Curl\n"
+"   does support that anyway to provide a ftp-style interface and thus you can\n"
+"   pick a file like:\n"
+"\n"
+"        curl http://name:passwd@machine.domain/full/path/to/file\n"
+"\n"
+, stdout);

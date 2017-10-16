@@ -1,0 +1,20 @@
+ "        http://curl.haxx.se\n"
+ "\n"
+ "SIMPLE USAGE\n"
+ "\n"
+ "  Get the main page from netscape's web-server:\n"
+ "\n"
+-);
+- puts(
+ "        curl http://www.netscape.com/\n"
+ "\n"
+ "  Get the root README file from funet's ftp-server:\n"
+ "\n"
++);
++ puts(
+ "        curl ftp://ftp.funet.fi/README\n"
+ "\n"
+ "  Get a web page from a server using port 8000:\n"
+ "\n"
+ "        curl http://www.weirdserver.com:8000/\n"
+ "\n"

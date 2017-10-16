@@ -1,0 +1,15 @@
+puts(
+"          If used with uploads, the ftp server command SIZE  will\n"
+"          not be used by curl.\n"
+"\n"
+"          Use  \"-C  -\"  to  tell  curl  to automatically find out\n"
+"          where/how to resume the  transfer.  It  then  uses  the\n"
+"          given output/input files to figure that out.\n"
+"\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     --crlf\n"
+"          (FTP) Convert LF to CRLF  in  upload.  Useful  for  MVS\n"
+"          (OS/390).\n"
+);

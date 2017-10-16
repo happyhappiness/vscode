@@ -1,0 +1,15 @@
+fputs(
+"              sages.   Makes  Curl mute. It will still output the data you ask\n"
+"              for, potentially even to the terminal/stdout unless you redirect\n"
+"              it.\n"
+"\n"
+"       --sasl-ir\n"
+"              Enable  initial  response  in  SASL  authentication.   (Added in\n"
+"              7.31.0)\n"
+"\n"
+"       -S, --show-error\n"
+"              When used with -s it makes curl show  an  error  message  if  it\n"
+"              fails.\n"
+"\n"
+"       --ssl  (FTP,  POP3,  IMAP, SMTP) Try to use SSL/TLS for the connection.\n"
+, stdout);

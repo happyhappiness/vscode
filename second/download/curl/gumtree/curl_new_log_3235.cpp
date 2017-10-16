@@ -1,0 +1,17 @@
+fputs(
+"        curl -u username sftp://shell.example.com/etc/issue\n"
+"\n"
+"  Get a file from an SSH server using SCP using a private key to authenticate:\n"
+"\n"
+"        curl -u username: --key ~/.ssh/id_dsa --pubkey ~/.ssh/id_dsa.pub \\\n"
+"        	scp://shell.example.com/~/personal.txt\n"
+"\n"
+"\n"
+"DOWNLOAD TO A FILE\n"
+"\n"
+"  Get a web page and store in a local file:\n"
+"\n"
+"        curl -o thatpage.html http://www.netscape.com/\n"
+"\n"
+"  Get a web page and store in a local file, make the local file get the name\n"
+, stdout);

@@ -1,0 +1,17 @@
+fputs(
+"       84     The FTP PRET command failed\n"
+"\n"
+"       85     RTSP: mismatch of CSeq numbers\n"
+"\n"
+"       86     RTSP: mismatch of Session Identifiers\n"
+"\n"
+"       87     unable to parse FTP file list\n"
+"\n"
+"       88     FTP chunk callback reported error\n"
+"\n"
+"       XX     More error codes will appear here in future releases. The exist-\n"
+"              ing ones are meant to never change.\n"
+"\n"
+"AUTHORS / CONTRIBUTORS\n"
+"       Daniel Stenberg is the main author, but the whole list of  contributors\n"
+, stdout);

@@ -1,0 +1,15 @@
+fputs(
+"              A quick and very simple example of how to  setup  a\n"
+"              .netrc   to  allow  curl  to  ftp  to  the  machine\n"
+"              host.domain.com with user name 'myself'  and  pass�\n"
+"              word\n"
+"\n"
+"              machine   host.domain.com   login  myself  password\n"
+"              secret\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable netrc usage.\n"
+"\n"
+"       --netrc-optional\n"
+"              Very  similar to --netrc, but this option makes the\n"
+, stdout);

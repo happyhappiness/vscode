@@ -1,0 +1,17 @@
+fputs(
+"              versions (which it is if it is ipv6-capable), this option  tells\n"
+"              libcurl  to  resolve  names  to  IPv6  addresses only. (Added in\n"
+"              7.10.8)\n"
+"\n"
+"       -#/--progress-bar\n"
+"              Make curl display progress information as a progress bar instead\n"
+"              of the default statistics.\n"
+"\n"
+"              If  this option is used twice, the second will again disable the\n"
+"              progress bar.\n"
+"\n"
+"FILES\n"
+"       ~/.curlrc\n"
+"              Default config file.\n"
+"\n"
+, stdout);

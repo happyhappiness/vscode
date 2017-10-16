@@ -1,0 +1,1 @@
+warnf(config, "unrecognized protocol '%s'\n", token);

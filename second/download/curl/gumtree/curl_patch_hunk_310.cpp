@@ -1,0 +1,43 @@
+ "\n"
+ " Get an ftp file using a proxy named my-proxy that uses port 888:\n"
+ "\n"
+ "        curl -x my-proxy:888 ftp://ftp.leachsite.com/README\n"
+ "\n"
+ " Get a file from a HTTP server that requires user and password, using the\n"
+-, stdout);
+- fputs(
+ " same proxy as above:\n"
+ "\n"
+ "        curl -u user:passwd -x my-proxy:888 http://www.get.this/\n"
+ "\n"
+ " Some proxies require special authentication. Specify by using -U as above:\n"
+ "\n"
++, stdout);
++ fputs(
+ "        curl -U user:passwd -x my-proxy:888 http://www.get.this/\n"
+ "\n"
+ " curl also supports SOCKS4 and SOCKS5 proxies with --socks4 and --socks5.\n"
+ "\n"
+ " See also the environment variables Curl support that offer further proxy\n"
+ " control.\n"
+ "\n"
+ "RANGES\n"
+ "\n"
+ "  With HTTP 1.1 byte-ranges were introduced. Using this, a client can request\n"
+-, stdout);
+- fputs(
+ "  to get only one or more subparts of a specified document. Curl supports\n"
+ "  this with the -r flag.\n"
+ "\n"
+ "  Get the first 100 bytes of a document:\n"
+ "\n"
+ "        curl -r 0-99 http://www.get.this/\n"
+ "\n"
++, stdout);
++ fputs(
+ "  Get the last 500 bytes of a document:\n"
+ "\n"
+ "        curl -r -500 http://www.get.this/\n"
+ "\n"
+ "  Curl also supports simple ranges for FTP files as well. Then you can only\n"
+ "  specify start and stop position.\n"

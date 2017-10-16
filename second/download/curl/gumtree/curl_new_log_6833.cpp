@@ -1,0 +1,15 @@
+fputs(
+"              See further examples and details in the MANUAL.\n"
+"\n"
+"              This option can be used multiple times.\n"
+"\n"
+"       --ftp-account [data]\n"
+"              (FTP) When an FTP server asks for \"account data\" after user name\n"
+"              and password has been provided, this data is sent off using  the\n"
+"              ACCT command. (Added in 7.13.0)\n"
+"\n"
+"              If  this option is used twice, the second will override the pre-\n"
+"              vious use.\n"
+"\n"
+"       --ftp-alternative-to-user <command>\n"
+, stdout);

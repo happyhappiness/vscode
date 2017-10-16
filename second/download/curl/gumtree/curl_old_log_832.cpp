@@ -1,0 +1,15 @@
+fputs(
+"              .netrc  to  allow  curl  to  ftp  to  the   machine\n"
+"              host.domain.com  with  user name 'myself' and pass-\n"
+"              word\n"
+"\n"
+"              machine  host.domain.com  login   myself   password\n"
+"              secret\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable netrc usage.\n"
+"\n"
+"       --negotiate\n"
+"              (HTTP) Enables  GSS-Negotiate  authentication.  The\n"
+"              GSS-Negotiate  method was designed by Microsoft and\n"
+, stdout);

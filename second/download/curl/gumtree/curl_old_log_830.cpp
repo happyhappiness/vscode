@@ -1,0 +1,15 @@
+fputs(
+"              networks or links going down.   This  doesn't  work\n"
+"              fully  in  win32  systems.  See also the --connect-\n"
+"              timeout option.\n"
+"\n"
+"              If this option is used several times, the last  one\n"
+"              will be used.\n"
+"\n"
+"       -M/--manual\n"
+"              Manual. Display the huge help text.\n"
+"\n"
+"       -n/--netrc\n"
+"              Makes  curl scan the .netrc file in the user's home\n"
+"              directory for login name and password. This is typ-\n"
+, stdout);

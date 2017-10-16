@@ -1,0 +1,20 @@
+ "RANGES\n"
+ "\n"
+ "  With HTTP 1.1 byte-ranges were introduced. Using this, a client can request\n"
+ "  to get only one or more subparts of a specified document. Curl supports\n"
+ "  this with the -r flag.\n"
+ "\n"
++);
++ puts(
+ "  Get the first 100 bytes of a document:\n"
+ "\n"
+ "        curl -r 0-99 http://www.get.this/\n"
+ "\n"
+-);
+- puts(
+ "  Get the last 500 bytes of a document:\n"
+ "\n"
+ "        curl -r -500 http://www.get.this/\n"
+ "\n"
+ "  Curl also supports simple ranges for FTP files as well. Then you can only\n"
+ "  specify start and stop position.\n"

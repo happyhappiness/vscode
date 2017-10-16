@@ -1,0 +1,15 @@
+puts(
+"          Specify  the filename as '-' to make curl read the file\n"
+"          from stdin.\n"
+"\n"
+"          Note that to be able to specify a  URL  in  the  config\n"
+"          file,  you  need  to specify it using the --url option,\n"
+"          and not by simply writing the URL on its own line.  So,\n"
+"          it could look similar to this:\n"
+"\n"
+"          url = \"http://curl.haxx.se/docs/\"\n"
+"\n"
+"          This option can be used multiple times.\n"
+"\n"
+"     --limit-rate <speed>\n"
+);

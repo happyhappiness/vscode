@@ -1,0 +1,1 @@
+puts(" -#/--progress-bar  Display transfer progress as a progress bar");

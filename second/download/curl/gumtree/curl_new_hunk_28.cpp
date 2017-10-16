@@ -1,0 +1,37 @@
+"FTP and firewalls\n"
+"\n"
+"  The FTP protocol requires one of the involved parties to open a second\n"
+"  connction as soon as data is about to get transfered. There are two ways to\n"
+"  do this.\n"
+"\n"
+, stdout);
+ fputs(
+"  The default way for curl is to issue the PASV command which causes the\n"
+"  server to open another port and await another connection performed by the\n"
+"  client. This is good if the client is behind a firewall that don't allow\n"
+"  incoming connections.\n"
+"\n"
+"        curl ftp.download.com\n"
+"\n"
+"  If the server for example, is behind a firewall that don't allow connections\n"
+"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
+, stdout);
+ fputs(
+"  other way to do it is to use the PORT command and instruct the server to\n"
+"  connect to the client on the given (as parameters to the PORT command) IP\n"
+"  number and port.\n"
+"\n"
+"  The -P flag to curl supports a few different options. Your machine may have\n"
+"  several IP-addresses and/or network interfaces and curl allows you to select\n"
+"  which of them to use. Default address can also be used:\n"
+"\n"
+"        curl -P - ftp.download.com\n"
+"\n"
+, stdout);
+ fputs(
+"  Download with PORT but use the IP address of our 'le0' interface (this does\n"
+"  not work on windows):\n"
+"\n"
+"        curl -P le0 ftp.download.com\n"
+"\n"
+"  Download with PORT but use 192.168.0.10 as our IP address to use:\n"

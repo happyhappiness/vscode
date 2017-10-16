@@ -1,0 +1,1 @@
+voutf(config, NOTE_PREFIX, fmt, ap);

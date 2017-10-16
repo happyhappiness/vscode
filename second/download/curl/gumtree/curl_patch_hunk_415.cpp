@@ -1,0 +1,402 @@
+ "       try  other  protocols based on often-used host name prefixes. For exam-\n"
+ , stdout);
+  fputs(
+ "       ple, for host names starting with \"ftp.\" curl will assume you  want  to\n"
+ "       speak FTP.\n"
+ "\n"
++"       curl  will  do  its best to use what you pass to it as a URL. It is not\n"
++"       trying to validate it as a syntactically correct URL by any  means  but\n"
++"       is instead very liberal with what it accepts.\n"
++"\n"
+ "       Curl will attempt to re-use connections for multiple file transfers, so\n"
+ "       that getting many files from the same server will not do multiple  con-\n"
++, stdout);
++ fputs(
+ "       nects / handshakes. This improves speed. Of course this is only done on\n"
+ "       files specified on a single command line and  cannot  be  used  between\n"
+ "       separate curl invokes.\n"
+ "\n"
+ "PROGRESS METER\n"
+-, stdout);
+- fputs(
+ "       curl  normally  displays a progress meter during operations, indicating\n"
+ "       the amount of transferred data,  transfer  speeds  and  estimated  time\n"
+ "       left, etc.\n"
+ "\n"
+ "       However,  since  curl displays this data to the terminal by default, if\n"
++, stdout);
++ fputs(
+ "       you invoke curl to do an operation and it is about to write data to the\n"
+ "       terminal,  it disables the progress meter as otherwise it would mess up\n"
+ "       the output mixing progress meter and response data.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "       If you want a progress meter for HTTP POST or PUT requests, you need to\n"
+ "       redirect  the  response  output to a file, using shell redirect (>), -o\n"
+ "       [file] or similar.\n"
+ "\n"
+ "       It is not the same case for FTP upload as that operation does not  spit\n"
++, stdout);
++ fputs(
+ "       out any response data to the terminal.\n"
+ "\n"
+ "       If you prefer a progress \"bar\" instead of the regular meter, -# is your\n"
+ "       friend.\n"
+ "OPTIONS\n"
+ "       In general, all boolean options are enabled with --option and yet again\n"
+-, stdout);
+- fputs(
+ "       disabled  with --no-option. That is, you use the exact same option name\n"
+ "       but prefix it with \"no-\". However, in this list we mostly only list and\n"
+ "       show  the --option version of them. (This concept with --no options was\n"
++, stdout);
++ fputs(
+ "       added in  7.19.0.  Previously  most  options  were  toggled  on/off  on\n"
+ "       repeated use of the same command line option.)\n"
+ "\n"
+ "       -a/--append\n"
+ "              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
+-, stdout);
+- fputs(
+ "              to the target file  instead  of  overwriting  it.  If  the  file\n"
+ "              doesn't  exist,  it  will  be  created.   Note that this flag is\n"
+ "              ignored by some SSH servers (including OpenSSH).\n"
+ "\n"
+ "       -A/--user-agent <agent string>\n"
++, stdout);
++ fputs(
+ "              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+ "              Some   badly   done  CGIs  fail  if  this  field  isn't  set  to\n"
+ "              \"Mozilla/4.0\". To encode blanks  in  the  string,  surround  the\n"
+-, stdout);
+- fputs(
+ "              string  with  single  quote marks. This can also be set with the\n"
+ "              -H/--header option of course.\n"
+ "\n"
+ "              If this option is set more than once, the last one will  be  the\n"
+ "              one that's used.\n"
+ "\n"
+ "       --anyauth\n"
++, stdout);
++ fputs(
+ "              (HTTP) Tells curl to figure out authentication method by itself,\n"
+ "              and use the most secure one the remote site claims  to  support.\n"
+ "              This is done by first doing a request and checking the response-\n"
+-, stdout);
+- fputs(
+ "              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+ "              This  is  used  instead  of  setting  a  specific authentication\n"
+ "              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
++, stdout);
++ fputs(
+ "              --negotiate.\n"
+ "\n"
+ "              Note  that  using --anyauth is not recommended if you do uploads\n"
+ "              from stdin, since it may require data to be sent twice and  then\n"
+-, stdout);
+- fputs(
+ "              the client must be able to rewind. If the need should arise when\n"
+ "              uploading from stdin, the upload operation will fail.\n"
+ "\n"
+ "       -b/--cookie <name=data>\n"
+ "              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
++, stdout);
++ fputs(
+ "              posedly  the data previously received from the server in a \"Set-\n"
+ "              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
+ "              NAME2=VALUE2\".\n"
+ "\n"
+-, stdout);
+- fputs(
+ "              If  no  '=' symbol is used in the line, it is treated as a file-\n"
+ "              name to use to read previously stored cookie lines  from,  which\n"
+ "              should  be used in this session if they match. Using this method\n"
++, stdout);
++ fputs(
+ "              also activates the \"cookie parser\" which will make  curl  record\n"
+ "              incoming cookies too, which may be handy if you're using this in\n"
+ "              combination with the -L/--location option. The  file  format  of\n"
+-, stdout);
+- fputs(
+ "              the  file  to  read cookies from should be plain HTTP headers or\n"
+ "              the Netscape/Mozilla cookie file format.\n"
+ "\n"
+ "              NOTE that the file specified with -b/--cookie is  only  used  as\n"
++, stdout);
++ fputs(
+ "              input.  No cookies will be stored in the file. To store cookies,\n"
+ "              use the -c/--cookie-jar option or you could even save  the  HTTP\n"
+ "              headers to a file using -D/--dump-header!\n"
+ "\n"
+-, stdout);
+- fputs(
+ "              If  this  option is set more than once, the last one will be the\n"
+ "              one that's used.\n"
+ "\n"
+ "       -B/--use-ascii\n"
+ "              Enable ASCII transfer when using FTP or LDAP. For FTP, this  can\n"
++, stdout);
++ fputs(
+ "              also  be enforced by using an URL that ends with \";type=A\". This\n"
+ "              option causes data sent to stdout to be in text mode  for  win32\n"
+ "              systems.\n"
+ "\n"
+ "       --basic\n"
+ "              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
+-, stdout);
+- fputs(
+ "              default and this option is usually pointless, unless you use  it\n"
+ "              to  override  a  previously  set  option  that  sets a different\n"
++, stdout);
++ fputs(
+ "              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
+ "              ate).\n"
+ "\n"
+ "       --ciphers <list of ciphers>\n"
+ "              (SSL) Specifies which ciphers to use in the connection. The list\n"
+ "              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
+-, stdout);
+- fputs(
+ "              list           details           on           this          URL:\n"
+ "              http://www.openssl.org/docs/apps/ciphers.html\n"
+ "\n"
++, stdout);
++ fputs(
+ "              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
+ "              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+ "              URL: http://directory.fedora.redhat.com/docs/mod_nss.html#Direc-\n"
+ "              tives\n"
+ "\n"
+ "              If this option is used several times, the last one will override\n"
+-, stdout);
+- fputs(
+ "              the others.\n"
+ "\n"
+ "       --compressed\n"
+ "              (HTTP) Request a compressed response using one of the algorithms\n"
++, stdout);
++ fputs(
+ "              libcurl supports, and return the uncompressed document.  If this\n"
+ "              option is used and the server  sends  an  unsupported  encoding,\n"
+ "              curl will report an error.\n"
+ "\n"
+ "       --connect-timeout <seconds>\n"
+ "              Maximum  time  in  seconds  that you allow the connection to the\n"
+-, stdout);
+- fputs(
+ "              server to take.  This only limits  the  connection  phase,  once\n"
+ "              curl  has  connected this option is of no more use. See also the\n"
++, stdout);
++ fputs(
+ "              -m/--max-time option.\n"
+ "\n"
+ "              If this option is used several times, the last one will be used.\n"
+ "\n"
+ "       -c/--cookie-jar <file name>\n"
+ "              Specify to which file you want curl to write all cookies after a\n"
+ "              completed  operation.  Curl  writes  all cookies previously read\n"
+-, stdout);
+- fputs(
+ "              from a specified file as  well  as  all  cookies  received  from\n"
+ "              remote server(s). If no cookies are known, no file will be writ-\n"
++, stdout);
++ fputs(
+ "              ten. The file will be written using  the  Netscape  cookie  file\n"
+ "              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
+ "              cookies will be written to stdout.\n"
+ "\n"
+ "              NOTE If the cookie jar can't be created or written to, the whole\n"
+-, stdout);
+- fputs(
+ "              curl operation won't fail or even report an error clearly. Using\n"
+ "              -v will get a warning displayed, but that is  the  only  visible\n"
++, stdout);
++ fputs(
+ "              feedback you get about this possibly lethal situation.\n"
+ "\n"
+ "              If  this  option  is used several times, the last specified file\n"
+ "              name will be used.\n"
+ "\n"
+ "       -C/--continue-at <offset>\n"
+ "              Continue/Resume a previous file transfer at  the  given  offset.\n"
+-, stdout);
+- fputs(
+ "              The  given  offset  is  the  exact  number of bytes that will be\n"
+ "              skipped, counting from the beginning of the source  file  before\n"
++, stdout);
++ fputs(
+ "              it is transferred to the destination.  If used with uploads, the\n"
+ "              FTP server command SIZE will not be used by curl.\n"
+ "\n"
+ "              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+ "              resume  the  transfer. It then uses the given output/input files\n"
+ "              to figure that out.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "              If this option is used several times, the last one will be used.\n"
+ "\n"
+ "       --create-dirs\n"
++, stdout);
++ fputs(
+ "              When used in conjunction with the -o option,  curl  will  create\n"
+ "              the  necessary  local directory hierarchy as needed. This option\n"
+ "              creates the dirs mentioned with the -o option, nothing else.  If\n"
+ "              the  -o file name uses no dir or if the dirs it mentions already\n"
+ "              exist, no dir will be created.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "              To create remote directories when using FTP or SFTP, try  --ftp-\n"
+ "              create-dirs.\n"
+ "\n"
++, stdout);
++ fputs(
+ "       --crlf (FTP) Convert LF to CRLF in upload. Useful for MVS (OS/390).\n"
+ "\n"
++"       --crlfile <file>\n"
++"              (HTTPS/FTPS)  Provide a file using PEM format with a Certificate\n"
++"              Revocation List that may specify peer certificates that  are  to\n"
++"              be considered revoked.\n"
++"\n"
++"              If this option is used several times, the last one will be used.\n"
++"\n"
++"              (Added in 7.19.7)\n"
++"\n"
+ "       -d/--data <data>\n"
++, stdout);
++ fputs(
+ "              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
+ "              server, in the same way that a browser  does  when  a  user  has\n"
+ "              filled  in an HTML form and presses the submit button. This will\n"
+-, stdout);
+- fputs(
+ "              cause curl to pass the data to the server using the content-type\n"
+ "              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
+ "\n"
+ "              -d/--data  is  the  same  as  --data-ascii.  To post data purely\n"
++, stdout);
++ fputs(
+ "              binary, you should instead use the --data-binary option. To URL-\n"
+ "              encode the value of a form field you may use --data-urlencode.\n"
+ "\n"
+ "              If  any of these options is used more than once on the same com-\n"
+-, stdout);
+- fputs(
+ "              mand line, the data pieces specified  will  be  merged  together\n"
+ "              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
+ "              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
++, stdout);
++ fputs(
+ "              'name=daniel&skill=lousy'.\n"
+ "\n"
+ "              If  you  start  the data with the letter @, the rest should be a\n"
+ "              file name to read the data from, or - if you want curl  to  read\n"
+-, stdout);
+- fputs(
+ "              the  data  from stdin.  The contents of the file must already be\n"
+ "              URL-encoded. Multiple files can also be specified. Posting  data\n"
+ "              from  a file named 'foobar' would thus be done with --data @foo-\n"
+ "              bar.\n"
+ "\n"
+ "       --data-binary <data>\n"
++, stdout);
++ fputs(
+ "              (HTTP) This posts data exactly as specified with no  extra  pro-\n"
+ "              cessing whatsoever.\n"
+ "\n"
+ "              If  you  start  the data with the letter @, the rest should be a\n"
+-, stdout);
+- fputs(
+ "              filename.  Data is posted in a similar  manner  as  --data-ascii\n"
+ "              does,  except  that  newlines  are preserved and conversions are\n"
+ "              never done.\n"
+ "\n"
+ "              If this option is used several times,  the  ones  following  the\n"
++, stdout);
++ fputs(
+ "              first will append data as described in -d/--data.\n"
+ "\n"
+ "       --data-urlencode <data>\n"
+ "              (HTTP) This posts data, similar to the other --data options with\n"
+-, stdout);
+- fputs(
+ "              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
+ "              To be CGI-compliant, the <data> part should begin  with  a  name\n"
+ "              followed  by a separator and a content specification. The <data>\n"
+ "              part can be passed to curl using one of the following syntaxes:\n"
+ "\n"
++, stdout);
++ fputs(
+ "              content\n"
+ "                     This will make curl URL-encode the content and pass  that\n"
+ "                     on.  Just  be careful so that the content doesn't contain\n"
+-, stdout);
+- fputs(
+ "                     any = or @ symbols, as that will  then  make  the  syntax\n"
+ "                     match one of the other cases below!\n"
+ "\n"
+ "              =content\n"
+ "                     This  will make curl URL-encode the content and pass that\n"
+ "                     on. The preceding = symbol is not included in the data.\n"
+ "\n"
+-"              name=content\n"
+-"                     This will make curl URL-encode the content part and  pass\n"
+ , stdout);
+  fputs(
++"              name=content\n"
++"                     This will make curl URL-encode the content part and  pass\n"
+ "                     that  on.  Note that the name part is expected to be URL-\n"
+ "                     encoded already.\n"
+ "\n"
+ "              @filename\n"
+ "                     This will  make  curl  load  data  from  the  given  file\n"
+ "                     (including  any  newlines), URL-encode that data and pass\n"
+ "                     it on in the POST.\n"
+ "\n"
+ "              name@filename\n"
+-"                     This will  make  curl  load  data  from  the  given  file\n"
+ , stdout);
+  fputs(
++"                     This will  make  curl  load  data  from  the  given  file\n"
+ "                     (including  any  newlines), URL-encode that data and pass\n"
+ "                     it on in the POST. The  name  part  gets  an  equal  sign\n"
+ "                     appended, resulting in name=urlencoded-file-content. Note\n"
+ "                     that the name is expected to be URL-encoded already.\n"
+ "\n"
+ "       --digest\n"
+ "              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
+-"              tion that prevents the password from being sent over the wire in\n"
+ , stdout);
+  fputs(
++"              tion that prevents the password from being sent over the wire in\n"
+ "              clear text. Use this in combination with  the  normal  -u/--user\n"
+ "              option to set user name and password. See also --ntlm, --negoti-\n"
+ "              ate and --anyauth for related options.\n"
+ "\n"
+ "              If this option is used several times, the following  occurrences\n"
+ "              make no difference.\n"
+ "\n"
+ "       --disable-eprt\n"
+-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+ , stdout);
+  fputs(
++"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+ "              when doing active FTP transfers. Curl will normally always first\n"
+ "              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
+ "              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
+ "              sions  to  the  original  FTP  protocol, and may not work on all\n"
+ "              servers, but they enable more functionality in a better way than\n"
+-"              the traditional PORT command.\n"
+-"\n"
+ , stdout);
+  fputs(
++"              the traditional PORT command.\n"
++"\n"
+ "              Since  curl 7.19.0, --eprt can be used to explicitly enable EPRT\n"
+ "              again and --no-eprt is an alias for --disable-eprt.\n"
+ "\n"
+ "              Disabling EPRT only changes the active behavior. If you want  to\n"
+ "              switch  to  passive  mode  you  need to not use -P/--ftp-port or\n"
+ "              force it with --ftp-pasv.\n"

@@ -1,0 +1,15 @@
+fputs(
+"              Overrides -n/--netrc and --netrc-optional.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -U/--proxy-user <user:password>\n"
+"              Specify user and password to use for proxy authentication.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --url <URL>\n"
+"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
+"              want to specify URL(s) in a config file.\n"
+"\n"
+, stdout);

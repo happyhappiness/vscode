@@ -1,0 +1,17 @@
+fputs(
+"       45     Interface  error.  A  specified  outgoing interface\n"
+"              could not be used.\n"
+"\n"
+"       46     Bad password entered. An error  was  signaled  when\n"
+"              the password was entered.\n"
+"\n"
+"       47     Too  many redirects. When following redirects, curl\n"
+"              hit the maximum amount.\n"
+"\n"
+"       48     Unknown TELNET option specified.\n"
+"\n"
+"       49     Malformed telnet option.\n"
+"\n"
+"       51     The remote peer's SSL certificate wasn't ok\n"
+"\n"
+, stdout);

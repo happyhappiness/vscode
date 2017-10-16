@@ -1,0 +1,15 @@
+fputs(
+"       4      URL  user  malformatted. The user-part of the URL syntax was not\n"
+"              correct.\n"
+"\n"
+"       5      Couldn’t resolve proxy.  The  given  proxy  host  could  not  be\n"
+"              resolved.\n"
+"\n"
+"       6      Couldn’t resolve host. The given remote host was not resolved.\n"
+"\n"
+"       7      Failed to connect to host.\n"
+"\n"
+"       8      FTP  weird  server  reply.  The  server  sent data curl couldn’t\n"
+"              parse.\n"
+"\n"
+, stdout);

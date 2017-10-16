@@ -1,0 +1,16 @@
+fputs(
+"  leading up to the first characters of each line are ignored.\n"
+"\n"
+"  Prevent curl from reading the default file by using -q as the first command\n"
+"  line parameter, like:\n"
+"\n"
+"        curl -q www.thatsite.com\n"
+"\n"
+"  Force curl to get and display a local help page in case it is invoked\n"
+"  without URL by making a config file similar to:\n"
+"\n"
+"        # default url to get\n"
+"        url = \"http://help.with.curl.com/curlhelp.html\"\n"
+"\n"
+"  You can specify another config file to be read by using the -K/--config\n"
+, stdout);

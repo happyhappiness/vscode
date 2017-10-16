@@ -1,0 +1,15 @@
+puts(
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     --environment\n"
+"          (RISC OS ONLY) Sets a range of  environment  variables,\n"
+"          using the names the -w option supports, to easier allow\n"
+"          extraction of useful information after having run curl.\n"
+"\n"
+"          If  this  option is used several times, each occurrence\n"
+"          will toggle this on/off.\n"
+"\n"
+"     --egd-file <file>\n"
+"          (HTTPS) Specify the path name to the Entropy  Gathering\n"
+);

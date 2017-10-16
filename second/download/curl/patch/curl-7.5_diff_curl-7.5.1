@@ -1,0 +1,1078 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/CHANGES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/CHANGES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/CHANGES	2000-12-04 16:37:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/CHANGES	2000-12-11 19:48:36.000000000 +0800
+@@ -3,12 +3,51 @@
+                              / __| | | | |_) | |    
+                             | (__| |_| |  _ <| |___ 
+                              \___|\___/|_| \_\_____|
+ 
+                                History of Changes
+ 
++Version 7.5.1
++
++Daniel (11 December 2000)
++- Cleaned up a few of the makefiles to use unix-style newlines only. As Kevin
++  P Roth found out, at least one CVS client behaved wrongly when it found
++  different newline conventions within the same file.
++
++- Albert Chin-A-Young corrected the LDFLAGS use in the configure script for
++  the SSL stuff.
++
++Daniel (6 December 2000)
++- Massimo Squillace correctly described how libcurl could use session ids when
++  doing SSL connections.
++
++- James Griffiths found out that curl would crash if the file you specify with
++  -o is shorter than the URL! This took some hours to fully hunt down, but it
++  is fixed now.
++
++Daniel (5 December 2000)
++- Jaepil Kim sent us makefiles that build curl using the free windows borland
++  compiler. The root makefile now accepts 'make borland' to build curl with
++  that compiler.
++
++- Stefan Radman pointed out that the test makefiles didn't use the PERL
++  variable that the configure scripts figure out. Actually, you still need
++  perl in the path for the test suite to run ok.
++
++- Rich Gray found numerous portability problems:
++  * The SCO compiler got an error on the getpass_r() prototype in getpass.h
++    since the curl one differed from the SCO one
++  * The HPUX compiler got an error because of how curl did the sigaction
++    stuff and used a define HPUX doesn't have (or need).
++  * A few more problems remain to be researched.
++
++- Paul Harrington experienced a core dump using https. Not much details yet.
++
++Daniel (4 December 2000)
++- Jörn Hartroth fixed a problem with multiple URLs and -o/-O.
++
+ Version 7.5
+ 
+ Daniel (1 December 2000)
+ - Craig Davison gave us his updates on the VC++ makefiles, so now curl should
+   build fine with the Microsoft compiler on windows too.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/configure	2000-11-10 23:27:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/configure	2000-12-11 15:58:54.000000000 +0800
+@@ -3241,13 +3241,13 @@
+ echo "configure:3242: checking where to look for SSL" >&5
+   if test X"$OPT_SSL" = Xoff
+   then
+   	echo "$ac_t""defaults (or given in environment)" 1>&6
+   else
+ 	test X"$OPT_SSL" = Xyes && OPT_SSL=/usr/local/ssl
+-	LIBS="$LIBS -L$OPT_SSL/lib"
++                LDFLAGS="$LDFLAGS -L$OPT_SSL/lib"
+ 	CPPFLAGS="$CPPFLAGS -I$OPT_SSL/include/openssl -I$OPT_SSL/include"
+ 	echo "$ac_t""$OPT_SSL" 1>&6
+   fi
+ 
+     echo $ac_n "checking for CRYPTO_lock in -lcrypto""... $ac_c" 1>&6
+ echo "configure:3254: checking for CRYPTO_lock in -lcrypto" >&5
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/configure.in	2000-11-10 22:42:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/configure.in	2000-12-11 15:38:47.000000000 +0800
+@@ -1,7 +1,7 @@
+-dnl $Id: configure.in,v 1.41 2000/11/10 14:42:06 bagder Exp $
++dnl $Id: configure.in,v 1.42 2000/12/11 07:38:47 bagder Exp $
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(lib/urldata.h)
+ AM_CONFIG_HEADER(config.h src/config.h)
+ 
+ VERSION=`sed -ne 's/^#define LIBCURL_VERSION "\(.*\)"/\1/p' include/curl/curl.h`
+ AM_INIT_AUTOMAKE(curl,$VERSION)
+@@ -394,13 +394,14 @@
+   AC_MSG_CHECKING(where to look for SSL)
+   if test X"$OPT_SSL" = Xoff
+   then
+   	AC_MSG_RESULT([defaults (or given in environment)])
+   else
+ 	test X"$OPT_SSL" = Xyes && OPT_SSL=/usr/local/ssl
+-	LIBS="$LIBS -L$OPT_SSL/lib"
++        dnl	LIBS="$LIBS -L$OPT_SSL/lib"
++        LDFLAGS="$LDFLAGS -L$OPT_SSL/lib"
+ 	CPPFLAGS="$CPPFLAGS -I$OPT_SSL/include/openssl -I$OPT_SSL/include"
+ 	AC_MSG_RESULT([$OPT_SSL])
+   fi
+ 
+   dnl check for crypto libs (part of SSLeay)
+   AC_CHECK_LIB(crypto, CRYPTO_lock)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/FILES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/FILES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/FILES	2000-11-30 15:55:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/FILES	2000-12-05 21:45:59.000000000 +0800
+@@ -50,19 +50,22 @@
+ src/writeout.c
+ src/writeout.h
+ src/*.in
+ src/*.am
+ src/mkhelp.pl
+ src/Makefile.vc6
++src/Makefile.b32
+ src/*m32
+ lib/getdate.y
+ lib/*.[ch]
+ lib/*in
+ lib/*am
+ lib/Makefile.vc6
+ lib/*m32
++lib/Makefile.b32
++lib/Makefile.b32.resp
+ lib/libcurl.def
+ include/README
+ include/Makefile.in
+ include/Makefile.am
+ include/curl/*.h
+ include/curl/Makefile.in
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/include/curl/curl.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/include/curl/curl.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/include/curl/curl.h	2000-12-04 16:38:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/include/curl/curl.h	2000-12-11 19:51:31.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <Daniel.Stenberg@haxx.nu>
+  *
+  * 	http://curl.haxx.nu
+  *
+  * $Source: /cvsroot/curl/include/curl/curl.h,v $
+- * $Revision: 1.35 $
+- * $Date: 2000/11/28 09:10:04 $
++ * $Revision: 1.36 $
++ * $Date: 2000/12/04 09:45:01 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -467,14 +467,14 @@
+ char *curl_getenv(char *variable);
+ 
+ /* Returns a static ascii string of the libcurl version. */
+ char *curl_version(void);
+ 
+ /* This is the version number */
+-#define LIBCURL_VERSION "7.5"
+-#define LIBCURL_VERSION_NUM 0x070500
++#define LIBCURL_VERSION "7.5.1"
++#define LIBCURL_VERSION_NUM 0x070501
+ 
+ /* linked-list structure for the CURLOPT_QUOTE option (and other) */
+ struct curl_slist {
+ 	char			*data;
+ 	struct curl_slist	*next;
+ };
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/getpass.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/getpass.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/getpass.c	2000-11-10 17:18:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/getpass.c	2000-12-05 16:04:04.000000000 +0800
+@@ -19,13 +19,13 @@
+  * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  * POSSIBILITY OF SUCH DAMAGE.
+  * ============================================================================
+  *
+- * $Id: getpass.c,v 1.10 2000/11/10 09:18:25 bagder Exp $
++ * $Id: getpass.c,v 1.11 2000/12/05 08:04:04 bagder Exp $
+  *
+  * The spirit of this license is to allow use of this source code in any
+  * project be it open or closed but still encourage the use of the open,
+  * library based equivilents.
+  *
+  * Author(s):
+@@ -68,13 +68,13 @@
+ 
+ /* no perror? make an fprintf! */
+ #ifndef HAVE_PERROR
+ #  define perror(x) fprintf(stderr, "Error in: %s\n", x)
+ #endif
+ 
+-char *getpass_r(const char *prompt, char *buffer, int buflen)
++char *getpass_r(const char *prompt, char *buffer, size_t buflen)
+ {
+   FILE *infp;
+   FILE *outfp;
+   RETSIGTYPE (*sigint)();
+ #ifndef __EMX__
+   RETSIGTYPE (*sigtstp)();
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/getpass.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/getpass.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/getpass.h	2000-11-10 17:08:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/getpass.h	2000-12-05 16:03:01.000000000 +0800
+@@ -1,8 +1,8 @@
+ #ifndef __GETPASS_H
+ #define __GETPASS_H
+ /*
+  * Returning NULL will abort the continued operation!
+  */
+-char* getpass_r(char *prompt, char* buffer, int buflen );
++char* getpass_r(char *prompt, char* buffer, size_t buflen );
+ 
+ #endif
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib: Makefile.b32
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib: Makefile.b32.resp
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/Makefile.vc6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/Makefile.vc6
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/Makefile.vc6	2000-12-01 04:06:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/Makefile.vc6	2000-12-11 16:12:32.000000000 +0800
+@@ -1,15 +1,15 @@
+ #############################################################
+ ## Makefile for building libcurl.lib with MSVC6
+ ## Use: nmake -f makefile.vc6 [release | release-ssl | debug]
+ ##      (default is release)
+ ##
+ ## Comments to: Troy Engel <tengel@sonic.net>
+-## Updated by: Craig Davison <cd@securityfocus.com>
++## Updated by: Craig Davison <cd@securityfocus.com>
+ 
+-PROGRAM_NAME = libcurl.lib
++PROGRAM_NAME = libcurl.lib
+ PROGRAM_NAME_DEBUG = libcurld.lib
+ OPENSSL_PATH = ../../openssl-0.9.6
+ 
+ ########################################################
+ ## Nothing more to do below this line!
+ 
+@@ -119,13 +119,13 @@
+ 	filers.obj \
+ 	getinfors.obj \
+ 	versionrs.obj \
+ 	easyrs.obj \
+ 	highlevelrs.obj \
+ 	strequalrs.obj
+-
++
+ LINK_OBJS= \
+ 	base64.obj \
+ 	cookie.obj \
+ 	download.obj \
+ 	escape.obj \
+ 	formdata.obj \
+@@ -342,14 +342,14 @@
+ easyrs.obj: easy.c
+ 	$(CCRS) $(CFLAGS) easy.c
+ highlevelrs.obj: highlevel.c
+ 	$(CCRS) $(CFLAGS) highlevel.c
+ strequalrs.obj: strequal.c
+ 	$(CCRS) $(CFLAGS) strequal.c
+-
+-
++
++
+ clean:
+ 	-@erase *.obj
+ 	-@erase vc60.idb
+ 	-@erase vc60.pch
+ 
+ distrib: clean
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/url.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/url.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/lib/url.c	2000-11-29 16:16:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/lib/url.c	2000-12-07 17:09:26.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/url.c,v $
+- * $Revision: 1.67 $
+- * $Date: 2000/11/29 08:16:27 $
++ * $Revision: 1.68 $
++ * $Date: 2000/12/07 09:09:26 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -720,13 +720,16 @@
+ 
+   buf = data->buffer; /* this is our buffer */
+ 
+ #ifdef HAVE_SIGACTION
+   sigaction(SIGALRM, NULL, &sigact);
+   sigact.sa_handler = alarmfunc;
++#ifdef SA_RESTART
++  /* HPUX doesn't have SA_RESTART but defaults to that behaviour! */
+   sigact.sa_flags &= ~SA_RESTART;
++#endif
+   sigaction(SIGALRM, &sigact, NULL);
+ #else
+   /* no sigaction(), revert to the much lamer signal() */
+ #ifdef HAVE_SIGNAL
+   signal(SIGALRM, alarmfunc);
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/Makefile /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/Makefile
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/Makefile	2000-12-01 15:01:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/Makefile	2000-12-11 16:16:25.000000000 +0800
+@@ -26,52 +26,56 @@
+ # Main author:
+ # - Daniel Stenberg <daniel@haxx.se>
+ #
+ # 	http://curl.haxx.se
+ #
+ # $Source: /cvsroot/curl/Makefile.dist,v $
+-# $Revision: 1.4 $
+-# $Date: 2000/12/01 07:01:14 $
++# $Revision: 1.6 $
++# $Date: 2000/12/11 08:16:25 $
+ # $Author: bagder $
+ # $State: Exp $
+ # $Locker:  $
+ #
+ # ------------------------------------------------------------
+ #
+ # In a normal unix-setup, this file will become overwritten.
+ #
+ ############################################################################
+ 
+ all:
+-	./configure
++	./configure
+ 	make
+ 
+ ssl:
+ 	./configure --with-ssl
+ 	make
+ 
++borland:
++	cd lib; make -f Makefile.b32
++	cd src; make -f Makefile.b32
++
+ mingw32:
+ 	cd lib; make -f Makefile.m32
+ 	cd src; make -f Makefile.m32
+ 
+ mingw32-ssl:
+ 	cd lib; make -f Makefile.m32 SSL=1
+ 	cd src; make -f Makefile.m32 SSL=1
+ 
+ vc:
+-	cd lib
++	cd lib
+ 	nmake -f Makefile.vc6
+-	cd ..\src
++	cd ..\src
++	nmake -f Makefile.vc6
++
++vc-ssl:
++	cd lib
++	nmake -f Makefile.vc6 release-ssl
++	cd ..\src
+ 	nmake -f Makefile.vc6
+ 
+-vc-ssl:
+-	cd lib
+-	nmake -f Makefile.vc6 release-ssl
+-	cd ..\src
+-	nmake -f Makefile.vc6
+-
+ cygwin:
+ 	./configure
+ 	make
+ 
+ cygwin-ssl:
+ 	./configure --with-ssl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/packages/Linux/RPM/curl-ssl.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/packages/Linux/RPM/curl-ssl.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/packages/Linux/RPM/curl-ssl.spec	2000-10-26 15:00:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/packages/Linux/RPM/curl-ssl.spec	2000-12-04 22:57:47.000000000 +0800
+@@ -28,13 +28,13 @@
+ 
+ Authors:
+ 	Daniel Stenberg <daniel@haxx.se>
+ 
+ 
+ %prep
+-%setup -n curl-7.4.2
++%setup -n %{name}-%{version}
+ 
+ 
+ %build
+ # Needed for snapshot releases.
+ if [ ! -f configure ]; then
+ 	CONF="./autogen.sh"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/main.c	2000-11-28 17:10:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/main.c	2000-12-06 18:10:31.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/src/main.c,v $
+- * $Revision: 1.52 $
+- * $Date: 2000/11/28 09:10:43 $
++ * $Revision: 1.54 $
++ * $Date: 2000/12/06 10:10:31 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -1470,15 +1470,15 @@
+     separator = 1;
+     printf("MIME-Version: 1.0\n");
+     printf("Content-Type: multipart/mixed; boundary=%s\n\n", MIMEseparator);
+ #endif
+   }
+   for (i = 0; (url = next_url(urls)); ++i) {
+-    if (outfiles) {
++    if (config->outfile) {
+       free(config->outfile);
+-      config->outfile = outfiles;
++      config->outfile = strdup(outfiles);
+     }
+  
+     if (config->outfile || config->remotefile) {
+       /* 
+        * We have specified a file name to store the result in, or we have
+        * decided we want to use the remote file name.
+@@ -1497,13 +1497,13 @@
+           return CURLE_WRITE_ERROR;
+         }
+       }
+       else {
+ 	/* fill '#1' ... '#9' terms from URL pattern */
+         char *outfile = config->outfile;
+-        config->outfile = match_url(config->outfile, *urls);
++        config->outfile = match_url(config->outfile, urls);
+         free(outfile);
+       }
+       
+       if((0 == config->resume_from) && config->use_resume) {
+         /* we're told to continue where we are now, then we get the size of the
+            file as it is now and open it for append instead */
+@@ -1754,12 +1754,15 @@
+       fclose(headerfilep);
+     
+     if(url)
+       free(url);
+ 
+   }
++  if(outfiles)
++    free(outfiles);
++
+ #ifdef MIME_SEPARATORS
+   if (separator)
+     printf("--%s--\n", MIMEseparator);
+ #endif
+ 
+   if(allocuseragent)
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src: Makefile.b32
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/Makefile.vc6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/Makefile.vc6
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/Makefile.vc6	2000-12-01 14:59:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/Makefile.vc6	2000-12-11 16:14:43.000000000 +0800
+@@ -1,84 +1,84 @@
+-########################################################
+-## Makefile for building curl.exe with MSVC6
+-## Use: nmake -f makefile.vc6 [release | debug]
+-##      (default is release)
+-##
+-## Comments to: Troy Engel <tengel@sonic.net>
+-## Updated by: Craig Davison <cd@securityfocus.com>
+-
+-PROGRAM_NAME = curl.exe
+-
+-########################################################
+-## Nothing more to do below this line!
+-
+-## Release
+-CCR = cl.exe /MD /O2 /D "NDEBUG"
+-LINKR = link.exe /incremental:no /libpath:"../lib"
+-
+-## Debug
+-CCD = cl.exe /MDd /Gm /ZI /Od /D "_DEBUG" /GZ
+-LINKD = link.exe /incremental:yes /debug
+-
+-CFLAGS = /I "../include" /nologo /W3 /GX /D "WIN32" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
+-LFLAGS = /nologo /out:$(PROGRAM_NAME) /subsystem:console /machine:I386
+-LINKLIBS = wsock32.lib libcurl.lib
+-LINKLIBS_DEBUG = wsock32.lib libcurld.lib
+-
+-RELEASE_OBJS= \
+-	hugehelpr.obj \
+-	writeoutr.obj \
+-	urlglobr.obj \
+-	mainr.obj
+-
+-DEBUG_OBJS= \
+-	hugehelpd.obj \
+-	writeoutd.obj \
+-	urlglobd.obj \
+-	maind.obj
+-	
+-LINK_OBJS= \
+-	hugehelp.obj \
+-	writeout.obj \
+-	urlglob.obj \
+-	main.obj
+-
+-all : release
+-
+-release: $(RELEASE_OBJS)
+-	$(LINKR) $(LFLAGS) $(LINKLIBS) $(LINK_OBJS)
+-
+-debug: $(DEBUG_OBJS)
+-	$(LINKD) $(LFLAGS) $(LINKLIBS_DEBUG) $(LINK_OBJS)
+-
+-## Release
+-hugehelpr.obj: hugehelp.c
+-	$(CCR) $(CFLAGS) /Zm200 hugehelp.c
+-writeoutr.obj: writeout.c
+-	$(CCR) $(CFLAGS) writeout.c
+-urlglobr.obj: urlglob.c
+-	$(CCR) $(CFLAGS) urlglob.c
+-mainr.obj: main.c
+-	$(CCR) $(CFLAGS) main.c
+-
+-## Debug
+-hugehelpd.obj: hugehelp.c
+-	$(CCD) $(CFLAGS) /Zm200 hugehelp.c
+-writeoutd.obj: writeout.c
+-	$(CCD) $(CFLAGS) writeout.c
+-urlglobd.obj: urlglob.c
+-	$(CCD) $(CFLAGS) urlglob.c
+-maind.obj: main.c
+-	$(CCD) $(CFLAGS) main.c
+-
+-clean:
+-	-@erase hugehelp.obj
+-	-@erase main.obj
+-	-@erase vc60.idb
+-	-@erase vc60.pdb
+-	-@erase vc60.pch
+-	-@erase curl.ilk
+-	-@erase curl.pdb
+-
+-distrib: clean
+-	-@erase $(PROGRAM_NAME)
+-
++########################################################
++## Makefile for building curl.exe with MSVC6
++## Use: nmake -f makefile.vc6 [release | debug]
++##      (default is release)
++##
++## Comments to: Troy Engel <tengel@sonic.net>
++## Updated by: Craig Davison <cd@securityfocus.com>
++
++PROGRAM_NAME = curl.exe
++
++########################################################
++## Nothing more to do below this line!
++
++## Release
++CCR = cl.exe /MD /O2 /D "NDEBUG"
++LINKR = link.exe /incremental:no /libpath:"../lib"
++
++## Debug
++CCD = cl.exe /MDd /Gm /ZI /Od /D "_DEBUG" /GZ
++LINKD = link.exe /incremental:yes /debug
++
++CFLAGS = /I "../include" /nologo /W3 /GX /D "WIN32" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
++LFLAGS = /nologo /out:$(PROGRAM_NAME) /subsystem:console /machine:I386
++LINKLIBS = wsock32.lib libcurl.lib
++LINKLIBS_DEBUG = wsock32.lib libcurld.lib
++
++RELEASE_OBJS= \
++	hugehelpr.obj \
++	writeoutr.obj \
++	urlglobr.obj \
++	mainr.obj
++
++DEBUG_OBJS= \
++	hugehelpd.obj \
++	writeoutd.obj \
++	urlglobd.obj \
++	maind.obj
++	
++LINK_OBJS= \
++	hugehelp.obj \
++	writeout.obj \
++	urlglob.obj \
++	main.obj
++
++all : release
++
++release: $(RELEASE_OBJS)
++	$(LINKR) $(LFLAGS) $(LINKLIBS) $(LINK_OBJS)
++
++debug: $(DEBUG_OBJS)
++	$(LINKD) $(LFLAGS) $(LINKLIBS_DEBUG) $(LINK_OBJS)
++
++## Release
++hugehelpr.obj: hugehelp.c
++	$(CCR) $(CFLAGS) /Zm200 hugehelp.c
++writeoutr.obj: writeout.c
++	$(CCR) $(CFLAGS) writeout.c
++urlglobr.obj: urlglob.c
++	$(CCR) $(CFLAGS) urlglob.c
++mainr.obj: main.c
++	$(CCR) $(CFLAGS) main.c
++
++## Debug
++hugehelpd.obj: hugehelp.c
++	$(CCD) $(CFLAGS) /Zm200 hugehelp.c
++writeoutd.obj: writeout.c
++	$(CCD) $(CFLAGS) writeout.c
++urlglobd.obj: urlglob.c
++	$(CCD) $(CFLAGS) urlglob.c
++maind.obj: main.c
++	$(CCD) $(CFLAGS) main.c
++
++clean:
++	-@erase hugehelp.obj
++	-@erase main.obj
++	-@erase vc60.idb
++	-@erase vc60.pdb
++	-@erase vc60.pch
++	-@erase curl.ilk
++	-@erase curl.pdb
++
++distrib: clean
++	-@erase $(PROGRAM_NAME)
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/urlglob.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/urlglob.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/urlglob.c	2000-11-20 16:54:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/urlglob.c	2000-12-06 18:10:31.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/src/urlglob.c,v $
+- * $Revision: 1.9 $
+- * $Date: 2000/11/20 08:54:32 $
++ * $Revision: 1.10 $
++ * $Date: 2000/12/06 10:10:31 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -46,31 +46,29 @@
+ #include "urlglob.h"
+ 
+ #ifdef MALLOCDEBUG
+ #include "../lib/memdebug.h"
+ #endif
+ 
+-char *glob_buffer;
+-URLGlob *glob_expand;
++int glob_word(URLGlob *, char*, int);
+ 
+-int glob_word(char*, int);
+-
+-int glob_set(char *pattern, int pos) {
++int glob_set(URLGlob *glob, char *pattern, int pos)
++{
+   /* processes a set expression with the point behind the opening '{'
+      ','-separated elements are collected until the next closing '}'
+   */
+-  char* buf = glob_buffer;
++  char* buf = glob->glob_buffer;
+   URLPattern *pat;
+ 
+-  pat = (URLPattern*)&glob_expand->pattern[glob_expand->size / 2];
++  pat = (URLPattern*)&glob->pattern[glob->size / 2];
+   /* patterns 0,1,2,... correspond to size=1,3,5,... */
+   pat->type = UPTSet;
+   pat->content.Set.size = 0;
+   pat->content.Set.ptr_s = 0;
+   pat->content.Set.elements = (char**)malloc(0);
+-  ++glob_expand->size;
++  ++glob->size;
+ 
+   while (1) {
+     switch (*pattern) {
+     case '\0':				/* URL ended while set was still open */
+       printf("error: unmatched brace at pos %d\n", pos);
+       exit (CURLE_URL_MALFORMAT);
+@@ -78,25 +76,28 @@
+     case '[':				/* no nested expressions at this time */
+       printf("error: nested braces not supported %d\n", pos);
+       exit (CURLE_URL_MALFORMAT);
+     case ',':
+     case '}':				/* set element completed */
+       *buf = '\0';
+-      pat->content.Set.elements = realloc(pat->content.Set.elements, (pat->content.Set.size + 1) * sizeof(char*));
++      pat->content.Set.elements =
++        realloc(pat->content.Set.elements,
++                (pat->content.Set.size + 1) * sizeof(char*));
+       if (!pat->content.Set.elements) {
+ 	printf("out of memory in set pattern\n");
+ 	exit(CURLE_OUT_OF_MEMORY);
+       }
+-      pat->content.Set.elements[pat->content.Set.size] = strdup(glob_buffer);
++      pat->content.Set.elements[pat->content.Set.size] =
++        strdup(glob->glob_buffer);
+       ++pat->content.Set.size;
+ 
+       if (*pattern == '}')		/* entire set pattern completed */
+ 	/* always check for a literal (may be "") between patterns */
+-	return pat->content.Set.size * glob_word(++pattern, ++pos);
++	return pat->content.Set.size * glob_word(glob, ++pattern, ++pos);
+ 
+-      buf = glob_buffer;
++      buf = glob->glob_buffer;
+       ++pattern;
+       ++pos;
+       break;
+     case ']':				/* illegal closing bracket */
+       printf("error: illegal pattern at pos %d\n", pos);
+       exit (CURLE_URL_MALFORMAT);
+@@ -112,25 +113,26 @@
+       ++pos;
+     }
+   }
+   exit (CURLE_FAILED_INIT);
+ }
+ 
+-int glob_range(char *pattern, int pos) {
++int glob_range(URLGlob *glob, char *pattern, int pos)
++{
+   /* processes a range expression with the point behind the opening '['
+      - char range: e.g. "a-z]", "B-Q]"
+      - num range: e.g. "0-9]", "17-2000]"
+      - num range with leading zeros: e.g. "001-999]"
+      expression is checked for well-formedness and collected until the next ']'
+   */
+   URLPattern *pat;
+   char *c;
+   
+-  pat = (URLPattern*)&glob_expand->pattern[glob_expand->size / 2];
++  pat = (URLPattern*)&glob->pattern[glob->size / 2];
+   /* patterns 0,1,2,... correspond to size=1,3,5,... */
+-  ++glob_expand->size;
++  ++glob->size;
+ 
+   if (isalpha((int)*pattern)) {		/* character range detected */
+     pat->type = UPTCharRange;
+     if (sscanf(pattern, "%c-%c]", &pat->content.CharRange.min_c, &pat->content.CharRange.max_c) != 2 ||
+ 	pat->content.CharRange.min_c >= pat->content.CharRange.max_c ||
+ 	pat->content.CharRange.max_c - pat->content.CharRange.min_c > 'z' - 'a') {
+@@ -138,13 +140,13 @@
+       printf("error: illegal pattern or range specification after pos %d\n", pos);
+       exit (CURLE_URL_MALFORMAT);
+     }
+     pat->content.CharRange.ptr_c = pat->content.CharRange.min_c;
+     /* always check for a literal (may be "") between patterns */
+     return (pat->content.CharRange.max_c - pat->content.CharRange.min_c + 1) *
+-      glob_word(pattern + 4, pos + 4);
++      glob_word(glob, pattern + 4, pos + 4);
+   }
+   if (isdigit((int)*pattern)) {		/* numeric range detected */
+     pat->type = UPTNumRange;
+     pat->content.NumRange.padlength = 0;
+     if (sscanf(pattern, "%d-%d]", &pat->content.NumRange.min_n, &pat->content.NumRange.max_n) != 2 ||
+ 	pat->content.NumRange.min_n >= pat->content.NumRange.max_n) {
+@@ -159,23 +161,24 @@
+ 						   of this pattern */
+     }
+     pat->content.NumRange.ptr_n = pat->content.NumRange.min_n;
+     c = (char*)(strchr(pattern, ']') + 1);	/* continue after next ']' */
+     /* always check for a literal (may be "") between patterns */
+     return (pat->content.NumRange.max_n - pat->content.NumRange.min_n + 1) *
+-      glob_word(c, pos + (c - pattern));
++      glob_word(glob, c, pos + (c - pattern));
+   }
+   printf("error: illegal character in range specification at pos %d\n", pos);
+   exit (CURLE_URL_MALFORMAT);
+ }
+ 
+-int glob_word(char *pattern, int pos) {
++int glob_word(URLGlob *glob, char *pattern, int pos)
++{
+   /* processes a literal string component of a URL
+      special characters '{' and '[' branch to set/range processing functions
+    */ 
+-  char* buf = glob_buffer;
++  char* buf = glob->glob_buffer;
+   int litindex;
+ 
+   while (*pattern != '\0' && *pattern != '{' && *pattern != '[') {
+     if (*pattern == '}' || *pattern == ']') {
+       printf("illegal character at position %d\n", pos);
+       exit (CURLE_URL_MALFORMAT);
+@@ -189,46 +192,54 @@
+       }
+     }
+     *buf++ = *pattern++;		/* copy character to literal */
+     ++pos;
+   }
+   *buf = '\0';
+-  litindex = glob_expand->size / 2;
++  litindex = glob->size / 2;
+   /* literals 0,1,2,... correspond to size=0,2,4,... */
+-  glob_expand->literal[litindex] = strdup(glob_buffer);
+-  ++glob_expand->size;
++  glob->literal[litindex] = strdup(glob->glob_buffer);
++  ++glob->size;
+   if (*pattern == '\0')
+     return 1;				/* singular URL processed  */
+   if (*pattern == '{') {
+-    return glob_set(++pattern, ++pos);	/* process set pattern */
++    return glob_set(glob, ++pattern, ++pos);	/* process set pattern */
+   }
+   if (*pattern == '[') {
+-    return glob_range(++pattern, ++pos);/* process range pattern */
++    return glob_range(glob, ++pattern, ++pos);/* process range pattern */
+   }
+   printf("internal error\n");
+   exit (CURLE_FAILED_INIT);
+ }
+ 
+ int glob_url(URLGlob** glob, char* url, int *urlnum)
+ {
+   /*
+    * We can deal with any-size, just make a buffer with the same length
+    * as the specified URL!
+    */
+-  glob_buffer=(char *)malloc(strlen(url)+1);
++  URLGlob *glob_expand;
++  char *glob_buffer=(char *)malloc(strlen(url)+1);
+   if(NULL == glob_buffer)
+     return CURLE_OUT_OF_MEMORY;
+ 
+   glob_expand = (URLGlob*)malloc(sizeof(URLGlob));
++  if(NULL == glob_expand) {
++    free(glob_buffer);
++    return CURLE_OUT_OF_MEMORY;
++  }
+   glob_expand->size = 0;
+-  *urlnum = glob_word(url, 1);
++  glob_expand->urllen = strlen(url);
++  glob_expand->glob_buffer = glob_buffer;
++  *urlnum = glob_word(glob_expand, url, 1);
+   *glob = glob_expand;
+   return CURLE_OK;
+ }
+ 
+-void glob_cleanup(URLGlob* glob) {
++void glob_cleanup(URLGlob* glob)
++{
+   int i, elem;
+ 
+   for (i = glob->size - 1; i >= 0; --i) {
+     if (!(i & 1)) {	/* even indexes contain literals */
+       free(glob->literal[i/2]);
+     } else {		/* odd indexes contain sets or ranges */
+@@ -237,20 +248,20 @@
+ 	  free(glob->pattern[i/2].content.Set.elements[elem]);
+ 	}
+ 	free(glob->pattern[i/2].content.Set.elements);
+       }
+     }
+   }
++  free(glob->glob_buffer);
+   free(glob);
+-  free(glob_buffer);
+ }
+ 
+ char *next_url(URLGlob *glob)
+ {
+   static int beenhere = 0;
+-  char *buf = glob_buffer;
++  char *buf = glob->glob_buffer;
+   URLPattern *pat;
+   char *lit;
+   signed int i;
+   int carry;
+ 
+   if (!beenhere)
+@@ -315,51 +326,86 @@
+ 	printf("internal error: invalid pattern type (%d)\n", pat->type);
+ 	exit (CURLE_FAILED_INIT);
+       }
+     }
+   }
+   *buf = '\0';
+-  return strdup(glob_buffer);
++  return strdup(glob->glob_buffer);
+ }
+ 
+-char *match_url(char *filename, URLGlob glob) {
+-  char *buf = glob_buffer;
++char *match_url(char *filename, URLGlob *glob)
++{
++  char *target;
+   URLPattern pat;
+   int i;
++  int allocsize;
++  int stringlen=0;
++  char numbuf[18];
++  char *appendthis;
++  size_t appendlen;
++
++  /* We cannot use the glob_buffer for storage here since the filename may
++   * be longer than the URL we use. We allocate a good start size, then
++   * we need to realloc in case of need.
++   */
++  allocsize=strlen(filename);
++  target = malloc(allocsize);
++  if(NULL == target)
++    return NULL; /* major failure */
+ 
+   while (*filename != '\0') {
+     if (*filename == '#') {
+       if (!isdigit((int)*++filename) ||
+ 	  *filename == '0') {		/* only '#1' ... '#9' allowed */
+-	printf("illegal matching expression\n");
+-	exit(CURLE_URL_MALFORMAT);
++	/* printf("illegal matching expression\n");
++           exit(CURLE_URL_MALFORMAT);*/
++        continue;
+       }
+       i = *filename - '1';
+-      if (i + 1 > glob.size / 2) {
+-	printf("match against nonexisting pattern\n");
+-	exit(CURLE_URL_MALFORMAT);
++      if (i + 1 > glob->size / 2) {
++	/*printf("match against nonexisting pattern\n");
++          exit(CURLE_URL_MALFORMAT);*/
++        continue;
+       }
+-      pat = glob.pattern[i];
++      pat = glob->pattern[i];
+       switch (pat.type) {
+       case UPTSet:
+-	strcpy(buf, pat.content.Set.elements[pat.content.Set.ptr_s]);
+-	buf += strlen(pat.content.Set.elements[pat.content.Set.ptr_s]);
++	appendthis = pat.content.Set.elements[pat.content.Set.ptr_s];
++	appendlen = strlen(pat.content.Set.elements[pat.content.Set.ptr_s]);
+ 	break;
+       case UPTCharRange:
+-	*buf++ = pat.content.CharRange.ptr_c;
++        numbuf[0]=pat.content.CharRange.ptr_c;
++        numbuf[1]=0;
++        appendthis=numbuf;
++        appendlen=1;
+ 	break;
+       case UPTNumRange:
+-	sprintf(buf, "%0*d", pat.content.NumRange.padlength, pat.content.NumRange.ptr_n);
+-        buf += strlen(buf);
++	sprintf(numbuf, "%0*d", pat.content.NumRange.padlength, pat.content.NumRange.ptr_n);
++        appendthis = numbuf;
++        appendlen = strlen(numbuf);
+ 	break;
+       default:
+ 	printf("internal error: invalid pattern type (%d)\n", pat.type);
+-	exit (CURLE_FAILED_INIT);
++        return NULL;
+       }
+       ++filename;
+     }
+-    else
+-      *buf++ = *filename++;
++    else {
++      appendthis=filename++;
++      appendlen=1;
++    }
++    if(appendlen + stringlen >= allocsize) {
++      char *newstr;
++      allocsize = (appendlen + stringlen)*2;
++      newstr=realloc(target, allocsize);
++      if(NULL ==newstr) {
++        free(target);
++        return NULL;
++      }
++      target=newstr;
++    }
++    memcpy(&target[stringlen], appendthis, appendlen);
++    stringlen += appendlen;
+   }
+-  *buf = '\0';
+-  return strdup(glob_buffer);
++  target[stringlen]= '\0';
++  return target;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/urlglob.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/urlglob.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/urlglob.h	2000-11-21 17:38:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/urlglob.h	2000-12-06 18:10:31.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/src/urlglob.h,v $
+- * $Revision: 1.5 $
+- * $Date: 2000/11/21 09:38:41 $
++ * $Revision: 1.6 $
++ * $Date: 2000/12/06 10:10:31 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -62,14 +62,16 @@
+ } URLPattern;
+ 
+ typedef struct {
+   char* literal[10];
+   URLPattern pattern[9];
+   int size;
++  int urllen;
++  char *glob_buffer;
+ } URLGlob;
+ 
+ int glob_url(URLGlob**, char*, int *);
+ char* next_url(URLGlob*);
+-char* match_url(char*, URLGlob); 
++char* match_url(char*, URLGlob *); 
+ void glob_cleanup(URLGlob* glob);
+ 
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/src/version.h	2000-12-04 16:38:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/src/version.h	2000-12-11 19:51:32.000000000 +0800
+@@ -1,3 +1,3 @@
+ #define CURL_NAME "curl"
+-#define CURL_VERSION "7.5"
++#define CURL_VERSION "7.5.1"
+ #define CURL_ID CURL_NAME " " CURL_VERSION " (" OS ") "
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/tests/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/tests/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/tests/Makefile.am	2000-11-22 19:53:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/tests/Makefile.am	2000-12-05 17:09:52.000000000 +0800
+@@ -3,15 +3,15 @@
+ install:
+ 
+ curl:
+ 	@(cd ..; make)
+ 
+ test:
+-	perl runtests.pl
++	$(PERL) runtests.pl
+ 
+ quiet-test:
+-	perl runtests.pl -s -a
++	$(PERL) runtests.pl -s -a
+ 
+ clean:
+ 	rm -rf log
+ 	find . -name "*~" | xargs rm -f
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/tests/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/tests/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5/tests/Makefile.in	2000-12-04 16:38:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.5.1/tests/Makefile.in	2000-12-11 19:51:34.000000000 +0800
+@@ -176,16 +176,16 @@
+ install:
+ 
+ curl:
+ 	@(cd ..; make)
+ 
+ test:
+-	perl runtests.pl
++	$(PERL) runtests.pl
+ 
+ quiet-test:
+-	perl runtests.pl -s -a
++	$(PERL) runtests.pl -s -a
+ 
+ clean:
+ 	rm -rf log
+ 	find . -name "*~" | xargs rm -f
+ 
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.

@@ -1,0 +1,16 @@
+fputs(
+"              curl    -T    \"{file1,file2}\"    http://www.upload-\n"
+"              tothissite.com\n"
+"\n"
+"              or even\n"
+"\n"
+"              curl  -T   \"img[1-1000].png\"   ftp://ftp.picturema-\n"
+"              nia.com/upload/\n"
+"\n"
+"       --trace <file>\n"
+"              Enables  a full trace dump of all incoming and out-\n"
+"              going data, including descriptive  information,  to\n"
+"              the  given output file. Use \"-\" as filename to have\n"
+"              the output sent to stdout.\n"
+"\n"
+, stdout);

@@ -1,0 +1,51 @@
+"              vate key in this separate file.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --key-type <type>\n"
+"              (SSL) Private key file type. Specify which type your --key  pro-\n"
+"              vided  private  key  is.  DER, PEM and ENG are supported. If not\n"
+"              specified, PEM is assumed.\n"
+"\n"
+, stdout);
+ fputs(
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --krb <level>\n"
+"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential'  or\n"
+"              'private'.  Should  you  use  a  level that is not one of these,\n"
+"              'private' will instead be used.\n"
+"\n"
+"              This option requires that the library was built  with  kerberos4\n"
+, stdout);
+ fputs(
+"              or  GSSAPI (GSS-Negotiate) support. This is not very common. Use\n"
+"              -V/--version to see if your curl supports it.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -K/--config <config file>\n"
+"              Specify  which config file to read curl arguments from. The con-\n"
+"              fig file is a text file in which command line arguments  can  be\n"
+"              written  which  then will be used as if they were written on the\n"
+, stdout);
+ fputs(
+"              actual command line. Options and their parameters must be speci-\n"
+"              fied  on  the  same  config file line, separated by white space,\n"
+"              colon, the equals sign or any combination thereof (however,  the\n"
+"              preferred  separator is the equals sign). If the parameter is to\n"
+"              contain white spaces, the  parameter  must  be  enclosed  within\n"
+"              quotes. Within double quotes, the following escape sequences are\n"
+, stdout);
+ fputs(
+"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backlash  preceding  any\n"
+"              other  letter  is  ignored. If the first column of a config line\n"
+"              is a '#' character, the rest of the line will be  treated  as  a\n"
+"              comment.  Only  write one option per physical line in the config\n"
+"              file.\n"
+"\n"
+"              Specify the filename to -K/--config as '-' to make curl read the\n"
+"              file from stdin.\n"
+"\n"
+, stdout);

@@ -19,6 +19,9 @@ from llvm_api import LLVM
 import my_constant
 import myUtil
 
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
 """
 @ param log record, log function, old new writer, gumtree object and log counter
 @ return total_log

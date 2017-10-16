@@ -1,0 +1,16 @@
+fputs(
+"              curl -F password=@/etc/passwd www.mypasswords.com\n"
+"\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name. This goes for both @ and < constructs.\n"
+"\n"
+"              You can also  tell  curl  what  Content-Type  to  use  by  using\n"
+"              'type=', in a manner similar to:\n"
+"\n"
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
+"              or\n"
+"\n"
+"              curl -F \"name=daniel;type=text/foo\" url.com\n"
+"\n"
+, stdout);

@@ -1,0 +1,15 @@
+fputs(
+"                     i.e \"eth0\" to specify which interface's  IP  address  you\n"
+"                     want to use  (Unix only)\n"
+"\n"
+"              IP address\n"
+"                     i.e \"192.168.10.1\" to specify exact IP number\n"
+"\n"
+"              host name\n"
+"                     i.e \"my.host.domain\" to specify machine\n"
+"\n"
+"              -      (any  single-letter string) to make it pick the machine's\n"
+"                     default\n"
+"\n"
+"       If this option is used several times, the last one will be  used.  Dis-\n"
+, stdout);

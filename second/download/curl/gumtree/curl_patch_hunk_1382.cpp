@@ -1,0 +1,18 @@
+ "\n"
+ "        curl -x my-proxy:888 ftp://ftp.leachsite.com/README\n"
+ "\n"
+ " Get a file from a HTTP server that requires user and password, using the\n"
+ " same proxy as above:\n"
+ "\n"
+-);
+- puts(
+ "        curl -u user:passwd -x my-proxy:888 http://www.get.this/\n"
+ "\n"
++);
++ puts(
+ " Some proxies require special authentication. Specify by using -U as above:\n"
+ "\n"
+ "        curl -U user:passwd -x my-proxy:888 http://www.get.this/\n"
+ "\n"
+ " See also the environment variables Curl support that offer further proxy\n"
+ " control.\n"

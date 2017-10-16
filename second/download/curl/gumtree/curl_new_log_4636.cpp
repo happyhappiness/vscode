@@ -1,0 +1,15 @@
+fputs(
+"        curl ftp://user:passwd@my.site.com/README\n"
+"\n"
+"  But if you want the README file from the root directory of that very same\n"
+"  site, you need to specify the absolute file name:\n"
+"\n"
+"        curl ftp://user:passwd@my.site.com//README\n"
+"\n"
+"  (I.e with an extra slash in front of the file name.)\n"
+"\n"
+"SFTP and SCP and PATH NAMES\n"
+"\n"
+"  With sftp: and scp: URLs, the path name given is the absolute name on the\n"
+"  server. To access a file relative to the remote user's home directory,\n"
+, stdout);

@@ -1,0 +1,15 @@
+fputs(
+"              Debug  This  curl  uses a libcurl built with Debug. This enables\n"
+"                     more error-tracking and memory debugging etc.  For  curl-\n"
+"                     developers only!\n"
+"\n"
+"              AsynchDNS\n"
+"                     This curl uses asynchronous name resolves.\n"
+"\n"
+"              SPNEGO SPNEGO Negotiate authenticaion is supported.\n"
+"\n"
+"              Largefile\n"
+"                     This curl supports transfers of large files, files larger\n"
+"                     than 2GB.\n"
+"\n"
+, stdout);

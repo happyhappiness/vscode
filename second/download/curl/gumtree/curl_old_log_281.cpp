@@ -1,0 +1,16 @@
+puts(
+"  A comma-separated list of host names that shouldn't go through any proxy is\n"
+"  set in (only an asterisk, '*' matches all hosts)\n"
+"\n"
+"        NO_PROXY\n"
+"\n"
+"  If a tail substring of the domain-path for a host matches one of these\n"
+"  strings, transactions with that node will not be proxied.\n"
+"\n"
+"\n"
+"  The usage of the -x/--proxy flag overrides the environment variables.\n"
+"\n"
+"NETRC\n"
+"\n"
+"  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
+);

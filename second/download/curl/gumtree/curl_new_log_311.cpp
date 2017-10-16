@@ -1,0 +1,18 @@
+fputs(
+"       tures. See libcurl(3) for details.\n"
+"\n"
+"URL\n"
+"       The  URL  syntax  is  protocol  dependent.  You'll  find a\n"
+"       detailed description in RFC 2396.\n"
+"\n"
+"       You can specify multiple URLs or parts of URLs by  writing\n"
+"       part sets within braces as in:\n"
+"\n"
+"        http://site.{one,two,three}.com\n"
+"\n"
+"       or  you  can get sequences of alphanumeric series by using\n"
+"       [] as in:\n"
+"\n"
+"        ftp://ftp.numericals.com/file[1-100].txt\n"
+"        ftp://ftp.numericals.com/file[001-100].txt    (with lead-\n"
+, stdout);
