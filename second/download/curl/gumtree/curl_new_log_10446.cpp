@@ -1,0 +1,1 @@
+warnf(global, "Failed to open %s!\n", nextarg);

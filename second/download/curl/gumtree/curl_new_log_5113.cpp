@@ -1,0 +1,16 @@
+fputs(
+"       The URL syntax is protocol-dependent. You'll find a  detailed  descrip-\n"
+"       tion in RFC 3986.\n"
+"\n"
+"       You  can  specify  multiple  URLs or parts of URLs by writing part sets\n"
+"       within braces as in:\n"
+"\n"
+"        http://site.{one,two,three}.com\n"
+"\n"
+"       or you can get sequences of alphanumeric series by using [] as in:\n"
+"\n"
+"        ftp://ftp.numericals.com/file[1-100].txt\n"
+"        ftp://ftp.numericals.com/file[001-100].txt    (with leading zeros)\n"
+"        ftp://ftp.letters.com/file[a-z].txt\n"
+"\n"
+, stdout);

@@ -1,0 +1,15 @@
+fputs(
+"              instead written to stdout. This option has no point\n"
+"              when  you're  using a shell with decent redirecting\n"
+"              capabilities.\n"
+"\n"
+"              If this option is used several times, the last  one\n"
+"              will be used.\n"
+"\n"
+"       -t/--telnet-option <OPT=val>\n"
+"              Pass  options  to  the  telnet  protocol. Supported\n"
+"              options are:\n"
+"\n"
+"              TTYPE=<term> Sets the terminal type.\n"
+"\n"
+, stdout);

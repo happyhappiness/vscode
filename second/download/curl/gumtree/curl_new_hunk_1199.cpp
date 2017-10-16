@@ -1,0 +1,14 @@
+"\n"
+"  Curl reads and understands the following environment variables:\n"
+"\n"
+"        HTTP_PROXY, HTTPS_PROXY, FTP_PROXY, GOPHER_PROXY\n"
+"\n"
+"  They should be set for protocol-specific proxies. General proxy should be\n"
+);
+ puts(
+"  set with\n"
+"        \n"
+"        ALL_PROXY\n"
+"\n"
+"  A comma-separated list of host names that shouldn't go through any proxy is\n"
+"  set in (only an asterisk, '*' matches all hosts)\n"

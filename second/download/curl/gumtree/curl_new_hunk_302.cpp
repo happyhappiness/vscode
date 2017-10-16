@@ -1,0 +1,77 @@
+"\n"
+, stdout);
+ fputs(
+"              You may use this option as many times  as  you  have  number  of\n"
+"              URLs.\n"
+"\n"
+"       --remote-name-all\n"
+"              This  option changes the default action for all given URLs to be\n"
+"              dealt with as if -O/--remote-name were used for each one. So  if\n"
+"              you want to disable that for a specific URL after --remote-name-\n"
+"              all has been used, you must  use  \"-o  -\"  or  --no-remote-name.\n"
+"              (Added in 7.19.0)\n"
+"\n"
+"       --pass <phrase>\n"
+, stdout);
+ fputs(
+"              (SSL/SSH) Pass phrase for the private key\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --post301\n"
+"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+, stdout);
+ fputs(
+"              server may requires a POST to remain a POST after such  a  redi-\n"
+"              rection. This option is meaningful only when using -L/--location\n"
+"              (Added in 7.17.1)\n"
+"\n"
+"       --proxy-anyauth\n"
+"              Tells curl to pick a suitable authentication method when  commu-\n"
+"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
+"\n"
+"       --proxy-basic\n"
+, stdout);
+ fputs(
+"              Tells curl to use HTTP Basic authentication  when  communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote host. Basic is the  default  authentication  method  curl\n"
+"              uses with proxies.\n"
+"\n"
+"       --proxy-digest\n"
+"              Tells  curl to use HTTP Digest authentication when communicating\n"
+"              with the given proxy. Use --digest for enabling HTTP Digest with\n"
+"              a remote host.\n"
+"\n"
+, stdout);
+ fputs(
+"       --proxy-negotiate\n"
+"              Tells curl to use HTTP Negotiate authentication when communicat-\n"
+"              ing with the given proxy.  Use  --negotiate  for  enabling  HTTP\n"
+"              Negotiate with a remote host. (Added in 7.17.1)\n"
+"\n"
+"       --proxy-ntlm\n"
+"              Tells  curl  to  use HTTP NTLM authentication when communicating\n"
+"              with the given proxy. Use --ntlm for enabling NTLM with a remote\n"
+"              host.\n"
+"\n"
+"       -p/--proxytunnel\n"
+, stdout);
+ fputs(
+"              When  an HTTP proxy is used (-x/--proxy), this option will cause\n"
+"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
+"              instead  of merely using it to do HTTP-like operations. The tun-\n"
+"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
+"\n"
+"       --pubkey <key>\n"
+, stdout);
+ fputs(
+"              (SSH) Public key file name. Allows you to  provide  your  public\n"
+"              key in this separate file.\n"
+"\n"

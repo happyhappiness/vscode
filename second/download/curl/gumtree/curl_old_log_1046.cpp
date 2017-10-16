@@ -1,0 +1,15 @@
+fputs(
+"              is used, the path is cut off.)\n"
+"\n"
+"              You  may  use this option as many times as you have\n"
+"              number of URLs.\n"
+"       --pass <phrase>\n"
+"              (SSL) Pass phrase for the private key\n"
+"\n"
+"              If this option is used several times, the last  one\n"
+"              will be used.\n"
+"\n"
+"       --proxy-ntlm\n"
+"              Tells curl to use NTLM authentication when communi�\n"
+"              cating  with  the  given  proxy.  Use  --ntlm   for\n"
+, stdout);

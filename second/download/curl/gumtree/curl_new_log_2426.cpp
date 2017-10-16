@@ -1,0 +1,11 @@
+fputs(
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --krb4 <level>\n"
+"              (FTP) Enable kerberos4 authentication and use. The level must be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential'  or\n"
+"              'private'.  Should  you  use  a  level that is not one of these,\n"
+"              'private' will instead be used.\n"
+"\n"
+"              This option requires that the library was built  with  kerberos4\n"
+, stdout);

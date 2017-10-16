@@ -1,0 +1,17 @@
+fputs(
+"  URL you specify. Note that this also goes for the -O option (but not\n"
+"  --remote-name-all).\n"
+"\n"
+"  For example: get two files and use -O for the first and a custom file\n"
+"  name for the second:\n"
+"\n"
+"    curl -O http://url.com/file.txt ftp://ftp.com/moo.exe -o moo.jpg\n"
+"\n"
+"  You can also upload multiple files in a similar fashion:\n"
+"\n"
+"    curl -T local1 ftp://ftp.com/moo.exe -T local2 ftp://ftp.com/moo2.txt\n"
+"\n"
+"IPv6\n"
+"\n"
+"  curl will connect to a server with IPv6 when a host lookup returns an IPv6\n"
+, stdout);

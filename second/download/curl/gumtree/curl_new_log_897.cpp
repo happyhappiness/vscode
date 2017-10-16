@@ -1,0 +1,15 @@
+fputs(
+"              of the document, HTTP-version and more...\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable header include.\n"
+"\n"
+"       --interface <name>\n"
+"              Perform an operation using a  specified  interface.\n"
+"              You  can  enter  interface name, IP address or host\n"
+"              name. An example could look like:\n"
+"\n"
+"               curl --interface eth0:1 http://www.netscape.com/\n"
+"\n"
+"              If this option is used several times, the last  one\n"
+, stdout);

@@ -1,0 +1,23 @@
+  fputs(
+ "                     GSS-API is supported.\n"
+ "\n"
+ "              SSPI   SSPI is supported.\n"
+ "\n"
+ "              TLS-SRP\n"
+-"                     SRP  (Secure Remote Password) authentication is supported\n"
++"                     SRP (Secure Remote Password) authentication is  supported\n"
+ "                     for TLS.\n"
+ "\n"
+ "              HTTP2  HTTP/2 support has been built-in.\n"
+ "\n"
+ "              Metalink\n"
+-"                     This curl supports Metalink (both version 3  and  4  (RFC\n"
+-"                     5854)),  which  describes  mirrors and hashes.  curl will\n"
++"                     This  curl  supports  Metalink (both version 3 and 4 (RFC\n"
++"                     5854)), which describes mirrors and  hashes.   curl  will\n"
+ , stdout);
+  fputs(
+ "                     use mirrors for failover if there are errors (such as the\n"
+ "                     file or server not being available).\n"
+ "\n"
+ "FILES\n"

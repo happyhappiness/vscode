@@ -1,0 +1,22 @@
+ "        curl http://www.netscape.com/\n"
+ "\n"
+ "  Get the README file the user's home directory at funet's ftp-server:\n"
+ "\n"
+ "        curl ftp://ftp.funet.fi/README\n"
+ "\n"
+-, stdout);
+- fputs(
+ "  Get a web page from a server using port 8000:\n"
+ "\n"
+ "        curl http://www.weirdserver.com:8000/\n"
+ "\n"
+ "  Get a list of a directory of an FTP site:\n"
+ "\n"
++, stdout);
++ fputs(
+ "        curl ftp://cool.haxx.se/\n"
+ "\n"
+ "  Get a gopher document from funet's gopher server:\n"
+ "\n"
+ "        curl gopher://gopher.funet.fi\n"
+ "\n"

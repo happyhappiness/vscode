@@ -1,0 +1,1 @@
+warnf(config, "unrecognized ftp CCC method '%s', using default\n", str);

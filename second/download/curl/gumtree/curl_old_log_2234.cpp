@@ -1,0 +1,15 @@
+fputs(
+"              url-encoded. Multiple files can also be specified. Posting  data\n"
+"              from  a file named 'foobar' would thus be done with --data @foo-\n"
+"              bar\".\n"
+"\n"
+"              To post data purely binary, you should instead use  the  --data-\n"
+"              binary option.\n"
+"\n"
+"              -d/--data is the same as --data-ascii.\n"
+"\n"
+"              If  this  option  is  used several times, the ones following the\n"
+"              first will append data.\n"
+"\n"
+"       --data-ascii <data>\n"
+, stdout);

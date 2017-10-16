@@ -1,0 +1,18 @@
+fputs(
+"       82     Could  not  load  CRL  file,  missing  or wrong format (added in\n"
+"              7.19.0).\n"
+"\n"
+"       83     Issuer check failed (added in 7.19.0).\n"
+"\n"
+"       84     The FTP PRET command failed\n"
+"\n"
+"       85     RTSP: mismatch of CSeq numbers\n"
+"\n"
+"       86     RTSP: mismatch of Session Identifiers\n"
+"\n"
+"       87     unable to parse FTP file list\n"
+"\n"
+"       88     FTP chunk callback reported error\n"
+"\n"
+"       XX     More error codes will appear here in future releases. The exist-\n"
+, stdout);

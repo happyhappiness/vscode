@@ -1,0 +1,1 @@
+warnf(clientp, "Could not set SO_KEEPALIVE!\n");

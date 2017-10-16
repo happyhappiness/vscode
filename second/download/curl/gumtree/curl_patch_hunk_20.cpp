@@ -1,0 +1,70 @@
+ "        <input name=user size=10>\n"
+ "        <input name=pass type=password size=10>\n"
+ "        <input name=id type=hidden value=\"blablabla\">\n"
+ "        <input name=ding value=\"submit\">\n"
+ "        </form>\n"
+ "\n"
+-);
+- puts(
+ "  We want to enter user 'foobar' with password '12345'.\n"
+ "\n"
+ "  To post to this, you enter a curl command line like:\n"
+ "\n"
+-"        curl -d \"user=foobar&pass=12345&id=blablabla&dig=submit\"  (continues)\n"
++, stdout);
++ fputs(
++"        curl -d \"user=foobar&pass=12345&id=blablabla&ding=submit\"  (continues)\n"
+ "          http://www.formpost.com/getthis/post.cgi\n"
+ "\n"
+ "\n"
+ "  While -d uses the application/x-www-form-urlencoded mime-type, generally\n"
+ "  understood by CGI's and similar, curl also supports the more capable\n"
+ "  multipart/form-data type. This latter type supports things like file upload.\n"
+ "\n"
+-);
+- puts(
+ "  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
++, stdout);
++ fputs(
+ "  be read from a file, use <@filename> as contents. When specifying a file,\n"
+ "  you can also specify the file content type by appending ';type=<mime type>'\n"
+ "  to the file name. You can also post the contents of several files in one\n"
+ "  field.  For example, the field name 'coolfiles' is used to send three files,\n"
+ "  with different content types using the following syntax:\n"
+ "\n"
+-);
+- puts(
+ "        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
+ "        http://www.post.com/postit.cgi\n"
+ "\n"
++, stdout);
++ fputs(
+ "  If the content-type is not specified, curl will try to guess from the file\n"
+ "  extension (it only knows a few), or use the previously specified type (from\n"
+ "  an earlier file if several files are specified in a list) or else it will\n"
+ "  using the default type 'text/plain'.\n"
+ "\n"
+ "  Emulate a fill-in form with -F. Let's say you fill in three fields in a\n"
+-);
+- puts(
+ "  form. One field is a file name which to post, one field is your name and one\n"
++, stdout);
++ fputs(
+ "  field is a file description. We want to post the file we have written named\n"
+ "  \"cooltext.txt\". To let curl do the posting of this data instead of your\n"
+ "  favourite browser, you have to read the HTML source of the form page and\n"
+ "  find the names of the input fields. In our example, the input field names\n"
+ "  are 'file', 'yourname' and 'filedescription'.\n"
+ "\n"
+ "        curl -F \"file=@cooltext.txt\" -F \"yourname=Daniel\" \\\n"
+-);
+- puts(
+ "             -F \"filedescription=Cool text file with cool text inside\" \\\n"
++, stdout);
++ fputs(
+ "             http://www.post.com/postit.cgi\n"
+ "\n"
+ "  To send two files in one post you can do it in two ways:\n"
+ "\n"
+ "  1. Send multiple files in a single \"field\" with a single field name:\n"
+ " \n"

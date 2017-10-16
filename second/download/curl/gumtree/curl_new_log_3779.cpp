@@ -1,0 +1,12 @@
+fputs(
+"              the others.\n"
+"\n"
+"       --compressed\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              libcurl supports, and return the uncompressed document.  If this\n"
+"              option is used and the server  sends  an  unsupported  encoding,\n"
+"              curl will report an error.\n"
+"\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum  time  in  seconds  that you allow the connection to the\n"
+, stdout);

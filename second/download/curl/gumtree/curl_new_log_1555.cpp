@@ -1,0 +1,15 @@
+fputs(
+"              (HTTPS) Forces curl to use TSL version 1 when negotiating with a\n"
+"              remote TLS server.\n"
+"\n"
+"       -2/--sslv2\n"
+"              (HTTPS) Forces curl to use SSL version 2 when negotiating with a\n"
+"              remote SSL server.\n"
+"\n"
+"       -3/--sslv3\n"
+"              (HTTPS) Forces curl to use SSL version 3 when negotiating with a\n"
+"              remote SSL server.\n"
+"\n"
+"       --3p-quote\n"
+"              (FTP)  Specify  arbitrary commands to send to the source server.\n"
+, stdout);

@@ -1,0 +1,1 @@
+warnf(global, "--test-event is ignored unless a debug build!\n");

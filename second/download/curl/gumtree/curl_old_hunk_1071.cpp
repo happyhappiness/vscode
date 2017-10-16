@@ -1,0 +1,13 @@
+"              ers intended for a proxy.\n"
+"\n"
+, stdout);
+ fputs(
+"              Example:\n"
+"\n"
+"              # curl -H \"X-First-Name: Joe\" http://192.168.0.1/\n"
+"\n"
+"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
+"              requests - even after redirects are  followed,  like  when  told\n"
+"              with  -L,  --location. This can lead to the header being sent to\n"
+"              other hosts than the original host, so sensitive headers  should\n"
+"              be used with caution combined with following redirects.\n"

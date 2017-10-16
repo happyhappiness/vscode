@@ -1,0 +1,47 @@
+"\n"
+"              XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+"              NEW_ENV=<var,val> Sets an environment variable.\n"
+"\n"
+"       -T, --upload-file <file>\n"
+"              This  transfers  the  specified local file to the remote URL. If\n"
+"              there is no file part in the specified URL, Curl will append the\n"
+, stdout);
+ fputs(
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory to really prove to Curl that there is no file name  or\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
+"              be used.\n"
+"\n"
+"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
+, stdout);
+ fputs(
+"              given  file.   Alternately,  the file name \".\" (a single period)\n"
+"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
+"              mode  to  allow  reading  server  output  while  stdin  is being\n"
+"              uploaded.\n"
+"\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
+"              + URL pair specifies what to upload and to where. curl also sup-\n"
+, stdout);
+ fputs(
+"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
+"              multiple  files  to  a single URL by using the same URL globbing\n"
+"              style supported in the URL, like this:\n"
+"\n"
+"              curl -T \"{file1,file2}\" http://www.example.com\n"
+"\n"
+"              or even\n"
+"\n"
+"              curl -T \"img[1-1000].png\" ftp://ftp.example.com/upload/\n"
+"\n"
+"       --tcp-nodelay\n"
+"              Turn on the TCP_NODELAY option. See the curl_easy_setopt(3)  man\n"
+, stdout);
+ fputs(
+"              page for details about this option. (Added in 7.11.2)\n"
+"\n"
+"       --tcp-fastopen\n"
+"              Enable use of TCP Fast Open (RFC7413). (Added in 7.49.0)\n"

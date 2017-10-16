@@ -1,0 +1,15 @@
+fputs(
+"              Turn on the TCP_NODELAY option. See the curl_easy_setopt(3)  man\n"
+"              page for details about this option. (Added in 7.11.2)\n"
+"\n"
+"              If  this  option  is used several times, each occurrence toggles\n"
+"              this on/off.\n"
+"\n"
+"       -t/--telnet-option <OPT=val>\n"
+"              Pass options to the telnet protocol. Supported options are:\n"
+"\n"
+"              TTYPE=<term> Sets the terminal type.\n"
+"\n"
+"              XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+, stdout);

@@ -1,0 +1,1 @@
+warnf(global, "--trace overrides an earlier trace/verbose option\n");

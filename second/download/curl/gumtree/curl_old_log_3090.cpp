@@ -1,0 +1,15 @@
+fputs(
+"              URLs.\n"
+"\n"
+"              See  also  the --create-dirs option to create the local directo‐\n"
+"              ries dynamically.\n"
+"\n"
+"       -O/--remote-name\n"
+"              Write output to a local file named like the remote file we  get.\n"
+"              (Only  the file part of the remote file is used, the path is cut\n"
+"              off.)\n"
+"\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
+"\n"
+, stdout);

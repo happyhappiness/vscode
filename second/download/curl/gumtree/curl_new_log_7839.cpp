@@ -1,0 +1,17 @@
+fputs(
+"  Otherwise, curl will first attempt to use v3 and then v2.\n"
+"\n"
+"  To use OpenSSL to convert your favourite browser's certificate into a PEM\n"
+"  formatted one that curl can use, do something like this:\n"
+"\n"
+"    In Netscape, you start with hitting the 'Security' menu button.\n"
+"\n"
+"    Select 'certificates->yours' and then pick a certificate in the list\n"
+"\n"
+"    Press the 'Export' button\n"
+"\n"
+"    enter your PIN code for the certs\n"
+"\n"
+"    select a proper place to save it\n"
+"\n"
+, stdout);

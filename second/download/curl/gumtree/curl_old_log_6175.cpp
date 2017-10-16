@@ -1,0 +1,15 @@
+fputs(
+"              libcurl to resolve names to IPv6 addresses only.\n"
+"\n"
+"       -#/--progress-bar\n"
+"              Make curl display progress information as a progress bar instead\n"
+"              of the default statistics.\n"
+"\n"
+"FILES\n"
+"       ~/.curlrc\n"
+"              Default config file, see -K/--config for details.\n"
+"\n"
+"ENVIRONMENT\n"
+"       The environment variables can be specified in lower case or upper case.\n"
+"       The lower case version has precedence. http_proxy is an exception as it\n"
+, stdout);

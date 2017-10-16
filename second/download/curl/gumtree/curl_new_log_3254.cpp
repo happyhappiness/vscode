@@ -1,0 +1,16 @@
+fputs(
+"  are 'file', 'yourname' and 'filedescription'.\n"
+"\n"
+"        curl -F \"file=@cooltext.txt\" -F \"yourname=Daniel\" \\\n"
+"             -F \"filedescription=Cool text file with cool text inside\" \\\n"
+"             http://www.post.com/postit.cgi\n"
+"\n"
+"  To send two files in one post you can do it in two ways:\n"
+"\n"
+"  1. Send multiple files in a single \"field\" with a single field name:\n"
+" \n"
+"        curl -F \"pictures=@dog.gif,cat.gif\" \n"
+" \n"
+"  2. Send two fields with two field names: \n"
+"\n"
+, stdout);

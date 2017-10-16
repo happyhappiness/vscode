@@ -1,0 +1,16 @@
+fputs(
+"              file,  use  -  where  the file name should've been.\n"
+"              This goes for both @ and < constructs.\n"
+"\n"
+"              You can also tell curl what Content-Type to use for\n"
+"              the file upload part, by using 'type=', in a manner\n"
+"              similar to:\n"
+"\n"
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
+"              See further examples and details in the MANUAL.\n"
+"\n"
+"              This option can be used multiple times.\n"
+"\n"
+"       -g/--globoff\n"
+, stdout);

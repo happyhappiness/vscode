@@ -1,0 +1,17 @@
+fputs(
+"       curl  is  powered  by  libcurl  for  all transfer-related features. See\n"
+"       libcurl(3) for details.\n"
+"\n"
+"URL\n"
+"       The URL syntax is protocol-dependent. You'll find a  detailed  descrip-\n"
+"       tion in RFC 3986.\n"
+"\n"
+"       You  can  specify  multiple  URLs or parts of URLs by writing part sets\n"
+"       within braces as in:\n"
+"\n"
+"        http://site.{one,two,three}.com\n"
+"\n"
+"       or you can get sequences of alphanumeric series by using [] as in:\n"
+"\n"
+"        ftp://ftp.numericals.com/file[1-100].txt\n"
+, stdout);

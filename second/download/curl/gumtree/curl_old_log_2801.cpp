@@ -1,0 +1,13 @@
+fputs(
+"        curl -F \"docpicture=@dog.gif\" -F \"catpicture=@cat.gif\" \n"
+"\n"
+"  To send a field value literally without interpreting a leading '@'\n"
+"  or '<', or an embedded ';type=', use --form-string instead of\n"
+"  -F. This is recommended when the value is obtained from a user or\n"
+"  some other unpredictable source. Under these circumstances, using\n"
+"  -F instead of --form-string would allow a user to trick curl into\n"
+"  uploading a file.\n"
+"\n"
+"REFERRER\n"
+"\n"
+, stdout);

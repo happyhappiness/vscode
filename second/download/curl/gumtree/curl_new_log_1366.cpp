@@ -1,0 +1,1 @@
+curl_msnprintf(fptr, left, "%ld", width);

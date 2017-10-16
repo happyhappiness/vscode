@@ -1,0 +1,15 @@
+fputs(
+"              (HTTP) Forces curl to issue its requests using HTTP\n"
+"              1.0 instead of using its internally preferred: HTTP\n"
+"              1.1.\n"
+"\n"
+"       -1/--tlsv1\n"
+"              (HTTPS) Forces curl to use TSL version 1 when nego-\n"
+"              tiating with a remote TLS server.\n"
+"\n"
+"       -2/--sslv2\n"
+"              (HTTPS) Forces curl to use SSL version 2 when nego-\n"
+"              tiating with a remote SSL server.\n"
+"\n"
+"       -3/--sslv3\n"
+, stdout);

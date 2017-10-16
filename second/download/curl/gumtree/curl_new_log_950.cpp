@@ -1,0 +1,15 @@
+fputs(
+"                     This  enables more error-tracking and memory\n"
+"                     debugging etc. For curl-developers only!\n"
+"\n"
+"              AsynchDNS\n"
+"                     This curl uses asynchronous name resolves.\n"
+"\n"
+"              SPNEGO SPNEGO Negotiate authenticaion is supported.\n"
+"\n"
+"              Largefile\n"
+"                     This curl supports transfers of large files,\n"
+"                     files larger than 2GB.\n"
+"\n"
+"       -w/--write-out <format>\n"
+, stdout);

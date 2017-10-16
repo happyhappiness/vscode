@@ -1,0 +1,14 @@
+ "       58     Problem with the local certificate.\n"
+ "\n"
+ "       59     Couldn't use specified SSL cipher.\n"
+ "\n"
+ , stdout);
+  fputs(
+-"       60     Peer certificate cannot be authenticated with known CA  certifi-\n"
++"       60     Peer  certificate cannot be authenticated with known CA certifi-\n"
+ "              cates.\n"
+ "\n"
+ "       61     Unrecognized transfer encoding.\n"
+ "\n"
+ "       62     Invalid LDAP URL.\n"
+ "\n"

@@ -1,0 +1,944 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/CHANGES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/CHANGES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/CHANGES	2016-12-21 14:50:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/CHANGES	2016-12-23 15:22:56.000000000 +0800
+@@ -3,12 +3,50 @@
+                              / __| | | | |_) | |
+                             | (__| |_| |  _ <| |___
+                              \___|\___/|_| \_\_____|
+ 
+                                   Changelog
+ 
++Version 7.52.1 (22 Dec 2016)
++
++Daniel Stenberg (22 Dec 2016)
++- RELEASE-NOTES: curl 7.52.1
++
++- lib557.c: use a shorter MAXIMIZE representation
++  
++  Since several compilers had problems with the previous one
++  
++  Reported-by: Ray Satiro
++  Bug: https://curl.haxx.se/mail/lib-2016-12/0098.html
++
++- runtests: remove the valgrind parser
++  
++  Old legacy parsing that 1) hid problems for us and 2) probably isn't
++  needed anymore.
++
++- [Kamil Dudka brought this change]
++
++  randit: store the value in the buffer
++
++- tests/Makefile: run checksrc on debug builds
++  
++  ... just like we already do in src/ and lib/
++
++- lib557: move the "enable LONGLINE" to allow more long lines
++  
++  This file is riddled with them...
++
++- bump: toward next release
++
++Marcel Raad (21 Dec 2016)
++- lib: fix MSVC compiler warnings
++  
++  Visual C++ complained:
++  warning C4267: '=': conversion from 'size_t' to 'long', possible loss of data
++  warning C4701: potentially uninitialized local variable 'path' used
++
+ Version 7.52.0 (20 Dec 2016)
+ 
+ Daniel Stenberg (20 Dec 2016)
+ - THANKS: 13 new contributors from 7.52.0
+ 
+ - RELEASE-NOTES: 7.52.0
+@@ -5784,31 +5822,6 @@
+   Closes #712
+ 
+ Steve Holme (13 Mar 2016)
+ - base64: Minor coding standard and style updates
+ 
+ - base64: Use 'CURLcode result' for curl result codes
+-
+-- negotiate: Use 'CURLcode result' for curl result codes
+-
+-Daniel Stenberg (13 Mar 2016)
+-- [Maksim Kuzevanov brought this change]
+-
+-  multi_runsingle: avoid loop in CURLM_STATE_WAITPROXYCONNECT
+-  
+-  Closes #703
+-
+-- TODO: Use the RFC6265 test suite
+-
+-Steve Holme (13 Mar 2016)
+-- checksrc.bat: Added the ability to scan src and lib source independently
+-
+-- digest: Use boolean based success code for Curl_sasl_digest_get_pair()
+-  
+-  Rather than use a 0 and 1 integer base result code use a TRUE / FALSE
+-  based success code.
+-
+-- digest: Corrected some typos in comments
+-
+-- krb5: Corrected some typos in function descriptions
+-
+-- ntlm: Corrected some typos in function descriptions
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/docs/libcurl/libcurl-symbols.3 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/docs/libcurl/libcurl-symbols.3
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/docs/libcurl/libcurl-symbols.3	2016-12-21 14:50:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/docs/libcurl/libcurl-symbols.3	2016-12-23 15:22:55.000000000 +0800
+@@ -16,13 +16,13 @@
+ .\" * furnished to do so, under the terms of the COPYING file.
+ .\" *
+ .\" * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ .\" * KIND, either express or implied.
+ .\" *
+ .\" **************************************************************************
+-.TH libcurl-symbols 3 "dec 21, 2016" "libcurl 7.41.0" "libcurl symbols"
++.TH libcurl-symbols 3 "dec 23, 2016" "libcurl 7.41.0" "libcurl symbols"
+ .SH NAME
+ libcurl-symbols \- libcurl symbol version information
+ .SH "libcurl symbols"
+ This man page details version information for public symbols provided in the
+ libcurl header files. This lists the first version in which the symbol was
+ introduced and for some symbols two additional information pieces:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/include/curl/curlver.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/include/curl/curlver.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/include/curl/curlver.h	2016-12-21 14:50:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/include/curl/curlver.h	2016-12-23 15:22:56.000000000 +0800
+@@ -27,19 +27,19 @@
+ 
+ /* This is the global package copyright */
+ #define LIBCURL_COPYRIGHT "1996 - 2016 Daniel Stenberg, <daniel@haxx.se>."
+ 
+ /* This is the version number of the libcurl package from which this header
+    file origins: */
+-#define LIBCURL_VERSION "7.52.0"
++#define LIBCURL_VERSION "7.52.1"
+ 
+ /* The numeric version number is also available "in parts" by using these
+    defines: */
+ #define LIBCURL_VERSION_MAJOR 7
+ #define LIBCURL_VERSION_MINOR 52
+-#define LIBCURL_VERSION_PATCH 0
++#define LIBCURL_VERSION_PATCH 1
+ 
+ /* This is the numeric version of the libcurl version number, meant for easier
+    parsing and comparions by programs. The LIBCURL_VERSION_NUM define will
+    always follow this syntax:
+ 
+          0xXXYYZZ
+@@ -54,24 +54,24 @@
+    comparisons with greater than and less than work.
+ 
+    Note: This define is the full hex number and _does not_ use the
+    CURL_VERSION_BITS() macro since curl's own configure script greps for it
+    and needs it to contain the full number.
+ */
+-#define LIBCURL_VERSION_NUM 0x073400
++#define LIBCURL_VERSION_NUM 0x073401
+ 
+ /*
+  * This is the date and time when the full source package was created. The
+  * timestamp is not stored in git, as the timestamp is properly set in the
+  * tarballs by the maketgz script.
+  *
+  * The format of the date should follow this template:
+  *
+  * "Mon Feb 12 11:35:33 UTC 2007"
+  */
+-#define LIBCURL_TIMESTAMP "Wed Dec 21 06:50:01 UTC 2016"
++#define LIBCURL_TIMESTAMP "Fri Dec 23 07:22:31 UTC 2016"
+ 
+ #define CURL_VERSION_BITS(x,y,z) ((x)<<16|(y)<<8|z)
+ #define CURL_AT_LEAST_VERSION(x,y,z) \
+   (LIBCURL_VERSION_NUM >= CURL_VERSION_BITS(x, y, z))
+ 
+ #endif /* __CURL_CURLVER_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/include/curl/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/include/curl/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/include/curl/Makefile.in	2016-12-19 16:16:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/include/curl/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -428,15 +428,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign include/curl/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu include/curl/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign include/curl/Makefile
++	  $(AUTOMAKE) --gnu include/curl/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/http_digest.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/http_digest.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/http_digest.c	2016-12-19 15:27:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/http_digest.c	2016-12-22 15:48:20.000000000 +0800
+@@ -71,13 +71,13 @@
+                             bool proxy,
+                             const unsigned char *request,
+                             const unsigned char *uripath)
+ {
+   CURLcode result;
+   struct Curl_easy *data = conn->data;
+-  unsigned char *path;
++  unsigned char *path = NULL;
+   char *tmp = NULL;
+   char *response;
+   size_t len;
+   bool have_chlg;
+ 
+   /* Point to the address of the pointer that holds the string to send to the
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/libcurl.plist /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/libcurl.plist
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/libcurl.plist	2016-12-21 14:50:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/libcurl.plist	2016-12-23 15:22:56.000000000 +0800
+@@ -12,24 +12,24 @@
+ 	<string>curl</string>
+ 
+ 	<key>CFBundleIdentifier</key>
+ 	<string>se.haxx.curl.libcurl</string>
+ 
+ 	<key>CFBundleVersion</key>
+-	<string>7.52.0</string>
++	<string>7.52.1</string>
+ 
+ 	<key>CFBundleName</key>
+ 	<string>libcurl</string>
+ 
+ 	<key>CFBundlePackageType</key>
+ 	<string>FMWK</string>
+ 
+ 	<key>CFBundleSignature</key>
+ 	<string>????</string>
+ 
+ 	<key>CFBundleShortVersionString</key>
+-	<string>libcurl 7.52.0</string>
++	<string>libcurl 7.52.1</string>
+ 
+ 	<key>CFBundleGetInfoString</key>
+-	<string>libcurl.plist 7.52.0</string>
++	<string>libcurl.plist 7.52.1</string>
+ </dict>
+ </plist>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/mprintf.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/mprintf.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/mprintf.c	2016-12-19 15:27:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/mprintf.c	2016-12-22 15:48:20.000000000 +0800
+@@ -932,13 +932,13 @@
+           while(val >= 10.0) {
+             val /= 10;
+             maxprec--;
+           }
+ 
+           if(prec > (long)maxprec)
+-            prec = maxprec-1;
++            prec = (long)maxprec-1;
+           /* RECURSIVE USAGE */
+           len = curl_msnprintf(fptr, left, ".%ld", prec);
+           fptr += len;
+         }
+         if(p->flags & FLAGS_LONG)
+           *fptr++ = 'l';
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/rand.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/rand.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/lib/rand.c	2016-12-19 15:27:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/lib/rand.c	2016-12-22 15:48:20.000000000 +0800
+@@ -56,13 +56,13 @@
+     *rnd = randseed;
+     return CURLE_OK;
+   }
+ #endif
+ 
+   /* data may be NULL! */
+-  result = Curl_ssl_random(data, (unsigned char *)&rnd, sizeof(rnd));
++  result = Curl_ssl_random(data, (unsigned char *)rnd, sizeof(*rnd));
+   if(result != CURLE_NOT_BUILT_IN)
+     /* only if there is no random funtion in the TLS backend do the non crypto
+        version, otherwise return result */
+     return result;
+ 
+   /* ---- non-cryptographic version following ---- */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/AIX/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/AIX/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/AIX/Makefile.in	2016-12-19 16:16:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/AIX/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -397,15 +397,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/AIX/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/AIX/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/AIX/Makefile
++	  $(AUTOMAKE) --gnu packages/AIX/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/AIX/RPM/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/AIX/RPM/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/AIX/RPM/Makefile.in	2016-12-19 16:16:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/AIX/RPM/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -336,15 +336,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/AIX/RPM/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/AIX/RPM/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/AIX/RPM/Makefile
++	  $(AUTOMAKE) --gnu packages/AIX/RPM/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Linux/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Linux/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Linux/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Linux/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -396,15 +396,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Linux/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Linux/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Linux/Makefile
++	  $(AUTOMAKE) --gnu packages/Linux/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Linux/RPM/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Linux/RPM/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Linux/RPM/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Linux/RPM/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -337,15 +337,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Linux/RPM/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Linux/RPM/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Linux/RPM/Makefile
++	  $(AUTOMAKE) --gnu packages/Linux/RPM/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -428,15 +428,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Makefile
++	  $(AUTOMAKE) --gnu packages/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Solaris/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Solaris/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Solaris/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Solaris/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -343,15 +343,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Solaris/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Solaris/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Solaris/Makefile
++	  $(AUTOMAKE) --gnu packages/Solaris/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/vms/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/vms/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/vms/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/vms/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -372,15 +372,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/vms/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/vms/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/vms/Makefile
++	  $(AUTOMAKE) --gnu packages/vms/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Win32/cygwin/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Win32/cygwin/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Win32/cygwin/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Win32/cygwin/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -353,15 +353,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Win32/cygwin/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Win32/cygwin/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Win32/cygwin/Makefile
++	  $(AUTOMAKE) --gnu packages/Win32/cygwin/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Win32/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Win32/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/packages/Win32/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/packages/Win32/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -397,15 +397,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Win32/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Win32/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Win32/Makefile
++	  $(AUTOMAKE) --gnu packages/Win32/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/RELEASE-NOTES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/RELEASE-NOTES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/RELEASE-NOTES	2016-12-21 14:48:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/RELEASE-NOTES	2016-12-23 15:20:44.000000000 +0800
+@@ -1,123 +1,32 @@
+-Curl and libcurl 7.52.0
++Curl and libcurl 7.52.1
+ 
+- Public curl releases:         161
++ Public curl releases:         162
+  Command line options:         204
+  curl_easy_setopt() options:   243
+  Public functions in libcurl:  61
+  Contributors:                 1480
+ 
+-This release includes the following changes:
+-
+- o nss: map CURL_SSLVERSION_DEFAULT to NSS default
+- o vtls: support TLS 1.3 via CURL_SSLVERSION_TLSv1_3
+- o curl: introduce the --tlsv1.3 option to force TLS 1.3
+- o curl: Add --retry-connrefused [11]
+- o proxy: Support HTTPS proxy and SOCKS+HTTP(s) [24]
+- o add CURLINFO_SCHEME, CURLINFO_PROTOCOL, and %{scheme} [20]
+- o curl: add --fail-early [15]
+-
+ This release includes the following bugfixes:
+ 
+- o CVE-2016-9586: printf floating point buffer overflow [33]
+- o CVE-2016-9952: Win CE schannel cert wildcard matches too much [34]
+- o CVE-2016-9953: Win CE schannel cert name out of buffer read [35]
+- o msvc: removed a straggling reference to strequal.c
+- o winbuild: remove strcase.obj from curl build [1]
+- o examples: bugfixed multi-uv.c
+- o configure: verify that compiler groks -Werror=partial-availability [2]
+- o mbedtls: fix build with mbedtls versions < 2.4.0 [3]
+- o dist: add unit test CMakeLists.txt to the tarball
+- o curl -w: added more decimal digits to timing counters [4]
+- o easy: Initialize info variables on easy init and duphandle [5]
+- o cmake: disable poll for macOS [6]
+- o http2: Don't send header fields prohibited by HTTP/2 spec [7]
+- o ssh: check md5 fingerprints case insensitively (regression) [8]
+- o openssl: initial TLS 1.3 adaptions
+- o curl_formadd.3: *_FILECONTENT and *_FILE need the file to be kept
+- o printf: fix ".*f" handling [9]
+- o examples/fileupload.c: fclose the file as well
+- o SPNEGO: Fix memory leak when authentication fails [10]
+- o realloc: use Curl_saferealloc to avoid common mistakes [12]
+- o openssl: make sure to fail in the unlikely event that PRNG seeding fails
+- o URL-parser: for file://[host]/ URLs, the [host] must be localhost [13]
+- o timeval: prefer time_t to hold seconds instead of long
+- o Curl_rand: fixed and moved to rand.c [14]
+- o glob: fix [a-c] globbing regression [16]
+- o darwinssl: fix SSL client certificate not found on MacOS Sierra [17]
+- o curl.1: Clarify --dump-header only writes received headers
+- o http2: Fix address sanitizer memcpy warning
+- o http2: Use huge HTTP/2 windows [18]
+- o connects: Don't mix unix domain sockets with regular ones
+- o url: Fix conn reuse for local ports and interfaces [19]
+- o x509: Limit ASN.1 structure sizes to 256K
+- o checksrc: add more checks
+- o winbuild: add config option ENABLE_NGHTTP2 [21]
+- o http2: check nghttp2_session_set_local_window_size exists [22]
+- o http2: Fix crashes when parent stream gets aborted [23]
+- o CURLOPT_CONNECT_TO: Skip non-matching "connect-to" entries [25]
+- o URL parser: reject non-numerical port numbers
+- o CONNECT: reject TE or CL in 2xx responses
+- o CONNECT: read responses one byte at a time [26]
+- o curl: support zero-length argument strings in config files [27]
+- o openssl: don't use OpenSSL's ERR_PACK [28]
+- o curl.1: generated with the new man page system [29]
+- o curl_easy_recv: Improve documentation and example program [30]
+- o Curl_getconnectinfo: avoid checking if the connection is closed [31]
+- o CIPHERS.md: attempt to document TLS cipher names [32]
++ o CVE-2016-9594: unititialized random [1]
++ o lib557: fix checksrc warnings
++ o lib: fix MSVC compiler warnings
++ o lib557.c: use a shorter MAXIMIZE representation [2]
++ o tests: run checksrc on debug builds
+ 
+ This release includes the following known bugs:
+ 
+  o see docs/KNOWN_BUGS (https://curl.haxx.se/docs/knownbugs.html)
+ 
+ This release would not have looked like this without help, code, reports and
+ advice from friends like these:
+ 
+-  Adam Langley, Adam Piggott, afrind on github, Alex Chan, Alex Rousskov,
+-  Anders Bakken, Andrei Sedoi, Bruce Stephens, Dan Fandrich, Daniel Hwang,
+-  Daniel Stenberg, Dan McNulty, Dave Reisner, David Schweikert,
+-  Dmitry Kurochkin, Frank Gevaerts, Frank Meier, Gisle Vanem, Isaac Boukris,
+-  Jakub Zakrzewski, Jan Ehrhardt, Jeremy Pearson, Kamil Dudka, Marcel Raad,
+-  Mauro Rappa, Michael Kaufmann, Mike Crowe, Neal Poole, Nick Zitzmann,
+-  Okhin Vasilij, Patrick Monnerat, Peter Wu, Ray Satiro, Ricki Hirner,
+-  Tatsuhiro Tsujikawa, Thomas Glanzmann, Tony Kelman, Vasy Okhin,
+-  (38 contributors)
++  Daniel Stenberg, Kamil Dudka, Marcel Raad, Ray Satiro,
++  (4 contributors)
+ 
+         Thanks! (and sorry if I forgot to mention someone)
+ 
+ References to bug reports and discussions on issues:
+ 
+- [1] = https://curl.haxx.se/bug/?i=1098
+- [2] = https://curl.haxx.se/bug/?i=1104
+- [3] = https://curl.haxx.se/bug/?i=1087
+- [4] = https://curl.haxx.se/bug/?i=1106
+- [5] = https://curl.haxx.se/bug/?i=1103
+- [6] = https://curl.haxx.se/bug/?i=1089
+- [7] = https://curl.haxx.se/bug/?i=1092
+- [8] = https://github.com/curl/curl/commit/ce8d09483eea2fcb1b50e323e1a8ed1f3613b2e3#commitcomment-19666146
+- [9] = https://curl.haxx.se/bug/?i=1113
+- [10] = https://curl.haxx.se/bug/?i=1115
+- [11] = https://curl.haxx.se/bug/?i=1064
+- [12] = https://curl.haxx.se/mail/lib-2016-11/0087.html
+- [13] = https://curl.haxx.se/mail/lib-2016-11/0104.html
+- [14] = https://curl.haxx.se/mail/lib-2016-11/0119.html
+- [15] = https://curl.haxx.se/mail/archive-2016-11/0038.html
+- [16] = https://github.com/curl/curl/commit/ee4f76606cfa4ee068bf28edd37c8dae7e8db317#commitcomment-19823146
+- [17] = https://curl.haxx.se/bug/?i=1105
+- [18] = https://curl.haxx.se/bug/?i=1102
+- [19] = https://curl.haxx.se/mail/lib-2016-11/0137.html
+- [20] = https://curl.haxx.se/bug/?i=1137
+- [21] = https://curl.haxx.se/bug/?i=1141
+- [22] = https://github.com/curl/curl/commit/a4d8888#commitcomment-19985676
+- [23] = https://curl.haxx.se/bug/?i=1125
+- [24] = https://curl.haxx.se/bug/?i=1127
+- [25] = https://curl.haxx.se/bug/?i=1148
+- [26] = https://curl.haxx.se/bug/?i=1132
+- [27] = https://curl.haxx.se/bug/?i=1152
+- [28] = https://curl.haxx.se/bug/?i=1157
+- [29] = https://github.com/curl/curl/blob/master/docs/cmdline-opts/MANPAGE.md
+- [30] = https://curl.haxx.se/bug/?i=1134
+- [31] = https://curl.haxx.se/bug/?i=1134
+- [32] = https://curl.haxx.se/docs/ssl-ciphers.html
+- [33] = https://curl.haxx.se/docs/adv_20161221A.html
+- [34] = https://curl.haxx.se/docs/adv_20161221B.html
+- [35] = https://curl.haxx.se/docs/adv_20161221C.html
++ [1] = https://curl.haxx.se/docs/adv_20161223.html
++ [2] = https://curl.haxx.se/mail/lib-2016-12/0098.html
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/scripts/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/scripts/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/scripts/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/scripts/Makefile.in	2016-12-22 06:38:36.000000000 +0800
+@@ -358,15 +358,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign scripts/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu scripts/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign scripts/Makefile
++	  $(AUTOMAKE) --gnu scripts/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/src/tool_hugehelp.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/src/tool_hugehelp.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/src/tool_hugehelp.c	2016-12-20 21:41:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/src/tool_hugehelp.c	2016-12-21 20:40:15.000000000 +0800
+@@ -1,11 +1,11 @@
+ #include "tool_setup.h"
+ #ifndef HAVE_LIBZ
+ /*
+  * NEVER EVER edit this manually, fix the mkhelp.pl script instead!
+- * Generation time: Tue Dec 20 14:41:16 2016
++ * Generation time: Wed Dec 21 13:40:15 2016
+  */
+ #ifdef USE_MANUAL
+ #include "tool_hugehelp.h"
+ void hugehelp(void)
+ {
+    fputs(
+@@ -4966,13 +4966,13 @@
+ #include "tool_hugehelp.h"
+ void hugehelp(void) {}
+ #endif /* USE_MANUAL */
+ #else
+ /*
+  * NEVER EVER edit this manually, fix the mkhelp.pl script instead!
+- * Generation time: Tue Dec 20 14:41:16 2016
++ * Generation time: Wed Dec 21 13:40:15 2016
+  */
+ #ifdef USE_MANUAL
+ #include "tool_hugehelp.h"
+ #include <zlib.h>
+ #include "memdebug.h" /* keep this as LAST include */
+ static const unsigned char hugehelpgz[] = {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/src/tool_version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/src/tool_version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/src/tool_version.h	2016-12-21 14:50:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/src/tool_version.h	2016-12-23 15:22:56.000000000 +0800
+@@ -22,13 +22,13 @@
+  *
+  ***************************************************************************/
+ #include <curl/curlver.h>
+ 
+ #define CURL_NAME "curl"
+ #define CURL_COPYRIGHT LIBCURL_COPYRIGHT
+-#define CURL_VERSION "7.52.0"
++#define CURL_VERSION "7.52.1"
+ #define CURL_VERSION_MAJOR LIBCURL_VERSION_MAJOR
+ #define CURL_VERSION_MINOR LIBCURL_VERSION_MINOR
+ #define CURL_VERSION_PATCH LIBCURL_VERSION_PATCH
+ #define CURL_ID CURL_NAME " " CURL_VERSION " (" OS ") "
+ 
+ #endif /* HEADER_CURL_TOOL_VERSION_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/data/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/data/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/data/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/data/Makefile.in	2016-12-23 15:22:54.000000000 +0800
+@@ -518,15 +518,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tests/data/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu tests/data/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign tests/data/Makefile
++	  $(AUTOMAKE) --gnu tests/data/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/libtest/lib557.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/libtest/lib557.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/libtest/lib557.c	2016-12-19 15:27:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/libtest/lib557.c	2016-12-22 23:40:11.000000000 +0800
+@@ -1342,13 +1342,12 @@
+ 
+   i++; co_test[i].num =  MPRNT_OFF_T_C(0x0000000000000000) -MPRNT_OFF_T_C(1); co_test[i].expected = "-1";
+ 
+   num_cofft_tests = i;
+ 
+ #endif
+-  /* !checksrc! enable LONGLINE */
+ 
+   for(i=1; i<=num_cofft_tests; i++) {
+ 
+     for(j=0; j<BUFSZ; j++)
+       co_test[i].result[j] = 'X';
+     co_test[i].result[BUFSZ-1] = '\0';
+@@ -1536,13 +1535,13 @@
+     printf("Some curl_mprintf() weird arguments tests failed!\n");
+ 
+   return errors;
+ }
+ 
+ /* DBL_MAX value from Linux */
+-#define MAXIMIZE -179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.000000
++#define MAXIMIZE -1.7976931348623157081452E+308
+ 
+ static int test_float_formatting(void)
+ {
+   int errors = 0;
+   char buf[512]; /* larger than max float size */
+   curl_msnprintf(buf, sizeof(buf), "%f", 9.0);
+@@ -1647,13 +1646,13 @@
+     printf("All float strings tests OK!\n");
+   else
+     printf("test_float_formatting Failed!\n");
+ 
+   return errors;
+ }
+-
++/* !checksrc! enable LONGLINE */
+ 
+ int test(char *URL)
+ {
+   int errors = 0;
+   (void)URL; /* not used */
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/Makefile.am	2016-11-07 17:18:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/Makefile.am	2016-12-22 15:48:20.000000000 +0800
+@@ -96,6 +96,11 @@
+ 	echo "converted $< to $@")
+ 
+ checksrc:
+ 	cd libtest && $(MAKE) checksrc
+ 	cd unit && $(MAKE) checksrc
+ 	cd server && $(MAKE) checksrc
++
++if CURLDEBUG
++# for debug builds, we scan the sources on all regular make invokes
++all-local: checksrc
++endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/Makefile.in	2016-12-19 16:16:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/Makefile.in	2016-12-22 16:47:51.000000000 +0800
+@@ -447,15 +447,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tests/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu tests/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign tests/Makefile
++	  $(AUTOMAKE) --gnu tests/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+@@ -630,13 +630,14 @@
+ 	        distdir) \
+ 	      || exit 1; \
+ 	  fi; \
+ 	done
+ check-am: all-am
+ check: check-recursive
+-all-am: Makefile
++@CURLDEBUG_FALSE@all-local:
++all-am: Makefile all-local
+ installdirs: installdirs-recursive
+ installdirs-am:
+ install: install-recursive
+ install-exec: install-exec-recursive
+ install-data: install-data-recursive
+ uninstall: uninstall-recursive
+@@ -733,15 +734,15 @@
+ ps-am:
+ 
+ uninstall-am:
+ 
+ .MAKE: $(am__recursive_targets) install-am install-strip
+ 
+-.PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am check \
+-	check-am clean clean-generic clean-libtool cscopelist-am ctags \
+-	ctags-am distclean distclean-generic distclean-libtool \
++.PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am all-local \
++	check check-am clean clean-generic clean-libtool cscopelist-am \
++	ctags ctags-am distclean distclean-generic distclean-libtool \
+ 	distclean-tags distdir dvi dvi-am html html-am info info-am \
+ 	install install-am install-data install-data-am install-dvi \
+ 	install-dvi-am install-exec install-exec-am install-html \
+ 	install-html-am install-info install-info-am install-man \
+ 	install-pdf install-pdf-am install-ps install-ps-am \
+ 	install-strip installcheck installcheck-am installdirs \
+@@ -786,9 +787,12 @@
+ 
+ checksrc:
+ 	cd libtest && $(MAKE) checksrc
+ 	cd unit && $(MAKE) checksrc
+ 	cd server && $(MAKE) checksrc
+ 
++# for debug builds, we scan the sources on all regular make invokes
++@CURLDEBUG_TRUE@all-local: checksrc
++
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/runtests.pl /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/runtests.pl
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/runtests.pl	2016-12-19 15:27:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/runtests.pl	2016-12-22 15:48:20.000000000 +0800
+@@ -3591,13 +3591,13 @@
+     if($valgrind && !$disablevalgrind) {
+         my @valgrindoption = getpart("verify", "valgrind");
+         if((!@valgrindoption) || ($valgrindoption[0] !~ /disable/)) {
+             $usevalgrind = 1;
+             my $valgrindcmd = "$valgrind ";
+             $valgrindcmd .= "$valgrind_tool " if($valgrind_tool);
+-            $valgrindcmd .= "--leak-check=yes ";
++            $valgrindcmd .= "--quiet --leak-check=yes ";
+             $valgrindcmd .= "--suppressions=$srcdir/valgrind.supp ";
+            # $valgrindcmd .= "--gen-suppressions=all ";
+             $valgrindcmd .= "--num-callers=16 ";
+             $valgrindcmd .= "${valgrind_logfile}=$LOGDIR/valgrind$testnum";
+             $CMDLINE = "$valgrindcmd $CMDLINE";
+         }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/valgrind.pm /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/valgrind.pm
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.0/tests/valgrind.pm	2016-11-07 17:18:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.52.1/tests/valgrind.pm	2016-12-22 15:48:20.000000000 +0800
+@@ -2,13 +2,13 @@
+ #                                  _   _ ____  _
+ #  Project                     ___| | | |  _ \| |
+ #                             / __| | | | |_) | |
+ #                            | (__| |_| |  _ <| |___
+ #                             \___|\___/|_| \_\_____|
+ #
+-# Copyright (C) 1998 - 2010, Daniel Stenberg, <daniel@haxx.se>, et al.
++# Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ #
+ # This software is licensed as described in the file COPYING, which
+ # you should have received as part of this distribution. The terms
+ # are also available at https://curl.haxx.se/docs/copyright.html.
+ #
+ # You may opt to use, copy, modify, merge, publish, distribute and/or sell
+@@ -23,95 +23,14 @@
+ use File::Basename;
+ 
+ sub valgrindparse {
+     my ($srcdir,     # the dir in which the runtests script resides
+         $sslenabled,
+         $file) = @_;
+-    my $leak;
+-    my $invalidread;
+-    my $uninitedvar;
+-    my $error;
+-    my $partial;
+-    my $us;
+-
+     my @o;
+-
+-    my $bt=0;
+-    my $nssinit=0;
+-
+     open(VAL, "<$file");
+-    while(<VAL>) {
+-        if($bt) {
+-            # back trace parsing
+-            if($_ =~ /^==(\d+)== *(at|by) 0x([0-9A-F]+): (.*)/) {
+-                my $w = $4;
+-                if($w =~ /(.*) \(([^:]*):(\d+)/) {
+-                    my ($func, $source, $line)=($1, $2, $3);
+-                    my $sourcename = basename($source);
+-                    if(-f "$srcdir/../src/$sourcename" ||
+-                       -f "$srcdir/../lib/$sourcename") {
+-                        # this is our source
+- #                       print "$func() at $source:$line\n";
+-                        $us++;
+-                    } #else {print "Not our source: $func, $source, $line\n";}
+-                }
+-
+-                # the memory leakage within NSS_InitContext is not a bug of curl
+-                if($w =~ /NSS_InitContext/) {
+-                    $nssinit++;
+-                }
+-            }
+-            else {
+-                if($us and not $nssinit) {
+-                    # the stack trace included source details about us
+-
+-                    $error++;
+-                    if($leak) {
+-                        push @o, "\n Leaked $leak bytes\n";
+-                    }
+-                    if($invalidread) {
+-                        push @o, "\n Read $invalidread invalid bytes\n";
+-                    }
+-                    if($uninitedvar) {
+-                        push @o, "\n Conditional jump or move depends on uninitialised value(s)\n";
+-                    }
+-                }
+-                $bt = 0; # no more backtrace
+-                $us = 0;
+-                $nssinit = 0;
+-            }
+-        }
+-        else {
+-            if($_ =~ /(\d+) bytes in (\d+) blocks are definitely lost/) {
+-                $leak = $1;
+-                if($leak) {
+-                    $error++;
+-                }
+-                $bt = 1;
+-            }
+-            elsif($_ =~ /Invalid read of size (\d+)/) {
+-                $invalidread = $1;
+-                $error++;
+-                $bt = 1;
+-            }
+-            elsif($_ =~ /Conditional jump or move/) {
+-                # If we require SSL, this test case most probaly makes
+-                # us use OpenSSL. OpenSSL produces numerous valgrind
+-                # errors of this kind, rendering it impossible for us to
+-                # detect (valid) reports on actual curl or libcurl code.
+-
+-                if(!$sslenabled) {
+-                    $uninitedvar = 1;
+-                    $error++;
+-                    $bt = 1;
+-                }
+-                else {
+-                    $partial=1;
+-                }
+-            }
+-        }
+-    }
++    @o = <VAL>;
+     close(VAL);
+     return @o;
+ }
+ 
+ 1;

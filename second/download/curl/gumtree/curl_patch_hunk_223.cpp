@@ -1,0 +1,25 @@
+ "\n"
+ , stdout);
+  fputs(
+ "       46     Bad password entered. An error was signaled  when  the  password\n"
+ "              was entered.\n"
+ "\n"
+-"       47     Too many redirects. When following redirects, curl hit the maxi-\n"
++"       47     Too many redirects. When following redirects, curl hit the maxi‐\n"
+ "              mum amount.\n"
+ "\n"
+ "       48     Unknown TELNET option specified.\n"
+ "\n"
+ "       49     Malformed telnet option.\n"
+ "\n"
+-"       51     The remote peer's SSL certificate wasn't ok\n"
++"       51     The remote peer’s SSL certificate wasn’t ok\n"
+ "\n"
+-"       52     The server didn't reply anything, which here  is  considered  an\n"
++"       52     The server didn’t reply anything, which here  is  considered  an\n"
+ "              error.\n"
+ "\n"
+ , stdout);
+  fputs(
+ "       53     SSL crypto engine not found\n"
+ "\n"

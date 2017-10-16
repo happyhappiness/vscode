@@ -1,0 +1,16 @@
+fputs(
+"        curl --interface 192.168.1.10 http://www.netscape.com/\n"
+"\n"
+"HTTPS\n"
+"\n"
+"  Secure HTTP requires SSL libraries to be installed and used when curl is\n"
+"  built. If that is done, curl is capable of retrieving and posting documents\n"
+"  using the HTTPS protocol.\n"
+"\n"
+"  Example:\n"
+"\n"
+"        curl https://www.secure-site.com\n"
+"\n"
+"  Curl is also capable of using your personal certificates to get/post files\n"
+"  from sites that require valid certificates. The only drawback is that the\n"
+, stdout);

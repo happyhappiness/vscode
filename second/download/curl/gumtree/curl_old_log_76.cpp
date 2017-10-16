@@ -1,0 +1,15 @@
+puts(
+"          means additional info provided by curl.\n"
+"\n"
+"          Note that if you want to see HTTP headers in  the  out�\n"
+"          put, -i/--include might be option you're looking for.\n"
+"\n"
+"          If  this  option  is  used twice, the second will again\n"
+"          disable verbose.\n"
+"\n"
+"     -V/--version\n"
+"          Displays the full version of curl,  libcurl  and  other\n"
+"          3rd party libraries linked with the executable.\n"
+"\n"
+"     -w/--write-out <format>\n"
+);

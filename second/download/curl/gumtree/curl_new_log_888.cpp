@@ -1,0 +1,16 @@
+fputs(
+"              used  to  override  a  previos  --ftp-port  option.\n"
+"              (Added in 7.11.0)\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable silent failure.\n"
+"\n"
+"       --ftp-ssl\n"
+"              (FTP)  Make  the  FTP  connection  switch  to   use\n"
+"              SSL/TLS. (Added in 7.11.0)\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable silent failure.\n"
+"\n"
+"       -F/--form <name=content>\n"
+, stdout);

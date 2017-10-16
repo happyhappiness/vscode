@@ -1,0 +1,25 @@
+"              written to stdout.\n"
+"\n"
+"              NOTE  If the cookie jar can't be created or written\n"
+"              to, the whole curl operation  won't  fail  or  even\n"
+, stdout);
+ fputs(
+"              report  an error clearly. Using -v will get a warn­\n"
+"              ing displayed, but that is the only  visible  feed­\n"
+"              back  you get about this possibly lethal situation.\n"
+"              If this option is  used  several  times,  the  last\n"
+"              specfied file name will be used.\n"
+"\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume  a  previous  file  transfer at the\n"
+"              given offset. The given offset is the exact  number\n"
+, stdout);
+ fputs(
+"              of  bytes  that  will  be  skipped counted from the\n"
+"              beginning of the source file before  it  is  trans­\n"
+"              fered  to  the  destination.  If used with uploads,\n"
+"              the ftp server command SIZE will  not  be  used  by\n"
+"              curl.\n"
+"\n"
+"              Use  \"-C  -\" to tell curl to automatically find out\n"
+"              where/how to resume the transfer. It then uses  the\n"

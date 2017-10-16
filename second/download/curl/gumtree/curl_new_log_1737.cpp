@@ -1,0 +1,18 @@
+fputs(
+"\n"
+"        curl -C - -T file ftp://ftp.server.com/path/file\n"
+"\n"
+" Continue downloading a document from a web server(*2):\n"
+"\n"
+"        curl -C - -o file http://www.server.com/\n"
+"\n"
+" (*1) = This requires that the ftp server supports the non-standard command\n"
+"        SIZE. If it doesn't, curl will say so.\n"
+"\n"
+" (*2) = This requires that the web server supports at least HTTP/1.1. If it\n"
+"        doesn't, curl will say so.\n"
+"\n"
+"TIME CONDITIONS\n"
+"\n"
+" HTTP allows a client to specify a time condition for the document it\n"
+, stdout);

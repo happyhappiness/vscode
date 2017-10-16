@@ -1,0 +1,16 @@
+fputs(
+"       is only available in lower case.\n"
+"\n"
+"       http_proxy [protocol://]<host>[:port]\n"
+"              Sets the proxy server to use for HTTP.\n"
+"       HTTPS_PROXY [protocol://]<host>[:port]\n"
+"              Sets the proxy server to use for HTTPS.\n"
+"\n"
+"       FTP_PROXY [protocol://]<host>[:port]\n"
+"              Sets the proxy server to use for FTP.\n"
+"\n"
+"       ALL_PROXY [protocol://]<host>[:port]\n"
+"              Sets  the  proxy  server to use if no protocol-specific proxy is\n"
+"              set.\n"
+"\n"
+, stdout);

@@ -1,0 +1,95 @@
+ "  this can be done successfully.\n"
+ "\n"
+ "  For other ways to do http data upload, see the POST section below.\n"
+ "\n"
+ "VERBOSE / DEBUG\n"
+ "\n"
++"  If curl fails where it isn't supposed to, if the servers don't let you in,\n"
+ , stdout);
+  fputs(
+-"  If curl fails where it isn't supposed to, if the servers don't let you in,\n"
+ "  if you can't understand the responses: use the -v flag to get verbose\n"
+ "  fetching. Curl will output lots of info and what it sends and receives in\n"
+ "  order to let the user see all client-server interaction (but it won't show\n"
+ "  you the actual data).\n"
+ "\n"
+ "        curl -v ftp://ftp.upload.com/\n"
+ "\n"
+ "  To get even more details and information on what curl does, try using the\n"
+-, stdout);
+- fputs(
+ "  --trace or --trace-ascii options with a given file name to log to, like\n"
+ "  this:\n"
+ "\n"
+ "        curl --trace trace.txt www.haxx.se\n"
+ "\n"
+ "\n"
++, stdout);
++ fputs(
+ "DETAILED INFORMATION\n"
+ "\n"
+ "  Different protocols provide different ways of getting detailed information\n"
+ "  about specific files/documents. To get curl to show detailed information\n"
+ "  about a single file, you should use -I/--head option. It displays all\n"
+ "  available info on a single file for HTTP and FTP. The HTTP information is a\n"
+ "  lot more extensive.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "  For HTTP, you can get the header information (the same as -I would show)\n"
+ "  shown before the data by using -i/--include. Curl understands the\n"
++, stdout);
++ fputs(
+ "  -D/--dump-header option when getting files from both FTP and HTTP, and it\n"
+ "  will then store the headers in the specified file.\n"
+ "\n"
+ "  Store the HTTP headers in a separate file (headers.txt in the example):\n"
+ "\n"
+ "        curl --dump-header headers.txt curl.haxx.se\n"
+ "\n"
+ "  Note that headers stored in a separate file can be very useful at a later\n"
+-, stdout);
+- fputs(
+ "  time if you want curl to use cookies sent by the server. More about that in\n"
+ "  the cookies section.\n"
+ "\n"
+ "POST (HTTP)\n"
+ "\n"
++, stdout);
++ fputs(
+ "  It's easy to post data using curl. This is done using the -d <data>\n"
+ "  option.  The post data must be urlencoded.\n"
+ "\n"
+ "  Post a simple \"name\" and \"phone\" guestbook.\n"
+ "\n"
+ "        curl -d \"name=Rafael%20Sagula&phone=3320780\" \\\n"
+ "                http://www.where.com/guest.cgi\n"
+ "\n"
+ "  How to post a form with curl, lesson #1:\n"
+ "\n"
+-, stdout);
+- fputs(
+ "  Dig out all the <input> tags in the form that you want to fill in. (There's\n"
+ "  a perl program called formfind.pl on the curl site that helps with this).\n"
+ "\n"
++, stdout);
++ fputs(
+ "  If there's a \"normal\" post, you use -d to post. -d takes a full \"post\n"
+ "  string\", which is in the format\n"
+ "\n"
+ "        <variable1>=<data1>&<variable2>=<data2>&...\n"
+ "\n"
+ "  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
+ "  the data is the contents you want to fill in for the inputs. The data *must*\n"
+-, stdout);
+- fputs(
+ "  be properly URL encoded. That means you replace space with + and that you\n"
+ "  write weird letters with %XX where XX is the hexadecimal representation of\n"
++, stdout);
++ fputs(
+ "  the letter's ASCII code.\n"
+ "\n"
+ "  Example:\n"
+ "\n"
+ "  (page located at http://www.formpost.com/getthis/\n"
+ "\n"

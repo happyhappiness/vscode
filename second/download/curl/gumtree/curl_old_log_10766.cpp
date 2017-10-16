@@ -1,0 +1,1 @@
+warnf(config, "unrecognized ftp file method '%s', using default\n", str);

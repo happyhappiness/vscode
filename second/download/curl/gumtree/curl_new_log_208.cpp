@@ -1,0 +1,15 @@
+puts(
+"       32     FTP couldn't use SIZE. The SIZE command failed. The\n"
+"              command  is  an  extension to the original FTP spec\n"
+"              RFC 959.\n"
+"       33     HTTP range error. The range \"command\" didn't  work.\n"
+"\n"
+"       34     HTTP  post  error. Internal post-request generation\n"
+"              error.\n"
+"\n"
+"       35     SSL connect error. The SSL handshaking failed.\n"
+"\n"
+"       36     FTP bad download resume. Couldn't continue an  ear-\n"
+"              lier aborted download.\n"
+"\n"
+);

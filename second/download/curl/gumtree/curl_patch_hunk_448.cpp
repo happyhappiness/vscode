@@ -1,0 +1,135 @@
+ "\n"
+ "  The usage of the -x/--proxy flag overrides the environment variables.\n"
+ "\n"
+ "NETRC\n"
+ "\n"
+ "  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
++"  to specify name and password for commonly visited ftp sites in a file so\n"
+ , stdout);
+  fputs(
+-"  to specify name and password for commonly visited ftp sites in a file so\n"
+ "  that you don't have to type them in each time you visit those sites. You\n"
+ "  realize this is a big security risk if someone else gets hold of your\n"
+ "  passwords, so therefore most unix programs won't read this file unless it is\n"
+ "  only readable by yourself (curl doesn't care though).\n"
+ "\n"
+ "  Curl supports .netrc files if told so (using the -n/--netrc and\n"
+ "  --netrc-optional options). This is not restricted to only ftp,\n"
+-, stdout);
+- fputs(
+ "  but curl can use it for all protocols where authentication is used.\n"
+ "\n"
++, stdout);
++ fputs(
+ "  A very simple .netrc file could look something like:\n"
+ "\n"
+ "        machine curl.haxx.se login iamdaniel password mysecret\n"
+ "\n"
+ "CUSTOM OUTPUT\n"
+ "\n"
+ "  To better allow script programmers to get to know about the progress of\n"
+ "  curl, the -w/--write-out option was introduced. Using this, you can specify\n"
+ "  what information from the previous transfer you want to extract.\n"
+ "\n"
+-, stdout);
+- fputs(
+ "  To display the amount of bytes downloaded together with some text and an\n"
+ "  ending newline:\n"
+ "\n"
++, stdout);
++ fputs(
+ "        curl -w 'We downloaded %{size_download} bytes\\n' www.download.com\n"
+ "\n"
+ "KERBEROS FTP TRANSFER\n"
+ "\n"
+ "  Curl supports kerberos4 and kerberos5/GSSAPI for FTP transfers. You need\n"
+ "  the kerberos package installed and used at curl build time for it to be\n"
+ "  used.\n"
+ "\n"
+ "  First, get the krb-ticket the normal way, like with the kinit/kauth tool.\n"
+ "  Then use curl in way similar to:\n"
+ "\n"
+-, stdout);
+- fputs(
+ "        curl --krb private ftp://krb4site.com -u username:fakepwd\n"
+ "\n"
++, stdout);
++ fputs(
+ "  There's no use for a password on the -u switch, but a blank one will make\n"
+ "  curl ask for one and you already entered the real password to kinit/kauth.\n"
+ "\n"
+ "TELNET\n"
+ "\n"
+ "  The curl telnet support is basic and very easy to use. Curl passes all data\n"
+ "  passed to it on stdin to the remote server. Connect to a remote telnet\n"
+ "  server using a command line similar to:\n"
+ "\n"
+ "        curl telnet://remote.server.com\n"
+ "\n"
++"  And enter the data to pass to the server on stdin. The result will be sent\n"
+ , stdout);
+  fputs(
+-"  And enter the data to pass to the server on stdin. The result will be sent\n"
+ "  to stdout or to the file you specify with -o.\n"
+ "\n"
+ "  You might want the -N/--no-buffer option to switch off the buffered output\n"
+ "  for slow connections or similar.\n"
+ "\n"
+ "  Pass options to the telnet protocol negotiation, by using the -t option. To\n"
+ "  tell the server we use a vt100 terminal, try something like:\n"
+ "\n"
+ "        curl -tTTYPE=vt100 telnet://remote.server.com\n"
+ "\n"
+ "  Other interesting options for it -t include:\n"
+ "\n"
+-, stdout);
+- fputs(
+ "   - XDISPLOC=<X display> Sets the X display location.\n"
+ "\n"
++, stdout);
++ fputs(
+ "   - NEW_ENV=<var,val> Sets an environment variable.\n"
+ "\n"
+ "  NOTE: the telnet protocol does not specify any way to login with a specified\n"
+ "  user and password so curl can't do that automatically. To do that, you need\n"
+ "  to track when the login prompt is received and send the username and\n"
+ "  password accordingly.\n"
+ "\n"
+ "PERSISTENT CONNECTIONS\n"
+ "\n"
+ "  Specifying multiple files on a single command line will make curl transfer\n"
+-, stdout);
+- fputs(
+ "  all of them, one after the other in the specified order.\n"
+ "\n"
++, stdout);
++ fputs(
+ "  libcurl will attempt to use persistent connections for the transfers so that\n"
+ "  the second transfer to the same host can use the same connection that was\n"
+ "  already initiated and was left open in the previous transfer. This greatly\n"
+ "  decreases connection time for all but the first transfer and it makes a far\n"
+ "  better use of the network.\n"
+ "\n"
+ "  Note that curl cannot use persistent connections for transfers that are used\n"
++"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
+ , stdout);
+  fputs(
+-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
+ "  same command line if they are using the same host, as that'll make the\n"
+ "  transfers faster. If you use a http proxy for file transfers, practically\n"
+ "  all transfers will be persistent.\n"
+ "\n"
+ "MULTIPLE TRANSFERS WITH A SINGLE COMMAND LINE\n"
+ "\n"
+ "  As is mentioned above, you can download multiple files with one command line\n"
+ "  by simply adding more URLs. If you want those to get saved to a local file\n"
++"  instead of just printed to stdout, you need to add one save option for each\n"
+ , stdout);
+  fputs(
+-"  instead of just printed to stdout, you need to add one save option for each\n"
+ "  URL you specify. Note that this also goes for the -O option (but not\n"
+ "  --remote-name-all).\n"
+ "\n"
+ "  For example: get two files and use -O for the first and a custom file\n"
+ "  name for the second:\n"
+ "\n"

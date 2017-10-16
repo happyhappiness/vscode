@@ -1,0 +1,51 @@
+              sep = (char *)type + strlen(major)+strlen(minor)+1;
+
+              /* there's a semicolon following - we check if it is a filename
+                 specified and if not we simply assume that it is text that
+                 the user wants included in the type and include that too up
+                 to the next zero or semicolon. */
+              if(*sep==';') {
+                if(!checkprefix(";filename=", sep)) {
+                  sep2 = strchr(sep+1, ';');
+                  if(sep2)
+                    sep = sep2;
+                  else
+                    sep = sep + strlen(sep); /* point to end of string */
+                }
+              }
+              else
+                semicolon = FALSE;
+
+              if(*sep) {
+                *sep = '\0'; /* zero terminate type string */
+
+                ptr = sep+1;
+              }
+              else
+                ptr = NULL; /* end */
+            }
+            else if(checkprefix("filename=", ptr)) {
+              filename = &ptr[9];
+              ptr = strchr(filename, ';');
+              if(!ptr) {
+                ptr = strchr(filename, ',');
+              }
+              if(ptr) {
+                *ptr = '\0'; /* zero terminate */
+                ptr++;
+              }
+            }
+            else
+              /* confusion, bail out of loop */
+              break;
+          }
+
+          sep = ptr;
+        }
+
+        /* if type == NULL curl_formadd takes care of the problem */
+
+        if(!AddMultiFiles(contp, type, filename, &multi_start,
+                          &multi_current)) {
+          warnf(config, "Error building form post!\n");
+          Curl_safefree(contents);

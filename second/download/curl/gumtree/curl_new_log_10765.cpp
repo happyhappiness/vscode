@@ -1,0 +1,1 @@
+warnf(config->global, "unrecognized protocol '%s'\n", token);

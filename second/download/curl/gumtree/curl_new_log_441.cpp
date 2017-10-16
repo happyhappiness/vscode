@@ -1,0 +1,15 @@
+fputs(
+"              You can also tell curl what Content-Type to use for\n"
+"              the file upload part, by using 'type=', in a manner\n"
+"              similar to:\n"
+"\n"
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
+"              See further examples and details in the MANUAL.\n"
+"\n"
+"              This option can be used multiple times.\n"
+"\n"
+"       -g/--globoff\n"
+"              This option switches off the \"URL globbing parser\".\n"
+"              When you set this option, you can specify URLs that\n"
+, stdout);

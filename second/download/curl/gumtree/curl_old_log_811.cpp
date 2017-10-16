@@ -1,0 +1,15 @@
+fputs(
+"              with -d/--data or --data-binary to  be  used  in  a\n"
+"              HTTP  GET  request instead of the POST request that\n"
+"              otherwise would be used. The data will be  appended\n"
+"              to the URL with a '?'  separator.\n"
+"\n"
+"              If  used in combination with -I, the POST data will\n"
+"              instead be appended to the URL with a HEAD request.\n"
+"\n"
+"              If used multiple times, nothing special happens.\n"
+"\n"
+"       -h/--help\n"
+"              Usage help.\n"
+"\n"
+, stdout);

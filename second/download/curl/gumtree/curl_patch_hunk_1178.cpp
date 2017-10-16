@@ -1,0 +1,27 @@
+ "       Daniel  Stenberg is the main author, but the whole list of contributors\n"
+ "       is found in the separate THANKS file.\n"
+ "\n"
+ "WWW\n"
+ "       https://curl.haxx.se\n"
+ "\n"
+-"FTP\n"
+-"       ftp://ftp.sunet.se/pub/www/utilities/curl/\n"
+-"\n"
+ "SEE ALSO\n"
+ "       ftp(1), wget(1)\n"
+ "\n"
+ "LATEST VERSION\n"
+ "\n"
+ "  You always find news about what's going on as well as the latest versions\n"
+-, stdout);
+- fputs(
+ "  from the curl web pages, located at:\n"
+ "\n"
++, stdout);
++ fputs(
+ "        https://curl.haxx.se\n"
+ "\n"
+ "SIMPLE USAGE\n"
+ "\n"
+ "  Get the main page from Netscape's web-server:\n"
+ "\n"

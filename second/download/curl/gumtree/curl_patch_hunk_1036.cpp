@@ -1,0 +1,18 @@
+ "  Get a file from an SMB server:\n"
+ "\n"
+ "        curl -u \"domain\\username:passwd\" smb://server.example.com/share/file.txt\n"
+ "\n"
+ "DOWNLOAD TO A FILE\n"
+ "\n"
+-"  Get a web page and store in a local file with a specific name:\n"
+-"\n"
+ , stdout);
+  fputs(
++"  Get a web page and store in a local file with a specific name:\n"
++"\n"
+ "        curl -o thatpage.html http://www.netscape.com/\n"
+ "\n"
+ "  Get a web page and store in a local file, make the local file get the name\n"
+ "  of the remote document (if no file name part is specified in the URL, this\n"
+ "  will fail):\n"
+ "\n"

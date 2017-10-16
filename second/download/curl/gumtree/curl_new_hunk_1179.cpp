@@ -1,0 +1,16 @@
+"        curl http://www.weirdserver.com:8000/\n"
+"\n"
+"  Get a directory listing of an FTP site:\n"
+"\n"
+"        curl ftp://cool.haxx.se/\n"
+"\n"
+"  Get the definition of curl from a dictionary:\n"
+"\n"
+, stdout);
+ fputs(
+"        curl dict://dict.org/m:curl\n"
+"\n"
+"  Fetch two documents at once:\n"
+"\n"
+"        curl ftp://cool.haxx.se/ http://www.weirdserver.com:8000/\n"
+"\n"

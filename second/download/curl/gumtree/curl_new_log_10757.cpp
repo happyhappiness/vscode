@@ -1,0 +1,1 @@
+warnf(config->global, "Failed to open %s\n", config->headerfile);

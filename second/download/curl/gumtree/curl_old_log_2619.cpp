@@ -1,0 +1,16 @@
+fputs(
+"              HTTP/1.1 or FTP server. Ranges can be specified in a  number  of\n"
+"              ways.\n"
+"\n"
+"              0-499     specifies the first 500 bytes\n"
+"\n"
+"              500-999   specifies the second 500 bytes\n"
+"\n"
+"              -500      specifies the last 500 bytes\n"
+"\n"
+"              9500-     specifies the bytes from offset 9500 and forward\n"
+"\n"
+"              0-0,-1    specifies the first and last byte only(*)(H)\n"
+"\n"
+"              500-700,600-799\n"
+, stdout);

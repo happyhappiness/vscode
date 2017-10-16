@@ -1,0 +1,15 @@
+fputs(
+"  NOTE: You must specify options and their arguments on the same line.\n"
+"\n"
+"  Example, set default time out and proxy in a config file:\n"
+"\n"
+"        # We want a 30 minute timeout:\n"
+"        -m 1800\n"
+"        # ... and we use a proxy for all accesses:\n"
+"        proxy = proxy.our.domain.com:8080\n"
+"\n"
+"  White spaces ARE significant at the end of lines, but all white spaces\n"
+"  leading up to the first characters of each line are ignored.\n"
+"\n"
+"  Prevent curl from reading the default file by using -q as the first command\n"
+, stdout);

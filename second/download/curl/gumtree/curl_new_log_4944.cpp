@@ -1,0 +1,11 @@
+fputs(
+"              fail. If this is used on a HTTP(S) server, the PUT command  will\n"
+"              be used.\n"
+"\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              uploaded.\n"
+"\n"
+, stdout);

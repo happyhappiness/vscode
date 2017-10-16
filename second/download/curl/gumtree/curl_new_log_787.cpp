@@ -1,0 +1,1 @@
+curl_mprintf(buffer, "%.2g %G %f %e %E", tryout, tryout, tryout, tryout, tryout);

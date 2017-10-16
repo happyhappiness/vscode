@@ -1,0 +1,17 @@
+fputs(
+"  http://curl.haxx.se/mail/. Some of the lists available are:\n"
+"\n"
+"  curl-users\n"
+"\n"
+"    Users of the command line tool. How to use it, what doesn't work, new\n"
+"    features, related tools, questions, news, installations, compilations,\n"
+"    running, porting etc.\n"
+"\n"
+"  curl-library\n"
+"\n"
+"    Developers using or developing libcurl. Bugs, extensions, improvements.\n"
+"\n"
+"  curl-announce\n"
+"\n"
+"    Low-traffic. Only receives announcements of new public versions. At worst,\n"
+, stdout);

@@ -1,0 +1,1 @@
+warnf(config->global, "You can only select one HTTP request!\n");

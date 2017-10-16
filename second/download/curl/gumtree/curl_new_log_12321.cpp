@@ -1,0 +1,16 @@
+fputs(
+"   To ftp files using name+passwd, include them in the URL like:\n"
+"\n"
+"        curl ftp://name:passwd@machine.domain:port/full/path/to/file\n"
+"\n"
+"   or specify them with the -u flag like\n"
+"\n"
+"        curl -u name:passwd ftp://machine.domain:port/full/path/to/file\n"
+"\n"
+" FTPS\n"
+"\n"
+"   It is just like for FTP, but you may also want to specify and use\n"
+"   SSL-specific options for certificates etc.\n"
+"\n"
+"   Note that using FTPS:// as prefix is the \"implicit\" way as described in the\n"
+, stdout);

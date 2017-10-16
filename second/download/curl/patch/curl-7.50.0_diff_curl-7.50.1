@@ -1,0 +1,1700 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/CHANGES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/CHANGES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/CHANGES	2016-07-21 16:56:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/CHANGES	2016-08-03 14:39:11.000000000 +0800
+@@ -3,12 +3,177 @@
+                              / __| | | | |_) | |
+                             | (__| |_| |  _ <| |___
+                              \___|\___/|_| \_\_____|
+ 
+                                   Changelog
+ 
++Version 7.50.1 (3 Aug 2016)
++
++Daniel Stenberg (3 Aug 2016)
++- THANKS: 7 new contributors from the 7.50.1 release
++
++- RELEASE-NOTES: 7.50.1
++
++- TLS: only reuse connections with the same client cert
++  
++  CVE-2016-5420
++  Bug: https://curl.haxx.se/docs/adv_20160803B.html
++
++- TLS: switch off SSL session id when client cert is used
++  
++  CVE-2016-5419
++  Bug: https://curl.haxx.se/docs/adv_20160803A.html
++  Reported-by: Bru Rom
++  Contributions-by: Eric Rescorla and Ray Satiro
++
++- curl_multi_cleanup: clear connection pointer for easy handles
++  
++  CVE-2016-5421
++  Bug: https://curl.haxx.se/docs/adv_20160803C.html
++  Reported-by: Marcelo Echeverria and Fernando Muñoz
++
++- KNOWN_BUGS: SOCKS proxy not working via IPv6
++  
++  Closes #835
++
++- KNOWN_BUGS: CURLOPT_SEEKFUNCTION not called with CURLFORM_STREAM
++  
++  Closes #768
++
++- KNOWN_BUGS: transfer-encoding: chunked in HTTP/2
++  
++  Closes #662
++
++- TODO: Provide cmake config-file
++  
++  Closes #885
++
++Patrick Monnerat (2 Aug 2016)
++- os400: define BUILDING_LIBCURL in make script.
++
++Daniel Stenberg (1 Aug 2016)
++- RELEASE-NOTES: synced with aa9f536a18b
++
++Jay Satiro (1 Aug 2016)
++- [Thomas Glanzmann brought this change]
++
++  mbedtls: Fix debug function name
++  
++  This patch is necessary so that curl compiles if MBEDTLS_DEBUG is
++  defined.
++  
++  Bug: https://curl.haxx.se/mail/lib-2016-08/0001.html
++
++Daniel Stenberg (1 Aug 2016)
++- [Sergei Nikulov brought this change]
++
++  travis: fix OSX build by re-installing libtool
++  
++  Apparently due to a broken homebrew install
++  
++  fixes #934
++  Closes #939
++
++- [Martin Vejnár brought this change]
++
++  win32: fix a potential memory leak in Curl_load_library
++  
++  If a call to GetSystemDirectory fails, the `path` pointer that was
++  previously allocated would be leaked. This makes sure that `path` is
++  always freed.
++  
++  Closes #938
++
++- include: revert 9adf3c4 and make public types void * again
++  
++  Many applications assume the actual contents of the public types and use
++  that do for example forward declarations (saving them from including our
++  public header) which then breaks when we switch from void * to a struct
++  *.
++  
++  I'm not convinced we were wrong, but since this practise seems
++  widespread enough I'm willing to (partly) step down.
++  
++  Now libcurl uses the struct itself when it is built and it allows
++  applications to use the struct type if CURL_STRICTER is defined at the
++  time of the #include.
++  
++  Reported-by: Peter Frühberger
++  Fixes #926
++
++Jay Satiro (28 Jul 2016)
++- [Yonggang Luo brought this change]
++
++  cmake: Fix for schannel support
++  
++  The check_library_exists_concat do not check crypt32 library properly.
++  So include it directly.
++  
++  Bug: https://github.com/curl/curl/pull/917
++  Reported-by: Yonggang Luo
++  
++  Bug: https://github.com/curl/curl/issues/935
++  Reported-by: Alain Danteny
++
++- Revert "travis: Install libtool for OS X builds"
++  
++  Didn't work.
++  
++  This reverts commit 50723585ed380744358de054e2a55dccee65dfd7.
++
++- travis: Install libtool for OS X builds
++  
++  CI is failing due to missing libtoolize, so I'm trying this.
++
++Daniel Stenberg (26 Jul 2016)
++- [Viktor Szakats brought this change]
++
++  TODO: minor typo in last commit
++  
++  merged #931
++
++- TODO: Timeout idle connections from the pool
++
++Patrick Monnerat (25 Jul 2016)
++- os400: minimum supported OS version: V6R1M0.
++  Do not log compilation informational messages.
++
++Jay Satiro (24 Jul 2016)
++- tests: Fix for http/2 feature
++  
++  Bug: https://curl.haxx.se/mail/lib-2016-07/0070.html
++  Reported-by: Paul Howarth
++
++Steve Holme (23 Jul 2016)
++- README: Mention wolfSSL in the 'Dependencies' section
++
++- vauth.h: No need to query HAVE_GSSAPI || USE_WINDOWS_SSPI for SPNEGO
++  
++  As SPNEGO is only defined when these pre-processor variables are defined
++  there is no need to query them explicitly.
++
++- spnego: Corrected miss-placed * in Curl_auth_spnego_cleanup() declaration
++  
++  Typo introduced in commit ad5e9bfd5d.
++
++Daniel Stenberg (22 Jul 2016)
++- SECURITY: mention how to get windows-specific CVEs
++  
++  ... and make the distros link a proper link
++
++Dan Fandrich (21 Jul 2016)
++- test558: fix test by stripping file paths from FD lines
++
++Kamil Dudka (21 Jul 2016)
++- tests: distribute the http2-server.pl script, too
++
++- docs: distribute the CURLINFO_HTTP_VERSION(3) man page, too
++
++Daniel Stenberg (21 Jul 2016)
++- bump: start working on 7.50.1
++
+ Version 7.50.0 (21 Jul 2016)
+ 
+ Daniel Stenberg (21 Jul 2016)
+ - RELEASE-NOTES: version 7.50.0 ready
+ 
+ - THANKS: 13 new contributors from the 7.50.0 release
+@@ -5500,173 +5665,6 @@
+ - [Isaac Boukris brought this change]
+ 
+   NTLM: Reset auth-done when using a fresh connection
+   
+   With NTLM a new connection will always require authentication.
+   Fixes #435
+-
+-- [Daniel Hwang brought this change]
+-
+-  ssl: add server cert's "sha256//" hash to verbose
+-  
+-  Add a "pinnedpubkey" section to the "Server Certificate" verbose
+-  
+-  Bug: https://github.com/bagder/curl/issues/410
+-  Reported-by: W. Mark Kubacki
+-  
+-  Closes #430
+-  Closes #410
+-
+-- [Jakub Zakrzewski brought this change]
+-
+-  openldap: only part of LDAP query results received
+-  
+-  Introduced with commit 65d141e6da5c6003a1592bbc87ee550b0ad75c2f
+-  
+-  Closes #440
+-
+-- [Alessandro Ghedini brought this change]
+-
+-  openssl: don't output certinfo data
+-
+-- [Alessandro Ghedini brought this change]
+-
+-  openssl: refactor certificate parsing to use OpenSSL memory BIO
+-  
+-  Fixes #427
+-
+-Kamil Dudka (18 Sep 2015)
+-- nss: prevent NSS from incorrectly re-using a session
+-  
+-  Without this workaround, NSS re-uses a session cache entry despite the
+-  server name does not match.  This causes SNI host name to differ from
+-  the actual host name.  Consequently, certain servers (e.g. github.com)
+-  respond by 400 to such requests.
+-  
+-  Bug: https://bugzilla.mozilla.org/1202264
+-
+-- nss: check return values of NSS functions
+-
+-Daniel Stenberg (17 Sep 2015)
+-- CURLOPT_PINNEDPUBLICKEY.3: mention error code
+-
+-- openssl: build with < 0.9.8
+-  
+-  ... without sha256 support and no define saying so.
+-  
+-  Reported-by: Rajkumar Mandal
+-
+-- libcurl-errors.3: add two missing error codes
+-  
+-  CURLE_SSL_PINNEDPUBKEYNOTMATCH and CURLE_SSL_INVALIDCERTSTATUS
+-
+-Jay Satiro (14 Sep 2015)
+-- CURLOPT_PINNEDPUBLICKEY.3: Improve pubkey extraction example
+-  
+-  - Show how a certificate can be obtained using OpenSSL.
+-  
+-  Bug: https://github.com/bagder/curl/pull/430
+-  Reported-by: Daniel Hwang
+-
+-Daniel Stenberg (13 Sep 2015)
+-- http2: removed unused function
+-
+-- CURLINFO_ACTIVESOCKET.3: mention it replaces *LASTSOCKET
+-
+-- opts: add CURLINFO_* man pages to dist
+-
+-- opts: 19 more CURLINFO_* options made into stand-alone man pages
+-
+-- RELEASE-NOTES: synced with fad9604613
+-
+-- curl: customrequest_helper: deal with NULL custom method
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  CURLOPT_FNMATCH_FUNCTION.3: fix typo
+-  
+-  s => is
+-  
+-  Closes #428
+-
+-- curl: point out unnecessary uses of -X in verbose mode
+-  
+-  It uses 'Note:' as a prefix as opposed to the common 'Warning:' to take
+-  down the tone a bit.
+-  
+-  It adds a warning for using -XHEAD on other methods becasue that may
+-  lead to a hanging connection.
+-
+-Jay Satiro (10 Sep 2015)
+-- curl_sspi: fix possibly undefined CRYPT_E_REVOKED
+-  
+-  Bug: https://github.com/bagder/curl/pull/411
+-  Reported-by: Viktor Szakats
+-
+-- buildconf.bat: fix syntax error
+-
+-- [Benjamin Kircher brought this change]
+-
+-  winbuild: run buildconf.bat if necessary
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  docs: fix argument type for CURLINFO_SPEED_*, CURLINFO_SIZE_*
+-  
+-  long => double
+-
+-Daniel Stenberg (8 Sep 2015)
+-- [Sergei Nikulov brought this change]
+-
+-  cmake: IPv6 : disable Unix header check on Windows platform
+-  
+-  Closes #409
+-
+-- parse_proxy: reject illegal port numbers
+-  
+-  If the port number in the proxy string ended weirdly or the number is
+-  too large, skip it. Mostly as a means to bail out early if a "bare" IPv6
+-  numerical address is used without enclosing brackets.
+-  
+-  Also mention the bracket requirement for IPv6 numerical addresses to the
+-  man page for CURLOPT_PROXY.
+-  
+-  Closes #415
+-  
+-  Reported-by: Marcel Raad
+-
+-- FTP: do_more: add check for wait_data_conn in upload case
+-  
+-  In some timing-dependnt cases when a 4xx response immediately followed
+-  after a 150 when a STOR was issued, this function would wrongly return
+-  'complete == true' while 'wait_data_conn' was still set.
+-  
+-  Closes #405
+-  
+-  Reported-by: Patricia Muscalu
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  CURLOPT_TLSAUTH_TYPE.3: update description
+-  
+-  Closes #414
+-  Closes #413
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  CURLOPT_PATH_AS_IS.3: fix typo
+-  
+-  leavit => leaveit
+-  
+-  closes #412
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  CURLINFO_SSL_VERIFYRESULT.3: add short description
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  CURLINFO_SSL_ENGINES.3: add short description
+-
+-- [Svyatoslav Mishyn brought this change]
+-
+-  CURLINFO_CONTENT_LENGTH_UPLOAD.3: replace "receive" with "get" for consistency
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/CMakeLists.txt /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/CMakeLists.txt
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/CMakeLists.txt	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/CMakeLists.txt	2016-08-02 17:27:13.000000000 +0800
+@@ -567,13 +567,13 @@
+     if(HAVE_SSPI_H)
+       check_include_file_concat("schannel.h" HAVE_SCHANNEL_H)
+       set(USE_WINDOWS_SSPI ON)
+       if(HAVE_SCHANNEL_H)
+         set(USE_SCHANNEL ON)
+         set(SSL_ENABLED ON)
+-        check_library_exists_concat("crypt32" CertFreeCertificateContext HAVE_LIBCRYPT32)
++        set(CURL_LIBS ${CURL_LIBS} "crypt32")
+       endif()
+     endif()
+   endif()
+ endif(NOT UNIX)
+ 
+ check_include_file_concat("stdio.h"          HAVE_STDIO_H)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/KNOWN_BUGS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/KNOWN_BUGS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/KNOWN_BUGS	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/KNOWN_BUGS	2016-08-03 06:34:27.000000000 +0800
+@@ -19,12 +19,14 @@
+  1.5 Expect-100 meets 417
+  1.6 Unnecessary close when 401 received waiting for 100
+  1.7 CONNECT response larger than 16KB
+  1.8 DNS timing is wrong for HTTP redirects
+  1.9 HTTP/2 frames while in the connection pool kill reuse
+  1.10 Strips trailing dot from host name
++ 1.11 transfer-encoding: chunked in HTTP/2
++ 1.12 CURLOPT_SEEKFUNCTION not called with CURLFORM_STREAM
+ 
+  2. TLS
+  2.1 Hangs with PolarSSL
+  2.2 CURLINFO_SSL_VERIFYRESULT has limited support
+  2.3 DER in keychain
+  2.4 GnuTLS backend skips really long certificate fields
+@@ -71,12 +73,13 @@
+ 
+  10. SOCKS
+  10.1 SOCKS proxy connections are done blocking
+  10.2 SOCKS don't support timeouts
+  10.3 FTPS over SOCKS
+  10.4 active FTP over a SOCKS
++ 10.5 SOCKS proxy not working via IPv6
+ 
+  11. Internals
+  11.1 Curl leaks .onion hostnames in DNS
+  11.2 error buffer not set if connection to multiple addresses fails
+ 
+  12. LDAP and OpenLDAP
+@@ -190,12 +193,31 @@
+  If URLs with trailing dots for host names become more popular or even just
+  used more than for just plain fun experiments, I'm sure we will have reason
+  to go back and reconsider.
+ 
+  See https://github.com/curl/curl/issues/716 for the discussion.
+ 
++1.11 transfer-encoding: chunked in HTTP/2
++
++ For HTTP/1, when -H transfer-encoding:chunked option is given, curl encodes
++ the request using chunked encoding. But when HTTP/2 is being used, the
++ command wrongly sends a request with both content-length and
++ transfer-encoding: chunked headers being set (and the request body is not
++ chunked-encoded). See https://github.com/curl/curl/issues/662
++
++1.12 CURLOPT_SEEKFUNCTION not called with CURLFORM_STREAM
++
++ I'm using libcurl to POST form data using a FILE* with the CURLFORM_STREAM
++ option of curl_formadd(). I've noticed that if the connection drops at just
++ the right time, the POST is reattempted without the data from the file. It
++ seems like the file stream position isn't getting reset to the beginning of
++ the file. I found the CURLOPT_SEEKFUNCTION option and set that with a
++ function that performs an fseek() on the FILE*. However, setting that didn't
++ seem to fix the issue or even get called. See
++ https://github.com/curl/curl/issues/768
++
+ 
+ 2. TLS
+ 
+ 2.1 Hangs with PolarSSL
+ 
+  "curl_easy_perform hangs with imap and PolarSSL"
+@@ -468,12 +490,18 @@
+  libcurl doesn't support FTPS over a SOCKS proxy.
+ 
+ 10.4 active FTP over a SOCKS
+ 
+  libcurl doesn't support active FTP over a SOCKS proxy
+ 
++10.5 SOCKS proxy not working via IPv6
++
++ `curl --proxy "socks://hostname-with-AAAA-record" example.com`
++
++ curl: (7) Can't complete SOCKS4 connection to 1.2.3.4:109. (91),
++ request rejected or failed.
+ 
+ 11. Internals
+ 
+ 11.1 Curl leaks .onion hostnames in DNS
+ 
+  Curl sends DNS requests for hostnames with a .onion TLD. This leaks
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts: CURLINFO_HTTP_VERSION.3
+Binary files /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/libcurl/opts/CURLMOPT_SOCKETFUNCTION.pdf and /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts/CURLMOPT_SOCKETFUNCTION.pdf differ
+Binary files /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/libcurl/opts/CURLOPT_TCP_NODELAY.pdf and /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts/CURLOPT_TCP_NODELAY.pdf differ
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/libcurl/opts/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/libcurl/opts/Makefile.am	2016-06-27 22:11:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts/Makefile.am	2016-08-02 17:27:13.000000000 +0800
+@@ -35,12 +35,13 @@
+  CURLINFO_EFFECTIVE_URL.3                       \
+  CURLINFO_FILETIME.3                            \
+  CURLINFO_FTP_ENTRY_PATH.3                      \
+  CURLINFO_HEADER_SIZE.3                         \
+  CURLINFO_HTTPAUTH_AVAIL.3                      \
+  CURLINFO_HTTP_CONNECTCODE.3                    \
++ CURLINFO_HTTP_VERSION.3                        \
+  CURLINFO_LASTSOCKET.3                          \
+  CURLINFO_LOCAL_IP.3                            \
+  CURLINFO_LOCAL_PORT.3                          \
+  CURLINFO_NAMELOOKUP_TIME.3                     \
+  CURLINFO_NUM_CONNECTS.3                        \
+  CURLINFO_OS_ERRNO.3                            \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/libcurl/opts/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/libcurl/opts/Makefile.in	2016-07-21 07:54:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/libcurl/opts/Makefile.in	2016-08-03 06:35:15.000000000 +0800
+@@ -394,12 +394,13 @@
+  CURLINFO_EFFECTIVE_URL.3                       \
+  CURLINFO_FILETIME.3                            \
+  CURLINFO_FTP_ENTRY_PATH.3                      \
+  CURLINFO_HEADER_SIZE.3                         \
+  CURLINFO_HTTPAUTH_AVAIL.3                      \
+  CURLINFO_HTTP_CONNECTCODE.3                    \
++ CURLINFO_HTTP_VERSION.3                        \
+  CURLINFO_LASTSOCKET.3                          \
+  CURLINFO_LOCAL_IP.3                            \
+  CURLINFO_LOCAL_PORT.3                          \
+  CURLINFO_NAMELOOKUP_TIME.3                     \
+  CURLINFO_NUM_CONNECTS.3                        \
+  CURLINFO_OS_ERRNO.3                            \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/SECURITY /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/SECURITY
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/SECURITY	2016-06-27 22:11:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/SECURITY	2016-08-02 17:27:13.000000000 +0800
+@@ -63,16 +63,19 @@
+ 
+ - Write a security advisory draft about the problem that explains what the
+   problem is, its impact, which versions it affects, solutions or
+   workarounds, when the release is out and make sure to credit all
+   contributors properly.
+ 
+-- Request a CVE number from distros@openwall[1] when also informing and
+-  preparing them for the upcoming public security vulnerability announcement -
+-  attach the advisory draft for information. Note that 'distros' won't accept
+-  an embargo longer than 19 days.
++- Request a CVE number from
++  [distros@openwall](http://oss-security.openwall.org/wiki/mailing-lists/distros)
++  when also informing and preparing them for the upcoming public security
++  vulnerability announcement - attach the advisory draft for information. Note
++  that 'distros' won't accept an embargo longer than 19 days and they do not
++  care for Windows-specific flaws. For windows-specific flaws, request CVE
++  directly from MITRE.
+ 
+ - Update the "security advisory" with the CVE number.
+ 
+ - The security team commits the fix in a private branch. The commit message
+   should ideally contain the CVE number. This fix is usually also distributed
+   to the 'distros' mailing list to allow them to use the fix prior to the
+@@ -88,13 +91,13 @@
+   the same manner we always announce releases. It gets sent to the
+   curl-announce, curl-library and curl-users mailing lists.
+ 
+ - The security web page on the web site should get the new vulnerability
+   mentioned.
+ 
+-[1] = http://oss-security.openwall.org/wiki/mailing-lists/distros
++
+ 
+ CURL-SECURITY (at haxx dot se)
+ ------------------------------
+ 
+ Who is on this list? There are a couple of criteria you must meet, and then we
+ might ask you to join the list or you can ask to join it. It really isn't very
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/THANKS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/THANKS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/THANKS	2016-07-21 16:54:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/THANKS	2016-08-03 14:37:35.000000000 +0800
+@@ -17,12 +17,13 @@
+ Adam Tkac
+ Adrian Schuur
+ Adriano Meirelles
+ Ajit Dhumale
+ Aki Koskinen
+ Akos Pasztory
++Alain Danteny
+ Alan Pinstein
+ Albert Chin-A-Young
+ Albert Choy
+ Ale Vesely
+ Alejandro Alvarez Ayllon
+ Aleksandar Milivojevic
+@@ -392,12 +393,13 @@
+ Eric Landes
+ Eric Lavigne
+ Eric Lubin
+ Eric Melville
+ Eric Mertens
+ Eric Rautman
++Eric Rescorla
+ Eric Ridge
+ Eric S. Raymond
+ Eric Thelin
+ Eric Vergnaud
+ Eric Wong
+ Eric Young
+@@ -420,12 +422,13 @@
+ Fabrizio Ammollo
+ Fedor Karpelevitch
+ Feist Josselin
+ Felix Yan
+ Felix von Leitner
+ Feng Tu
++Fernando Muñoz
+ Flavio Medeiros
+ Florian Schoppmann
+ Florian Weimer
+ Forrest Cahoon
+ Francisco Moraes
+ Frank Gevaerts
+@@ -822,12 +825,13 @@
+ Marc Hesse
+ Marc Hoersken
+ Marc Kleine-Budde
+ Marc Renault
+ Marcel Raad
+ Marcel Roelofs
++Marcelo Echeverria
+ Marcelo Juchem
+ Marcin Adamski
+ Marcin Gryszkalis
+ Marcin Konicki
+ Marco G. Salvagno
+ Marco Maggi
+@@ -856,12 +860,13 @@
+ Martin Hager
+ Martin Hedenfalk
+ Martin Jansen
+ Martin Lemke
+ Martin Skinner
+ Martin Storsjo
++Martin Vejnár
+ Marty Kuhrt
+ Maruko
+ Massimiliano Ziccardi
+ Massimo Callegari
+ Mateusz Loskot
+ Mathias Axelsson
+@@ -1027,12 +1032,13 @@
+ Pawel Kierski
+ Pedro Larroy
+ Pedro Neves
+ Per Malmberg
+ Peter Bray
+ Peter Forret
++Peter Frühberger
+ Peter Gal
+ Peter Heuchert
+ Peter Hjalmarsson
+ Peter Korsgaard
+ Peter Lamberg
+ Peter Laser
+@@ -1393,12 +1399,13 @@
+ Yarram Sunil
+ Yasuharu Yamada
+ Yehezkel Horowitz
+ Yehoshua Hershberg
+ Yi Huang
+ Yingwei Liu
++Yonggang Luo
+ Yousuke Kimoto
+ Yukihiro Kawada
+ Yun SangHo
+ Yuriy Sosov
+ Yves Arrouye
+ Yves Lejeune
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/TODO /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/TODO
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/docs/TODO	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/docs/TODO	2016-08-03 06:34:27.000000000 +0800
+@@ -31,22 +31,24 @@
+  1.13 Add CURLOPT_MAIL_CLIENT option
+  1.14 Typesafe curl_easy_setopt()
+  1.15 TCP Fast Open
+  1.16 Try to URL encode given URL
+  1.17 Add support for IRIs
+  1.18 try next proxy if one doesn't work
++ 1.19 Timeout idle connections from the pool
+ 
+  2. libcurl - multi interface
+  2.1 More non-blocking
+  2.2 Better support for same name resolves
+  2.3 Non-blocking curl_multi_remove_handle()
+  2.4 Split connect and authentication process
+  2.5 Edge-triggered sockets should work
+ 
+  3. Documentation
+  3.1 Update date and version in man pages
++ 3.2 Provide cmake config-file
+ 
+  4. FTP
+  4.1 HOST
+  4.2 Alter passive/active on failure and retry
+  4.3 Earlier bad letter detection
+  4.4 REST for large files
+@@ -327,12 +329,22 @@
+  connect to the first go on and try the next instead until the list is
+  exhausted. Browsers support this feature at least when they specify proxies
+  using PACs.
+ 
+  https://github.com/curl/curl/issues/896
+ 
++1.19 Timeout idle connections from the pool
++
++ libcurl currently keeps connections in its connection pool for an indefinite
++ period of time, until it either gets reused, gets noticed that it has been
++ closed by the server or gets pruned to make room for a new connection.
++
++ To reduce overhead (especially for when we add monitoring of the connections
++ in the pool), we should introduce a timeout so that connections that have
++ been idle for N seconds get closed.
++
+ 
+ 2. libcurl - multi interface
+ 
+ 2.1 More non-blocking
+ 
+  Make sure we don't ever loop because of non-blocking sockets returning
+@@ -381,12 +393,18 @@
+ 3.1 Update date and version in man pages
+ 
+  'maketgz' or another suitable script could update the .TH sections of the man
+  pages at release time to use the current date and curl/libcurl version
+  number.
+ 
++3.2 Provide cmake config-file
++
++ A config-file package is a set of files provided by us to allow applications
++ to write cmake scripts to find and use libcurl easier. See
++ https://github.com/curl/curl/issues/885
++
+ 4. FTP
+ 
+ 4.1 HOST
+ 
+  HOST is a command for a client to tell which host name to use, to offer FTP
+  servers named-based virtual hosting:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/curl.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/curl.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/curl.h	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/curl.h	2016-08-02 17:27:13.000000000 +0800
+@@ -88,13 +88,19 @@
+ #endif
+ 
+ #ifdef  __cplusplus
+ extern "C" {
+ #endif
+ 
++#if defined(BUILDING_LIBCURL) || defined(CURL_STRICTER)
+ typedef struct Curl_easy CURL;
++typedef struct Curl_share CURLSH;
++#else
++typedef void CURL;
++typedef void CURLSH;
++#endif
+ 
+ /*
+  * libcurl external API function linkage decorations.
+  */
+ 
+ #ifdef CURL_STATICLIB
+@@ -2255,13 +2261,12 @@
+                                    curl_lock_access locktype,
+                                    void *userptr);
+ typedef void (*curl_unlock_function)(CURL *handle,
+                                      curl_lock_data data,
+                                      void *userptr);
+ 
+-typedef struct Curl_share CURLSH;
+ 
+ typedef enum {
+   CURLSHE_OK,  /* all is fine */
+   CURLSHE_BAD_OPTION, /* 1 */
+   CURLSHE_IN_USE,     /* 2 */
+   CURLSHE_INVALID,    /* 3 */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/curlver.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/curlver.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/curlver.h	2016-07-21 16:56:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/curlver.h	2016-08-03 14:39:11.000000000 +0800
+@@ -27,19 +27,19 @@
+ 
+ /* This is the global package copyright */
+ #define LIBCURL_COPYRIGHT "1996 - 2016 Daniel Stenberg, <daniel@haxx.se>."
+ 
+ /* This is the version number of the libcurl package from which this header
+    file origins: */
+-#define LIBCURL_VERSION "7.50.0"
++#define LIBCURL_VERSION "7.50.1"
+ 
+ /* The numeric version number is also available "in parts" by using these
+    defines: */
+ #define LIBCURL_VERSION_MAJOR 7
+ #define LIBCURL_VERSION_MINOR 50
+-#define LIBCURL_VERSION_PATCH 0
++#define LIBCURL_VERSION_PATCH 1
+ 
+ /* This is the numeric version of the libcurl version number, meant for easier
+    parsing and comparions by programs. The LIBCURL_VERSION_NUM define will
+    always follow this syntax:
+ 
+          0xXXYYZZ
+@@ -54,24 +54,24 @@
+    comparisons with greater than and less than work.
+ 
+    Note: This define is the full hex number and _does not_ use the
+    CURL_VERSION_BITS() macro since curl's own configure script greps for it
+    and needs it to contain the full number.
+ */
+-#define LIBCURL_VERSION_NUM 0x073200
++#define LIBCURL_VERSION_NUM 0x073201
+ 
+ /*
+  * This is the date and time when the full source package was created. The
+  * timestamp is not stored in git, as the timestamp is properly set in the
+  * tarballs by the maketgz script.
+  *
+  * The format of the date should follow this template:
+  *
+  * "Mon Feb 12 11:35:33 UTC 2007"
+  */
+-#define LIBCURL_TIMESTAMP "Thu Jul 21 08:55:43 UTC 2016"
++#define LIBCURL_TIMESTAMP "Wed Aug  3 06:38:49 UTC 2016"
+ 
+ #define CURL_VERSION_BITS(x,y,z) ((x)<<16|(y)<<8|z)
+ #define CURL_AT_LEAST_VERSION(x,y,z) \
+   (LIBCURL_VERSION_NUM >= CURL_VERSION_BITS(x, y, z))
+ 
+ #endif /* __CURL_CURLVER_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/Makefile.in	2016-07-21 07:54:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -428,15 +428,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign include/curl/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu include/curl/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign include/curl/Makefile
++	  $(AUTOMAKE) --gnu include/curl/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/multi.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/multi.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/include/curl/multi.h	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/include/curl/multi.h	2016-08-02 17:27:13.000000000 +0800
+@@ -49,13 +49,17 @@
+ #include "curl.h"
+ 
+ #ifdef  __cplusplus
+ extern "C" {
+ #endif
+ 
++#if defined(BUILDING_LIBCURL) || defined(CURL_STRICTER)
+ typedef struct Curl_multi CURLM;
++#else
++typedef void CURLM;
++#endif
+ 
+ typedef enum {
+   CURLM_CALL_MULTI_PERFORM = -1, /* please call curl_multi_perform() or
+                                     curl_multi_socket*() soon */
+   CURLM_OK,
+   CURLM_BAD_HANDLE,      /* the passed-in handle is not a valid CURLM handle */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/libcurl.plist /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/libcurl.plist
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/libcurl.plist	2016-07-21 16:56:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/libcurl.plist	2016-08-03 14:39:11.000000000 +0800
+@@ -12,24 +12,24 @@
+ 	<string>curl</string>
+ 
+ 	<key>CFBundleIdentifier</key>
+ 	<string>se.haxx.curl.libcurl</string>
+ 
+ 	<key>CFBundleVersion</key>
+-	<string>7.50.0</string>
++	<string>7.50.1</string>
+ 
+ 	<key>CFBundleName</key>
+ 	<string>libcurl</string>
+ 
+ 	<key>CFBundlePackageType</key>
+ 	<string>FMWK</string>
+ 
+ 	<key>CFBundleSignature</key>
+ 	<string>????</string>
+ 
+ 	<key>CFBundleShortVersionString</key>
+-	<string>libcurl 7.50.0</string>
++	<string>libcurl 7.50.1</string>
+ 
+ 	<key>CFBundleGetInfoString</key>
+-	<string>libcurl.plist 7.50.0</string>
++	<string>libcurl.plist 7.50.1</string>
+ </dict>
+ </plist>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/multi.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/multi.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/multi.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/multi.c	2016-08-03 14:37:35.000000000 +0800
+@@ -2154,12 +2154,14 @@
+   conn = Curl_conncache_find_first_connection(&multi->conn_cache);
+   while(conn) {
+     SIGPIPE_VARIABLE(pipe_st);
+     conn->data = multi->closure_handle;
+ 
+     sigpipe_ignore(conn->data, &pipe_st);
++    conn->data->easy_conn = NULL; /* clear the easy handle's connection
++                                     pointer */
+     /* This will remove the connection from the cache */
+     (void)Curl_disconnect(conn, FALSE);
+     sigpipe_restore(&pipe_st);
+ 
+     conn = Curl_conncache_find_first_connection(&multi->conn_cache);
+   }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/system_win32.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/system_win32.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/system_win32.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/system_win32.c	2016-08-02 17:27:13.000000000 +0800
+@@ -278,14 +278,14 @@
+         /* Load the DLL from the Windows system directory */
+         /** !checksrc! disable BANNEDFUNC 1 **/
+         hModule = pLoadLibraryEx ?
+           pLoadLibraryEx(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH) :
+           LoadLibrary(path);
+ 
+-        free(path);
+       }
++      free(path);
+     }
+   }
+ 
+   return hModule;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/url.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/url.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/url.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/url.c	2016-08-03 14:37:35.000000000 +0800
+@@ -6120,12 +6120,13 @@
+   data->set.ssl.CAfile = data->set.str[STRING_SSL_CAFILE];
+   data->set.ssl.CRLfile = data->set.str[STRING_SSL_CRLFILE];
+   data->set.ssl.issuercert = data->set.str[STRING_SSL_ISSUERCERT];
+   data->set.ssl.random_file = data->set.str[STRING_SSL_RANDOM_FILE];
+   data->set.ssl.egdsocket = data->set.str[STRING_SSL_EGDSOCKET];
+   data->set.ssl.cipher_list = data->set.str[STRING_SSL_CIPHER_LIST];
++  data->set.ssl.clientcert = data->set.str[STRING_CERT];
+ #ifdef USE_TLS_SRP
+   data->set.ssl.username = data->set.str[STRING_TLSAUTH_USERNAME];
+   data->set.ssl.password = data->set.str[STRING_TLSAUTH_PASSWORD];
+ #endif
+ 
+   if(!Curl_clone_ssl_config(&data->set.ssl, &conn->ssl_config)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/urldata.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/urldata.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/urldata.h	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/urldata.h	2016-08-03 14:37:35.000000000 +0800
+@@ -348,12 +348,13 @@
+   bool verifyhost;       /* set TRUE if CN/SAN must match hostname */
+   bool verifystatus;     /* set TRUE if certificate status must be checked */
+   char *CApath;          /* certificate dir (doesn't work on windows) */
+   char *CAfile;          /* certificate to verify peer against */
+   const char *CRLfile;   /* CRL to check certificate revocation */
+   const char *issuercert;/* optional issuer certificate filename */
++  char *clientcert;
+   char *random_file;     /* path to file containing "random" data */
+   char *egdsocket;       /* path to file containing the EGD daemon socket */
+   char *cipher_list;     /* list of ciphers to use */
+   size_t max_ssl_sessions; /* SSL session id cache size */
+   curl_ssl_ctx_callback fsslctx; /* function to initialize ssl ctx */
+   void *fsslctxp;        /* parameter for call back */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vauth/spnego_gssapi.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vauth/spnego_gssapi.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vauth/spnego_gssapi.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vauth/spnego_gssapi.c	2016-08-02 17:27:13.000000000 +0800
+@@ -226,13 +226,13 @@
+  *
+  * Parameters:
+  *
+  * nego     [in/out] - The Negotiate data struct being cleaned up.
+  *
+  */
+-void Curl_auth_spnego_cleanup(struct negotiatedata* nego)
++void Curl_auth_spnego_cleanup(struct negotiatedata *nego)
+ {
+   OM_uint32 minor_status;
+ 
+   /* Free our security context */
+   if(nego->context != GSS_C_NO_CONTEXT) {
+     gss_delete_sec_context(&minor_status, &nego->context, GSS_C_NO_BUFFER);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vauth/spnego_sspi.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vauth/spnego_sspi.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vauth/spnego_sspi.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vauth/spnego_sspi.c	2016-08-02 17:27:13.000000000 +0800
+@@ -262,13 +262,13 @@
+  *
+  * Parameters:
+  *
+  * nego     [in/out] - The Negotiate data struct being cleaned up.
+  *
+  */
+-void Curl_auth_spnego_cleanup(struct negotiatedata* nego)
++void Curl_auth_spnego_cleanup(struct negotiatedata *nego)
+ {
+   /* Free our security context */
+   if(nego->context) {
+     s_pSecFn->DeleteSecurityContext(nego->context);
+     free(nego->context);
+     nego->context = NULL;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vauth/vauth.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vauth/vauth.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vauth/vauth.h	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vauth/vauth.h	2016-08-02 17:27:13.000000000 +0800
+@@ -161,13 +161,13 @@
+                                                   size_t *outlen);
+ 
+ /* This is used to clean up the GSSAPI specific data */
+ void Curl_auth_gssapi_cleanup(struct kerberos5data *krb5);
+ #endif /* USE_KERBEROS5 */
+ 
+-#if (defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)) && defined(USE_SPNEGO)
++#if defined(USE_SPNEGO)
+ /* This is used to decode a base64 encoded SPNEGO (Negotiate) challenge
+    message */
+ CURLcode Curl_auth_decode_spnego_message(struct Curl_easy *data,
+                                          const char *user,
+                                          const char *passwood,
+                                          const char *service,
+@@ -179,11 +179,11 @@
+    message */
+ CURLcode Curl_auth_create_spnego_message(struct Curl_easy *data,
+                                          struct negotiatedata *nego,
+                                          char **outptr, size_t *outlen);
+ 
+ /* This is used to clean up the SPNEGO specifiec data */
+-void Curl_auth_spnego_cleanup(struct negotiatedata* nego);
++void Curl_auth_spnego_cleanup(struct negotiatedata *nego);
+ 
+-#endif /* (HAVE_GSSAPI || USE_WINDOWS_SSPI) && USE_SPNEGO */
++#endif /* USE_SPNEGO */
+ 
+ #endif /* HEADER_CURL_VAUTH_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vtls/mbedtls.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vtls/mbedtls.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vtls/mbedtls.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vtls/mbedtls.c	2016-08-02 17:27:13.000000000 +0800
+@@ -417,13 +417,13 @@
+     for(p = &connssl->protocols[0]; *p; ++p)
+       infof(data, "ALPN, offering %s\n", *p);
+   }
+ #endif
+ 
+ #ifdef MBEDTLS_DEBUG
+-  mbedtls_ssl_conf_dbg(&connssl->config, mbedtls_debug, data);
++  mbedtls_ssl_conf_dbg(&connssl->config, mbed_debug, data);
+ #endif
+ 
+   connssl->connecting_state = ssl_connect_2;
+ 
+   return CURLE_OK;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vtls/vtls.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vtls/vtls.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/lib/vtls/vtls.c	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/lib/vtls/vtls.c	2016-08-03 14:37:35.000000000 +0800
+@@ -96,12 +96,13 @@
+ {
+   if((data->version == needle->version) &&
+      (data->verifypeer == needle->verifypeer) &&
+      (data->verifyhost == needle->verifyhost) &&
+      safe_strequal(data->CApath, needle->CApath) &&
+      safe_strequal(data->CAfile, needle->CAfile) &&
++     safe_strequal(data->clientcert, needle->clientcert) &&
+      safe_strequal(data->random_file, needle->random_file) &&
+      safe_strequal(data->egdsocket, needle->egdsocket) &&
+      safe_strequal(data->cipher_list, needle->cipher_list))
+     return TRUE;
+ 
+   return FALSE;
+@@ -153,22 +154,32 @@
+     if(!dest->random_file)
+       return FALSE;
+   }
+   else
+     dest->random_file = NULL;
+ 
++  if(source->clientcert) {
++    dest->clientcert = strdup(source->clientcert);
++    if(!dest->clientcert)
++      return FALSE;
++    dest->sessionid = FALSE;
++  }
++  else
++    dest->clientcert = NULL;
++
+   return TRUE;
+ }
+ 
+ void Curl_free_ssl_config(struct ssl_config_data* sslc)
+ {
+   Curl_safefree(sslc->CAfile);
+   Curl_safefree(sslc->CApath);
+   Curl_safefree(sslc->cipher_list);
+   Curl_safefree(sslc->egdsocket);
+   Curl_safefree(sslc->random_file);
++  Curl_safefree(sslc->clientcert);
+ }
+ 
+ 
+ /*
+  * Curl_rand() returns a random unsigned integer, 32bit.
+  *
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/AIX/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/AIX/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/AIX/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/AIX/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -397,15 +397,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/AIX/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/AIX/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/AIX/Makefile
++	  $(AUTOMAKE) --gnu packages/AIX/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/AIX/RPM/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/AIX/RPM/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/AIX/RPM/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/AIX/RPM/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -336,15 +336,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/AIX/RPM/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/AIX/RPM/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/AIX/RPM/Makefile
++	  $(AUTOMAKE) --gnu packages/AIX/RPM/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Linux/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Linux/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Linux/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Linux/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -396,15 +396,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Linux/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Linux/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Linux/Makefile
++	  $(AUTOMAKE) --gnu packages/Linux/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Linux/RPM/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Linux/RPM/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Linux/RPM/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Linux/RPM/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -337,15 +337,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Linux/RPM/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Linux/RPM/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Linux/RPM/Makefile
++	  $(AUTOMAKE) --gnu packages/Linux/RPM/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -428,15 +428,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Makefile
++	  $(AUTOMAKE) --gnu packages/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/OS400/initscript.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/OS400/initscript.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/OS400/initscript.sh	2016-06-27 22:11:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/OS400/initscript.sh	2016-08-02 20:23:20.000000000 +0800
+@@ -47,13 +47,13 @@
+ setenv DYNBNDDIR        'CURL'                  # Dynamic binding directory.
+ setenv SRVPGM           "CURL.${SONAME}"        # Service program.
+ setenv TGTCCSID         '500'                   # Target CCSID of objects.
+ setenv DEBUG            '*ALL'                  # Debug level.
+ setenv OPTIMIZE         '10'                    # Optimisation level
+ setenv OUTPUT           '*NONE'                 # Compilation output option.
+-setenv TGTRLS           'V5R3M0'                # Target OS release.
++setenv TGTRLS           'V6R1M0'                # Target OS release.
+ setenv IFSDIR           '/curl'                 # Installation IFS directory.
+ 
+ #       Define ZLIB availability and locations.
+ 
+ setenv WITH_ZLIB        0                       # Define to 1 to enable.
+ setenv ZLIB_INCLUDE     '/zlib/include'         # ZLIB include IFS directory.
+@@ -185,13 +185,13 @@
+         echo "#pragma convert(819)" >> __tmpsrcf.c
+         echo "#line 1" >> __tmpsrcf.c
+         cat "${2}" >> __tmpsrcf.c
+         CMD="CRTCMOD MODULE(${TARGETLIB}/${1}) SRCSTMF('__tmpsrcf.c')"
+ #       CMD="${CMD} SYSIFCOPT(*IFS64IO) OPTION(*INCDIRFIRST *SHOWINC *SHOWSYS)"
+         CMD="${CMD} SYSIFCOPT(*IFS64IO) OPTION(*INCDIRFIRST)"
+-        CMD="${CMD} LOCALETYPE(*LOCALE)"
++        CMD="${CMD} LOCALETYPE(*LOCALE) FLAG(10)"
+         CMD="${CMD} INCDIR('/qibm/proddata/qadrt/include'"
+         CMD="${CMD} '${TOPDIR}/include/curl' '${TOPDIR}/include' '${SRCDIR}'"
+         CMD="${CMD} '${TOPDIR}/packages/OS400'"
+ 
+         if [ "${WITH_ZLIB}" != "0" ]
+         then    CMD="${CMD} '${ZLIB_INCLUDE}'"
+@@ -204,13 +204,13 @@
+         CMD="${CMD} ${INCLUDES})"
+         CMD="${CMD} TGTCCSID(${TGTCCSID}) TGTRLS(${TGTRLS})"
+         CMD="${CMD} OUTPUT(${OUTPUT})"
+         CMD="${CMD} OPTIMIZE(${OPTIMIZE})"
+         CMD="${CMD} DBGVIEW(${DEBUG})"
+ 
+-        DEFINES="${3}"
++        DEFINES="${3} BUILDING_LIBCURL"
+ 
+         if [ "${WITH_ZLIB}" != "0" ]
+         then    DEFINES="${DEFINES} HAVE_LIBZ HAVE_ZLIB_H"
+         fi
+ 
+         if [ "${WITH_LIBSSH2}" != "0" ]
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/OS400/make-lib.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/OS400/make-lib.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/OS400/make-lib.sh	2016-06-27 22:11:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/OS400/make-lib.sh	2016-08-02 20:23:20.000000000 +0800
+@@ -17,13 +17,13 @@
+ 
+ #      Create and compile the identification source file.
+ 
+ echo '#pragma comment(user, "libcurl version '"${LIBCURL_VERSION}"'")' > os400.c
+ echo '#pragma comment(user, __DATE__)' >> os400.c
+ echo '#pragma comment(user, __TIME__)' >> os400.c
+-echo '#pragma comment(copyright, "Copyright (C) 1998-2014 Daniel Stenberg et al. OS/400 version by P. Monnerat")' >> os400.c
++echo '#pragma comment(copyright, "Copyright (C) 1998-2016 Daniel Stenberg et al. OS/400 version by P. Monnerat")' >> os400.c
+ make_module     OS400           os400.c
+ LINK=                           # No need to rebuild service program yet.
+ MODULES=
+ 
+ 
+ #       Get source list.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Solaris/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Solaris/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Solaris/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Solaris/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -343,15 +343,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Solaris/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Solaris/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Solaris/Makefile
++	  $(AUTOMAKE) --gnu packages/Solaris/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/vms/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/vms/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/vms/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/vms/Makefile.in	2016-07-21 17:16:37.000000000 +0800
+@@ -372,15 +372,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/vms/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/vms/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/vms/Makefile
++	  $(AUTOMAKE) --gnu packages/vms/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Win32/cygwin/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Win32/cygwin/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Win32/cygwin/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Win32/cygwin/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -353,15 +353,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Win32/cygwin/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Win32/cygwin/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Win32/cygwin/Makefile
++	  $(AUTOMAKE) --gnu packages/Win32/cygwin/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Win32/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Win32/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/packages/Win32/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/packages/Win32/Makefile.in	2016-07-21 17:16:36.000000000 +0800
+@@ -397,15 +397,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign packages/Win32/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu packages/Win32/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign packages/Win32/Makefile
++	  $(AUTOMAKE) --gnu packages/Win32/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/projects/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/projects/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/projects/README	2016-06-27 22:11:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/projects/README	2016-08-02 17:27:13.000000000 +0800
+@@ -24,14 +24,14 @@
+    when a library is being compiled against dynamic runtime libraries.
+ 
+ Dependencies
+ ============
+ 
+    The projects files also support build configurations that require third
+-   party dependencies such as OpenSSL and SSH2. If you wish to support these,
+-   you will also need to download and compile those libraries as well.
++   party dependencies such as OpenSSL, wolfSSL and SSH2. If you wish to support
++   these, you will also need to download and compile those libraries as well.
+ 
+    To support compilation of these libraries using different versions of
+    compilers, the following directory structure has been used for both the
+    output of curl and libcurl as well as these dependencies.
+ 
+    somedirectory\
+@@ -52,15 +52,16 @@
+     |_libssh2
+       |_ build
+          |_<architecture>
+            |_VC <version>
+              |_<configuration>
+ 
+-   As OpenSSL doesn't support side-by-side compilation when using different
+-   versions of Visual Studio a build helper batch file has been provided to
+-   assist with this. Please run "build-openssl -help" for usage details.
++   As OpenSSL and wolfSSL don't support side-by-side compilation when using
++   different versions of Visual Studio, build helper batch files have been
++   provided to assist with this. Please run "build-openssl -help" and/or
++   "build-wolfssl -help" for usage details.
+ 
+ Building with Visual C++
+ ========================
+ 
+    To build with VC++, you will of course have to first install VC++ which is
+    part of Visual Studio.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/RELEASE-NOTES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/RELEASE-NOTES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/RELEASE-NOTES	2016-07-21 16:54:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/RELEASE-NOTES	2016-08-03 14:37:35.000000000 +0800
+@@ -1,103 +1,50 @@
+-Curl and libcurl 7.50.0
++Curl and libcurl 7.50.1
+ 
+- Public curl releases:         156
++ Public curl releases:         157
+  Command line options:         185
+  curl_easy_setopt() options:   224
+  Public functions in libcurl:  61
+- Contributors:                 1404
+-
+-This release includes the following changes:
+-
+- o http: add CURLINFO_HTTP_VERSION and %{http_version} [3]
++ Contributors:                 1418
+ 
+ This release includes the following bugfixes:
+ 
+- o memdebug: fix MSVC crash with -DMEMDEBUG_LOG_SYNC [1]
+- o openssl: fix build with OPENSSL_NO_COMP [2]
+- o mbedtls: removed unused variables [4]
+- o cmake: Added missing mbedTLS support [5]
+- o URL parser: allow URLs to use one, two or three slashes [6]
+- o curl: fix -q [regression] [7]
+- o openssl: Use correct buffer sizes for error messages [8]
+- o curl: fix SIGSEGV while parsing URL with too many globs [9]
+- o schannel: add CURLOPT_CERTINFO support [10]
+- o vtls: fix ssl session cache race condition [11]
+- o http: Fix HTTP/2 connection reuse [regression] [12]
+- o checksrc: Add LoadLibrary to the banned functions list
+- o schannel: Disable ALPN on Windows < 8.1 [13]
+- o configure: occasional ignorance of --enable-symbol-hiding with GCC
+- o http2: test17xx are the first real HTTP/2 tests
+- o resolve: add support for IPv6 DNS64/NAT64 Networks on OS X + iOS [14]
+- o curl_multi_socket_action.3: rewording [15]
+- o CURLOPT_POSTFIELDS.3: Clarify what happens when set empty [16]
+- o cmake: Fix build with winldap [17]
+- o openssl: fix cert check with non-DNS name fields present [18]
+- o curl.1: mention the units for the progress meter [20]
+- o openssl: use more 'const' to fix build warnings with 1.1.0 branch
+- o cmake: now using BUILD_TESTING=ON/OFF [19]
+- o vtls: Only call add/getsession if session id is enabled
+- o headers: forward declare CURL, CURLM and CURLSH as structs [21]
+- o configure: improve detection of CA bundle path on FreeBSD [22]
+- o SFTP: set a generic error when no SFTP one exists [23]
+- o curl_global_init.3: expand on the SSL and WIN32 bits purpose [24]
+- o conn: don't free easy handle data in handler->disconnect [25]
+- o cookie.c: Fix misleading indentation [26]
+- o library: Fix memory leaks found during static analysis [27]
+- o CURLMOPT_SOCKETFUNCTION.3: fix typo [28]
+- o curl_global_init: moved the "IPv6 works" check here [29]
+- o connect: disable TFO on Linux when using SSL [30]
+- o vauth: Fixed memory leak due to function returning without free [31]
+- o winbuild: fix embedded manifest option
++ o TLS: switch off SSL session id when client cert is used [7]
++ o TLS: only reuse connections with the same client cert [8]
++ o curl_multi_cleanup: clear connection pointer for easy handles [9]
++ o include the CURLINFO_HTTP_VERSION(3) man page into the release tarball
++ o include the http2-server.pl script in the release tarball
++ o test558: fix test by stripping file paths from FD lines
++ o spnego: Corrected miss-placed * in Curl_auth_spnego_cleanup() declaration
++ o tests: Fix for http/2 feature [1]
++ o cmake: Fix for schannel support [2]
++ o curl.h: make public types void * again [3]
++ o win32: fix a potential memory leak in Curl_load_library [4]
++ o travis: fix OSX build by re-installing libtool [5]
++ o mbedtls: Fix debug function name [6]
+ 
+ This release includes the following known bugs:
+ 
+  o see docs/KNOWN_BUGS (https://curl.haxx.se/docs/knownbugs.html)
+ 
+ This release would not have looked like this without help, code, reports and
+ advice from friends like these:
+ 
+-  Andrew Kurushin, Andrew Robbins, Askar Safin, Benjamin Kircher, Brad King,
+-  Brian Prodoehl, Dan Fandrich, Daniel Seither, Daniel Stenberg, Fabian Ruff,
+-  Frank Gevaerts, Gisle Vanem, Gou Lingfeng, Ivan Avdeev, Joel Depooter,
+-  Kamil Dudka, Luo Jinghua, Marcel Raad, Michael Kaufmann, Michael Osipov,
+-  Michael Wallner, Miroslav Franc, Patrick Monnerat, Ray Satiro, Reinhard Max,
+-  Renaud Lehoux, Richard Gray, Romain Coltel, Saurav Babu, Sergei Nikulov,
+-  Stefan Kanthak, Steve Holme, Timothy Polich, vanillajonathan on github,
+-  Viktor Szakáts,
+-  (35 contributors)
++  Alain Danteny, Bru Rom, Dan Fandrich, Daniel Stenberg, Eric Rescorla,
++  Fernando Muñoz, Kamil Dudka, Marcelo Echeverria, Martin Vejnár,
++  Patrick Monnerat, Paul Howarth, Peter Frühberger, Ray Satiro, Sergei Nikulov,
++  Steve Holme, Thomas Glanzmann, Viktor Szakáts, Yonggang Luo,
++  (18 contributors)
+ 
+         Thanks! (and sorry if I forgot to mention someone)
+ 
+ References to bug reports and discussions on issues:
+ 
+- [1] = https://curl.haxx.se/bug/?i=828
+- [2] = https://curl.haxx.se/bug/?i=836
+- [3] = https://curl.haxx.se/bug/?i=799
+- [4] = https://curl.haxx.se/bug/?i=838
+- [5] = https://curl.haxx.se/bug/?i=837
+- [6] = https://curl.haxx.se/bug/?i=791
+- [7] = https://curl.haxx.se/bug/?i=842
+- [8] = https://curl.haxx.se/bug/?i=844
+- [9] = https://bugzilla.redhat.com/1340757
+- [10] = https://curl.haxx.se/bug/?i=822
+- [11] = https://curl.haxx.se/bug/?i=815
+- [12] = https://curl.haxx.se/bug/?i=855
+- [13] = https://curl.haxx.se/bug/?i=840
+- [14] = https://curl.haxx.se/bug/?i=863
+- [15] = https://curl.haxx.se/bug/?i=865
+- [16] = https://curl.haxx.se/bug/?i=862
+- [17] = https://curl.haxx.se/bug/?i=874
+- [18] = https://curl.haxx.se/bug/?i=875
+- [19] = https://curl.haxx.se/bug/?i=882
+- [20] = https://curl.haxx.se/bug/?i=883
+- [21] = https://curl.haxx.se/mail/lib-2016-06/0100.html
+- [22] = https://curl.haxx.se/bug/?i=894
+- [23] = https://curl.haxx.se/mail/lib-2016-06/0052.html
+- [24] = https://curl.haxx.se/mail/lib-2016-06/0136.html
+- [25] = https://curl.haxx.se/mail/lib-2016-06/0139.html
+- [26] = https://curl.haxx.se/bug/?i=911
+- [27] = https://curl.haxx.se/bug/?i=913
+- [28] = https://curl.haxx.se/bug/?i=914
+- [29] = https://curl.haxx.se/bug/?i=915
+- [30] = https://curl.haxx.se/bug/?i=907
+- [31] = https://curl.haxx.se/mail/lib-2016-07/0054.html
++ [1] = https://curl.haxx.se/mail/lib-2016-07/0070.html
++ [2] = https://curl.haxx.se/bug/?i=917
++ [3] = https://curl.haxx.se/bug/?i=926
++ [4] = https://curl.haxx.se/bug/?i=938
++ [5] = https://curl.haxx.se/bug/?i=939
++ [6] = https://curl.haxx.se/mail/lib-2016-08/0001.html
++ [7] = https://curl.haxx.se/docs/adv_20160803A.html
++ [8] = https://curl.haxx.se/docs/adv_20160803B.html
++ [9] = https://curl.haxx.se/docs/adv_20160803C.html
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/scripts/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/scripts/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/scripts/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/scripts/Makefile.in	2016-07-21 17:16:37.000000000 +0800
+@@ -358,15 +358,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign scripts/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu scripts/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign scripts/Makefile
++	  $(AUTOMAKE) --gnu scripts/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/src/tool_version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/src/tool_version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/src/tool_version.h	2016-07-21 16:56:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/src/tool_version.h	2016-08-03 14:39:11.000000000 +0800
+@@ -22,13 +22,13 @@
+  *
+  ***************************************************************************/
+ #include <curl/curlver.h>
+ 
+ #define CURL_NAME "curl"
+ #define CURL_COPYRIGHT LIBCURL_COPYRIGHT
+-#define CURL_VERSION "7.50.0"
++#define CURL_VERSION "7.50.1"
+ #define CURL_VERSION_MAJOR LIBCURL_VERSION_MAJOR
+ #define CURL_VERSION_MINOR LIBCURL_VERSION_MINOR
+ #define CURL_VERSION_PATCH LIBCURL_VERSION_PATCH
+ #define CURL_ID CURL_NAME " " CURL_VERSION " (" OS ") "
+ 
+ #endif /* HEADER_CURL_TOOL_VERSION_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/Makefile.in	2016-07-21 17:16:37.000000000 +0800
+@@ -515,15 +515,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tests/data/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu tests/data/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign tests/data/Makefile
++	  $(AUTOMAKE) --gnu tests/data/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/test1800 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/test1800
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/test1800	2016-03-17 23:58:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/test1800	2016-08-02 17:27:13.000000000 +0800
+@@ -1,11 +1,11 @@
+ <testcase>
+ <info>
+ <keywords>
+ HTTP
+-http2
++HTTP/2
+ </keywords>
+ </info>
+ 
+ # Server-side
+ <reply>
+ <data>
+@@ -24,13 +24,13 @@
+ # Client-side
+ <client>
+ <server>
+ http
+ </server>
+ <features>
+-http2
++http/2
+ </features>
+  <name>
+ HTTP/2 upgrade refused
+  </name>
+  <command>
+ http://%HOSTIP:%HTTPPORT/1800 --http2
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/test1801 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/test1801
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/test1801	2016-03-17 23:58:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/test1801	2016-08-02 17:27:13.000000000 +0800
+@@ -1,11 +1,11 @@
+ <testcase>
+ <info>
+ <keywords>
+ HTTP
+-http2
++HTTP/2
+ </keywords>
+ </info>
+ 
+ # Server-side
+ <reply>
+ <data>
+@@ -34,13 +34,13 @@
+ # Client-side
+ <client>
+ <server>
+ http
+ </server>
+ <features>
+-http2
++http/2
+ </features>
+  <name>
+ HTTP/2 upgrade with lying server
+  </name>
+  <command>
+ http://%HOSTIP:%HTTPPORT/1801 --http2
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/test558 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/test558
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/data/test558	2016-07-21 06:31:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/data/test558	2016-08-02 17:27:13.000000000 +0800
+@@ -46,11 +46,11 @@
+ MEM escape.c: free()
+ </file>
+ <stripfile>
+ s/ =.*//
+ s/\(.*\)/()/
+ s/:\d+/:/
+-s:^(MEM )(.*/)(.*):$1$3:
++s:^(MEM |FD )(.*/)(.*):$1$3:
+ </stripfile>
+ </verify>
+ 
+ </testcase>
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests: http2-server.pl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/Makefile.am	2016-06-27 22:11:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/Makefile.am	2016-08-02 17:27:13.000000000 +0800
+@@ -26,13 +26,13 @@
+ EXTRA_DIST = ftpserver.pl httpserver.pl secureserver.pl runtests.pl getpart.pm \
+  FILEFORMAT README stunnel.pem memanalyze.pl testcurl.pl valgrind.pm ftp.pm   \
+  sshserver.pl sshhelp.pm pathhelp.pm testcurl.1 runtests.1 \
+  $(HTMLPAGES) $(PDFPAGES) \
+  serverhelp.pm tftpserver.pl rtspserver.pl directories.pm symbol-scan.pl \
+  CMakeLists.txt mem-include-scan.pl valgrind.supp http_pipe.py extern-scan.pl \
+- manpage-scan.pl nroff-scan.pl
++ manpage-scan.pl nroff-scan.pl http2-server.pl
+ 
+ DISTCLEANFILES = configurehelp.pm
+ 
+ # we have two variables here to make sure DIST_SUBDIRS won't get 'unit'
+ # added twice as then targets such as 'distclean' misbehave and try to
+ # do things twice in that subdir at times (and thus fails).
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.0/tests/Makefile.in	2016-07-21 07:54:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.50.1/tests/Makefile.in	2016-08-03 06:35:13.000000000 +0800
+@@ -412,13 +412,13 @@
+ EXTRA_DIST = ftpserver.pl httpserver.pl secureserver.pl runtests.pl getpart.pm \
+  FILEFORMAT README stunnel.pem memanalyze.pl testcurl.pl valgrind.pm ftp.pm   \
+  sshserver.pl sshhelp.pm pathhelp.pm testcurl.1 runtests.1 \
+  $(HTMLPAGES) $(PDFPAGES) \
+  serverhelp.pm tftpserver.pl rtspserver.pl directories.pm symbol-scan.pl \
+  CMakeLists.txt mem-include-scan.pl valgrind.supp http_pipe.py extern-scan.pl \
+- manpage-scan.pl nroff-scan.pl
++ manpage-scan.pl nroff-scan.pl http2-server.pl
+ 
+ DISTCLEANFILES = configurehelp.pm
+ @BUILD_UNITTESTS_FALSE@BUILD_UNIT = 
+ 
+ # we have two variables here to make sure DIST_SUBDIRS won't get 'unit'
+ # added twice as then targets such as 'distclean' misbehave and try to
+@@ -447,15 +447,15 @@
+ 	    *$$dep*) \
+ 	      ( cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh ) \
+ 	        && { if test -f $@; then exit 0; else break; fi; }; \
+ 	      exit 1;; \
+ 	  esac; \
+ 	done; \
+-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign tests/Makefile'; \
++	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu tests/Makefile'; \
+ 	$(am__cd) $(top_srcdir) && \
+-	  $(AUTOMAKE) --foreign tests/Makefile
++	  $(AUTOMAKE) --gnu tests/Makefile
+ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
+ 	@case '$?' in \
+ 	  *config.status*) \
+ 	    cd $(top_builddir) && $(MAKE) $(AM_MAKEFLAGS) am--refresh;; \
+ 	  *) \
+ 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@ $(am__depfiles_maybe)'; \

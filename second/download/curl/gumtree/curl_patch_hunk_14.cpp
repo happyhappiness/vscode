@@ -1,0 +1,416 @@
+-/* NEVER EVER edit this manually, fix the mkhelp script instead! */
++/*
++ * NEVER EVER edit this manually, fix the mkhelp.pl script instead!
++ * Generation time: Sat Nov  1 12:25:21 2003
++ */
+ #include <stdio.h>
+ void hugehelp(void)
+ {
+-puts (
++   fputs(
+ "                                  _   _ ____  _     \n"
+ "  Project                     ___| | | |  _ \\| |    \n"
+ "                             / __| | | | |_) | |    \n"
+ "                            | (__| |_| |  _ <| |___ \n"
+ "                             \\___|\\___/|_| \\_\\_____|\n"
++"\n"
+ "NAME\n"
+ "       curl - transfer a URL\n"
+ "\n"
+ "SYNOPSIS\n"
+ "       curl [options] [URL...]\n"
+ "\n"
+ "DESCRIPTION\n"
+-"       curl is a client to get documents/files from or send docu-\n"
+-"       ments to a server, using any of  the  supported  protocols\n"
+-);
+- puts(
+-"       (HTTP,  HTTPS,  FTP,  GOPHER, DICT, TELNET, LDAP or FILE).\n"
+-"       The command is designed to work without  user  interaction\n"
+-"       or any kind of interactivity.\n"
++"       curl is a tool to transfer data from or to a server, using\n"
++"       one of the supported protocols (HTTP,  HTTPS,  FTP,  FTPS,\n"
++, stdout);
++ fputs(
++"       GOPHER,  DICT,  TELNET,  LDAP  or  FILE).  The  command is\n"
++"       designed to work without user interaction.\n"
+ "\n"
+ "       curl offers a busload of useful tricks like proxy support,\n"
+-"       user authentication, ftp upload, HTTP post,  SSL  (https:)\n"
+-"       connections, cookies, file transfer resume and more.\n"
++"       user  authentication,  ftp upload, HTTP post, SSL (https:)\n"
++"       connections, cookies, file transfer resume  and  more.  As\n"
++"       you  will see below, the amount of features will make your\n"
++"       head spin!\n"
++"\n"
++"       curl is powered by libcurl for all  transfer-related  fea-\n"
++, stdout);
++ fputs(
++"       tures. See libcurl(3) for details.\n"
+ "\n"
+ "URL\n"
+ "       The  URL  syntax  is  protocol  dependent.  You'll  find a\n"
+ "       detailed description in RFC 2396.\n"
+ "\n"
+-);
+- puts(
+ "       You can specify multiple URLs or parts of URLs by  writing\n"
+ "       part sets within braces as in:\n"
+ "\n"
+ "        http://site.{one,two,three}.com\n"
+ "\n"
+ "       or  you  can get sequences of alphanumeric series by using\n"
+ "       [] as in:\n"
+ "\n"
+ "        ftp://ftp.numericals.com/file[1-100].txt\n"
+ "        ftp://ftp.numericals.com/file[001-100].txt    (with lead-\n"
++, stdout);
++ fputs(
+ "       ing zeros)\n"
+ "        ftp://ftp.letters.com/file[a-z].txt\n"
+ "\n"
+-"       It  is  possible  to  specify up to 9 sets or series for a\n"
+-);
+- puts(
+-"       URL, but no nesting is supported at the moment:\n"
++"       No nesting of the sequences is supported at the moment:\n"
+ "\n"
+ "        http://www.any.org/archive[1996-1999]/vol-\n"
+ "       ume[1-4]part{a,b,c,index}.html\n"
+ "\n"
+-"       You  can  specify  any amount of URLs on the command line.\n"
+-"       They will be fetched in a sequential manner in the  speci-\n"
++"       You can specify any amount of URLs on  the  command  line.\n"
++"       They  will be fetched in a sequential manner in the speci-\n"
+ "       fied order.\n"
+ "\n"
+-"       Curl  will attempt to re-use connections for multiple file\n"
++"       Curl will attempt to re-use connections for multiple  file\n"
++, stdout);
++ fputs(
+ "       transfers, so that getting many files from the same server\n"
+-"       will  not do multiple connects / handshakes. This improves\n"
+-);
+- puts(
++"       will not do multiple connects / handshakes. This  improves\n"
+ "       speed. Of course this is only done on files specified on a\n"
+-"       single  command  line  and cannot be used between separate\n"
++"       single command line and cannot be  used  between  separate\n"
+ "       curl invokes.\n"
+ "\n"
+ "OPTIONS\n"
+ "       -a/--append\n"
+-"              (FTP) When used in a ftp  upload,  this  will  tell\n"
+-"              curl  to append to the target file instead of over-\n"
+-"              writing it. If the file doesn't exist, it  will  be\n"
++"              (FTP)  When  used  in an FTP upload, this will tell\n"
++"              curl to append to the target file instead of  over-\n"
++, stdout);
++ fputs(
++"              writing  it.  If the file doesn't exist, it will be\n"
+ "              created.\n"
+ "\n"
+-"              If  this  option is used twice, the second one will\n"
+-);
+- puts(
++"              If this option is used twice, the second  one  will\n"
+ "              disable append mode again.\n"
+ "\n"
+ "       -A/--user-agent <agent string>\n"
+ "              (HTTP) Specify the User-Agent string to send to the\n"
+-"              HTTP  server.  Some badly done CGIs fail if its not\n"
+-"              set to \"Mozilla/4.0\".   To  encode  blanks  in  the\n"
++"              HTTP server. Some badly done CGIs fail if  its  not\n"
++"              set  to  \"Mozilla/4.0\".   To  encode  blanks in the\n"
+ "              string,  surround  the  string  with  single  quote\n"
+-"              marks.  This can also be set with  the  -H/--header\n"
++, stdout);
++ fputs(
++"              marks.   This  can also be set with the -H/--header\n"
+ "              flag of course.\n"
+ "\n"
+-);
+- puts(
+-"              If  this option is set more than once, the last one\n"
++"              If this option is set more than once, the last  one\n"
+ "              will be the one that's used.\n"
+ "\n"
++"       --anyauth\n"
++"              (HTTP)  Tells  curl  to  figure  out authentication\n"
++"              method by itself, and use the most secure  one  the\n"
++"              remote  site  claims  it  supports. This is done by\n"
++"              first doing a request and  checking  the  response-\n"
++, stdout);
++ fputs(
++"              headers, thus inducing an extra network round-trip.\n"
++"              This is used instead of setting a specific  authen-\n"
++"              tication  method,  which  you can do with --digest,\n"
++"              --ntlm, and --negotiate. (Added in 7.10.6)\n"
++"\n"
++"              If this option is used several times, the following\n"
++"              occurrences make no difference.\n"
++"\n"
+ "       -b/--cookie <name=data>\n"
+-"              (HTTP) Pass the  data  to  the  HTTP  server  as  a\n"
+-"              cookie.   It  is  supposedly  the  data  previously\n"
+-"              received from the server in a  \"Set-Cookie:\"  line.\n"
+-"              The  data  should  be  in the format \"NAME1=VALUE1;\n"
++"              (HTTP)  Pass  the  data  to  the  HTTP  server as a\n"
++, stdout);
++ fputs(
++"              cookie.  It  is  supposedly  the  data   previously\n"
++"              received  from  the server in a \"Set-Cookie:\" line.\n"
++"              The data should be  in  the  format  \"NAME1=VALUE1;\n"
+ "              NAME2=VALUE2\".\n"
+ "\n"
+-);
+- puts(
+ "              If no '=' letter is used in the line, it is treated\n"
+-"              as  a  filename  to  use  to read previously stored\n"
+-"              cookie lines from, which should  be  used  in  this\n"
++"              as a filename to  use  to  read  previously  stored\n"
++"              cookie  lines  from,  which  should be used in this\n"
+ "              session if they match. Using this method also acti-\n"
+-"              vates the \"cookie  parser\"  which  will  make  curl\n"
+-"              record  incoming cookies too, which may be handy if\n"
+-"              you're  using  this   in   combination   with   the\n"
+-);
+- puts(
+-"              -L/--location  option.  The file format of the file\n"
+-"              to read cookies from should be plain  HTTP  headers\n"
++, stdout);
++ fputs(
++"              vates  the  \"cookie  parser\"  which  will make curl\n"
++"              record incoming cookies too, which may be handy  if\n"
++"              you're   using   this   in   combination  with  the\n"
++"              -L/--location option. The file format of  the  file\n"
++"              to  read  cookies from should be plain HTTP headers\n"
+ "              or the Netscape/Mozilla cookie file format.\n"
+ "\n"
+-"              NOTE  that  the  file specified with -b/--cookie is\n"
+-"              only used as input. No cookies will  be  stored  in\n"
+-"              the  file.  To store cookies, save the HTTP headers\n"
+-"              to a file using -D/--dump-header!\n"
++"              NOTE that the file specified  with  -b/--cookie  is\n"
++, stdout);
++ fputs(
++"              only  used  as  input. No cookies will be stored in\n"
++"              the file. To store cookies, use the -c/--cookie-jar\n"
++"              option or you could even save the HTTP headers to a\n"
++"              file using -D/--dump-header!\n"
+ "\n"
+-);
+- puts(
+ "              If this option is set more than once, the last  one\n"
+ "              will be the one that's used.\n"
+ "\n"
+ "       -B/--use-ascii\n"
+ "              Use ASCII transfer when getting an FTP file or LDAP\n"
++, stdout);
++ fputs(
+ "              info. For FTP, this can also be enforced  by  using\n"
+ "              an URL that ends with \";type=A\". This option causes\n"
+ "              data sent to stdout to be in text  mode  for  win32\n"
+ "              systems.\n"
+ "\n"
+ "              If  this  option is used twice, the second one will\n"
+-);
+- puts(
+ "              disable ASCII usage.\n"
++"\n"
++"       --basic\n"
++"              (HTTP) Tells curl to use HTTP Basic authentication.\n"
++"              This  is  the  default  and  this option is usually\n"
++, stdout);
++ fputs(
++"              pointless, unless you use it to override  a  previ-\n"
++"              ously  set option that sets a different authentica-\n"
++"              tion method (such as --ntlm, --digest and --negoti-\n"
++"              ate). (Added in 7.10.6)\n"
++"\n"
++"              If this option is used several times, the following\n"
++"              occurrences make no difference.\n"
++"\n"
+ "       --ciphers <list of ciphers>\n"
+ "              (SSL) Specifies which ciphers to use in the connec-\n"
++, stdout);
++ fputs(
+ "              tion.  The  list  of  ciphers  must  be using valid\n"
+ "              ciphers. Read up on SSL cipher list details on this\n"
+-"              URL:  http://www.openssl.org/docs/apps/ciphers.html\n"
+-"              (Option added in curl 7.9)\n"
++"              URL: http://www.openssl.org/docs/apps/ciphers.html\n"
+ "\n"
+-"              If this option is used several times, the last  one\n"
++"              If  this option is used several times, the last one\n"
+ "              will override the others.\n"
+ "\n"
+-);
+- puts(
++"       --compressed\n"
++"              (HTTP) Request a compressed response using  one  of\n"
++"              the  algorithms  libcurl  supports,  and return the\n"
++, stdout);
++ fputs(
++"              uncompressed document.  If this option is used  and\n"
++"              the server sends an unsupported encoding, Curl will\n"
++"              report an error.\n"
++"\n"
++"              If this option is used several times,  each  occur-\n"
++"              rence will toggle it on/off.\n"
++"\n"
+ "       --connect-timeout <seconds>\n"
+ "              Maximum  time in seconds that you allow the connec-\n"
+ "              tion to the server to take.  This only  limits  the\n"
++, stdout);
++ fputs(
+ "              connection  phase,  once  curl  has  connected this\n"
+ "              option is of no more use. See also  the  --max-time\n"
+ "              option.\n"
+ "\n"
+ "              If  this option is used several times, the last one\n"
+ "              will be used.\n"
+ "\n"
+ "       -c/--cookie-jar <file name>\n"
+-);
+- puts(
+ "              Specify to which file you want curl  to  write  all\n"
+ "              cookies  after  a  completed operation. Curl writes\n"
+ "              all cookies previously read from a  specified  file\n"
++, stdout);
++ fputs(
+ "              as   well  as  all  cookies  received  from  remote\n"
+ "              server(s). If no cookies are known, no file will be\n"
+ "              written.   The  file  will  be  written  using  the\n"
+ "              Netscape cookie file format. If you  set  the  file\n"
+-);
+- puts(
+ "              name  to  a  single  dash, \"-\", the cookies will be\n"
+-"              written to stdout. (Option added in curl 7.9)\n"
++"              written to stdout.\n"
+ "\n"
+-"              If this option is  used  several  times,  the  last\n"
++"              NOTE If the cookie jar can't be created or  written\n"
++"              to,  the  whole  curl  operation won't fail or even\n"
++, stdout);
++ fputs(
++"              report an error clearly. Using -v will get a  warn-\n"
++"              ing  displayed,  but that is the only visible feed-\n"
++"              back you get about this possibly lethal  situation.\n"
++"              If  this  option  is  used  several times, the last\n"
+ "              specfied file name will be used.\n"
+ "\n"
+ "       -C/--continue-at <offset>\n"
+-"              Continue/Resume  a  previous  file  transfer at the\n"
+-"              given offset. The given offset is the exact  number\n"
+-"              of  bytes  that  will  be  skipped counted from the\n"
+-);
+- puts(
+-"              beginning of the source file before  it  is  trans-\n"
+-"              fered  to  the  destination.  If used with uploads,\n"
+-"              the ftp server command SIZE will  not  be  used  by\n"
++"              Continue/Resume a previous  file  transfer  at  the\n"
++"              given  offset. The given offset is the exact number\n"
++, stdout);
++ fputs(
++"              of bytes that will  be  skipped  counted  from  the\n"
++"              beginning  of  the  source file before it is trans-\n"
++"              fered to the destination.  If  used  with  uploads,\n"
++"              the  ftp  server  command  SIZE will not be used by\n"
+ "              curl.\n"
+ "\n"
+-"              Use  \"-C  -\" to tell curl to automatically find out\n"
+-"              where/how to resume the transfer. It then uses  the\n"
++"              Use \"-C -\" to tell curl to automatically  find  out\n"
++"              where/how  to resume the transfer. It then uses the\n"
+ "              given output/input files to figure that out.\n"
+ "\n"
+-"              If  this option is used several times, the last one\n"
+-);
+- puts(
++, stdout);
++ fputs(
++"              If this option is used several times, the last  one\n"
+ "              will be used.\n"
+-"\n"
+-"       ---create-dirs\n"
+-"              When used in conjunction with the -o  option,  curl\n"
++"       --create-dirs\n"
++"              When  used  in conjunction with the -o option, curl\n"
+ "              will create the necessary local directory hierarchy\n"
+ "              as needed.\n"
+-"       --crlf (FTP) Convert LF to CRLF in upload. Useful for  MVS\n"
++"\n"
++"       --crlf (FTP)  Convert LF to CRLF in upload. Useful for MVS\n"
+ "              (OS/390).\n"
+ "\n"
+ "              If this option is used twice, the second will again\n"
+ "              disable crlf converting.\n"
+ "\n"
+ "       -d/--data <data>\n"
+-"              (HTTP) Sends the specified data in a  POST  request\n"
+-);
+- puts(
++, stdout);
++ fputs(
++"              (HTTP)  Sends  the specified data in a POST request\n"
+ "              to the HTTP server, in a way that can emulate as if\n"
+-"              a user has filled in a HTML form  and  pressed  the\n"
+-"              submit  button.  Note that the data is sent exactly\n"
+-"              as specified with no  extra  processing  (with  all\n"
+-"              newlines  cut  off).   The  data  is expected to be\n"
+-"              \"url-encoded\". This will cause  curl  to  pass  the\n"
+-"              data  to the server using the content-type applica-\n"
+-);
+- puts(
+-"              tion/x-www-form-urlencoded. Compare to -F. If  more\n"
+-"              than  one -d/--data option is used on the same com-\n"
++"              a  user  has  filled in a HTML form and pressed the\n"
++"              submit button. Note that the data is  sent  exactly\n"
++"              as  specified  with  no  extra processing (with all\n"
++"              newlines cut off).  The  data  is  expected  to  be\n"
++"              \"url-encoded\".  This  will  cause  curl to pass the\n"
++, stdout);
++ fputs(
++"              data to the server using the content-type  applica-\n"
++"              tion/x-www-form-urlencoded.  Compare to -F. If more\n"
++"              than one -d/--data option is used on the same  com-\n"
+ "              mand line, the data pieces specified will be merged\n"
+-"              together  with  a  separating &-letter. Thus, using\n"
+-"              '-d name=daniel -d skill=lousy'  would  generate  a\n"
+-"              post        chunk       that       looks       like\n"
++"              together with a separating  &-letter.  Thus,  using\n"
++"              '-d  name=daniel  -d  skill=lousy' would generate a\n"
++"              post       chunk       that       looks        like\n"
++, stdout);
++ fputs(
+ "              'name=daniel&skill=lousy'.\n"
+ "\n"
+-);
+- puts(
+-"              If you start the data with the letter @,  the  rest\n"
+-"              should  be  a file name to read the data from, or -\n"
+-"              if you want curl to read the data from stdin.   The\n"
+-"              contents  of  the file must already be url-encoded.\n"
+-"              Multiple files can also be specified. Posting  data\n"
+-"              from  a file named 'foobar' would thus be done with\n"
++"              If  you  start the data with the letter @, the rest\n"
++"              should be a file name to read the data from,  or  -\n"
++"              if  you want curl to read the data from stdin.  The\n"
++"              contents of the file must already  be  url-encoded.\n"
++"              Multiple  files can also be specified. Posting data\n"
++"              from a file named 'foobar' would thus be done  with\n"
+ "              \"--data @foobar\".\n"
+ "\n"
+-"              To post data purely binary, you should instead  use\n"
+-);
+- puts(
++, stdout);
++ fputs(
++"              To  post data purely binary, you should instead use\n"
+ "              the --data-binary option.\n"
+ "\n"
+ "              -d/--data is the same as --data-ascii.\n"
+ "\n"
+ "              If this option is used several times, the ones fol-\n"
+ "              lowing the first will append data.\n"

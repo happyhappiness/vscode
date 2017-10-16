@@ -1,0 +1,10 @@
+fputs(
+"              be encoded according to the URI standard.\n"
+"\n"
+"       -G, --get\n"
+"              When used, this option will make all  data  specified  with  -d,\n"
+"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
+"              GET request instead of the POST request that otherwise would  be\n"
+"              used. The data will be appended to the URL with a '?' separator.\n"
+"              If  used  in  combination with -I, the POST data will instead be\n"
+, stdout);

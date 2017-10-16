@@ -1,0 +1,15 @@
+fputs(
+"              <address> should be one of:\n"
+"\n"
+"              interface\n"
+"                     i.e  \"eth0\"  to  specify which interface's IP address you\n"
+"                     want to use (Unix only)\n"
+"\n"
+"              IP address\n"
+"                     i.e \"192.168.10.1\" to specify the exact IP address\n"
+"\n"
+"              host name\n"
+"                     i.e \"my.host.domain\" to specify the machine\n"
+"\n"
+"              -      make curl pick the same IP address that is  already  used\n"
+, stdout);

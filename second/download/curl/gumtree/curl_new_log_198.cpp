@@ -1,0 +1,15 @@
+puts(
+"              allowed.  If -L/--location is used, this option can\n"
+"              be used to prevent curl from following redirections\n"
+"              \"in absurdum\".\n"
+"\n"
+"              If  this option is used several times, the last one\n"
+"              will be used.\n"
+"\n"
+"       -3/--sslv3\n"
+"              (HTTPS) Forces curl to use SSL version 3 when nego-\n"
+"              tiating with a remote SSL server.\n"
+"\n"
+"       -2/--sslv2\n"
+"              (HTTPS) Forces curl to use SSL version 2 when nego-\n"
+);

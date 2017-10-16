@@ -1,0 +1,15 @@
+fputs(
+"              already uses for the control connection. (Added in 7.14.2)\n"
+"\n"
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
+"\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              silent failure.\n"
+"\n"
+"       --ftp-ssl\n"
+"              (FTP) Make the FTP connection switch to use SSL/TLS.  (Added  in\n"
+"              7.11.0)\n"
+"\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+, stdout);

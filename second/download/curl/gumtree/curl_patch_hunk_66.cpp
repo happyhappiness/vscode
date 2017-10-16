@@ -1,0 +1,28 @@
+ "        http://site.{one,two,three}.com\n"
+ "\n"
+ "       or  you  can get sequences of alphanumeric series by using\n"
+ "       [] as in:\n"
+ "\n"
+ "        ftp://ftp.numericals.com/file[1-100].txt\n"
+-"        ftp://ftp.numericals.com/file[001-100].txt    (with lead-\n"
++"        ftp://ftp.numericals.com/file[001-100].txt    (with lead­\n"
+ , stdout);
+  fputs(
+ "       ing zeros)\n"
+ "        ftp://ftp.letters.com/file[a-z].txt\n"
+ "\n"
+ "       No nesting of the sequences is supported at the moment:\n"
+ "\n"
+-"        http://www.any.org/archive[1996-1999]/vol-\n"
++"        http://www.any.org/archive[1996-1999]/vol­\n"
+ "       ume[1-4]part{a,b,c,index}.html\n"
+ "\n"
+ "       You can specify any amount of URLs on  the  command  line.\n"
+-"       They  will be fetched in a sequential manner in the speci-\n"
++"       They  will be fetched in a sequential manner in the speci­\n"
+ "       fied order.\n"
+ "\n"
+ "       Curl will attempt to re-use connections for multiple  file\n"
+ , stdout);
+  fputs(
+ "       transfers, so that getting many files from the same server\n"

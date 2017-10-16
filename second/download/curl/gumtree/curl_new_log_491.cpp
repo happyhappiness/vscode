@@ -1,0 +1,16 @@
+fputs(
+"              output, -i/--include might be option you're looking\n"
+"              for.\n"
+"\n"
+"              If you think this option  still  doesn't  give  you\n"
+"              enough  details, consider using --trace or --trace-\n"
+"              ascii instead.\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable verbose.\n"
+"\n"
+"       -V/--version\n"
+"              Displays  information  about  curl  and the libcurl\n"
+"              version it uses.\n"
+"\n"
+, stdout);

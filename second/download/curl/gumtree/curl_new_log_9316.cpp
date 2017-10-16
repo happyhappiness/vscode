@@ -1,0 +1,16 @@
+fputs(
+"       36     FTP bad download resume. Couldn't continue  an  earlier  aborted\n"
+"              download.\n"
+"\n"
+"       37     FILE couldn't read file. Failed to open the file. Permissions?\n"
+"\n"
+"       38     LDAP cannot bind. LDAP bind operation failed.\n"
+"\n"
+"       39     LDAP search failed.\n"
+"\n"
+"       41     Function not found. A required LDAP function was not found.\n"
+"\n"
+"       42     Aborted by callback. An application told curl to abort the oper-\n"
+"              ation.\n"
+"\n"
+, stdout);

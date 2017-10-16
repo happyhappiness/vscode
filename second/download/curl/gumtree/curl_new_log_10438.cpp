@@ -1,0 +1,1 @@
+warnf(config->global, "curl_formadd failed!\n");

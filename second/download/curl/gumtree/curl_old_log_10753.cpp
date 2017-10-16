@@ -1,0 +1,1 @@
+fputs(WARN_PREFIX, config->global->errors);

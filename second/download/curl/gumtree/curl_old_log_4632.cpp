@@ -1,0 +1,16 @@
+fputs(
+"        proxy = proxy.our.domain.com:8080\n"
+"\n"
+"  White spaces ARE significant at the end of lines, but all white spaces\n"
+"  leading up to the first characters of each line are ignored.\n"
+"\n"
+"  Prevent curl from reading the default file by using -q as the first command\n"
+"  line parameter, like:\n"
+"\n"
+"        curl -q www.thatsite.com\n"
+"\n"
+"  Force curl to get and display a local help page in case it is invoked\n"
+"  without URL by making a config file similar to:\n"
+"\n"
+"        # default url to get\n"
+, stdout);

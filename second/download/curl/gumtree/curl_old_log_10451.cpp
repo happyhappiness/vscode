@@ -1,0 +1,1 @@
+warnf(config, "--test-event is ignored unless a debug build!\n");

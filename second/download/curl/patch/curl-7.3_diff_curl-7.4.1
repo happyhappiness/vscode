@@ -1,0 +1,3052 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/CHANGES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/CHANGES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/CHANGES	2000-09-28 16:08:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/CHANGES	2000-10-16 20:44:07.000000000 +0800
+@@ -3,12 +3,141 @@
+                              / __| | | | |_) | |    
+                             | (__| |_| |  _ <| |___ 
+                              \___|\___/|_| \_\_____|
+ 
+                                History of Changes
+ 
++Version 7.4.1
++Daniel (16 October 2000)
++- I forgot to remove some of the malloc debug defines from the makefiles in
++  the release archive (of course).
++
++Version 7.4
++
++Daniel (16 October 2000)
++- The buffer overflow mentioned below was posted to bugtraq on Friday 13th.
++
++Daniel (12 October 2000)
++- Colin Robert Phipps elegantly corrected a buffer overflow. It could be used
++  by an evil ftp server to crash curl. I took the opportunity of replacing a
++  few other sprintf()s into snprintf()s as well.
++
++Daniel (11 October 2000)
++- Found some more memory leaks. This new simple memory debugger has turned out
++  really useful!
++
++Version 7.4 pre6
++
++Daniel (9 October 2000)
++- Florian Koenig pointed out that the bool typedef in the curl/curl.h include
++  file was breaking PHP 4.0.3 compiling. The bool typedef is not used in the
++  public interface and was wrongly inserted in that header file.
++
++- Jörg Hartroth corrected a minor memory leak in the src/urlglob.c stuff. It
++  didn't harm anyone since the memory is free()ed on exit anyway.
++
++- Corrected the src/main.c. We use the _MPRINTF_REPLACE #define to use our
++  libcurl-printf() functions. This gives us snprintf() et al on all
++  platforms. I converted the allocated useragent string to one that uses a
++  local buffer.
++
++- I've set an #if 0 section around the Content-Transfer-Encoding header
++  generated in lib/formdata.c. This will hopefully make curl do more
++  PHP-friendly multi-part posts.
++
++Version 7.4 pre5
++
++Daniel (9 October 2000)
++- Nico Baggus found out that curl's ability to force a ASCII download when
++  using FTP was no longer working! I corrected this. This problem was probably
++  introduced when I redesigned libcurl for version 7.
++
++- Georg Horn provided a source example that proved a memory leak in libcurl.
++  I added simple memory debugging facilities and now we can make libcurl log
++  all memory fiddling functions. An additional perl script is used to analyze
++  the output logfile and to match malloc()s with free()s etc. The memory leak
++  Georg found turned out to be the main cookie struct that cookie_cleanup()
++  didn't free! The perl script is named memanalyze.pl and it is available in
++  the CVS respository, not in the release archive.
++
++Daniel (8 October 2000)
++- Georg Horn found a GetHost() problem. It turned out it never assigned the
++  pointer in the third argument properly! This could make a crash, or at best
++  a memory leak!
++
++Version 7.4 pre4
++
++Daniel (6 October 2000)
++- Is the -F post following the RFC 1867 spec? We had this dicussion on the
++  mailing list since it appears curl can't post -F form posts to a PHP
++  receiver... I've been in touch with the PHP developers about this.
++
++- Domenico Andreoli found out that the long option '--proxy' wasn't working
++  anymore! The option parser got confused when I added the --proxytunnel for
++  7.3. This was indeed a very old flaw that hasn't turned up until now...
++
++- Jörn Hartroth provided patches, updated makefiles and two new files for DLL
++  stuff on win32. He also pointed out that lib source files were compiled with
++  -I../src which isn't only wrong but plain stupid!
++
++- Troels Walsted Hansen fixed a problem with HTTP resume. Curl previously used
++  a local variable badly, that could lead to crashes.
++
++Version 7.4 pre3
++
++Daniel (4 October 2000)
++- More docs written. The curl_easy_getinfo.3 man page is now pretty accurate,
++  as is the -w section in curl.1. I added two options to enable the user to
++  get information about the received headers' size and the size of the HTTP
++  request. T. Bharath requested them.
++  
++Daniel (3 October 2000)
++- Corrected a sever free() before use in the new add_buffer_send()! ;-)
++
++Version 7.4 pre2
++
++Daniel (3 October 2000)
++- Jason S. Priebe sent me patches that changed the way curl issues HTTP
++  requests. The entire request is now issued in one single shot. It didn't do
++  this previously, and it has turned out that since the common browsers do it
++  this way, some sites have turned out to work with browsers but not with
++  curl! Although this is not a client-side problem, we want to be able to
++  fully emulate browsers, and thus we have now adjusted the networking layer
++  to slightly more appear as a browser. I adjusted Jason's patch, the faults
++  are probably mine.
++
++Daniel (2 October 2000)
++- Anyone who ever uploaded data with curl on a slow link has noticed that the
++  progess meter is updated very infrequently. That is due to the large buffer
++  size curl is using. It reads 50Kb and sends it, updates the progress meter
++  and loops. 50Kb is very much on a slow link, although it is pretty neat to
++  use on a fast one.
++
++  I've now made an adjustment that makes curl use a 2Kb buffer for uploads to
++  start with. If curl's average upload speed is faster than buffer size bytes
++  per second, curl will increase the used buffer size up to max 50Kb. It
++  should make the progress meter work better.
++  
++Version 7.4 pre1
++
++Daniel (29 September 2000)
++- Ripped out the -w stuff from the library and put in the curl tool. It gets
++  all the relevant info from the library using the new curl_easy_getinfo()
++  function.
++
++- brad at openbsd.org mailed me a patch that corrected my kerberos mistake and
++  removed a compiler warning from hostip.c that OpenBSD people get.
++
++Daniel (28 September 2000)
++- Of course (I should probably get punished somehow) I didn't properly correct
++  the #include lines for the base64 stuff in the kerberos sources in the just
++  released 7.3 package. They still include the *_krb.h files! Now, the error
++  is sooo very easy to spot and fix so I won't bother with a quick bug fix
++  release. I'll post a patch whenever one is needed instead. It'll be
++  available in the CVS in a few minutes anyway.
++
+ Version 7.3
+ 
+ Daniel (28 September 2000)
+ - Removed the base64_krb.[ch] files. They've now replaced the former
+   base64.[ch] files.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/configure	2000-09-28 16:10:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/configure	2000-10-16 20:48:08.000000000 +0800
+@@ -714,13 +714,13 @@
+   SET_MAKE="MAKE=${MAKE-make}"
+ fi
+ 
+ 
+ PACKAGE=curl
+ 
+-VERSION="7.3"
++VERSION="7.4.1"
+ 
+ if test "`cd $srcdir && pwd`" != "`pwd`" && test -f $srcdir/config.status; then
+   { echo "configure: error: source directory already configured; run "make distclean" there first" 1>&2; exit 1; }
+ fi
+ cat >> confdefs.h <<EOF
+ #define PACKAGE "$PACKAGE"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/configure.in	2000-09-28 16:10:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/configure.in	2000-10-16 20:48:04.000000000 +0800
+@@ -1,11 +1,11 @@
+-dnl $Id: configure.in,v 1.30 2000/09/26 22:27:24 bagder Exp $
++dnl $Id: configure.in,v 1.32 2000/10/06 10:40:43 bagder Exp $
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(lib/urldata.h)
+ AM_CONFIG_HEADER(config.h src/config.h)
+-AM_INIT_AUTOMAKE(curl,"7.3")
++AM_INIT_AUTOMAKE(curl,"7.4.1")
+ AM_PROG_LIBTOOL
+ 
+ dnl
+ dnl Detect the canonical host and target build environment
+ dnl
+ AC_CANONICAL_HOST
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/curl.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/curl.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/curl.spec	2000-09-19 22:23:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/curl.spec	2000-10-09 19:31:37.000000000 +0800
+@@ -1,7 +1,7 @@
+-%define ver	7.3-pre5
++%define ver	7.4-pre4
+ %define rel	1
+ %define prefix	/usr
+ 
+ Summary:	get a file from a FTP, GOPHER or HTTP server.
+ Name:		curl
+ Version:	%ver
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/curl-ssl.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/curl-ssl.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/curl-ssl.spec	2000-09-19 22:23:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/curl-ssl.spec	2000-10-09 19:31:37.000000000 +0800
+@@ -1,7 +1,7 @@
+-%define ver	7.3-pre5
++%define ver	7.4-pre4
+ %define rel	1
+ %define prefix	/usr
+ 
+ Summary:	get a file from a FTP, GOPHER or HTTP server.
+ Name:		curl-ssl
+ Version:	%ver
+@@ -28,13 +28,13 @@
+ 
+ Authors:
+ 	Daniel Stenberg <daniel@haxx.se>
+ 
+ 
+ %prep
+-%setup -n curl-7.3-pre5
++%setup -n curl-7.4-pre4
+ 
+ 
+ %build
+ # Needed for snapshot releases.
+ if [ ! -f configure ]; then
+ 	CONF="./autogen.sh"
+@@ -71,13 +71,13 @@
+ #
+ echo "%defattr (-, root, root)" >> file-lists
+ find ${RPM_BUILD_ROOT}%{prefix} -type f | sed -e "s#^${RPM_BUILD_ROOT}##g" >> file-lists
+ 
+ 
+ %clean
+-(cd ..; rm -rf curl-7.3-pre5 ${RPM_BUILD_ROOT})
++(cd ..; rm -rf curl-7.4-pre4 ${RPM_BUILD_ROOT})
+ 
+ 
+ %files -f file-lists
+ %defattr (-, root, root)
+ %doc BUGS
+ %doc CHANGES
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/curl.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/curl.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/curl.1	2000-09-26 06:25:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/curl.1	2000-10-04 20:16:12.000000000 +0800
+@@ -407,17 +407,23 @@
+ .B size_download
+ The total amount of bytes that were downloaded.
+ .TP
+ .B size_upload
+ The total amount of bytes that were uploaded.
+ .TP
++.B size_header
++The total amount of bytes of the downloaded headers.
++.TP
++.B size_request
++The total amount of bytes that were sent in the HTTP request.
++.TP
+ .B speed_download
+ The average download speed that curl measured for the complete download.
+ .TP
+ .B speed_upload
+-The average upload speed that curl measured for the complete download.
++The average upload speed that curl measured for the complete upload.
+ .RE
+ .IP "-x/--proxy <proxyhost[:port]>"
+ Use specified proxy. If the port number is not specified, it is assumed at
+ port 1080.
+ .IP "-X/--request <command>"
+ (HTTP)
+@@ -633,12 +639,13 @@
+  - Fred Noz <FNoz@siac.com>
+  - Caolan McNamara <caolan@csn.ul.ie>
+  - Albert Chin-A-Young <china@thewrittenword.com>
+  - Stephen Kick <skick@epicrealm.com>
+  - Martin Hedenfalk <mhe@stacken.kth.se>
+  - Richard Prescott
++ - Jason S. Priebe <priebe@wral-tv.com>
+ 
+ .SH WWW
+ http://curl.haxx.se
+ .SH FTP
+ ftp://ftp.sunet.se/pub/www/utilities/curl/
+ .SH "SEE ALSO"
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs: curl_easy_getinfo.3
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/curl_easy_setopt.3 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/curl_easy_setopt.3
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/curl_easy_setopt.3	2000-09-26 15:20:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/curl_easy_setopt.3	2000-10-02 14:53:37.000000000 +0800
+@@ -327,12 +327,13 @@
+ krb4 awareness.  This is a string, 'clear', 'safe', 'confidential' or
+ 'private'.  If the string is set but doesn't match one of these, 'private'
+ will be used. Set the string to NULL to disable kerberos4. The kerberos
+ support only works for FTP. (Added in libcurl 7.3)
+ .TP
+ .B CURLOPT_WRITEINFO
++(NOT PRESENT IN 7.4 or later!)
+ Pass a pointer to a zero terminated string as parameter. It will be used to
+ report information after a successful request. This string may contain
+ variables that will be substituted by their contents when output. Described
+ elsewhere.
+ .TP
+ .B CURLOPT_PROGRESSFUNCTION
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/INTERNALS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/INTERNALS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/INTERNALS	2000-06-14 17:16:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/INTERNALS	2000-10-09 20:49:24.000000000 +0800
+@@ -31,14 +31,13 @@
+ 
+  (2) must be made by the application that uses libcurl, in curl that means
+  src/main.c has some code #ifdef'ed to do just that.
+ 
+  (3) is simply avoided by not trying any funny tricks on file descriptors.
+ 
+- (4) is left alone, giving windows users problems when they pipe binary data
+- through stdout...
++ (4) we set stdout to binary under windows
+ 
+  Inside the source code, I do make an effort to avoid '#ifdef WIN32'. All
+  conditionals that deal with features *should* instead be in the format
+  '#ifdef HAVE_THAT_WEIRD_FUNCTION'. Since Windows can't run configure scripts,
+  I maintain two config-win32.h files (one in / and one in src/) that are
+  supposed to look exactly as a config.h file would have looked like on a
+@@ -81,16 +80,12 @@
+ 
+  While transfering, the progress functions in lib/progress.c are called at a
+  frequent interval (or at the user's choice, a specified callback might get
+  called). The speedcheck functions in lib/speedcheck.c are also used to verify
+  that the transfer is as fast as required.
+ 
+- When the operation is done, the writeout() function in lib/writeout.c may be
+- called to report about the operation as specified previously in the arguments
+- to curl_easy_setopt().
+-
+  When completed curl_easy_cleanup() should be called to free up used
+  resources.
+ 
+  HTTP(S)
+ 
+  HTTP offers a lot and is the protocol in curl that uses the most lines of
+@@ -155,6 +150,12 @@
+ 
+  The client mostly mess around to setup its config struct properly, then it
+  calls the curl_easy_*() functions of the library and when it gets back
+  control after the curl_easy_perform() it cleans up the library, checks status
+  and exits.
+ 
++ When the operation is done, the ourWriteOut() function in src/writeout.c may
++ be called to report about the operation. That function is using the
++ curl_easy_getinfo() function to extract useful information from the curl
++ session.
++
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/Makefile.am	2000-07-29 23:34:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/Makefile.am	2000-10-02 14:49:51.000000000 +0800
+@@ -1,15 +1,16 @@
+ #
+-# $Id: Makefile.am,v 1.1 2000/07/29 15:34:32 bagder Exp $
++# $Id: Makefile.am,v 1.2 2000/10/02 06:49:51 bagder Exp $
+ #
+ 
+ AUTOMAKE_OPTIONS = foreign no-dependencies
+ 
+ man_MANS = \
+ 	curl.1 \
+ 	curl_easy_cleanup.3 \
++	curl_easy_getinfo.3 \
+ 	curl_easy_init.3 \
+ 	curl_easy_perform.3 \
+ 	curl_easy_setopt.3 \
+ 	curl_formparse.3 \
+ 	curl_getdate.3 \
+ 	curl_getenv.3 \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/Makefile.in	2000-09-28 16:10:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/Makefile.in	2000-10-16 20:48:06.000000000 +0800
+@@ -8,13 +8,13 @@
+ # This program is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+ # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ # PARTICULAR PURPOSE.
+ 
+ #
+-# $Id: Makefile.am,v 1.1 2000/07/29 15:34:32 bagder Exp $
++# $Id: Makefile.am,v 1.2 2000/10/02 06:49:51 bagder Exp $
+ #
+ 
+ 
+ SHELL = @SHELL@
+ 
+ srcdir = @srcdir@
+@@ -76,13 +76,13 @@
+ RANLIB = @RANLIB@
+ VERSION = @VERSION@
+ YACC = @YACC@
+ 
+ AUTOMAKE_OPTIONS = foreign no-dependencies
+ 
+-man_MANS =  	curl.1 	curl_easy_cleanup.3 	curl_easy_init.3 	curl_easy_perform.3 	curl_easy_setopt.3 	curl_formparse.3 	curl_getdate.3 	curl_getenv.3 	curl_slist_append.3 	curl_slist_free_all.3 	curl_version.3
++man_MANS =  	curl.1 	curl_easy_cleanup.3 	curl_easy_getinfo.3 	curl_easy_init.3 	curl_easy_perform.3 	curl_easy_setopt.3 	curl_formparse.3 	curl_getdate.3 	curl_getenv.3 	curl_slist_append.3 	curl_slist_free_all.3 	curl_version.3
+ 
+ 
+ EXTRA_DIST = $(man_MANS)
+ mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+ CONFIG_HEADER = ../config.h ../src/config.h
+ CONFIG_CLEAN_FILES = 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/README.win32 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/README.win32
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/README.win32	2000-06-09 14:57:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/README.win32	2000-09-29 16:12:12.000000000 +0800
+@@ -14,6 +14,11 @@
+ 
+   Some documentation in this archive will be tricky to read for Windows
+   people, as they come in unix-style man pages. You can either download a
+   freely available nroff binary for win32 (*pointers appriciated*), convert
+   the files into plain-text on your neighbor's unix machine or run over to the
+   curl web site and view them as plain HTML.
++
++  The main curl.1 man page is "built-in". Use a command line similar to this
++  in order to extract a separate text file:
++
++        curl -M >manual.txt
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/TODO /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/TODO
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/docs/TODO	2000-09-21 15:47:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/docs/TODO	2000-10-11 06:44:19.000000000 +0800
+@@ -10,12 +10,20 @@
+ 
+  Ok, this is what I wanna do with Curl. Please tell me what you think, and
+  please don't hesitate to contribute and send me patches that improve this
+  product! (Yes, you may add things not mentioned here, these are just a
+  few teasers...)
+ 
++ * Improve the command line option parser to accept '-m300' as well as the '-m
++   300' convention. It should be able to work if '-m300' is considered to be
++   space separated to the next option.
++
++ * Make the SSL layer option capable of using the Mozilla Security Services as
++   an alternative to OpenSSL:
++   http://www.mozilla.org/projects/security/pki/nss/
++
+  * Make sure the low-level interface works. highlevel.c should basically be
+    possible to write using that interface. Document the low-level interface
+ 
+  * Add asynchronous name resolving, as this enables full timeout support for
+    fork() systems.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/FILES /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/FILES
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/FILES	2000-09-20 19:15:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/FILES	2000-10-06 18:49:11.000000000 +0800
+@@ -46,23 +46,26 @@
+ src/hugehelp.c
+ src/main.c
+ src/setup.h
+ src/urlglob.c
+ src/urlglob.h
+ src/version.h
++src/writeout.c
++src/writeout.h
+ src/*.in
+ src/*.am
+ src/mkhelp.pl
+ src/Makefile.vc6
+ src/*m32
+ lib/getdate.y
+ lib/*.[ch]
+ lib/*in
+ lib/*am
+ lib/Makefile.vc6
+ lib/*m32
++lib/libcurl.def
+ include/README
+ include/Makefile.in
+ include/Makefile.am
+ include/curl/*.h
+ include/curl/Makefile.in
+ include/curl/Makefile.am
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/include/curl/curl.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/include/curl/curl.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/include/curl/curl.h	2000-09-28 16:10:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/include/curl/curl.h	2000-10-16 20:48:03.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <Daniel.Stenberg@haxx.nu>
+  *
+  * 	http://curl.haxx.nu
+  *
+  * $Source: /cvsroot/curl/include/curl/curl.h,v $
+- * $Revision: 1.22 $
+- * $Date: 2000/09/21 08:54:36 $
++ * $Revision: 1.25 $
++ * $Date: 2000/10/09 21:35:40 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -409,16 +409,12 @@
+ 
+   TIMECOND_LAST
+ } TimeCond;
+ 
+ #ifdef __BEOS__
+ #include <support/SupportDefs.h>
+-#else
+-#ifndef __cplusplus        /* (rabe) */
+-typedef char bool;
+-#endif                     /* (rabe) */
+ #endif
+ 
+ 
+ /* These functions are in the libcurl, they're here for portable reasons and
+    they are used by the 'curl' client. They really should be moved to some kind
+    of "portability library" since it has nothing to do with file transfers and
+@@ -435,20 +431,20 @@
+                    struct HttpPost **last_post);
+ 
+ /* Unix and Win32 getenv function call, this returns a malloc()'ed string that
+    MUST be free()ed after usage is complete. */
+ char *curl_getenv(char *variable);
+ 
+-/* returns ascii string of the libcurl version */
++/* Returns a static ascii string of the libcurl version. */
+ char *curl_version(void);
+ 
+ /* This is the version number */
+-#define LIBCURL_VERSION "7.3"
+-#define LIBCURL_VERSION_NUM 0x070300
++#define LIBCURL_VERSION "7.4.1"
++#define LIBCURL_VERSION_NUM 0x070401
+ 
+-/* linked-list structure for the CURLOPT_QUOTE option */
++/* linked-list structure for the CURLOPT_QUOTE option (and other) */
+ struct curl_slist {
+ 	char			*data;
+ 	struct curl_slist	*next;
+ };
+ 
+ struct curl_slist *curl_slist_append(struct curl_slist *list, char *data);
+@@ -639,11 +635,50 @@
+  * the first argument. The time argument in the second parameter is for cases
+  * where the specified time is relative now, like 'two weeks' or 'tomorrow'
+  * etc.
+  */
+ time_t curl_getdate(const char *p, const time_t *now);
+ 
++
++#define CURLINFO_STRING   0x100000
++#define CURLINFO_LONG     0x200000
++#define CURLINFO_DOUBLE   0x300000
++#define CURLINFO_MASK     0x0fffff
++#define CURLINFO_TYPEMASK 0xf00000
++
++typedef enum {
++  CURLINFO_NONE, /* first, never use this */
++  CURLINFO_EFFECTIVE_URL    = CURLINFO_STRING + 1,
++  CURLINFO_HTTP_CODE        = CURLINFO_LONG   + 2,
++  CURLINFO_TOTAL_TIME       = CURLINFO_DOUBLE + 3,
++  CURLINFO_NAMELOOKUP_TIME  = CURLINFO_DOUBLE + 4,
++  CURLINFO_CONNECT_TIME     = CURLINFO_DOUBLE + 5,
++  CURLINFO_PRETRANSFER_TIME = CURLINFO_DOUBLE + 6,
++  CURLINFO_SIZE_UPLOAD      = CURLINFO_DOUBLE + 7,
++  CURLINFO_SIZE_DOWNLOAD    = CURLINFO_DOUBLE + 8,
++  CURLINFO_SPEED_DOWNLOAD   = CURLINFO_DOUBLE + 9,
++  CURLINFO_SPEED_UPLOAD     = CURLINFO_DOUBLE + 10,
++  CURLINFO_HEADER_SIZE      = CURLINFO_LONG   + 11,
++  CURLINFO_REQUEST_SIZE     = CURLINFO_LONG   + 12,
++
++  CURLINFO_LASTONE          = 13,
++} CURLINFO;
++
++/*
++ * NAME curl_getinfo()
++ *
++ * DESCRIPTION
++ *
++ * Request internal information from the curl session with this function.
++ * The third argument MUST be a pointer to a long or a pointer to a char *.
++ * The data pointed to will be filled in accordingly and can be relied upon
++ * only if the function returns CURLE_OK.
++ * This function is intended to get used *AFTER* a performed transfer, all
++ * results are undefined before the transfer is completed.
++ */
++CURLcode curl_getinfo(CURL *curl, CURLINFO info, ...);
++
+ #ifdef  __cplusplus
+ }
+ #endif
+ 
+ #endif /* __CURL_CURL_H */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/include/curl/easy.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/include/curl/easy.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/include/curl/easy.h	2000-09-07 19:34:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/include/curl/easy.h	2000-10-02 14:29:39.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <Daniel.Stenberg@haxx.nu>
+  *
+  * 	http://curl.haxx.nu
+  *
+  * $Source: /cvsroot/curl/include/curl/easy.h,v $
+- * $Revision: 1.2 $
+- * $Date: 2000/09/07 11:34:08 $
++ * $Revision: 1.3 $
++ * $Date: 2000/10/02 06:29:39 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -45,11 +45,26 @@
+ 
+ CURL *curl_easy_init(void);
+ CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...);
+ CURLcode curl_easy_perform(CURL *curl);
+ void curl_easy_cleanup(CURL *curl);
+ 
++/*
++ * NAME curl_easy_getinfo()
++ *
++ * DESCRIPTION
++ *
++ * Request internal information from the curl session with this function.  The
++ * third argument MUST be a pointer to a long, a pointer to a char * or a
++ * pointer to a double (as the documentation describes elsewhere).  The data
++ * pointed to will be filled in accordingly and can be relied upon only if the
++ * function returns CURLE_OK.  This function is intended to get used *AFTER* a
++ * performed transfer, all results from this function are undefined until the
++ * transfer is completed.
++ */
++CURLcode curl_easy_getinfo(CURL *curl, CURLINFO info, ...);
++
+ #ifdef  __cplusplus
+ }
+ #endif
+ 
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/base64.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/base64.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/base64.c	2000-09-28 15:15:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/base64.c	2000-10-09 16:47:27.000000000 +0800
+@@ -35,12 +35,17 @@
+ #include <config.h>
+ #endif
+ #include <stdlib.h>
+ #include <string.h>
+ #include "base64.h"
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ static char base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+ 
+ static int pos(char c)
+ {
+   char *p;
+   for(p = base64; *p; p++)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/cookie.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/cookie.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/cookie.c	2000-09-25 18:23:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/cookie.c	2000-10-09 18:59:13.000000000 +0800
+@@ -62,12 +62,17 @@
+ #include <ctype.h>
+ 
+ #include "cookie.h"
+ #include "getdate.h"
+ #include "strequal.h"
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ /****************************************************************************
+  *
+  * cookie_add()
+  *
+  * Add a single cookie line to the cookie keeping object.
+  *
+@@ -493,9 +498,10 @@
+ 	    free(co->maxage);
+ 
+ 	 next = co->next;
+ 	 free(co);
+ 	 co = next;
+       }
++      free(c); /* free the base struct as well */
+    }
+ }
+ 
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib: dllinit.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/easy.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/easy.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/easy.c	2000-09-19 05:54:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/easy.c	2000-10-02 14:27:43.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/easy.c,v $
+- * $Revision: 1.6 $
+- * $Date: 2000/09/18 21:54:08 $
++ * $Revision: 1.7 $
++ * $Date: 2000/10/02 06:27:43 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -159,6 +159,16 @@
+ 
+ void curl_easy_cleanup(CURL *curl)
+ {
+   curl_close(curl);
+   curl_free();
+ }
++
++CURLcode curl_easy_getinfo(CURL *curl, CURLINFO info, ...)
++{
++  va_list arg;
++  void *paramp;
++  va_start(arg, info);
++  paramp = va_arg(arg, void *);
++
++  return curl_getinfo(curl, info, paramp);
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/escape.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/escape.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/escape.c	2000-08-31 20:03:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/escape.c	2000-10-09 19:12:34.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/escape.c,v $
+- * $Revision: 1.6 $
+- * $Date: 2000/08/31 12:03:04 $
++ * $Revision: 1.7 $
++ * $Date: 2000/10/09 11:12:34 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -45,12 +45,17 @@
+ #include <curl/curl.h>
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ char *curl_escape(char *string)
+ {
+    int alloc=strlen(string)+1;
+    char *ns = malloc(alloc);
+    unsigned char in;
+    int newlen = alloc;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/formdata.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/formdata.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/formdata.c	2000-08-24 22:26:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/formdata.c	2000-10-10 06:29:35.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/formdata.c,v $
+- * $Revision: 1.8 $
+- * $Date: 2000/08/24 14:26:33 $
++ * $Revision: 1.10 $
++ * $Date: 2000/10/09 22:29:35 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -60,12 +60,17 @@
+ 
+ #include <curl/curl.h>
+ #include "formdata.h"
+ 
+ #include "strequal.h"
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ /* Length of the random boundary string. The risk of this being used
+    in binary data is very close to zero, 64^32 makes
+    6277101735386680763835789423207666416102355444464034512896
+    combinations... */
+ #define BOUNDARY_LENGTH 32
+ 
+@@ -455,18 +460,26 @@
+       if(file->contenttype) {
+ 	/* we have a specified type */
+ 	size += AddFormDataf(&form,
+ 			     "\r\nContent-Type: %s",
+ 			     file->contenttype);
+       }
++
++#if 0
++      /* The header Content-Transfer-Encoding: seems to confuse some receivers
++       * (like the built-in PHP engine). While I can't see any reason why it
++       * should, I can just as well skip this to the benefit of the users who
++       * are using such confused receivers.
++       */
++      
+       if(file->contenttype &&
+ 	 !strnequal("text/", file->contenttype, 5)) {
+ 	/* this is not a text content, mention our binary encoding */
+ 	size += AddFormData(&form, "\r\nContent-Transfer-Encoding: binary", 0);
+       }
+-
++#endif
+ 
+       size += AddFormData(&form, "\r\n\r\n", 0);
+ 
+       if((post->flags & HTTPPOST_FILENAME) ||
+ 	 (post->flags & HTTPPOST_READFILE)) {
+ 	/* we should include the contents from the specified file */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/ftp.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/ftp.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/ftp.c	2000-09-26 06:15:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/ftp.c	2000-10-11 18:57:52.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/ftp.c,v $
+- * $Revision: 1.24 $
+- * $Date: 2000/09/25 22:15:28 $
++ * $Revision: 1.26 $
++ * $Date: 2000/10/11 10:57:52 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -86,12 +86,16 @@
+ #include "download.h"
+ #include "escape.h"
+ 
+ #ifdef KRB4
+ #include "security.h"
+ #endif
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
+ 
+ /* returns last node in linked list */
+ static struct curl_slist *slist_get_last(struct curl_slist *list)
+ {
+ 	struct curl_slist	*item;
+ 
+@@ -581,13 +585,14 @@
+ 
+   if(ftp->file)
+     free(ftp->file);
+   if(ftp->dir)
+     free(ftp->dir);
+ 
+-  /* TBD: the ftp struct is still allocated here */
++  free(ftp);
++  data->proto.ftp=NULL; /* it is gone */
+ 
+   return CURLE_OK;
+ }
+ 
+ 
+ 
+@@ -1175,13 +1180,13 @@
+             data->customrequest?data->customrequest:
+             (data->bits.ftp_list_only?"NLST":"LIST"));
+     }
+     else {
+       /* Set type to binary (unless specified ASCII) */
+       ftpsendf(data->firstsocket, conn, "TYPE %s",
+-            (data->bits.ftp_list_only)?"A":"I");
++               (data->bits.ftp_ascii)?"A":"I");
+ 
+       nread = GetLastResponse(data->firstsocket, buf, conn);
+       if(nread < 0)
+         return CURLE_OPERATION_TIMEOUTED;
+ 
+       if(strncmp(buf, "200", 3)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/getenv.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/getenv.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/getenv.c	2000-06-20 23:34:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/getenv.c	2000-10-09 19:12:34.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/getenv.c,v $
+- * $Revision: 1.6 $
+- * $Date: 2000/06/20 15:31:26 $
++ * $Revision: 1.7 $
++ * $Date: 2000/10/09 11:12:34 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  ****************************************************************************/
+ 
+@@ -42,12 +42,16 @@
+ #include <string.h>
+ 
+ #ifdef WIN32
+ #include <windows.h>
+ #endif
+ 
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ char *GetEnv(char *variable)
+ {
+ #ifdef WIN32
+   /* This shit requires windows.h (HUGE) to be included */
+   char env[MAX_PATH]; /* MAX_PATH is from windef.h */
+   char *temp = getenv(variable);
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib: getinfo.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/highlevel.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/highlevel.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/highlevel.c	2000-08-31 20:04:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/highlevel.c	2000-10-11 18:29:25.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/highlevel.c,v $
+- * $Revision: 1.11 $
+- * $Date: 2000/08/31 12:04:55 $
++ * $Revision: 1.17 $
++ * $Date: 2000/10/11 10:29:25 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -104,17 +104,25 @@
+ #include "download.h"
+ #include "sendf.h"
+ #include "speedcheck.h"
+ #include "getpass.h"
+ #include "progress.h"
+ #include "getdate.h"
+-#include "writeout.h"
+ 
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
++#ifndef min
++#define min(a, b)   ((a) < (b) ? (a) : (b))
++#endif
++
+ CURLcode 
+ _Transfer(struct connectdata *c_conn)
+ {
+   size_t nread;                 /* number of bytes read */
+   int bytecount = 0;            /* total number of bytes read */
+   int writebytecount = 0;       /* number of bytes written */
+@@ -342,12 +350,13 @@
+                      data->fwrite (data->headerbuff, 1, p - data->headerbuff,
+                                    data->writeheader)) {
+                     failf (data, "Failed writing output");
+                     return CURLE_WRITE_ERROR;
+                   }
+                 }
++                data->header_size += p - data->headerbuff;
+                 break;		/* exit header line loop */
+               }
+               
+               if (!headerline++) {
+                 /* This is the first header, it MUST be the error code line
+                    or else we consiser this to be the body right away! */
+@@ -418,12 +427,13 @@
+                 if(hbuflen != data->fwrite (p, 1, hbuflen,
+                                             data->writeheader)) {
+                   failf (data, "Failed writing output");
+                   return CURLE_WRITE_ERROR;
+                 }
+               }
++              data->header_size += hbuflen;
+               
+               /* reset hbufp pointer && hbuflen */
+               hbufp = data->headerbuff;
+               hbuflen = 0;
+             }
+             while (*str);		/* header line within buffer */
+@@ -519,13 +529,13 @@
+           int i, si;
+           size_t bytes_written;
+ 
+           if(data->crlf)
+             buf = data->buffer; /* put it back on the buffer */
+ 
+-          nread = data->fread(buf, 1, BUFSIZE, data->in);
++          nread = data->fread(buf, 1, conn->upload_bufsize, data->in);
+ 
+           /* the signed int typecase of nread of for systems that has
+              unsigned size_t */
+           if ((signed int)nread<=0) {
+             /* done */
+             keepon &= ~KEEP_WRITE; /* we're done writing */
+@@ -567,12 +577,21 @@
+         urg = CURLE_ABORTED_BY_CALLBACK;
+       else
+         urg = speedcheck (data, now);
+       if (urg)
+ 	return urg;
+ 
++      if(data->progress.ulspeed > conn->upload_bufsize) {
++        /* If we're transfering more data per second than fits in our buffer,
++           we increase the buffer size to adjust to the current
++           speed. However, we must not set it larger than BUFSIZE. We don't
++           adjust it downwards again since we don't see any point in that!
++        */
++        conn->upload_bufsize=(long)min(data->progress.ulspeed, BUFSIZE);
++      }
++
+       if (data->timeout && (tvdiff (now, start) > data->timeout)) {
+ 	failf (data, "Operation timed out with %d out of %d bytes received",
+ 	       bytecount, conn->size);
+ 	return CURLE_OPERATION_TIMEOUTED;
+       }
+     }
+@@ -700,12 +719,13 @@
+           data->port = 0;
+         }
+       
+         /* TBD: set the URL with curl_setopt() */
+         data->url = data->newurl;
+         data->newurl = NULL; /* don't show! */
++        data->bits.urlstringalloc = TRUE; /* the URL is allocated */
+ 
+         /* Disable both types of POSTs, since doing a second POST when
+            following isn't what anyone would want! */
+         data->bits.http_post = FALSE;
+         data->bits.http_formpost = FALSE;
+ 
+@@ -721,13 +741,15 @@
+ 
+   } while(1); /* loop if Location: */
+ 
+   if(data->newurl)
+     free(data->newurl);
+ 
++#if 0
+   if((CURLE_OK == res) && data->writeinfo) {
+     /* Time to output some info to stdout */
+     WriteOut(data);
+   }
++#endif
+   return res;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/hostip.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/hostip.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/hostip.c	2000-09-21 16:47:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/hostip.c	2000-10-09 19:12:34.000000000 +0800
+@@ -26,25 +26,24 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/hostip.c,v $
+- * $Revision: 1.13 $
+- * $Date: 2000/09/21 08:47:48 $
++ * $Revision: 1.16 $
++ * $Date: 2000/10/09 11:12:34 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+ 
+ #include "setup.h"
+ 
+ #include <string.h>
+-#include <malloc.h>
+ #include <errno.h>
+ 
+ #define _REENTRANT
+ 
+ #if defined(WIN32) && !defined(__GNUC__) || defined(__MINGW32__)
+ #include <winsock.h>
+@@ -70,12 +69,17 @@
+ #include "sendf.h"
+ 
+ #if defined(HAVE_INET_NTOA_R) && !defined(HAVE_INET_NTOA_R_DECL)
+ #include "inet_ntoa_r.h"
+ #endif
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ /* --- resolve name or IP-number --- */
+ 
+ char *MakeIP(unsigned long num,char *addr, int addr_len)
+ {
+ #if defined(HAVE_INET_NTOA) || defined(HAVE_INET_NTOA_R)
+   struct in_addr in;
+@@ -115,12 +119,13 @@
+    * everything. OSF1 is known to require at least 8872 bytes. The buffer
+    * required for storing all possible aliases and IP numbers is according to
+    * Stevens' Unix Network Programming 2nd editor, p. 304: 8192 bytes! */
+   char *buf = (char *)malloc(CURL_NAMELOOKUP_SIZE);
+   if(!buf)
+     return NULL; /* major failure */
++  *bufp = buf;
+ 
+   if ( (in=inet_addr(hostname)) != INADDR_NONE ) {
+     struct in_addr *addrentry;
+ 
+     h = (struct hostent*)buf;
+     h->h_addr_list = (char**)(buf + sizeof(*h));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/http.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/http.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/http.c	2000-09-28 15:18:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/http.c	2000-10-11 18:29:25.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/http.c,v $
+- * $Revision: 1.27 $
+- * $Date: 2000/09/21 08:48:48 $
++ * $Revision: 1.32 $
++ * $Date: 2000/10/11 10:29:25 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -114,12 +114,17 @@
+ #include "url.h"
+ #include "ssluse.h"
+ 
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ /*
+  * This function checks the linked list of custom HTTP headers for a particular
+  * header (prefix).
+  */
+ bool static checkheaders(struct UrlData *data, char *thisheader)
+ {
+@@ -246,13 +251,14 @@
+     data->in = http->in; /* restore */
+   }
+   else if(data->bits.http_put) {
+     *bytecount = http->readbytecount + http->writebytecount;
+   }
+ 
+-  /* TBD: the HTTP struct remains allocated here */
++  free(http);
++  data->proto.http=NULL; /* it is gone */
+ 
+   return CURLE_OK;
+ }
+ 
+ 
+ CURLcode http(struct connectdata *conn)
+@@ -337,61 +343,64 @@
+     http->p_pragma = "Pragma: no-cache\r\n";
+ 
+   if(!checkheaders(data, "Accept:"))
+     http->p_accept = "Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*\r\n";
+ 
+   do {
++    send_buffer *req_buffer;
+     struct curl_slist *headers=data->headers;
+-    sendf(data->firstsocket, data,
+-          "%s " /* GET/HEAD/POST/PUT */
+-          "%s HTTP/1.0\r\n" /* path */
+-          "%s" /* proxyuserpwd */
+-          "%s" /* userpwd */
+-          "%s" /* range */
+-          "%s" /* user agent */
+-          "%s" /* cookie */
+-          "%s" /* host */
+-          "%s" /* pragma */
+-          "%s" /* accept */
+-          "%s", /* referer */
+-
+-          data->customrequest?data->customrequest:
+-          (data->bits.no_body?"HEAD":
+-           (data->bits.http_post || data->bits.http_formpost)?"POST":
+-           (data->bits.http_put)?"PUT":"GET"),
+-          ppath,
+-          (data->bits.proxy_user_passwd && data->ptr_proxyuserpwd)?data->ptr_proxyuserpwd:"",
+-          (data->bits.user_passwd && data->ptr_userpwd)?data->ptr_userpwd:"",
+-          (data->bits.set_range && data->ptr_rangeline)?data->ptr_rangeline:"",
+-          (data->useragent && *data->useragent && data->ptr_uagent)?data->ptr_uagent:"",
+-          (data->ptr_cookie?data->ptr_cookie:""), /* Cookie: <data> */
+-          (data->ptr_host?data->ptr_host:""), /* Host: host */
+-          http->p_pragma?http->p_pragma:"",
+-          http->p_accept?http->p_accept:"",
+-          (data->bits.http_set_referer && data->ptr_ref)?data->ptr_ref:"" /* Referer: <data> <CRLF> */
+-          );
++
++    /* initialize a dynamic send-buffer */
++    req_buffer = add_buffer_init();
++
++    /* add the main request stuff */
++    add_bufferf(req_buffer,
++                "%s " /* GET/HEAD/POST/PUT */
++                "%s HTTP/1.0\r\n" /* path */
++                "%s" /* proxyuserpwd */
++                "%s" /* userpwd */
++                "%s" /* range */
++                "%s" /* user agent */
++                "%s" /* cookie */
++                "%s" /* host */
++                "%s" /* pragma */
++                "%s" /* accept */
++                "%s", /* referer */
++
++                data->customrequest?data->customrequest:
++                (data->bits.no_body?"HEAD":
++                 (data->bits.http_post || data->bits.http_formpost)?"POST":
++                 (data->bits.http_put)?"PUT":"GET"),
++                ppath,
++                (data->bits.proxy_user_passwd && data->ptr_proxyuserpwd)?data->ptr_proxyuserpwd:"",
++                (data->bits.user_passwd && data->ptr_userpwd)?data->ptr_userpwd:"",
++                (data->bits.set_range && data->ptr_rangeline)?data->ptr_rangeline:"",
++                (data->useragent && *data->useragent && data->ptr_uagent)?data->ptr_uagent:"",
++                (data->ptr_cookie?data->ptr_cookie:""), /* Cookie: <data> */
++                (data->ptr_host?data->ptr_host:""), /* Host: host */
++                http->p_pragma?http->p_pragma:"",
++                http->p_accept?http->p_accept:"",
++                (data->bits.http_set_referer && data->ptr_ref)?data->ptr_ref:"" /* Referer: <data> <CRLF> */
++                );
+ 
+     if(co) {
+       int count=0;
+       /* now loop through all cookies that matched */
+       while(co) {
+         if(co->value && strlen(co->value)) {
+           if(0 == count) {
+-            sendf(data->firstsocket, data,
+-                  "Cookie:");
++            add_bufferf(req_buffer, "Cookie:");
+           }
+-          sendf(data->firstsocket, data,
+-                "%s%s=%s", count?"; ":"", co->name,
+-                co->value);
++          add_bufferf(req_buffer,
++                      "%s%s=%s", count?"; ":"", co->name, co->value);
+           count++;
+         }
+         co = co->next; /* next cookie please */
+       }
+       if(count) {
+-        sendf(data->firstsocket, data,
+-              "\r\n");
++        add_buffer(req_buffer, "\r\n", 2);
+       }
+       cookie_freelist(co); /* free the cookie list */
+       co=NULL;
+     }
+ 
+     if(data->timecondition) {
+@@ -416,22 +425,22 @@
+       /* TODO: Right, we *could* write a replacement here */
+       strcpy(buf, "no strftime() support");
+ #endif
+       switch(data->timecondition) {
+       case TIMECOND_IFMODSINCE:
+       default:
+-        sendf(data->firstsocket, data,
+-              "If-Modified-Since: %s\r\n", buf);
++        add_bufferf(req_buffer,
++                    "If-Modified-Since: %s\r\n", buf);
+         break;
+       case TIMECOND_IFUNMODSINCE:
+-        sendf(data->firstsocket, data,
+-              "If-Unmodified-Since: %s\r\n", buf);
++        add_bufferf(req_buffer,
++                    "If-Unmodified-Since: %s\r\n", buf);
+         break;
+       case TIMECOND_LASTMOD:
+-        sendf(data->firstsocket, data,
+-              "Last-Modified: %s\r\n", buf);
++        add_bufferf(req_buffer,
++                    "Last-Modified: %s\r\n", buf);
+         break;
+       }
+     }
+ 
+     while(headers) {
+       char *ptr = strchr(headers->data, ':');
+@@ -442,15 +451,13 @@
+         while(*ptr && isspace(*ptr))
+           ptr++;
+ 
+         if(*ptr) {
+           /* only send this if the contents was non-blank */
+ 
+-          sendf(data->firstsocket, data,
+-                "%s\015\012",
+-                headers->data);
++          add_bufferf(req_buffer, "%s\r\n", headers->data);
+         }
+       }
+       headers = headers->next;
+     }
+ 
+     if(data->bits.http_formpost) {
+@@ -465,18 +472,20 @@
+       data->fread =
+         (size_t (*)(char *, size_t, size_t, FILE *))
+         FormReader; /* set the read function to read from the
+                        generated form data */
+       data->in = (FILE *)&http->form;
+ 
+-      sendf(data->firstsocket, data,
+-            "Content-Length: %d\r\n",
+-            http->postsize-2);
++      add_bufferf(req_buffer,
++                  "Content-Length: %d\r\n", http->postsize-2);
+ 
++      /* set upload size to the progress meter */
+       pgrsSetUploadSize(data, http->postsize);
+ 
++      data->request_size = 
++        add_buffer_send(data->firstsocket, conn, req_buffer);
+       result = Transfer(conn, data->firstsocket, -1, TRUE,
+                         &http->readbytecount,
+                           data->firstsocket,
+                         &http->writebytecount);
+       if(result) {
+         FormFree(http->sendit); /* free that whole lot */
+@@ -484,22 +493,27 @@
+       }
+     }
+     else if(data->bits.http_put) {
+       /* Let's PUT the data to the server! */
+ 
+       if(data->infilesize>0) {
+-        sendf(data->firstsocket, data,
+-              "Content-Length: %d\r\n\r\n", /* file size */
+-              data->infilesize );
++        add_bufferf(req_buffer,
++                    "Content-Length: %d\r\n\r\n", /* file size */
++                    data->infilesize );
+       }
+       else
+-        sendf(data->firstsocket, data,
+-              "\015\012");
++        add_bufferf(req_buffer, "\015\012");
+ 
++      /* set the upload size to the progress meter */
+       pgrsSetUploadSize(data, data->infilesize);
+ 
++      /* this sends the buffer and frees all the buffer resources */
++      data->request_size = 
++        add_buffer_send(data->firstsocket, conn, req_buffer);
++
++      /* prepare for transfer */
+       result = Transfer(conn, data->firstsocket, -1, TRUE,
+                         &http->readbytecount,
+                         data->firstsocket,
+                         &http->writebytecount);
+       if(result)
+         return result;
+@@ -509,34 +523,41 @@
+       if(data->bits.http_post) {
+         /* this is the simple POST, using x-www-form-urlencoded style */
+ 
+         if(!checkheaders(data, "Content-Length:"))
+           /* we allow replacing this header, although it isn't very wise to
+              actually set your own */
+-          sendf(data->firstsocket, data,
+-                "Content-Length: %d\r\n",
+-                (data->postfieldsize?data->postfieldsize:
+-                 strlen(data->postfields)) );
++          add_bufferf(req_buffer,
++                      "Content-Length: %d\r\n",
++                      (data->postfieldsize?data->postfieldsize:
++                       strlen(data->postfields)) );
+ 
+         if(!checkheaders(data, "Content-Type:"))
+-          sendf(data->firstsocket, data,
+-                "Content-Type: application/x-www-form-urlencoded\r\n");
++          add_bufferf(req_buffer,
++                      "Content-Type: application/x-www-form-urlencoded\r\n");
+ 
+         /* and here comes the actual data */
+         if(data->postfieldsize) {
+-          ssend(data->firstsocket, conn, "\r\n", 2);
+-          ssend(data->firstsocket, conn, data->postfields, data->postfieldsize);
+-          ssend(data->firstsocket, conn, "\r\n", 2);
++          add_buffer(req_buffer, "\r\n", 2);
++          add_buffer(req_buffer, data->postfields,
++                     data->postfieldsize);
++          add_buffer(req_buffer, "\r\n", 2);
++        }
++        else {
++          add_bufferf(req_buffer,
++                      "\r\n"
++                      "%s\r\n",
++                      data->postfields );
+         }
+-        sendf(data->firstsocket, data,
+-              "\r\n"
+-              "%s\r\n",
+-              data->postfields );
+       }
+       else
+-        sendf(data->firstsocket, data, "\r\n");
++        add_buffer(req_buffer, "\r\n", 2);
++
++      /* issue the request */
++      data->request_size = 
++        add_buffer_send(data->firstsocket, conn, req_buffer);
+ 
+       /* HTTP GET/HEAD download: */
+       result = Transfer(conn, data->firstsocket, -1, TRUE, bytecount,
+                         -1, NULL); /* nothing to upload */
+     }
+     if(result)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/krb4.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/krb4.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/krb4.c	2000-09-26 06:46:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/krb4.c	2000-10-09 16:49:03.000000000 +0800
+@@ -37,19 +37,24 @@
+ 
+ #include "setup.h"
+ 
+ #ifdef KRB4
+ 
+ #include "security.h"
+-#include "base64_krb.h"
++#include "base64.h"
+ #include <stdlib.h>
+ #include <netdb.h>
+ #include <syslog.h>
+ #include <string.h>
+ #include <krb.h>
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
++
+ #ifdef FTP_SERVER
+ #define LOCAL_ADDR ctrl_addr
+ #define REMOTE_ADDR his_addr
+ #else
+ /*#define LOCAL_ADDR myctladdr***/
+ /*#define REMOTE_ADDR hisctladdr***/
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib: libcurl.def
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/Makefile.am	2000-09-28 15:15:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/Makefile.am	2000-10-16 20:43:27.000000000 +0800
+@@ -1,16 +1,16 @@
+ #
+-# $Id: Makefile.am,v 1.9 2000/07/31 22:41:27 bagder Exp $
++# $Id: Makefile.am,v 1.12 2000/10/09 11:24:18 bagder Exp $
+ #
+ 
+ AUTOMAKE_OPTIONS = foreign
+ 
+ lib_LTLIBRARIES = libcurl.la
+ 
+ # Some flags needed when trying to cause warnings ;-)
+-# CFLAGS = -g -Wall #-pedantic
++# CFLAGS = -DMALLOCDEBUG -g # -Wall #-pedantic
+ 
+ INCLUDES = -I$(top_srcdir)/include
+ 
+ libcurl_la_SOURCES = \
+ arpa_telnet.h  file.c         getpass.h      netrc.h        timeval.c \
+ base64.c       file.h         hostip.c       progress.c     timeval.h \
+@@ -20,14 +20,14 @@
+ dict.c         ftp.h          if2ip.c        speedcheck.c   url.h \
+ dict.h         getdate.c      if2ip.h        speedcheck.h   urldata.h \
+ download.c     getdate.h      ldap.c         ssluse.c       version.c \
+ download.h     getenv.c       ldap.h         ssluse.h       \
+ escape.c       getenv.h       mprintf.c      telnet.c       \
+ escape.h       getpass.c      netrc.c        telnet.h       \
+-writeout.c writeout.h highlevel.c strequal.c strequal.h easy.c \
+-security.h security.c krb4.c
++getinfo.c highlevel.c strequal.c strequal.h easy.c \
++security.h security.c krb4.c memdebug.c memdebug.h
+ 
+ # Say $(srcdir), so GNU make does not report an ambiguity with the .y.c rule.
+ $(srcdir)/getdate.c: getdate.y
+ 	cd $(srcdir) && \
+ 	  $(YACC) $(YFLAGS) getdate.y; \
+ 	  mv -f y.tab.c getdate.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/Makefile.in	2000-09-28 16:11:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/Makefile.in	2000-10-16 20:49:11.000000000 +0800
+@@ -8,13 +8,13 @@
+ # This program is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+ # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ # PARTICULAR PURPOSE.
+ 
+ #
+-# $Id: Makefile.am,v 1.9 2000/07/31 22:41:27 bagder Exp $
++# $Id: Makefile.am,v 1.12 2000/10/09 11:24:18 bagder Exp $
+ #
+ 
+ 
+ SHELL = /bin/sh
+ 
+ srcdir = @srcdir@
+@@ -79,17 +79,17 @@
+ 
+ AUTOMAKE_OPTIONS = foreign
+ 
+ lib_LTLIBRARIES = libcurl.la
+ 
+ # Some flags needed when trying to cause warnings ;-)
+-# CFLAGS = -g -Wall #-pedantic
++# CFLAGS = -DMALLOCDEBUG -g # -Wall #-pedantic
+ 
+ INCLUDES = -I$(top_srcdir)/include
+ 
+-libcurl_la_SOURCES =  arpa_telnet.h  file.c         getpass.h      netrc.h        timeval.c base64.c       file.h         hostip.c       progress.c     timeval.h base64.h       formdata.c     hostip.h       progress.h     cookie.c       formdata.h     http.c         sendf.c        cookie.h       ftp.c          http.h         sendf.h        url.c dict.c         ftp.h          if2ip.c        speedcheck.c   url.h dict.h         getdate.c      if2ip.h        speedcheck.h   urldata.h download.c     getdate.h      ldap.c         ssluse.c       version.c download.h     getenv.c       ldap.h         ssluse.h       escape.c       getenv.h       mprintf.c      telnet.c       escape.h       getpass.c      netrc.c        telnet.h       writeout.c writeout.h highlevel.c strequal.c strequal.h easy.c security.h security.c krb4.c
++libcurl_la_SOURCES =  arpa_telnet.h  file.c         getpass.h      netrc.h        timeval.c base64.c       file.h         hostip.c       progress.c     timeval.h base64.h       formdata.c     hostip.h       progress.h     cookie.c       formdata.h     http.c         sendf.c        cookie.h       ftp.c          http.h         sendf.h        url.c dict.c         ftp.h          if2ip.c        speedcheck.c   url.h dict.h         getdate.c      if2ip.h        speedcheck.h   urldata.h download.c     getdate.h      ldap.c         ssluse.c       version.c download.h     getenv.c       ldap.h         ssluse.h       escape.c       getenv.h       mprintf.c      telnet.c       escape.h       getpass.c      netrc.c        telnet.h       getinfo.c highlevel.c strequal.c strequal.h easy.c security.h security.c krb4.c memdebug.c memdebug.h
+ 
+ mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
+ CONFIG_HEADER = ../config.h ../src/config.h
+ CONFIG_CLEAN_FILES = 
+ LTLIBRARIES =  $(lib_LTLIBRARIES)
+ 
+@@ -100,14 +100,14 @@
+ LIBS = @LIBS@
+ libcurl_la_LDFLAGS = 
+ libcurl_la_LIBADD = 
+ libcurl_la_OBJECTS =  file.lo timeval.lo base64.lo hostip.lo progress.lo \
+ formdata.lo cookie.lo http.lo sendf.lo ftp.lo url.lo dict.lo if2ip.lo \
+ speedcheck.lo getdate.lo download.lo ldap.lo ssluse.lo version.lo \
+-getenv.lo escape.lo mprintf.lo telnet.lo getpass.lo netrc.lo \
+-writeout.lo highlevel.lo strequal.lo easy.lo security.lo krb4.lo
++getenv.lo escape.lo mprintf.lo telnet.lo getpass.lo netrc.lo getinfo.lo \
++highlevel.lo strequal.lo easy.lo security.lo krb4.lo memdebug.lo
+ CFLAGS = @CFLAGS@
+ COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+ CCLD = $(CC)
+ LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@
+ DIST_COMMON =  Makefile.am Makefile.in
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/Makefile.m32 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/Makefile.m32
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/Makefile.m32	2000-06-14 22:19:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/Makefile.m32	2000-10-06 18:48:08.000000000 +0800
+@@ -1,70 +1,81 @@
+-#############################################################
+-## Makefile for building libcurl.a with MingW32 (GCC-2.95) and
+-## optionally OpenSSL (0.9.4)
+-## Use: make -f Makefile.m32
+-##
+-## Comments to: Troy Engel <tengel@sonic.net> or
+-##              Joern Hartroth <hartroth@acm.org>
+-
+-CC = gcc
+-AR = ar
+-RANLIB = ranlib
+-OPENSSL_PATH = ../../openssl-0.9.5a
+-
+-########################################################
+-## Nothing more to do below this line!
+-
+-INCLUDES = -I. -I.. -I../include
+-CFLAGS = -g -O2 -DMINGW32
+-ifdef SSL
+-  INCLUDES += -I"$(OPENSSL_PATH)/outinc" -I"$(OPENSSL_PATH)/outinc/openssl"
+-  CFLAGS += -DUSE_SSLEAY
+-endif
+-COMPILE = $(CC) $(INCLUDES) $(CFLAGS)
+-
+-libcurl_a_LIBRARIES = libcurl.a
+-
+-libcurl_a_SOURCES =  base64.c getenv.c if2ip.h progress.h  \
+-base64.h getenv.h mprintf.c setup.h url.c download.c getpass.c \
+-mprintf.h ssluse.c url.h download.h hostip.c netrc.c ssluse.h \
+-urldata.h formdata.c hostip.h netrc.h stdcheaders.h formdata.h \
+-if2ip.c progress.c sendf.c sendf.h speedcheck.c speedcheck.h \
+-ftp.c ftp.h getpass.h version.c timeval.c  timeval.h cookie.c \
+-cookie.h escape.c escape.h getdate.c getdate.h dict.h dict.c http.c \
+-http.h telnet.c telnet.h file.c file.h ldap.c ldap.h writeout.c writeout.h \
+-highlevel.c strequal.c strequal.h easy.c
+-
+-libcurl_a_OBJECTS =  base64.o getenv.o mprintf.o url.o download.o \
+-getpass.o ssluse.o hostip.o netrc.o formdata.o if2ip.o progress.o \
+-sendf.o speedcheck.o ftp.o version.o timeval.o \
+-cookie.o escape.o getdate.o dict.o http.o telnet.o file.o ldap.o writeout.o \
+-highlevel.o strequal.o easy.o
+-
+-LIBRARIES =  $(libcurl_a_LIBRARIES)
+-SOURCES = $(libcurl_a_SOURCES)
+-OBJECTS = $(libcurl_a_OBJECTS)
+-
+-
+-all: libcurl.a
+-
+-libcurl.a: $(libcurl_a_OBJECTS) $(libcurl_a_DEPENDENCIES)
+-	-@erase libcurl.a
+-	$(AR) cru libcurl.a $(libcurl_a_OBJECTS)
+-	$(RANLIB) libcurl.a
+-
+-.c.o:
+-	$(COMPILE) -c $<
+-
+-.s.o:
+-	$(COMPILE) -c $<
+-
+-.S.o:
+-	$(COMPILE) -c $<
+-
+-clean:
+-	-@erase $(libcurl_a_OBJECTS)
+-
+-distrib: clean
+-	
+-	-@erase $(libcurl_a_LIBRARIES)
+-	
++#############################################################
++## Makefile for building libcurl.a with MingW32 (GCC-2.95) and
++## optionally OpenSSL (0.9.6)
++## Use: make -f Makefile.m32
++##
++## Comments to: Troy Engel <tengel@sonic.net> or
++##              Joern Hartroth <hartroth@acm.org>
++
++CC = gcc
++AR = ar
++RANLIB = ranlib
++STRIP = strip -g
++OPENSSL_PATH = ../../openssl-0.9.6
++
++########################################################
++## Nothing more to do below this line!
++
++INCLUDES = -I. -I.. -I../include -I../src
++CFLAGS = -g -O2 -DMINGW32
++ifdef SSL
++  INCLUDES += -I"$(OPENSSL_PATH)/outinc" -I"$(OPENSSL_PATH)/outinc/openssl"
++  CFLAGS += -DUSE_SSLEAY
++  DLL_LIBS = -leay32 -lssl32 -lRSAglue
++endif
++COMPILE = $(CC) $(INCLUDES) $(CFLAGS)
++
++libcurl_a_LIBRARIES = libcurl.a
++
++libcurl_a_SOURCES = arpa_telnet.h file.c getpass.h netrc.h timeval.c base64.c \
++	file.h hostip.c progress.c timeval.h base64.h formdata.c hostip.h progress.h	\
++	cookie.c formdata.h http.c sendf.c cookie.h ftp.c http.h sendf.h url.c dict.c	\
++	ftp.h if2ip.c speedcheck.c url.h dict.h getdate.c if2ip.h speedcheck.h		\
++	urldata.h download.c getdate.h ldap.c ssluse.c version.c download.h getenv.c	\
++	ldap.h ssluse.h escape.c getenv.h mprintf.c telnet.c escape.h getpass.c netrc.c	\
++	telnet.h getinfo.c highlevel.c strequal.c strequal.h easy.c security.h		\
++	security.c krb4.c
++
++libcurl_a_OBJECTS =  file.o timeval.o base64.o hostip.o progress.o \
++	formdata.o cookie.o http.o sendf.o ftp.o url.o dict.o if2ip.o \
++	speedcheck.o getdate.o download.o ldap.o ssluse.o version.o \
++	getenv.o escape.o mprintf.o telnet.o getpass.o netrc.o getinfo.o \
++	highlevel.o strequal.o easy.o security.o krb4.o
++
++LIBRARIES =  $(libcurl_a_LIBRARIES)
++SOURCES = $(libcurl_a_SOURCES)
++OBJECTS = $(libcurl_a_OBJECTS)
++
++
++all: libcurl.a libcurl.dll libcurldll.a
++
++libcurl.a: $(libcurl_a_OBJECTS) $(libcurl_a_DEPENDENCIES)
++	-@erase libcurl.a
++	$(AR) cru libcurl.a $(libcurl_a_OBJECTS)
++	$(RANLIB) libcurl.a
++	$(STRIP) $@
++
++# remove the last line above to keep debug info
++
++libcurl.dll libcurldll.a: libcurl.a libcurl.def dllinit.o
++	-@erase $@
++	dllwrap --dllname $@ --output-lib libcurldll.a --export-all --def libcurl.def $(libcurl_a_LIBRARIES) dllinit.o -L$(OPENSSL_PATH)/out $(DLL_LIBS) -lwsock32
++	$(STRIP) $@
++
++# remove the last line above to keep debug info
++
++.c.o:
++	$(COMPILE) -c $<
++
++.s.o:
++	$(COMPILE) -c $<
++
++.S.o:
++	$(COMPILE) -c $<
++
++clean:
++	-@erase $(libcurl_a_OBJECTS)
++
++distrib: clean
++
++	-@erase $(libcurl_a_LIBRARIES)
++
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib: memdebug.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib: memdebug.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/mprintf.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/mprintf.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/mprintf.c	2000-05-22 22:12:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/mprintf.c	2000-10-09 19:12:34.000000000 +0800
+@@ -1,9 +1,9 @@
+ /****************************************************************************
+  *
+- * $Id: mprintf.c,v 1.2 2000/01/10 23:36:15 bagder Exp $
++ * $Id: mprintf.c,v 1.3 2000/10/09 11:12:34 bagder Exp $
+  *
+  *************************************************************************
+  *
+  * Purpose:
+  *  A merge of Bjorn Reese's format() function and Daniel's dsprintf()
+  *  1.0. A full blooded printf() clone with full support for <num>$
+@@ -80,13 +80,13 @@
+  * - Fixed space padding (i.e %d was extra padded previously)
+  * - long long output is supported
+  * - alternate output is done correct like in %#08x
+  *
+  ****************************************************************************/
+ 
+-static const char rcsid[] = "@(#)$Id: mprintf.c,v 1.2 2000/01/10 23:36:15 bagder Exp $";
++static const char rcsid[] = "@(#)$Id: mprintf.c,v 1.3 2000/10/09 11:12:34 bagder Exp $";
+ 
+ /*
+  * To test:
+  *
+  * Use WIDTH, PRECISION and NUMBERED ARGUMENT combined.
+  */
+@@ -95,12 +95,16 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <stdarg.h>
+ #include <ctype.h>
+ #include <string.h>
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
+ 
+ #define BUFFSIZE 256 /* buffer for long-to-str and float-to-str calcs */
+ #define MAX_PARAMETERS 128 /* lame static limit */
+ 
+ #undef TRUE
+ #undef FALSE
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/security.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/security.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/security.c	2000-09-25 15:32:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/security.c	2000-10-09 16:49:31.000000000 +0800
+@@ -35,21 +35,25 @@
+  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+  * SUCH DAMAGE.
+  */
+ 
+ #include "setup.h"
+ 
+-#include <curl/mprintf.h>
+-
+ #ifdef KRB4
+ 
++#include <curl/mprintf.h>
++
+ #include "security.h"
+ #include <stdlib.h>
+ #include <string.h>
+ #include <netdb.h>
+-#include "base64_krb.h"
++#include "base64.h"
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
+ 
+ #define min(a, b)   ((a) < (b) ? (a) : (b))
+ 
+ static struct {
+     enum protection_level level;
+     const char *name;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/sendf.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/sendf.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/sendf.c	2000-09-21 16:49:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/sendf.c	2000-10-12 16:22:16.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/sendf.c,v $
+- * $Revision: 1.7 $
+- * $Date: 2000/09/21 08:49:16 $
++ * $Revision: 1.11 $
++ * $Date: 2000/10/12 08:22:16 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -50,19 +50,25 @@
+ #if defined(WIN32) && !defined(__GNUC__) || defined(__MINGW32__)
+ #include <winsock.h>
+ #endif
+ 
+ #include <curl/curl.h>
+ #include "urldata.h"
++#include "sendf.h"
+ 
++#define _MPRINTF_REPLACE /* use the internal *printf() functions */
+ #include <curl/mprintf.h>
+ 
+ #ifdef KRB4
+ #include "security.h"
+ #include <string.h>
+ #endif
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
+ 
+ /* infof() is for info message along the way */
+ 
+ void infof(struct UrlData *data, char *fmt, ...)
+ {
+   va_list ap;
+@@ -79,20 +85,20 @@
+ 
+ void failf(struct UrlData *data, char *fmt, ...)
+ {
+   va_list ap;
+   va_start(ap, fmt);
+   if(data->errorbuffer)
+-    vsprintf(data->errorbuffer, fmt, ap);
++    vsnprintf(data->errorbuffer, CURL_ERROR_SIZE, fmt, ap);
+   else /* no errorbuffer receives this, write to data->err instead */
+     vfprintf(data->err, fmt, ap);
+   va_end(ap);
+ }
+ 
+ /* sendf() sends the formated data to the server */
+-int sendf(int fd, struct UrlData *data, char *fmt, ...)
++size_t sendf(int fd, struct UrlData *data, char *fmt, ...)
+ {
+   size_t bytes_written;
+   char *s;
+   va_list ap;
+   va_start(ap, fmt);
+   s = mvaprintf(fmt, ap);
+@@ -115,13 +121,13 @@
+   return(bytes_written);
+ }
+ 
+ /*
+  * ftpsendf() sends the formated string as a ftp command to a ftp server
+  */
+-int ftpsendf(int fd, struct connectdata *conn, char *fmt, ...)
++size_t ftpsendf(int fd, struct connectdata *conn, char *fmt, ...)
+ {
+   size_t bytes_written;
+   char *s;
+   va_list ap;
+   va_start(ap, fmt);
+   s = mvaprintf(fmt, ap);
+@@ -151,15 +157,12 @@
+ /* ssend() sends plain (binary) data to the server */
+ size_t ssend(int fd, struct connectdata *conn, void *mem, size_t len)
+ {
+   size_t bytes_written;
+   struct UrlData *data=conn->data; /* conn knows data, not vice versa */
+ 
+-  if(data->bits.verbose)
+-    fprintf(data->err, "> [binary output]\n");
+-
+ #ifdef USE_SSLEAY
+   if (data->use_ssl) {
+     bytes_written = SSL_write(data->ssl, mem, len);
+   }
+   else {
+ #endif
+@@ -174,9 +177,94 @@
+   }
+ #endif
+ 
+   return bytes_written;
+ }
+ 
++/*
++ * add_buffer_init() returns a fine buffer struct
++ */
++send_buffer *add_buffer_init(void)
++{
++  send_buffer *blonk;
++  blonk=(send_buffer *)malloc(sizeof(send_buffer));
++  if(blonk) {
++    memset(blonk, 0, sizeof(send_buffer));
++    return blonk;
++  }
++  return NULL; /* failed, go home */
++}
+ 
++/*
++ * add_buffer_send() sends a buffer and frees all associated memory.
++ */
++size_t add_buffer_send(int sockfd, struct connectdata *conn, send_buffer *in)
++{
++  size_t amount;
++  if(conn->data->bits.verbose) {
++    fputs("> ", conn->data->err);
++    /* this data _may_ contain binary stuff */
++    fwrite(in->buffer, in->size_used, 1, conn->data->err);
++  }
++
++  amount = ssend(sockfd, conn, in->buffer, in->size_used);
+ 
++  if(in->buffer)
++    free(in->buffer);
++  free(in);
++
++  return amount;
++}
++
++
++/* 
++ * add_bufferf() builds a buffer from the formatted input
++ */
++CURLcode add_bufferf(send_buffer *in, char *fmt, ...)
++{
++  CURLcode result = CURLE_OUT_OF_MEMORY;
++  char *s;
++  va_list ap;
++  va_start(ap, fmt);
++  s = mvaprintf(fmt, ap); /* this allocs a new string to append */
++  va_end(ap);
++
++  if(s) {
++    result = add_buffer(in, s, strlen(s));
++    free(s);
++  }
++  return result;
++}
++
++/*
++ * add_buffer() appends a memory chunk to the existing one
++ */
++CURLcode add_buffer(send_buffer *in, void *inptr, size_t size)
++{
++  char *new_rb;
++  int new_size;
++
++  if(size > 0) {
++    if(!in->buffer ||
++       ((in->size_used + size) > (in->size_max - 1))) {
++      new_size = (in->size_used+size)*2;
++      if(in->buffer)
++        /* we have a buffer, enlarge the existing one */
++        new_rb = (char *)realloc(in->buffer, new_size);
++      else
++        /* create a new buffer */
++        new_rb = (char *)malloc(new_size);
++
++      if(!new_rb)
++        return CURLE_OUT_OF_MEMORY;
++
++      in->buffer = new_rb;
++      in->size_max = new_size;
++    }
++    memcpy(&in->buffer[in->size_used], inptr, size);
++      
++    in->size_used += size;
++  }
++
++  return CURLE_OK;
++}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/sendf.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/sendf.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/sendf.h	2000-09-21 16:49:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/sendf.h	2000-10-03 19:01:32.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/sendf.h,v $
+- * $Revision: 1.5 $
+- * $Date: 2000/09/21 08:49:16 $
++ * $Revision: 1.6 $
++ * $Date: 2000/10/03 11:01:32 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -43,7 +43,21 @@
+ size_t ftpsendf(int fd, struct connectdata *, char *fmt, ...);
+ size_t sendf(int fd, struct UrlData *, char *fmt, ...);
+ size_t ssend(int fd, struct connectdata *, void *fmt, size_t len);
+ void infof(struct UrlData *, char *fmt, ...);
+ void failf(struct UrlData *, char *fmt, ...);
+ 
++struct send_buffer {
++  char *buffer;
++  long size_max;
++  long size_used;
++};
++typedef struct send_buffer send_buffer;
++
++
++send_buffer *add_buffer_init(void);
++CURLcode add_buffer(send_buffer *in, void *inptr, size_t size);
++CURLcode add_bufferf(send_buffer *in, char *fmt, ...);
++size_t add_buffer_send(int sockfd, struct connectdata *conn, send_buffer *in);
++
++
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/setup.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/setup.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/setup.h	2000-08-24 22:27:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/setup.h	2000-10-10 05:36:38.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/setup.h,v $
+- * $Revision: 1.6 $
+- * $Date: 2000/08/24 14:27:51 $
++ * $Revision: 1.7 $
++ * $Date: 2000/10/09 21:36:38 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -54,12 +54,16 @@
+ #ifdef WIN32
+ /* include the hand-modified win32 adjusted config.h! */
+ #include "../config-win32.h"
+ #endif
+ #endif
+ 
++#ifndef __cplusplus        /* (rabe) */
++typedef char bool;
++#endif                     /* (rabe) */
++
+ #include <stdio.h>
+ #ifndef OS
+ #ifdef WIN32
+ #define OS "win32"
+ #else
+ #define OS "unknown"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/url.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/url.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/url.c	2000-09-28 15:18:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/url.c	2000-10-12 16:22:16.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/url.c,v $
+- * $Revision: 1.39 $
+- * $Date: 2000/09/25 22:16:36 $
++ * $Revision: 1.47 $
++ * $Date: 2000/10/12 08:22:16 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -106,13 +106,12 @@
+ #include "sendf.h"
+ #include "speedcheck.h"
+ #include "getpass.h"
+ #include "progress.h"
+ #include "cookie.h"
+ #include "strequal.h"
+-#include "writeout.h"
+ 
+ /* And now for the protocols */
+ #include "ftp.h"
+ #include "dict.h"
+ #include "telnet.h"
+ #include "http.h"
+@@ -124,12 +123,16 @@
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+ 
+ #ifdef KRB4
+ #include "security.h"
+ #endif
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++#include "memdebug.h"
++#endif
+ 
+ /* -- -- */
+ 
+ 
+ CURLcode _urlget(struct UrlData *data);
+ 
+@@ -180,12 +183,17 @@
+ 
+     /* Since we allocated the string the previous round, it means that we
+        "discovered" the proxy in the environment variables and thus we must
+        switch off that knowledge again... */
+     data->bits.httpproxy=FALSE;
+   }
++  
++  if(data->bits.rangestringalloc) {
++    free(data->range);
++    data->range=NULL;
++  }
+ 
+   if(data->ptr_proxyuserpwd) {
+     free(data->ptr_proxyuserpwd);
+     data->ptr_proxyuserpwd=NULL;
+   }
+   if(data->ptr_uagent) {
+@@ -224,12 +232,16 @@
+     if(data->headerbuff)
+       free(data->headerbuff);
+ 
+     if(data->free_referer)
+       free(data->referer);
+ 
++    if(data->bits.urlstringalloc)
++      /* the URL is allocated, free it! */
++      free(data->url);
++
+     cookie_cleanup(data->cookies);
+ 
+     free(data);
+ 
+     /* global cleanup */
+     curl_free();
+@@ -480,15 +492,17 @@
+   case CURLOPT_STDERR:
+     data->err = va_arg(param, FILE *);
+     break;
+   case CURLOPT_WRITEFUNCTION:
+     data->fwrite = va_arg(param, curl_write_callback);
+     break;
++#if 0
+   case CURLOPT_WRITEINFO:
+     data->writeinfo = va_arg(param, char *);
+     break;
++#endif
+   case CURLOPT_READFUNCTION:
+     data->fread = va_arg(param, curl_read_callback);
+     break;
+   case CURLOPT_SSLCERT:
+     data->cert = va_arg(param, char *);
+     break;
+@@ -689,12 +703,15 @@
+   memset(conn, 0, sizeof(struct connectdata));
+   conn->handle = STRUCT_CONNECT;
+ 
+   conn->data = data; /* remember our daddy */
+   conn->state = CONN_INIT;
+ 
++  conn->upload_bufsize = UPLOAD_BUFSIZE; /* the smallest upload buffer size
++                                            we use */
++
+   buf = data->buffer; /* this is our buffer */
+ 
+ #if 0
+   signal(SIGALRM, alarmfunc);
+ #endif
+ 
+@@ -897,14 +914,15 @@
+      server, we will get the document resumed. If we talk to a HTTP/1.0
+      server, we just fail since we can't rewind the file writing from within
+      this function. */
+   if(data->resume_from) {
+     if(!data->bits.set_range) {
+       /* if it already was in use, we just skip this */
+-      sprintf(resumerange, "%d-", data->resume_from);
+-      data->range=resumerange; /* tell ourselves to fetch this range */
++      snprintf(resumerange, sizeof(resumerange), "%d-", data->resume_from);
++      data->range=strdup(resumerange); /* tell ourselves to fetch this range */
++      data->bits.rangestringalloc = TRUE; /* mark as allocated */
+       data->bits.set_range = 1; /* switch on range usage */
+     }
+   }
+ 
+ 
+   if(data->timeout) {
+@@ -1192,15 +1210,20 @@
+   memset((char *) &conn->serv_addr, '\0', sizeof(conn->serv_addr));
+   memcpy((char *)&(conn->serv_addr.sin_addr),
+          conn->hp->h_addr, conn->hp->h_length);
+   conn->serv_addr.sin_family = conn->hp->h_addrtype;
+   conn->serv_addr.sin_port = htons(data->port);
+ 
+-/* sck 8/31/2000 add support for specifing device to bind socket to */
+-/* #ifdef LINUX */
+-/* I am using this, but it may not work everywhere, only tested on RedHat 6.2 */
++#ifndef WIN32 
++  /* We don't generally like checking for OS-versions, we should make this
++     HAVE_XXXX based, although at the moment I don't have a decent test for
++     this! */
++
++  /* sck 8/31/2000 add support for specifing device to bind socket to */
++  /* I am using this, but it may not work everywhere, only tested on
++     RedHat 6.2 */
+ #ifdef HAVE_INET_NTOA
+ 
+ #ifndef INADDR_NONE
+ #define INADDR_NONE (unsigned long) ~0
+ #endif
+ 
+@@ -1323,12 +1346,13 @@
+     }
+ 
+     free(hostdataptr); /* allocated by GetHost() */
+ 
+   } /* end of device selection support */
+ #endif  /* end of HAVE_INET_NTOA */
++#endif /* end of not WIN32 */
+ 
+   if (connect(data->firstsocket,
+               (struct sockaddr *) &(conn->serv_addr),
+               sizeof(conn->serv_addr)
+               ) < 0) {
+     switch(errno) {
+@@ -1388,13 +1412,14 @@
+     }
+     return CURLE_COULDNT_CONNECT;
+   }
+ 
+   if(data->bits.proxy_user_passwd) {
+     char *authorization;
+-    sprintf(data->buffer, "%s:%s", data->proxyuser, data->proxypasswd);
++    snprintf(data->buffer, BUFSIZE, "%s:%s",
++             data->proxyuser, data->proxypasswd);
+     if(base64_encode(data->buffer, strlen(data->buffer),
+                     &authorization) >= 0) {
+       data->ptr_proxyuserpwd =
+         maprintf("Proxy-authorization: Basic %s\015\012", authorization);
+       free(authorization);
+     }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/urldata.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/urldata.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib/urldata.h	2000-09-26 05:49:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/lib/urldata.h	2000-10-11 18:29:25.000000000 +0800
+@@ -28,14 +28,14 @@
+  * Main author:
+  * - Daniel Stenberg <daniel@haxx.se>
+  *
+  * 	http://curl.haxx.se
+  *
+  * $Source: /cvsroot/curl/lib/urldata.h,v $
+- * $Revision: 1.22 $
+- * $Date: 2000/09/25 21:49:37 $
++ * $Revision: 1.26 $
++ * $Date: 2000/10/11 10:29:25 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -96,12 +96,17 @@
+ 
+ #include <curl/curl.h>
+ 
+ /* Download buffer size, keep it fairly big for speed reasons */
+ #define BUFSIZE (1024*50)
+ 
++/* Upload buffer size, keep it smallish to get faster progress meter
++   updates. This should probably become dynamic and adjust to the upload
++   speed. */
++#define UPLOAD_BUFSIZE (1024*2)
++
+ /* Initial size of the buffer to store headers in, it'll be enlarged in case
+    of need. */
+ #define HEADERSIZE 256
+ 
+ #ifndef MAX
+ #define MAX(x,y) ((x)>(y)?(x):(y))
+@@ -172,12 +177,15 @@
+   char *name;
+   char path[URL_MAX_LENGTH];
+   char *ppath;
+   long bytecount;
+   struct timeval now;
+ 
++  long upload_bufsize; /* adjust as you see fit, never bigger than BUFSIZE
++                          never smaller than UPLOAD_BUFSIZE */
++
+   /* These two functions MUST be set by the curl_connect() function to be
+      be protocol dependent */
+   CURLcode (*curl_do)(struct connectdata *connect);
+   CURLcode (*curl_done)(struct connectdata *connect);
+ 
+   /* This function *MAY* be set to a protocol-dependent function that is run
+@@ -294,21 +301,24 @@
+   bool http_set_referer;
+   bool http_auto_referer; /* set "correct" referer when following location: */
+   bool httpproxy;
+   bool mute;
+   bool no_body;
+   bool proxy_user_passwd;
+-  bool proxystringalloc; /* the http proxy string is malloc()'ed */
+   bool set_port;
+   bool set_range;
+   bool upload;
+   bool use_netrc;
+   bool user_passwd;
+   bool verbose;
+   bool this_is_a_follow; /* this is a followed Location: request */
+   bool krb4; /* kerberos4 connection requested */
++
++  bool proxystringalloc; /* the http proxy string is malloc()'ed */
++  bool rangestringalloc; /* the range string is malloc()'ed */
++  bool urlstringalloc;   /* the URL string is malloc()'ed */
+ };
+ 
+ /* What type of interface that intiated this struct */
+ typedef enum {
+   CURLI_NONE,
+   CURLI_EASY,
+@@ -346,12 +356,16 @@
+   char *proxy; /* if proxy, set it here, set CONF_PROXY to use this */
+   char *proxyuserpwd;  /* Proxy <user:password>, if used */
+   long proxyport; /* If non-zero, use this port number by default. If the
+                      proxy string features a ":[port]" that one will override
+                      this. */
+ 
++  
++  long header_size;  /* size of read header(s) in bytes */
++  long request_size; /* the amount of bytes sent in the request(s) */
++
+   /*************** Request - specific items ************/
+ 
+   union {
+     struct HTTP *http;
+     struct HTTP *gopher; /* alias, just for the sake of being more readable */
+     struct HTTP *https;  /* alias, just for the sake of being more readable */
+@@ -452,14 +466,17 @@
+ 
+   char *customrequest; /* http/ftp request to use */
+ 
+   char *headerbuff; /* allocated buffer to store headers in */
+   int headersize;   /* size of the allocation */
+ 
++#if 0
++  /* this was removed in libcurl 7.4 */
+   char *writeinfo;  /* if non-NULL describes what to output on a successful
+                        completion */
++#endif
+ 
+   struct Progress progress;
+ 
+ #define MAX_CURL_USER_LENGTH 128
+ #define MAX_CURL_PASSWORD_LENGTH 128
+ 
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib: writeout.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/lib: writeout.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/hugehelp.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/hugehelp.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/hugehelp.c	2000-09-28 14:50:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/hugehelp.c	2000-10-16 20:46:41.000000000 +0800
+@@ -493,17 +493,23 @@
+ "          size_download  The total  amount  of  bytes  that  were\n"
+ "                         downloaded.\n"
+ "\n"
+ "          size_upload    The  total  amount  of  bytes  that were\n"
+ "                         uploaded.\n"
+ "\n"
++"          size_header    The total amount of bytes of  the  down­\n"
++"                         loaded headers.\n"
++"\n"
++"          size_request   The total amount of bytes that were sent\n"
++"                         in the HTTP request.\n"
++"\n"
+ "          speed_download The average  download  speed  that  curl\n"
+ "                         measured for the complete download.\n"
+ "\n"
+ "          speed_upload   The  average upload speed that curl mea­\n"
+-"                         sured for the complete download.\n"
++"                         sured for the complete upload.\n"
+ "\n"
+ "     -x/--proxy <proxyhost[:port]>\n"
+ "          Use specified proxy. If the port number is  not  speci­\n"
+ "          fied, it is assumed at port 1080.\n"
+ "\n"
+ "     -X/--request <command>\n"
+@@ -572,13 +578,12 @@
+ "\n"
+ "     HTTPS_PROXY [protocol://]<host>[:port]\n"
+ "          Sets proxy server to use for HTTPS.\n"
+ "\n"
+ "     FTP_PROXY [protocol://]<host>[:port]\n"
+ "          Sets proxy server to use for FTP.\n"
+-"\n"
+ "     GOPHER_PROXY [protocol://]<host>[:port]\n"
+ "          Sets proxy server to use for GOPHER.\n"
+ "\n"
+ "     ALL_PROXY [protocol://]<host>[:port]\n"
+ "          Sets proxy server to use if no protocol-specific  proxy\n"
+ "          is set.\n"
+@@ -624,18 +629,18 @@
+ "\n"
+ "     11   FTP  weird  PASS  reply.  Curl couldn't parse the reply\n"
+ "          sent to the PASS request.\n"
+ "\n"
+ "     12   FTP weird USER reply. Curl  couldn't  parse  the  reply\n"
+ "          sent to the USER request.\n"
+-"\n"
+ "     13   FTP  weird  PASV  reply,  Curl couldn't parse the reply\n"
+ "          sent to the PASV request.\n"
+ "\n"
+ "     14   FTP weird 227 formay. Curl couldn't parse the  227-line\n"
+ "          the server sent.\n"
++"\n"
+ "     15   FTP can't get host. Couldn't resolve the host IP we got\n"
+ "          in the 227-line.\n"
+ "\n"
+ "     16   FTP can't reconnect. Couldn't connect to  the  host  we\n"
+ "          got in the 227-line.\n"
+ "\n"
+@@ -682,12 +687,13 @@
+ "          959.\n"
+ "\n"
+ "     33   HTTP range error. The range \"command\" didn't work.\n"
+ "\n"
+ "     34   HTTP   post  error.  Internal  post-request  generation\n"
+ "          error.\n"
++"\n"
+ "     35   SSL connect error. The SSL handshaking failed.\n"
+ "\n"
+ "     36   FTP bad download resume. Couldn't continue  an  earlier\n"
+ "          aborted download.\n"
+ "\n"
+ "     37   FILE  couldn't read file. Failed to open the file. Per­\n"
+@@ -740,19 +746,19 @@
+ "      - Jörn Hartroth <Joern.Hartroth@computer.org>\n"
+ "      - Matthew Clarke <clamat@van.maves.ca>\n"
+ "      - Linus Nielsen <Linus.Nielsen@haxx.se>\n"
+ "      - Felix von Leitner <felix@convergence.de>\n"
+ "      - Dan Zitter <dzitter@zitter.net>\n"
+ "      - Jongki Suwandi <Jongki.Suwandi@eng.sun.com>\n"
++);
++ puts(
+ "      - Chris Maltby <chris@aurema.com>\n"
+ "      - Ron Zapp <rzapper@yahoo.com>\n"
+ "      - Paul Marquis <pmarquis@iname.com>\n"
+ "      - Ellis Pritchard <ellis@citria.com>\n"
+ "      - Damien Adant <dams@usa.net>\n"
+-);
+- puts(
+ "      - Chris <cbayliss@csc.come>\n"
+ "      - Marco G. Salvagno <mgs@whiz.cjb.net>\n"
+ "      - Paul Marquis <pmarquis@iname.com>\n"
+ "      - David LeBlanc <dleblanc@qnx.com>\n"
+ "      - Rich Gray at Plus Technologies\n"
+ "      - Luong Dinh Dung <u8luong@lhsystems.hu>\n"
+@@ -761,12 +767,13 @@
+ "      - Fred Noz <FNoz@siac.com>\n"
+ "      - Caolan McNamara <caolan@csn.ul.ie>\n"
+ "      - Albert Chin-A-Young <china@thewrittenword.com>\n"
+ "      - Stephen Kick <skick@epicrealm.com>\n"
+ "      - Martin Hedenfalk <mhe@stacken.kth.se>\n"
+ "      - Richard Prescott\n"
++"      - Jason S. Priebe <priebe@wral-tv.com>\n"
+ "\n"
+ "WWW\n"
+ "     http://curl.haxx.se\n"
+ "\n"
+ "FTP\n"
+ "     ftp://ftp.sunet.se/pub/www/utilities/curl/\n"
+@@ -1054,20 +1061,20 @@
+ "  that referred to actual page, and curl allows the user to specify that\n"
+ "  referrer to get specified on the command line. It is especially useful to\n"
+ "  fool or trick stupid servers or CGI scripts that rely on that information\n"
+ "  being available or contain certain data.\n"
+ "\n"
+ "        curl -e www.coolsite.com http://www.showme.com/\n"
++);
++ puts(
+ "\n"
+ "USER AGENT\n"
+ "\n"
+ "  A HTTP request has the option to include information about the browser\n"
+ "  that generated the request. Curl allows it to be specified on the command\n"
+ "  line. It is especially useful to fool or trick stupid servers or CGI\n"
+-);
+- puts(
+ "  scripts that only accept certain browsers.\n"
+ "\n"
+ "  Example:\n"
+ "\n"
+ "  curl -A 'Mozilla/3.0 (Win95; I)' http://www.nationsbank.com/\n"
+ "\n"
+@@ -1315,20 +1322,20 @@
+ "\n"
+ "  If you neglect to specify the password on the command line, you will be\n"
+ "  prompted for the correct password before any data can be received.\n"
+ "\n"
+ "  Many older SSL-servers have problems with SSLv3 or TLS, that newer versions\n"
+ "  of OpenSSL etc is using, therefore it is sometimes useful to specify what\n"
++);
++ puts(
+ "  SSL-version curl should use. Use -3 or -2 to specify that exact SSL version\n"
+ "  to use:\n"
+ "\n"
+ "        curl -2 https://secure.site.com/\n"
+ "\n"
+ "  Otherwise, curl will first attempt to use v3 and then v2.\n"
+-);
+- puts(
+ "\n"
+ "  To use OpenSSL to convert your favourite browser's certificate into a PEM\n"
+ "  formatted one that curl can use, do something like this (assuming netscape,\n"
+ "  but IE is likely to work similarly):\n"
+ "\n"
+ "    You start with hitting the 'security' menu button in netscape. \n"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/main.c	2000-09-26 06:20:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/main.c	2000-10-10 05:35:41.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <Daniel.Stenberg@haxx.nu>
+  *
+  * 	http://curl.haxx.nu
+  *
+  * $Source: /cvsroot/curl/src/main.c,v $
+- * $Revision: 1.33 $
+- * $Date: 2000/09/25 22:20:02 $
++ * $Revision: 1.37 $
++ * $Date: 2000/10/09 21:35:41 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -45,12 +45,14 @@
+ #include <sys/stat.h>
+ #include <ctype.h>
+ 
+ #include <curl/curl.h>
+ #include <curl/types.h> /* new for v7 */
+ #include <curl/easy.h> /* new for v7 */
++
++#define _MPRINTF_REPLACE /* we want curl-functions instead of native ones */
+ #include <curl/mprintf.h>
+ 
+ #include "urlglob.h"
+ #define CURLseparator	"--_curl_--"
+ #define MIMEseparator	"_curl_"
+ 
+@@ -77,12 +79,22 @@
+ #endif
+ 
+ #ifdef HAVE_FCNTL_H
+ #include <fcntl.h>
+ #endif
+ 
++/* The last #include file should be: */
++#ifdef MALLOCDEBUG
++/* this is low-level hard-hacking memory leak tracking shit */
++#include "../lib/memdebug.h"
++#endif
++
++#ifndef __cplusplus        /* (rabe) */
++typedef char bool;
++#endif                     /* (rabe) */
++
+ typedef enum {
+   HTTPREQ_UNSPEC,
+   HTTPREQ_GET,
+   HTTPREQ_HEAD,
+   HTTPREQ_POST,
+   HTTPREQ_SIMPLEPOST,
+@@ -501,29 +513,32 @@
+     {"#", "progress-bar",FALSE},
+   };
+ 
+   if('-' == flag[0]) {
+     /* try a long name */
+     int fnam=strlen(&flag[1]);
++    int numhits=0;
+     for(j=0; j< sizeof(aliases)/sizeof(aliases[0]); j++) {
+       if(strnequal(aliases[j].lname, &flag[1], fnam)) {
+         longopt = TRUE;
++        numhits++;
+         if(strequal(aliases[j].lname, &flag[1])) {
+           parse = aliases[j].letter;
+           hit = j;
++          numhits = 1; /* a single unique hit */
+           break;
+         }
+-	if(parse) {
+-	  /* this is the second match, we can't continue! */
+-	  helpf("option --%s is ambiguous\n", &flag[1]);
+-	  return CURLE_FAILED_INIT;
+-	}
+ 	parse = aliases[j].letter;
+ 	hit = j;
+       }
+     }
++    if(numhits>1) {
++      /* this is at least the second match! */
++      helpf("option --%s is ambiguous\n", &flag[1]);
++      return CURLE_FAILED_INIT;
++    }
+     if(hit < 0) {
+       helpf("unknown option -%s.\n", flag);
+       return CURLE_FAILED_INIT;
+     }    
+   }
+   else {
+@@ -1134,12 +1149,13 @@
+ 
+ }
+ 
+ int main(int argc, char *argv[])
+ {
+   char errorbuffer[CURL_ERROR_SIZE];
++  char useragent[128]; /* buah, we don't want a larger default user agent */
+   struct ProgressData progressbar;
+ 
+   struct OutStruct outs;
+   struct OutStruct heads;
+ 
+   char *url = NULL;
+@@ -1158,17 +1174,19 @@
+   CURL *curl;
+   int res;
+   int i;
+ 
+   outs.stream = stdout;
+ 
++#ifdef MALLOCDEBUG
++  /* this sends all memory debug messages to a logfile named memdump */
++  curl_memdebug("memdump");
++#endif
++
+   memset(&config, 0, sizeof(struct Configurable));
+   
+-  /* set non-zero default values: */
+-  config.useragent= maprintf(CURL_NAME "/" CURL_VERSION " (" OS ") "
+-                             "%s", curl_version());
+   config.showerror=TRUE;
+   config.conf=CONF_DEFAULT;
+ #if 0
+   config.crlf=FALSE;
+   config.quote=NULL;
+ #endif
+@@ -1238,12 +1256,18 @@
+     url = config.url;
+   
+   if(!url) {
+     helpf("no URL specified!\n");
+     return CURLE_FAILED_INIT;
+   }
++  if(NULL == config.useragent) {
++    /* set non-zero default values: */
++    snprintf(useragent, sizeof(useragent),
++             CURL_NAME "/" CURL_VERSION " (" OS ") " "%s", curl_version());
++    config.useragent= useragent;
++  }
+ #if 0
+   fprintf(stderr, "URL: %s PROXY: %s\n", url, config.proxy?config.proxy:"none");
+ #endif
+ 
+   /* expand '{...}' and '[...]' expressions and return total number of URLs
+      in pattern set */
+@@ -1509,13 +1533,12 @@
+     curl_easy_setopt(curl, CURLOPT_COOKIEFILE, config.cookiefile);
+     curl_easy_setopt(curl, CURLOPT_SSLVERSION, config.ssl_version);
+     curl_easy_setopt(curl, CURLOPT_TIMECONDITION, config.timecond);
+     curl_easy_setopt(curl, CURLOPT_TIMEVALUE, config.condtime);
+     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, config.customrequest);
+     curl_easy_setopt(curl, CURLOPT_STDERR, config.errors);
+-    curl_easy_setopt(curl, CURLOPT_WRITEINFO, config.writeout);
+ 
+     /* three new ones in libcurl 7.3: */
+     curl_easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, config.proxytunnel);
+     curl_easy_setopt(curl, CURLOPT_INTERFACE, config.iface);
+     curl_easy_setopt(curl, CURLOPT_KRB4LEVEL, config.krb4level);
+ 
+@@ -1527,12 +1550,16 @@
+       curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, myprogress);
+       curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, &progressbar);
+     }
+ 
+     res = curl_easy_perform(curl);
+ 
++    if(config.writeout) {
++      ourWriteOut(curl, config.writeout);
++    }
++
+     /* always cleanup */
+     curl_easy_cleanup(curl);
+ 
+     if((res!=CURLE_OK) && config.showerror)
+       fprintf(config.errors, "curl: (%d) %s\n", res, errorbuffer);
+   }
+@@ -1568,12 +1595,15 @@
+   }
+ #ifdef MIME_SEPARATORS
+   if (separator)
+     printf("--%s--\n", MIMEseparator);
+ #endif
+ 
++  /* cleanup memory used for URL globbing patterns */
++  glob_cleanup(urls);
++
+   curl_slist_free_all(config.quote); /* the checks for config.quote == NULL */
+   curl_slist_free_all(config.postquote); /*  */
+   curl_slist_free_all(config.headers); /*  */
+ 
+   return(res);
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/Makefile.am /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/Makefile.am
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/Makefile.am	2000-08-02 16:08:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/Makefile.am	2000-10-16 20:43:32.000000000 +0800
+@@ -1,19 +1,22 @@
+ #
+-# $Id: Makefile.am,v 1.7 2000/08/02 08:08:09 bagder Exp $
++# $Id: Makefile.am,v 1.9 2000/10/09 11:24:49 bagder Exp $
+ #
+ 
+ # Some flags needed when trying to cause warnings ;-)
+-# CFLAGS = -Wall -pedantic
++# CFLAGS = -g -DMALLOCDEBUG # -Wall -pedantic
+ #CPPFLAGS = -DGLOBURL -DCURL_SEPARATORS
+ 
+ INCLUDES = -I$(top_srcdir)/include
+ 
+-bin_PROGRAMS = curl
++bin_PROGRAMS = curl #memtest
+ 
+-curl_SOURCES = main.c hugehelp.c urlglob.c
++#memtest_SOURCES = memtest.c
++#memtest_LDADD = $(top_srcdir)/lib/libcurl.la
++
++curl_SOURCES = main.c hugehelp.c urlglob.c writeout.c
+ curl_LDADD = $(top_srcdir)/lib/libcurl.la
+ curl_DEPENDENCIES = $(top_srcdir)/lib/libcurl.la
+ BUILT_SOURCES = hugehelp.c
+ CLEANFILES = hugehelp.c
+ NROFF=@NROFF@
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/Makefile.in	2000-09-28 16:11:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/Makefile.in	2000-10-16 20:49:11.000000000 +0800
+@@ -8,17 +8,17 @@
+ # This program is distributed in the hope that it will be useful,
+ # but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+ # even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ # PARTICULAR PURPOSE.
+ 
+ #
+-# $Id: Makefile.am,v 1.7 2000/08/02 08:08:09 bagder Exp $
++# $Id: Makefile.am,v 1.9 2000/10/09 11:24:49 bagder Exp $
+ #
+ 
+ # Some flags needed when trying to cause warnings ;-)
+-# CFLAGS = -Wall -pedantic
++# CFLAGS = -g -DMALLOCDEBUG # -Wall -pedantic
+ #CPPFLAGS = -DGLOBURL -DCURL_SEPARATORS
+ 
+ 
+ SHELL = /bin/sh
+ 
+ srcdir = @srcdir@
+@@ -79,15 +79,18 @@
+ RANLIB = @RANLIB@
+ VERSION = @VERSION@
+ YACC = @YACC@
+ 
+ INCLUDES = -I$(top_srcdir)/include
+ 
+-bin_PROGRAMS = curl
++bin_PROGRAMS = curl #memtest
+ 
+-curl_SOURCES = main.c hugehelp.c urlglob.c
++#memtest_SOURCES = memtest.c
++#memtest_LDADD = $(top_srcdir)/lib/libcurl.la
++
++curl_SOURCES = main.c hugehelp.c urlglob.c writeout.c
+ curl_LDADD = $(top_srcdir)/lib/libcurl.la
+ curl_DEPENDENCIES = $(top_srcdir)/lib/libcurl.la
+ BUILT_SOURCES = hugehelp.c
+ CLEANFILES = hugehelp.c
+ NROFF = @NROFF@
+ 
+@@ -105,13 +108,13 @@
+ 
+ 
+ DEFS = @DEFS@ -I. -I$(srcdir) -I.. -I.
+ CPPFLAGS = @CPPFLAGS@
+ LDFLAGS = @LDFLAGS@
+ LIBS = @LIBS@
+-curl_OBJECTS =  main.o hugehelp.o urlglob.o
++curl_OBJECTS =  main.o hugehelp.o urlglob.o writeout.o
+ curl_LDFLAGS = 
+ CFLAGS = @CFLAGS@
+ COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+ LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+ CCLD = $(CC)
+ LINK = $(LIBTOOL) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/Makefile.m32 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/Makefile.m32
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/Makefile.m32	2000-06-14 22:12:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/Makefile.m32	2000-10-06 18:48:03.000000000 +0800
+@@ -1,65 +1,71 @@
+-#############################################################
+-## Makefile for building curl.exe with MingW32 (GCC-2.95) and
+-## optionally OpenSSL (0.9.4)
+-##
+-## Use: make -f Makefile.m32 [SSL=1]
+-##
+-## Comments to: Troy Engel <tengel@sonic.net> or
+-##              Joern Hartroth <hartroth@acm.org>
+-
+-CC = gcc
+-STRIP = strip -s
+-OPENSSL_PATH = ../../openssl-0.9.5a
+-
+-# We may need these someday
+-# PERL = perl
+-# NROFF = nroff
+-
+-########################################################
+-## Nothing more to do below this line!
+-
+-INCLUDES = -I. -I.. -I../include
+-CFLAGS = -g -O2 -DMINGW32
+-LDFLAGS = 
+-COMPILE = $(CC) $(INCLUDES) $(CFLAGS)
+-LINK = $(CC) $(CFLAGS) $(LDFLAGS) -o $@
+-
+-curl_PROGRAMS = curl.exe
+-curl_OBJECTS =  main.o hugehelp.o urlglob.o
+-curl_SOURCES = main.c hugehelp.c urlglob.c
+-curl_DEPENDENCIES = ../lib/libcurl.a
+-curl_LDADD = -L../lib -lcurl -lwsock32
+-ifdef SSL
+-  curl_LDADD += -L$(OPENSSL_PATH)/out -leay32 -lssl32 -lRSAglue
+-endif
+-
+-PROGRAMS = $(curl_PROGRAMS)
+-SOURCES = $(curl_SOURCES)
+-OBJECTS = $(curl_OBJECTS)
+-
+-all: curl
+-
+-curl: $(curl_OBJECTS) $(curl_DEPENDENCIES)
+-	-@erase curl.exe
+-	$(LINK) $(curl_OBJECTS) $(curl_LDADD)
+-	$(STRIP) $(curl_PROGRAMS)
+-
+-# We don't have nroff normally under win32
+-# hugehelp.c: ../README.curl ../curl.1 mkhelp.pl
+-# 	-@erase hugehelp.c
+-# 	$(NROFF) -man ../curl.1 | $(PERL) mkhelp.pl ../README.curl > hugehelp.c
+-
+-.c.o:
+-	$(COMPILE) -c $<
+-
+-.s.o:
+-	$(COMPILE) -c $<
+-
+-.S.o:
+-	$(COMPILE) -c $<
+-
+-clean:
+-	-@erase $(curl_OBJECTS)
+-
+-distrib: clean
+-	-@erase $(curl_PROGRAMS)
++#############################################################
++## Makefile for building curl.exe with MingW32 (GCC-2.95) and
++## optionally OpenSSL (0.9.6)
++##
++## Use: make -f Makefile.m32 [SSL=1] [DYN=1]
++##
++## Comments to: Troy Engel <tengel@sonic.net> or
++##              Joern Hartroth <hartroth@acm.org>
++
++CC = gcc
++STRIP = strip -s
++OPENSSL_PATH = ../../openssl-0.9.6
++
++# We may need these someday
++# PERL = perl
++# NROFF = nroff
++
++########################################################
++## Nothing more to do below this line!
++
++INCLUDES = -I. -I.. -I../include
++CFLAGS = -g -O2 -DMINGW32
++LDFLAGS = 
++COMPILE = $(CC) $(INCLUDES) $(CFLAGS)
++LINK = $(CC) $(CFLAGS) $(LDFLAGS) -o $@
++
++curl_PROGRAMS = curl.exe
++curl_OBJECTS = main.o hugehelp.o urlglob.o writeout.o
++curl_SOURCES = main.c hugehelp.c urlglob.c writeout.c
++ifdef DYN
++  curl_DEPENDENCIES = ../lib/libcurldll.a ../lib/libcurl.dll
++  curl_LDADD = -L../lib -lcurldll
++else
++  curl_DEPENDENCIES = ../lib/libcurl.a
++  curl_LDADD = -L../lib -lcurl
++endif
++curl_LDADD += -lwsock32
++ifdef SSL
++  curl_LDADD += -L$(OPENSSL_PATH)/out -leay32 -lssl32 -lRSAglue
++endif
++
++PROGRAMS = $(curl_PROGRAMS)
++SOURCES = $(curl_SOURCES)
++OBJECTS = $(curl_OBJECTS)
++
++all: curl.exe
++
++curl.exe: $(curl_OBJECTS) $(curl_DEPENDENCIES)
++	-@erase $@
++	$(LINK) $(curl_OBJECTS) $(curl_LDADD)
++	$(STRIP) $@
++
++# We don't have nroff normally under win32
++# hugehelp.c: ../README.curl ../curl.1 mkhelp.pl
++# 	-@erase hugehelp.c
++# 	$(NROFF) -man ../curl.1 | $(PERL) mkhelp.pl ../README.curl > hugehelp.c
++
++.c.o:
++	$(COMPILE) -c $<
++
++.s.o:
++	$(COMPILE) -c $<
++
++.S.o:
++	$(COMPILE) -c $<
++
++clean:
++	-@erase $(curl_OBJECTS)
++
++distrib: clean
++	-@erase $(curl_PROGRAMS)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/urlglob.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/urlglob.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/urlglob.c	2000-05-22 22:18:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/urlglob.c	2000-10-12 17:12:24.000000000 +0800
+@@ -26,14 +26,14 @@
+  * Main author:
+  * - Daniel Stenberg <Daniel.Stenberg@haxx.nu>
+  *
+  * 	http://curl.haxx.nu
+  *
+  * $Source: /cvsroot/curl/src/urlglob.c,v $
+- * $Revision: 1.5 $
+- * $Date: 2000/05/22 14:18:58 $
++ * $Revision: 1.7 $
++ * $Date: 2000/10/12 09:12:24 $
+  * $Author: bagder $
+  * $State: Exp $
+  * $Locker:  $
+  *
+  * ------------------------------------------------------------
+  ****************************************************************************/
+@@ -42,12 +42,16 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <ctype.h>
+ #include <curl/curl.h>
+ #include "urlglob.h"
+ 
++#ifdef MALLOCDEBUG
++#include "../lib/memdebug.h"
++#endif
++
+ char glob_buffer[URL_MAX_LENGTH];
+ URLGlob *glob_expand;
+ 
+ int glob_word(char*, int);
+ 
+ int glob_set(char *pattern, int pos) {
+@@ -215,12 +219,30 @@
+   glob_expand->size = 0;
+   *urlnum = glob_word(url, 1);
+   *glob = glob_expand;
+   return CURLE_OK;
+ }
+ 
++void glob_cleanup(URLGlob* glob) {
++  int i, elem;
++
++  for (i = glob->size - 1; i >= 0; --i) {
++    if (!(i & 1)) {	/* even indexes contain literals */
++      free(glob->literal[i/2]);
++    } else {		/* odd indexes contain sets or ranges */
++      if (glob->pattern[i/2].type == UPTSet) {
++	for (elem = glob->pattern[i/2].content.Set.size - 1; elem >= 0; --elem) {
++	  free(glob->pattern[i/2].content.Set.elements[elem]);
++	}
++	free(glob->pattern[i/2].content.Set.elements);
++      }
++    }
++  }
++  free(glob);
++}
++
+ char *next_url(URLGlob *glob)
+ {
+   static int beenhere = 0;
+   char *buf = glob_buffer;
+   URLPattern *pat;
+   char *lit;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.3/src/version.h	2000-09-28 16:10:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src/version.h	2000-10-16 20:48:03.000000000 +0800
+@@ -1,3 +1,3 @@
+ #define CURL_NAME "curl"
+-#define CURL_VERSION "7.3"
++#define CURL_VERSION "7.4.1"
+ #define CURL_ID CURL_NAME " " CURL_VERSION " (" OS ") "
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src: writeout.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1/src: writeout.h
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.4.1: stamp-h.in

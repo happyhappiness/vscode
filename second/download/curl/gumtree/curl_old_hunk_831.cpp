@@ -1,0 +1,16 @@
+"    running, porting etc.\n"
+"\n"
+"  curl-library\n"
+"\n"
+"    Developers using or developing libcurl. Bugs, extensions, improvements.\n"
+"\n"
+"  curl-announce\n"
+"\n"
+, stdout);
+ fputs(
+"    Low-traffic. Only receives announcements of new public versions. At worst,\n"
+"    that makes something like one or two mails per month, but usually only one\n"
+"    mail every second month.\n"
+"\n"
+"  curl-and-php\n"
+"\n"

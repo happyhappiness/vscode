@@ -1,0 +1,63 @@
+ "   To ftp files using name+passwd, include them in the URL like:\n"
+ "\n"
+ "        curl ftp://name:passwd@machine.domain:port/full/path/to/file\n"
+ "\n"
+ "   or specify them with the -u flag like\n"
+ "\n"
+-, stdout);
+- fputs(
+ "        curl -u name:passwd ftp://machine.domain:port/full/path/to/file\n"
+ "\n"
+ " FTPS\n"
+ "\n"
++, stdout);
++ fputs(
+ "   It is just like for FTP, but you may also want to specify and use\n"
+ "   SSL-specific options for certificates etc.\n"
+ "\n"
+ "   Note that using FTPS:// as prefix is the \"implicit\" way as described in the\n"
+ "   standards while the recommended \"explicit\" way is done by using FTP:// and\n"
+ "   the --ftp-ssl option.\n"
+ "\n"
++" SFTP / SCP\n"
++"\n"
++"   This is similar to FTP, but you can specify a private key to use instead of\n"
++"   a password. Note that the private key may itself be protected by a password\n"
++, stdout);
++ fputs(
++"   that is unrelated to the login password of the remote system.  If you\n"
++"   provide a private key file you must also provide a public key file.\n"
++"\n"
+ " HTTP\n"
+ "\n"
+ "   Curl also supports user and password in HTTP URLs, thus you can pick a file\n"
+ "   like:\n"
+ "\n"
+-, stdout);
+- fputs(
+ "        curl http://name:passwd@machine.domain/full/path/to/file\n"
+ "\n"
+ "   or specify user and password separately like in\n"
+ "\n"
+ "        curl -u name:passwd http://machine.domain/full/path/to/file\n"
+ "\n"
++, stdout);
++ fputs(
+ "   HTTP offers many different methods of authentication and curl supports\n"
+ "   several: Basic, Digest, NTLM and Negotiate. Without telling which method to\n"
+ "   use, curl defaults to Basic. You can also ask curl to pick the most secure\n"
+ "   ones out of the ones that the server accepts for the given URL, by using\n"
+-, stdout);
+- fputs(
+ "   --anyauth.\n"
+ "\n"
+ "   NOTE! Since HTTP URLs don't support user and password, you can't use that\n"
+ "   style when using Curl via a proxy. You _must_ use the -u style fetch\n"
++, stdout);
++ fputs(
+ "   during such circumstances.\n"
+ "\n"
+ " HTTPS\n"
+ "\n"
+ "   Probably most commonly used with private certificates, as explained below.\n"
+ "\n"

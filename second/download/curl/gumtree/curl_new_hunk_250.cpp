@@ -1,0 +1,13 @@
+    " -6/--ipv6          Resolve name to IPv6 address",
+    " -#/--progress-bar  Display transfer progress as a progress bar",
+    NULL
+  };
+  for(i=0; helptext[i]; i++) {
+    puts(helptext[i]);
+#ifdef NETWARE
+    if (i && ((i % 23) == 0))
+      pressanykey();
+#endif
+  }
+}
+

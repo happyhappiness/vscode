@@ -1,0 +1,17 @@
+fputs(
+"              'type=', in a manner similar to:\n"
+"\n"
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
+"              or\n"
+"\n"
+"              curl -F \"name=daniel;type=text/foo\" url.com\n"
+"\n"
+"              You can also explicitly change the name field of a  file  upload\n"
+"              part by setting filename=, like this:\n"
+"\n"
+"              curl -F \"file=@localfile;filename=nameinpost\" url.com\n"
+"\n"
+"              If  filename/path contains ',' or ';', it must be quoted by dou-\n"
+"              ble-quotes like:\n"
+, stdout);

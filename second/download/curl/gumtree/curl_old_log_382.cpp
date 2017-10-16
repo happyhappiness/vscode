@@ -1,0 +1,16 @@
+puts(
+"              If this option is used twice, the second time  dis-\n"
+"              ables this again.\n"
+"\n"
+"       -s/--silent\n"
+"              Silent  mode.  Don't  show  progress meter or error\n"
+"              messages.  Makes Curl mute.\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable mute.\n"
+"\n"
+"       -S/--show-error\n"
+"              When  used with -s it makes curl show error message\n"
+"              if it fails.\n"
+"\n"
+);

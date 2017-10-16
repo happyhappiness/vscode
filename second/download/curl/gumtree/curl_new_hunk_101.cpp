@@ -1,0 +1,13 @@
+                break;
+              case VAR_CONTENT_TYPE:
+                if((CURLE_OK ==
+                    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &stringp))
+                   && stringp)
+                  fputs(stringp, stream);
+              default:
+                break;
+              }
+              break;
+            }
+          }
+          ptr=end+1; /* pass the end */

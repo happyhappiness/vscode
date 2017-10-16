@@ -1,0 +1,15 @@
+puts(
+"              enough details, consider using --trace or  --trace-\n"
+"              ascii instead.\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable verbose.\n"
+"\n"
+"       -V/--version\n"
+"              Displays the full  version  of  curl,  libcurl  and\n"
+"              other  3rd  party  libraries  linked  with the exe-\n"
+"              cutable.\n"
+"\n"
+"       -w/--write-out <format>\n"
+"              Defines what to display after a completed and  suc-\n"
+);

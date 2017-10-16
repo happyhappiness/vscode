@@ -1,0 +1,17 @@
+fputs(
+"              IPv6   You can use IPv6 with this.\n"
+"\n"
+"              krb4   Krb4 for ftp is supported.\n"
+"\n"
+"              SSL    HTTPS and FTPS are supported.\n"
+"\n"
+"              libz   Automatic  decompression of compressed files\n"
+"                     over HTTP is supported.\n"
+"\n"
+"              NTLM   NTLM authenticaion is supported.\n"
+"\n"
+"              GSS-Negotiate\n"
+"                     Negotiate authenticaion is supported.\n"
+"\n"
+"              Debug  This curl uses a libcurl built  with  Debug.\n"
+, stdout);

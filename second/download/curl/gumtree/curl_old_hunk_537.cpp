@@ -1,0 +1,16 @@
+"       72     Unknown TFTP transfer ID.\n"
+"\n"
+"       73     File already exists (TFTP).\n"
+"\n"
+"       74     No such user (TFTP).\n"
+"\n"
+, stdout);
+ fputs(
+"       75     Character conversion failed.\n"
+"\n"
+"       76     Character conversion functions required.\n"
+"\n"
+"       77     Problem with reading the SSL CA cert (path? access rights?).\n"
+"\n"
+"       78     The resource referenced in the URL does not exist.\n"
+"\n"

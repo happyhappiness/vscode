@@ -1,0 +1,46 @@
+ "\n"
+ "  If I want the same info in HTML format, I can get it by not using the -B\n"
+ "  (enforce ASCII) flag.\n"
+ "\n"
+ "ENVIRONMENT VARIABLES\n"
+ "\n"
++);
++ puts(
+ "  Curl reads and understands the following environment variables:\n"
+ "\n"
+ "        HTTP_PROXY, HTTPS_PROXY, FTP_PROXY, GOPHER_PROXY\n"
+-);
+- puts(
+ "\n"
+ "  They should be set for protocol-specific proxies. General proxy should be\n"
+ "  set with\n"
+ "        \n"
+ "        ALL_PROXY\n"
+ "\n"
+ "  A comma-separated list of host names that shouldn't go through any proxy is\n"
+ "  set in (only an asterisk, '*' matches all hosts)\n"
+ "\n"
+ "        NO_PROXY\n"
+ "\n"
+ "  If a tail substring of the domain-path for a host matches one of these\n"
++);
++ puts(
+ "  strings, transactions with that node will not be proxied.\n"
+ "\n"
+ "\n"
+ "  The usage of the -x/--proxy flag overrides the environment variables.\n"
+ "\n"
+ "NETRC\n"
+ "\n"
+ "  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
+ "  to specify name and password for commonly visited ftp sites in a file so\n"
+ "  that you don't have to type them in each time you visit those sites. You\n"
+ "  realize this is a big security risk if someone else gets hold of your\n"
++);
++ puts(
+ "  passwords, so therefor most unix programs won't read this file unless it is\n"
+ "  only readable by yourself (curl doesn't care though).\n"
+ "\n"
+ "  Curl supports .netrc files if told so (using the -n/--netrc option). This is\n"
+ "  not restricted to only ftp, but curl can use it for all protocols where\n"
+ "  authentication is used.\n"

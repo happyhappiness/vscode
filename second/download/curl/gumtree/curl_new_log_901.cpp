@@ -1,0 +1,15 @@
+fputs(
+"              If this option is used twice, the second time  will\n"
+"              again disable it.\n"
+"\n"
+"       --key <key>\n"
+"              (SSL)  Private key file name. Allows you to provide\n"
+"              your private key in this separate file.\n"
+"\n"
+"              If this option is used several times, the last  one\n"
+"              will be used.\n"
+"\n"
+"       --key-type <type>\n"
+"              (SSL)  Private  key  file  type. Specify which type\n"
+"              your --key provided private key is.  DER,  PEM  and\n"
+, stdout);

@@ -1,0 +1,25 @@
+"\n"
+"              TLS-SRP\n"
+"                     SRP  (Secure Remote Password) authentication is supported\n"
+, stdout);
+ fputs(
+"                     for TLS.\n"
+"              Metalink\n"
+"                     This curl supports Metalink (both version 3  and  4  (RFC\n"
+"                     5854)),  which  describes  mirrors and hashes.  curl will\n"
+"                     use mirrors for failover if there are errors (such as the\n"
+"                     file or server not being available).\n"
+"\n"
+"FILES\n"
+"       ~/.curlrc\n"
+"              Default config file, see -K, --config for details.\n"
+"\n"
+"ENVIRONMENT\n"
+, stdout);
+ fputs(
+"       The environment variables can be specified in lower case or upper case.\n"
+"       The lower case version has precedence. http_proxy is an exception as it\n"
+"       is only available in lower case.\n"
+"\n"
+"       Using  an  environment variable to set the proxy has the same effect as\n"
+"       using the --proxy option.\n"

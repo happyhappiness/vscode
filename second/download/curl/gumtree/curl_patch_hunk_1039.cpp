@@ -1,0 +1,18 @@
+ "UPLOADING\n"
+ "\n"
+ " FTP / FTPS / SFTP / SCP\n"
+ "\n"
+ "  Upload all data on stdin to a specified server:\n"
+ "\n"
+-"        curl -T - ftp://ftp.upload.com/myfile\n"
+-"\n"
+ , stdout);
+  fputs(
++"        curl -T - ftp://ftp.upload.com/myfile\n"
++"\n"
+ "  Upload data from a specified file, login with user and password:\n"
+ "\n"
+ "        curl -T uploadfile -u user:passwd ftp://ftp.upload.com/myfile\n"
+ "\n"
+ "  Upload a local file to the remote site, and use the local file name at the remote\n"
+ "  site too:\n"

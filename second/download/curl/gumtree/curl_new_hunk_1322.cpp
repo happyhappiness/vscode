@@ -1,0 +1,25 @@
+"                    specifies 300 bytes from offset 500(H)\n"
+"\n"
+"          100-199,500-599\n"
+"                    specifies two separate 100 bytes ranges(*)(H)\n"
+);
+ puts(
+"     (*) = NOTE that this will cause the server to reply with a\n"
+"     multipart response!\n"
+"\n"
+"     You should also be aware that many HTTP/1.1 servers do not\n"
+"     have this feature enabled, so that when you attempt to get a\n"
+"     range, you'll instead get the whole document.\n"
+"\n"
+"     FTP range downloads only support the simple syntax 'start-\n"
+"     stop' (optionally with one of the numbers omitted). It\n"
+"     depends on the non-RFC command SIZE.\n"
+"\n"
+);
+ puts(
+"     If this option is used serveral times, the last one will be\n"
+"     used.\n"
+"\n"
+"     -s/--silent\n"
+"          Silent mode. Don't show progress meter or error mes­\n"
+"          sages.  Makes Curl mute.\n"

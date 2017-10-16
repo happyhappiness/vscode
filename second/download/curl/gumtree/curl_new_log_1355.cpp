@@ -1,0 +1,15 @@
+fputs(
+"  To display the amount of bytes downloaded together with some text and an\n"
+"  ending newline:\n"
+"\n"
+"        curl -w 'We downloaded %{size_download} bytes\\n' www.download.com\n"
+"\n"
+"KERBEROS4 FTP TRANSFER\n"
+"\n"
+"  Curl supports kerberos4 for FTP transfers. You need the kerberos package\n"
+"  installed and used at curl build time for it to be used.\n"
+"\n"
+"  First, get the krb-ticket the normal way, like with the kauth tool. Then use\n"
+"  curl in way similar to:\n"
+"\n"
+, stdout);

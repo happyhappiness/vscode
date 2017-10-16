@@ -1,0 +1,16 @@
+puts(
+"  site, you need to specify the absolute file name:\n"
+"\n"
+"        curl ftp://user:passwd@my.site.com//README\n"
+"\n"
+"  (I.e with an extra slash in front of the file name.)\n"
+"\n"
+"FTP and firewalls\n"
+"\n"
+"  The FTP protocol requires one of the involved parties to open a second\n"
+"  connction as soon as data is about to get transfered. There are two ways to\n"
+"  do this.\n"
+"\n"
+"  The default way for curl is to issue the PASV command which causes the\n"
+"  server to open another port and await another connection performed by the\n"
+);

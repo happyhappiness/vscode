@@ -1,0 +1,17 @@
+puts(
+"              tiating with a remote SSL server.\n"
+"\n"
+"       -0/--http1.0\n"
+"              (HTTP) Forces curl to issue its requests using HTTP\n"
+"              1.0 instead of using its internally preferred: HTTP\n"
+"              1.1.\n"
+"\n"
+"       -#/--progress-bar\n"
+"              Make  curl  display  progress  information   as   a\n"
+"              progress bar instead of the default statistics.\n"
+"\n"
+"              If this option is used twice, the second will again\n"
+"              disable the progress bar.\n"
+"\n"
+"FILES\n"
+);

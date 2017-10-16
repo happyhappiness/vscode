@@ -1,0 +1,15 @@
+fputs(
+"  line parameter, like:\n"
+"\n"
+"        curl -q www.thatsite.com\n"
+"\n"
+"  Force curl to get and display a local help page in case it is invoked\n"
+"  without URL by making a config file similar to:\n"
+"\n"
+"        # default url to get\n"
+"        url = \"http://help.with.curl.com/curlhelp.html\"\n"
+"\n"
+"  You can specify another config file to be read by using the -K/--config\n"
+"  flag. If you set config file name to \"-\" it'll read the config from stdin,\n"
+"  which can be handy if you want to hide options from being visible in process\n"
+, stdout);
