@@ -1,0 +1,1 @@
+sqlite3_log(SQLITE_FULL, "MJ delete: %s", zMaster);

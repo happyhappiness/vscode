@@ -1,0 +1,1 @@
+sqlite3_log(SQLITE_NOMEM, "failed to allocate %u bytes of memory", nByte);

@@ -1,0 +1,1 @@
+memset(&d, 0, sizeof(d));

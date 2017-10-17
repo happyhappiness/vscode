@@ -1,0 +1,1 @@
+memset(aNew, 0, sizeof(*aNew));

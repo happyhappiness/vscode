@@ -1,0 +1,1 @@
+sqlite3_log(SQLITE_WARNING, "multiple links to file: %s", pFile->zPath);

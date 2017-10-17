@@ -1,0 +1,1 @@
+sqlite3StrICmp(zLeft, "lock_proxy_file");

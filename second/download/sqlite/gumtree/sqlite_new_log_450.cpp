@@ -1,0 +1,1 @@
+sqlite3_log(pParse->rc, "%s", *pzErrMsg);

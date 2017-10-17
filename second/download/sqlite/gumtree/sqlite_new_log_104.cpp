@@ -1,0 +1,1 @@
+localtime_s(&sLocal, &t);

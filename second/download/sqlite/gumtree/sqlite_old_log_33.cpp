@@ -1,0 +1,1 @@
+sqlite3_mprintf("%zNEAR/%d ", zBuf, pExpr->nNear);

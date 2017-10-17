@@ -1,0 +1,1 @@
+releaseLockInfo(pFile->pLock);

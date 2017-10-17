@@ -1,0 +1,1 @@
+assert( pParse->pVdbe );

@@ -1,0 +1,1 @@
+sqlite3ErrorWithMsg(db, rc, "database schema is locked: %s", zDb);

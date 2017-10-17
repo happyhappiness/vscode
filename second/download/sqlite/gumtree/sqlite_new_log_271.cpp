@@ -1,0 +1,1 @@
+sqlite3_mprintf("%z, 'c%d%q'", zContentCols, i, z);

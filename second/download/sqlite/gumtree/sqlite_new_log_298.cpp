@@ -1,0 +1,1 @@
+sqlite3_mprintf("%s_node", pRtree->zName);

@@ -1,0 +1,1 @@
+sqlite3Error(db, rc, "no such vfs: %s", zVfs);

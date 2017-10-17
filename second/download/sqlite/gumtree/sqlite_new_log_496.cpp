@@ -1,0 +1,1 @@
+sqlite3VdbeError(p, "string or blob too big");

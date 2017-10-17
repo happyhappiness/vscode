@@ -1,0 +1,1 @@
+sprintf(zBuf,"%s", (pPhrase->aToken[i].isPrefix?"+":""));

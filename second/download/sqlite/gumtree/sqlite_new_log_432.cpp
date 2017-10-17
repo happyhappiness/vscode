@@ -1,0 +1,1 @@
+notValid(pParse, pNC, "the \".\" operator", NC_IdxExpr);

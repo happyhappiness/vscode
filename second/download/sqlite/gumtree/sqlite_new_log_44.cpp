@@ -1,0 +1,1 @@
+sqlite3_column_blob(pRtree->pReadNode, 0);

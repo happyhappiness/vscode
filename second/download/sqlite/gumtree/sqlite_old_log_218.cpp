@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "cannot open %s column for writing", zFault);

@@ -1,0 +1,1 @@
+checkAppendMsg(pCheck, "Rowid %lld out of order", info.nKey);

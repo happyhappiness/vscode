@@ -1,0 +1,1 @@
+sqlite3_mprintf("docid INTEGER PRIMARY KEY");

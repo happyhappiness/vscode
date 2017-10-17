@@ -1,0 +1,1 @@
+sqlite3ErrorWithMsg(db, SQLITE_ERROR, "unknown database: %s", zDb);

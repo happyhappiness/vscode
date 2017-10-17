@@ -1,0 +1,1 @@
+assert( p->zErrMsg==0 );

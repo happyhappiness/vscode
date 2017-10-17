@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "name='%q'", pTab->zName);

@@ -1,0 +1,1 @@
+sqlite3MPrintf(p->db, "%s", sqlite3_errmsg(p->db));

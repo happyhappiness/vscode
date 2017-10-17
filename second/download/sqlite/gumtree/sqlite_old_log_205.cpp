@@ -1,0 +1,1 @@
+sqlite3_log(SQLITE_MISUSE, "API called with finalized prepared statement");

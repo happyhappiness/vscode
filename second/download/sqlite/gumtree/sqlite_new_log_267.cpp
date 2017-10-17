@@ -1,0 +1,1 @@
+sqlite3_mprintf("%Q, ", p->azColumn[0]);

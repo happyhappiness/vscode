@@ -1,0 +1,1 @@
+reportError(SQLITE_MISUSE, lineno, "misuse");

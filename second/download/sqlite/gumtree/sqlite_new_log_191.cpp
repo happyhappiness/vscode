@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "%s", pEList->a[i].zSpan);

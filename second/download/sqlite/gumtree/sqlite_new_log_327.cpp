@@ -1,0 +1,1 @@
+sqlite3ErrorWithMsg(db, SQLITE_ERROR, "destination database is in use");

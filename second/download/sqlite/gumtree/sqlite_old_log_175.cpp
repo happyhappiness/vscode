@@ -1,0 +1,1 @@
+corruptSchema(pData, argv[0], "invalid rootpage");

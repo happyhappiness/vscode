@@ -1,0 +1,1 @@
+checkAppendMsg(pCheck, zContext, "Failed to read ptrmap key=%d", iChild);

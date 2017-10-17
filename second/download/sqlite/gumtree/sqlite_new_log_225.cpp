@@ -1,0 +1,1 @@
+sqlite3SetString(&p->zErrMsg, db, "%s", pOp->p4.z);

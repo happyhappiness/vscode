@@ -1,0 +1,1 @@
+assert( (u32)(i+size)<=usableSize );

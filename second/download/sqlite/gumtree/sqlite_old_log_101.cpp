@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "name='%q' AND type='index'", pIndex->zName);

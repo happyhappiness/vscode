@@ -1,0 +1,1 @@
+sqlite3VdbeError(p, "%s", pOp->p4.z);

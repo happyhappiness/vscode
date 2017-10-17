@@ -1,0 +1,1 @@
+sqlite3_mprintf("%s", pFile->pVfs->zName);

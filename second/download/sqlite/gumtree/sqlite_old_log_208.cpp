@@ -1,0 +1,1 @@
+sqlite3VdbeError(p, sqlite3ErrStr(p->rc));

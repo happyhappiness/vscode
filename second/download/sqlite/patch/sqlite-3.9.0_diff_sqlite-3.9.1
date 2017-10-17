@@ -1,0 +1,81 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.0/manifest /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.1/manifest
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.0/manifest	2017-10-16 06:16:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.1/manifest	2017-10-16 19:50:12.000000000 +0800
+@@ -1,8 +1,8 @@
+-C In\sthe\squery\splanner,\sdo\snot\sconsider\sindex\sX\sto\sbe\sa\sproper\ssubset\sof\s\nindex\sY\sif\sX\sis\sa\scovering\sindex\sbut\sY\sis\snot.
+-D 2017-10-15T22:16:25.229
++C Improved\scomments,\sincluding\sa\stypo\sfix,\son\sthe\swhereLoopCheaperProperSubset()\nfunction.
++D 2017-10-16T11:50:12.951
+ F Makefile.in e016061b23e60ac9ec27c65cb577292b6bde0307ca55abd874ab3487b3b1beb2
+ F Makefile.linux-gcc 7bc79876b875010e8c8f9502eb935ca92aa3c434
+ F Makefile.msc 37740aba9c4bb359c627eadccf1cfd7be4f5f847078723777ea7763969e533b1
+ F README.md f5c87359573c4d255425e588a56554b50fdcc2afba4e017a2e02a43701456afd
+ F VERSION f81232df28e2d3ff049feefad5fbd5489cc33697f6bd2ecf61af7f0dde3b83d0
+ F aclocal.m4 a5c22d164aff7ed549d53a90fa56d56955281f50
+@@ -541,13 +541,13 @@
+ F src/vdbetrace.c 48e11ebe040c6b41d146abed2602e3d00d621d7ebe4eb29b0a0f1617fd3c2f6c
+ F src/vtab.c 0e4885495172e1bdf54b12cce23b395ac74ef5729031f15e1bc1e3e6b360ed1a
+ F src/vxworks.h d2988f4e5a61a4dfe82c6524dd3d6e4f2ce3cdb9
+ F src/wal.c 839db09792fead5052bb35e533fa485e134913d547d05b5f42e537b73e63f07a
+ F src/wal.h 8de5d2d3de0956d6f6cb48c83a4012d5f227b8fe940f3a349a4b7e85ebcb492a
+ F src/walker.c 3ccfa8637f95355bff61144e01a615b8ef26f79c312880848da73f03367da1e6
+-F src/where.c 248f0dc6085b37b4b2ccad2de06b90f1a48b1932403ab0ad9100a1f2a6990763
++F src/where.c d8c6d690c4b11f30211de073011fe19352364a6303ae053f45cb66f9576ba8a9
+ F src/whereInt.h 82c04c5075308abbac59180c8bad5ecb45b07453981f60a53f3c7dee21e1e971
+ F src/wherecode.c e8c2ece5843ea56e6c90277d421f2d628f3f7b7c976642369cc519f008e1d2b1
+ F src/whereexpr.c afcac9cccfc0fdaccbdda94034a398947b6dc47dbf821c1b496261722832a6a4
+ F test/8_3_names.test ebbb5cd36741350040fd28b432ceadf495be25b2
+ F test/affinity2.test a6d901b436328bd67a79b41bb0ac2663918fe3bd
+ F test/affinity3.test 6a101af2fc945ce2912f6fe54dd646018551710d
+@@ -1661,11 +1661,11 @@
+ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c
+ F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547
+ F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93
+ F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc
+ F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e
+ F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0
+-P ac8786f3f9f35cb6fa72c65f5ca41cc6659f4702cd29ab0c9dcf04d3d1189090
+-R 88b26813bcaf999746e4cf55503b4797
++P ee31c04353cd75ea4bbadee2994c30d3808b696a4f680187502d104902988a5d
++R 593b5394fda7f5c3a7e7e5312c0a0c37
+ U drh
+-Z fe6d8478e3f31cb2dfbec6ce858d4ad8
++Z d6213a58e95c0fa7e25d95c2efa3d8ac
+ # Remove this line to create a well-formed manifest.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.0/manifest.uuid /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.1/manifest.uuid
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.0/manifest.uuid	2017-10-16 06:16:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.1/manifest.uuid	2017-10-16 19:50:12.000000000 +0800
+@@ -1 +1 @@
+-ee31c04353cd75ea4bbadee2994c30d3808b696a4f680187502d104902988a5d
++700a3c694438ca6cca185d0097f24799e82717ef38cb47bd83666c80f0e3cb2f
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.0/src/where.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.1/src/where.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.0/src/where.c	2017-10-16 06:16:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/sqlite/repos/sqlite-3.9.1/src/where.c	2017-10-16 19:50:12.000000000 +0800
+@@ -1882,23 +1882,25 @@
+ }
+ 
+ /*
+ ** Return TRUE if all of the following are true:
+ **
+ **   (1)  X has the same or lower cost that Y
+-**   (2)  X users fewer WHERE clause terms than Y
++**   (2)  X uses fewer WHERE clause terms than Y
+ **   (3)  Every WHERE clause term used by X is also used by Y
+ **   (4)  X skips at least as many columns as Y
+ **   (5)  If X is a covering index, than Y is too
+ **
+ ** Conditions (2) and (3) mean that X is a "proper subset" of Y.
+ ** If X is a proper subset of Y then Y is a better choice and ought
+ ** to have a lower cost.  This routine returns TRUE when that cost 
+ ** relationship is inverted and needs to be adjusted.  Constraint (4)
+ ** was added because if X uses skip-scan less than Y it still might
+-** deserve a lower cost even if it is a proper subset of Y.
++** deserve a lower cost even if it is a proper subset of Y.  Constraint (5)
++** was added because a covering index probably deserves to have a lower cost
++** than a non-covering index even if it is a proper subset.
+ */
+ static int whereLoopCheaperProperSubset(
+   const WhereLoop *pX,       /* First WhereLoop to compare */
+   const WhereLoop *pY        /* Compare against this WhereLoop */
+ ){
+   int i, j;

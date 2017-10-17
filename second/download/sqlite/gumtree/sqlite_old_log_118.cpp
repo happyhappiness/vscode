@@ -1,0 +1,1 @@
+sqlite3_mprintf("unexpected %%00 in uri");

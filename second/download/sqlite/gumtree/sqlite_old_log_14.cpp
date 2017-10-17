@@ -1,0 +1,1 @@
+sqlite3_mprintf("illegal first argument to %s", zFunc);

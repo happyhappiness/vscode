@@ -1,0 +1,1 @@
+sqlite3_mprintf("unknown tokenizer: %s", spec->azTokenizer[0]);

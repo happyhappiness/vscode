@@ -1,0 +1,1 @@
+sqlite3_log(SQLITE_WARNING, "cannot fstat db file %s", pFile->zPath);

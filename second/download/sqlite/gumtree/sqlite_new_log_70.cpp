@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "cannot ATTACH database within transaction");

@@ -1,0 +1,1 @@
+reportError(SQLITE_CANTOPEN, lineno, "cannot open file");

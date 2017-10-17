@@ -1,0 +1,1 @@
+sqlite3MPrintf(p->db, "no such rowid: %lld", iRow);

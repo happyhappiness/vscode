@@ -1,0 +1,1 @@
+sqlite3Error(db, rc, (rc?"database is deadlocked":0));
