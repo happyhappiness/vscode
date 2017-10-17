@@ -12,12 +12,11 @@
 # REPOS = 'redis'
 
 # REPOS = 'httpd'
-# REPOS = 'redis'
 # REPOS = 'git'
-# REPOS = 'mutt'
+REPOS = 'mutt'
 # REPOS = 'rtorrent'
 # REPOS = 'curl'
-REPOS = 'sqlite'
+# REPOS = 'sqlite'
 
 """
 stroed file name prefix
