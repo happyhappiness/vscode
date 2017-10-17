@@ -126,7 +126,7 @@ def analyze_old_new(is_rebuild = False):
     total_log = 0
     # llvm_api = LLVM()
     # get ddg and cdg with joern
-    for record in islice(old_new_gumtree_records, 1, None):
+    for record in islice(old_new_gumtree_records, 18, None):
         if total_record % 10 == 0:
             print 'have dealed with %d record; %d log' %(total_record, total_log)
         total_record += 1

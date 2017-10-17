@@ -1,0 +1,1 @@
+checkAppendMsg(pCheck, "invalid page number %d", iPage);

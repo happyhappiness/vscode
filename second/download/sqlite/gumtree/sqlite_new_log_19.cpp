@@ -1,0 +1,1 @@
+sqlite3_mprintf("%s%s%Q", zSchema, zSep, azColumn[i]);

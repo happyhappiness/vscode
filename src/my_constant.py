@@ -16,7 +16,8 @@
 # REPOS = 'git'
 # REPOS = 'mutt'
 # REPOS = 'rtorrent'
-REPOS = 'curl'
+# REPOS = 'curl'
+REPOS = 'sqlite'
 
 """
 stroed file name prefix

@@ -1,0 +1,1 @@
+sqlite3_result_error(pCtx, "local time unavailable", -1);

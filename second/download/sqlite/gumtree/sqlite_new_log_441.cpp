@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "%.*z:%u", nName, zName, ++cnt);

@@ -1,0 +1,1 @@
+checkAppendMsg(pCheck, "free-page count in header is too small");

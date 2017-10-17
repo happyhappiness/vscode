@@ -1,0 +1,1 @@
+sprintf(zBuf, "NEAR/%d ", pExpr->nNear);

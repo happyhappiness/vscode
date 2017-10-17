@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "*** in database %s ***\n", db->aDb[i].zName);

@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "tbl_name='%q' AND type!='trigger'", p->zName);

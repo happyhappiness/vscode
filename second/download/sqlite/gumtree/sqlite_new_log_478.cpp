@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "%z: %s", p->zErrMsg, pOp->p4.z);

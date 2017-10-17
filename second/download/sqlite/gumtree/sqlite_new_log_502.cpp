@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "no such module: %s", zMod);

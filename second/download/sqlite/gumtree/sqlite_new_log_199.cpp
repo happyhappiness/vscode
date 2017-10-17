@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "-- TRIGGER %s", p->name);

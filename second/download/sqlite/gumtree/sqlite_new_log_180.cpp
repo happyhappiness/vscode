@@ -1,0 +1,1 @@
+lookupName(pParse, zDb, zTable, zColumn, pNC, pExpr);

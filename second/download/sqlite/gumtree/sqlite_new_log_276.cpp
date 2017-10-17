@@ -1,0 +1,1 @@
+sqlite3_mprintf("SELECT * FROM %Q.%Q", zDb, zTbl);

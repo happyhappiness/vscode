@@ -1,0 +1,1 @@
+sqlite3MPrintf(pParse->db, "type='trigger' AND (%s)", zWhere);

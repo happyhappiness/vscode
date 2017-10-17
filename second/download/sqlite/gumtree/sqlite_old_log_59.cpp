@@ -1,0 +1,1 @@
+sqlite3MPrintf(db, "%s%s", (zOutput?zOutput:""), zInput);

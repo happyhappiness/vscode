@@ -1,0 +1,1 @@
+sqlite3MPrintf(pParse->db, "USE TEMP B-TREE FOR %s", zUsage);
