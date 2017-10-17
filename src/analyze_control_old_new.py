@@ -62,6 +62,11 @@ def deal_log( log_record, gumtree, writer, total_log):
             if old_loc == '-1':
                 function = gumtree.get_function()
                 function_loc = gumtree.get_function_loc()
+    
+    # get edit word and feature [do not keep empty edition]
+    edit_words, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
+    # if edit_feature == [0]:
+    #     return total_log
     # write old and new log file as well as function file
     function_file_name = my_constant.SAVE_FUNCTION + str(total_log) + '.cpp'
     myUtil.save_file(function, function_file_name)
@@ -71,8 +76,6 @@ def deal_log( log_record, gumtree, writer, total_log):
     myUtil.save_file(new_log, new_log_file_name)
     log_record[my_constant.FETCH_LOG_OLD_LOG] = old_log
     log_record[my_constant.FETCH_LOG_NEW_LOG] = new_log
-    # get edit word and feature
-    edit_words, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
     writer.writerow(log_record + [old_log_file_name, new_log_file_name, function_file_name, function_loc, edit_words, json.dumps(edit_feature)])
     total_log += 1
 
@@ -140,6 +143,9 @@ def analyze_old_new(is_rebuild = False):
             if srcml.set_control_dependence():
                 check = srcml.get_control_info()
             variable = srcml.get_log_info()
+        # do not keep empty check(not diagnosis log)
+        if check == []:
+            continue
         # depended statement locations
         ddg_codes = set()
         ddg_locs = set()
