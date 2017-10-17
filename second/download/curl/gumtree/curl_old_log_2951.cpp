@@ -1,9 +1,12 @@
 fputs(
-"              Defines what to display on stdout after a completed and success‐\n"
-"              ful operation. The format is a string  that  may  contain  plain\n"
-"              text mixed with any number of variables. The string can be spec‐\n"
-"              ified as \"string\", to get read from a particular file you  spec‐\n"
-"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              size_request   The  total  amount of bytes that were sent in the\n"
+"                             HTTP request.\n"
 "\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download.\n"
+"\n"
+"              speed_upload   The  average  upload speed that curl measured for\n"
+"                             the complete upload.\n"
+"\n"
+"              content_type   The Content-Type of the  requested  document,  if\n"
 , stdout);

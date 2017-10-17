@@ -1,9 +1,12 @@
 fputs(
-"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              speed_upload   The  average  upload speed that curl measured for\n"
+"                             the complete upload.\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
-"              All variables are specified like %{variable_name} and to  output\n"
-"              a normal % you just write them like %%. You can output a newline\n"
+"              content_type   The Content-Type of the  requested  document,  if\n"
+"                             there was any.\n"
+"\n"
+"              num_connects   Number  of new connects made in the recent trans-\n"
+"                             fer. (Added in 7.12.3)\n"
+"\n"
+"              num_redirects  Number of redirects that  were  followed  in  the\n"
 , stdout);

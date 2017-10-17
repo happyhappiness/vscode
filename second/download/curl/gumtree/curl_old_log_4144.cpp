@@ -1,9 +1,11 @@
 fputs(
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the case if you can tunnel through the proxy, as done  with  the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
-"              time_pretransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer is just about  to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
+"              Starting  with 7.14.1, the proxy host can be specified the exact\n"
+"              same way as the proxy environment  variables,  include  protocol\n"
+"              prefix (http://) and embedded user + password.\n"
+"\n"
 , stdout);

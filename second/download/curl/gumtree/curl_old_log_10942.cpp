@@ -1,12 +1,8 @@
 fputs(
-"                             only enables http and https\n"
-"\n"
-"              --proto =http,https\n"
-"                             also only enables http and https\n"
-"\n"
-"              Unknown protocols produce a  warning.  This  allows  scripts  to\n"
-"              safely  rely on being able to disable potentially dangerous pro-\n"
-"              tocols, without relying upon support  for  that  protocol  being\n"
-"              built into curl to avoid an error.\n"
-"\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
+"              curl has changed the working directory, just before the transfer\n"
+"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
+"              ported for FTP). You may specify any number of commands. If  the\n"
+"              server returns failure for one of the commands, the entire oper-\n"
+"              ation will be aborted. You must send syntactically  correct  FTP\n"
 , stdout);

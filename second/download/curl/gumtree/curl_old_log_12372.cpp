@@ -1,11 +1,8 @@
 fputs(
-"              connection. Instead curl will re-use  the  same  IP  address  it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
-"\n"
-"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
-"              of PASV.\n"
-"\n"
-"       --ftp-pret\n"
-"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
-"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
+"              one  of  the  internal  ones curl would use, your externally set\n"
+"              header will be used instead of the internal one. This allows you\n"
+"              to  make  even  trickier  stuff than curl would normally do. You\n"
+"              should not replace internally set headers without  knowing  per-\n"
+"              fectly well what you're doing. Remove an internal header by giv-\n"
+"              ing a replacement without content  on  the  right  side  of  the\n"
 , stdout);

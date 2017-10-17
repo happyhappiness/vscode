@@ -1,11 +1,10 @@
 fputs(
-"              be encoded according to the URI standard.\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"       -G/--get\n"
-"              When  used,  this  option  will  make  all  data  specified with\n"
-"              -d/--data or --data-binary to be used  in  a  HTTP  GET  request\n"
-"              instead  of  the  POST request that otherwise would be used. The\n"
-"              data will be appended to the URL with a '?'  separator.\n"
-"\n"
-"              If used in combination with -I, the POST data  will  instead  be\n"
+"       -j/--junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
 , stdout);

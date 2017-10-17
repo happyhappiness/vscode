@@ -1,10 +1,9 @@
 fputs(
-"              requires that the proxy allows direct connect to the remote port\n"
-"              number curl wants to tunnel through to.\n"
+"              Metalink file (both version 3 and 4 (RFC  5854)  are  supported)\n"
+"              and  make use of the mirrors listed within for failover if there\n"
+"              are errors (such as the file or server not being available).  It\n"
+"              will  also  verify the hashe of the file after the download com-\n"
+"              pletes. The Metalink file itself is downloaded and processed  in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"       -P, --ftp-port <address>\n"
-"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
-"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
-"              practice,  curl  then  tells  the  server to connect back to the\n"
-"              client's specified address and port, while passive mode asks the\n"
 , stdout);

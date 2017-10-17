@@ -1,8 +1,11 @@
 fputs(
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied  on  the  same  config  file line, separated by whitespace,\n"
-"              colon, the equals sign or any combination thereof (however,  the\n"
-"              preferred  separator is the equals sign). If the parameter is to\n"
-"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
-"              quotes. Within double quotes, the following escape sequences are\n"
+"              If you also use the -Y/--speed-limit option,  that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l/--list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
+"              only  view.   Especially useful if you want to machine-parse the\n"
 , stdout);

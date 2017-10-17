@@ -1,11 +1,10 @@
 fputs(
-"              resume the transfer. It then uses the given  output/input  files\n"
-"              to figure that out.\n"
+"              make no difference.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o option,  curl  will  create\n"
-"              the  necessary  local directory hierarchy as needed. This option\n"
-"              creates the dirs mentioned with the -o option, nothing else.  If\n"
+"       --disable-eprt\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
+"              option, it will use PORT right away. EPRT and  LPRT  are  exten‐\n"
+"              sions  to the original FTP protocol, may not work on all servers\n"
 , stdout);

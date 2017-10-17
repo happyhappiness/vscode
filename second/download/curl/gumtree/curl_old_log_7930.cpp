@@ -1,10 +1,11 @@
 fputs(
-"                             tion  time  for  multiple redirections. (Added in\n"
-"                             7.12.3)\n"
+"              doing file lists with FTP.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the first byte was just about to be trans-\n"
-"                             ferred. This includes time_pretransfer  and  also\n"
-"                             the  time  the  server  needed  to  calculate the\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --xattr\n"
+"              When  saving  output  to a file, this option tells curl to store\n"
+"              certain file metadata in extened file attributes. Currently, the\n"
+"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
+"              content type is stored in the mime_type attribute. If  the  file\n"
 , stdout);

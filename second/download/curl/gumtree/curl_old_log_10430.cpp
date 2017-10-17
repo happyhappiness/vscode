@@ -1,1 +1,1 @@
-warnf(config, "Invalid output struct data for write callback\n");
+warnf(config, "curl_formadd failed!\n");

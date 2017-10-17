@@ -1,11 +1,9 @@
 fputs(
-"              only view.  Especially useful if you want to  machine-parse  the\n"
-"              contents  of  an  FTP  directory since the normal directory view\n"
-"              doesn't use a standard look or format.\n"
+"              you to a site to which  you'll  send  your  authentication  info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
-"              servers  list  only files in their response to NLST; they do not\n"
-"              include subdirectories and symbolic links.\n"
-"\n"
-"       -L, --location\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours due to slow networks or links going down.  Since\n"
 , stdout);

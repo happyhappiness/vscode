@@ -1,8 +1,11 @@
 fputs(
-"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L/--location option. The  file  format  of\n"
+"              curl operation won't fail or even report an error clearly. Using\n"
+"              -v will get a warning displayed, but that is  the  only  visible\n"
+"              feedback you get about this possibly lethal situation.\n"
+"\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
+"\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
 , stdout);

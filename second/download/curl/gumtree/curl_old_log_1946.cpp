@@ -1,10 +1,11 @@
 fputs(
-"              If  this  option is set more than once, the last one will be the\n"
-"              one that's used.\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              libcurl supports, and return the uncompressed document.  If this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
+"              Curl will report an error.\n"
 "\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and  use the most secure one the remote site claims it supports.\n"
-"              This is done by first doing a request and checking the response-\n"
-"              headers, thus inducing an extra network round-trip. This is used\n"
+"              If this option is used several times, each occurrence will  tog-\n"
+"              gle it on/off.\n"
+"\n"
+"       --connect-timeout <seconds>\n"
 , stdout);

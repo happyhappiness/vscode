@@ -1,11 +1,11 @@
 fputs(
-"              fied  on  the same config file line. If the parameter is to con-\n"
-"              tain white spaces, the parameter must be inclosed within quotes.\n"
-"              If  the  first  column  of a config line is a '#' character, the\n"
-"              rest of the line will be treated as a comment.\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              Specify the filename as '-' to make  curl  read  the  file  from\n"
-"              stdin.\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"              Note  that  to  be able to specify a URL in the config file, you\n"
+"       -m/--max-time <seconds>\n"
 , stdout);

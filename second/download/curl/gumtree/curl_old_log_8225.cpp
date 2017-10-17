@@ -1,11 +1,9 @@
 fputs(
-"              from  a file named 'foobar' would thus be done with --data @foo-\n"
-"              bar.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
-"\n"
-"              This option is handy to use when you want to store  the  headers\n"
-"              that  an  HTTP site sends to you. Cookies from the headers could\n"
-"              then be read in a  second  curl  invocation  by  using  the  -b,\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL) Tells curl to use the specified  client  certificate  file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col. The certificate must be in PEM  format.   If  the  optional\n"
+"              password  isn't  specified, it will be queried for on the termi-\n"
 , stdout);

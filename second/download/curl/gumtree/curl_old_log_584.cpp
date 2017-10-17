@@ -1,4 +1,11 @@
-puts(" -w/--write-out [format] What to output after completion\n"
-       " -x/--proxy <host[:port]>  Use proxy. (Default port is 1080)\n"
-       "    --random-file <file> File to use for reading random data from (SSL)\n"
-       " -X/--request <command> Specific request command to use");
+fputs(
+"              cookie.  It  is  supposedly  the  data   previously\n"
+"              received  from  the server in a \"Set-Cookie:\" line.\n"
+"              The data should be  in  the  format  \"NAME1=VALUE1;\n"
+"              NAME2=VALUE2\".\n"
+"\n"
+"              If no '=' letter is used in the line, it is treated\n"
+"              as a filename to  use  to  read  previously  stored\n"
+"              cookie  lines  from,  which  should be used in this\n"
+"              session if they match. Using this method also acti-\n"
+, stdout);

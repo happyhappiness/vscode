@@ -1,11 +1,11 @@
 fputs(
-"  with cookies). So that if a site sends cookies and a location, you can\n"
-"  use a non-existing file to trigger the cookie awareness like:\n"
+"  can also specify the long options without the dashes to make it more\n"
+"  readable. You can separate the options and the parameter with spaces, or\n"
+"  with = or :. Comments can be used within the file. If the first letter on a\n"
+"  line is a '#'-letter the rest of the line is treated as a comment.\n"
 "\n"
-"        curl -L -b empty.txt www.example.com\n"
+"  If you want the parameter to contain spaces, you must inclose the entire\n"
+"  parameter within double quotes (\"). Within those quotes, you specify a\n"
+"  quote as \\\".\n"
 "\n"
-"  The file to read cookies from must be formatted using plain HTTP headers OR\n"
-"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
-"  file contents.  In the above command, curl will parse the header and store\n"
-"  the cookies received from www.example.com.  curl will send to the server the\n"
 , stdout);

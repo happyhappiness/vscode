@@ -1,8 +1,10 @@
 fputs(
-"              and a 3XX response code), this option will make  curl  redo  the\n"
-"              request on the new place. If used together with -i, --include or\n"
-"              -I, --head, headers from all requested pages will be shown. When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --login-options <options>\n"
+"              Specify the login options to use during server authentication.\n"
+"\n"
+"              You can use the  login  options  to  specify  protocol  specific\n"
+"              options  that may be used during authentication. At present only\n"
+"              IMAP, POP3 and SMTP support login options. For more  information\n"
 , stdout);

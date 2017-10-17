@@ -1,10 +1,8 @@
 fputs(
-"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
-"              passive  mode  will  not initiate the shutdown, but instead wait\n"
-"              for the server to do it, and will not reply to the shutdown from\n"
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
-"\n"
-"       -F/--form <name=content>\n"
-"              (HTTP) This lets curl emulate a filled in form in which  a  user\n"
+"              (HTTP)  Extra  header  to  use  when getting a web page. You may\n"
+"              specify any number of extra headers. Note that if you should add\n"
+"              a  custom  header  that has the same name as one of the internal\n"
+"              ones curl would use, your externally set  header  will  be  used\n"
+"              instead of the internal one. This allows you to make even trick-\n"
+"              ier stuff than curl would normally do. You  should  not  replace\n"
 , stdout);

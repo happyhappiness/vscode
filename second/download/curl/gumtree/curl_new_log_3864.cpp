@@ -1,11 +1,10 @@
 fputs(
-"              ever  should  get  hurt  by attempting to reuse SSL session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require  you to disable this in order for you to succeed. (Added\n"
-"              in 7.16.0)\n"
+"              When  an HTTP proxy is used (-x/--proxy), this option will cause\n"
+"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
+"              instead  of merely using it to do HTTP-like operations. The tun-\n"
+"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
-"\n"
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
+"       --pubkey <key>\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              tion that prevents the password from being sent over the wire in\n"
+"              clear  text.  Use this in combination with the normal -u, --user\n"
+"              option to set user name and password. See also --ntlm, --negoti-\n"
+"              ate and --anyauth for related options.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
-"              the data from stdin.  The contents of the file must  already  be\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference.\n"
+"\n"
+"       --disable-eprt\n"
 , stdout);

@@ -1,9 +1,8 @@
 fputs(
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
-"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
-"              curl to make SSL-connections much more  efficiently  than  using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
-"\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
 , stdout);

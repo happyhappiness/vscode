@@ -1,0 +1,17 @@
+puts(
+"     49   Malformed telnet option.\n"
+"\n"
+"     51   The remote peer's SSL certificate wasn't ok\n"
+"\n"
+"     52   The server didn't reply anything, which here is consid�\n"
+"          ered an error.\n"
+"\n"
+"     XX   There  will  appear  more  error  codes  here in future\n"
+"          releases. The existing ones are meant to never  change.\n"
+"\n"
+"BUGS\n"
+"     If you do find bugs, mail them to curl-bug@haxx.se.\n"
+"\n"
+"AUTHORS / CONTRIBUTORS\n"
+"     Daniel  Stenberg  is  the main author, but the whole list of\n"
+);

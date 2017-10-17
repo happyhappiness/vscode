@@ -1,10 +1,12 @@
 fputs(
-"              filled  in an HTML form and presses the submit button. This will\n"
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
-"              -d,  --data  is  the  same  as --data-ascii. To post data purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates on the file \"normally\"  (like  in  the  multicwd\n"
+"                     case).  This  is  somewhat  more standards compliant than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
+"       (Added in 7.15.1)\n"
 "\n"
 , stdout);

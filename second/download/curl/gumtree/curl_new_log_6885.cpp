@@ -1,11 +1,11 @@
 fputs(
-"              is not very common. Use -V, --version to  see  if  your  version\n"
-"              supports GSS-Negotiate.\n"
+"              (Only  the file part of the remote file is used, the path is cut\n"
+"              off.)\n"
 "\n"
-"              When  using this option, you must also provide a fake -u, --user\n"
-"              option to activate the authentication code properly.  Sending  a\n"
-"              '-u  :'  is  enough  as  the  user name and password from the -u\n"
-"              option aren't actually used.\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
 "\n"
-"              If this option is used several times, the following  occurrences\n"
+"              Consequentially,  the  file will be saved in the current working\n"
+"              directory. If you want the file saved in a different  directory,\n"
+"              make sure you change current working directory before you invoke\n"
 , stdout);

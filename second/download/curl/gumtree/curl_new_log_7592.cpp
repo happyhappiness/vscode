@@ -1,12 +1,9 @@
 fputs(
-"              If you think this option still doesn't give you enough  details,\n"
-"              consider using --trace or --trace-ascii instead.\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
 "\n"
-"              This option overrides previous uses of --trace-ascii or --trace.\n"
-"\n"
-"              Use -s, --silent to make curl quiet.\n"
-"\n"
-"       -w, --write-out <format>\n"
-"              Defines what to display on stdout after a completed and success-\n"
-"              ful operation. The format is a string  that  may  contain  plain\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
+"                             steps  include  name lookup, connect, pretransfer\n"
+"                             and transfer before  the  final  transaction  was\n"
+"                             started.  time_redirect shows the complete execu-\n"
 , stdout);

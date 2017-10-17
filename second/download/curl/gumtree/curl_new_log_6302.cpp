@@ -1,11 +1,9 @@
 fputs(
-"              NOTE If the cookie jar can't be created or written to, the whole\n"
-"              curl operation won't fail or even report an error clearly. Using\n"
-"              -v will get a warning displayed, but that is  the  only  visible\n"
-"              feedback you get about this possibly lethal situation.\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
-"\n"
-"       -C, --continue-at <offset>\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
+"              the data from stdin.  The contents of the file must  already  be\n"
 , stdout);

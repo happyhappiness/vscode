@@ -1,11 +1,10 @@
 fputs(
-"              Since  curl 7.19.0, --eprt can be used to explicitly enable EPRT\n"
-"              again and --no-eprt is an alias for --disable-eprt.\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the CA certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
 "\n"
-"              Disabling EPRT only changes the active behavior. If you want  to\n"
-"              switch  to  passive  mode  you  need to not use -P/--ftp-port or\n"
-"              force it with --ftp-pasv.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --disable-epsv\n"
-"              (FTP) Tell curl to disable the use  of  the  EPSV  command  when\n"
 , stdout);

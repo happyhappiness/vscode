@@ -1,11 +1,11 @@
 fputs(
-"  addresses can also be specified directly in URLs using the syntax:\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped  counted from the beginning of the source file before it\n"
+"              is transferred to the destination.  If used  with  uploads,  the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"    http://[2001:1890:1112:1::20]/overview.html\n"
+"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
+"              resume the transfer. It then uses the given  output/input  files\n"
+"              to figure that out.\n"
 "\n"
-"  When this style is used, the -g option must be given to stop curl from\n"
-"  interpreting the square brackets as special globbing characters.  Link local\n"
-"  and site local addresses including a scope identifier, such as fe80::1234%1,\n"
-"  may also be used, but the scope portion must be numeric and the percent\n"
-"  character must be URL escaped. The previous example in an SFTP URL might\n"
 , stdout);

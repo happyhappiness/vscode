@@ -1,10 +1,10 @@
 fputs(
-"              and the embedded user + password.\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The first line includes the full version of  curl,  libcurl  and\n"
+"              other 3rd party libraries linked with the executable.\n"
 "\n"
-"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
-"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
-"              socks4://,  socks4a://,  socks5://  or socks5h:// to request the\n"
-"              specific SOCKS  version  to  be  used.  No  protocol  specified,\n"
-"              http:// and all others will be treated as HTTP proxies.\n"
+"              The  second  line (starts with \"Protocols:\") shows all protocols\n"
+"              that libcurl reports to support.\n"
 "\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

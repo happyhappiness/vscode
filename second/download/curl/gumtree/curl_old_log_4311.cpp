@@ -1,10 +1,10 @@
 fputs(
-"              nsspem.so) is available then PEM files may be loaded.\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
+"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL) Tells curl to use the specified certificate  directory  to\n"
-"              verify the peer. The certificates must be in PEM format, and the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
 , stdout);

@@ -1,8 +1,10 @@
 fputs(
-"       -Q/--quote <command>\n"
-"              (FTP/SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
-"              server.  Quote commands are sent BEFORE the transfer takes place\n"
-"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
-"              exact). To make commands take place after a successful transfer,\n"
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection. This option is meaningful only when using -L/--location\n"
+"              (Added in 7.19.1)\n"
+"\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
 , stdout);

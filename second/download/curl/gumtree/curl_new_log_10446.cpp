@@ -1,1 +1,2 @@
-warnf(global, "Failed to open %s!\n", nextarg);
+warnf(global,
+              "--include and --remote-header-name cannot be combined.\n");

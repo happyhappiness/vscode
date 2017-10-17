@@ -1,11 +1,11 @@
 fputs(
-"              --location is used, this option can be used to prevent curl from\n"
-"              following  redirections  \"in absurdum\". By default, the limit is\n"
-"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
-"              less.\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation method. For more information see IETF draft draft-brezak-\n"
+"              spnego-http-04.txt.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If  you  want to enable Negotiate for your proxy authentication,\n"
+"              then use --proxy-negotiate.\n"
 "\n"
-"       --metalink\n"
-"              This  option  can  tell curl to parse and process a given URI as\n"
+"              This option requires a library built with GSSAPI  support.  This\n"
 , stdout);

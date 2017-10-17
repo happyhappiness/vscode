@@ -1,8 +1,11 @@
 fputs(
-"              request on the new place. If used together with -i/--include  or\n"
-"              -I/--head,  headers from all requested pages will be shown. When\n"
-"              authentication is used, curl only sends its credentials  to  the\n"
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
-"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              cation  methods.  For  more  information  see  IETF draft draft-\n"
+"              brezak-spnego-http-04.txt.\n"
+"\n"
+"              This option requires that the library was built with GSSAPI sup-\n"
+"              port.  This  is not very common. Use -V/--version to see if your\n"
+"              version supports GSS-Negotiate.\n"
+"\n"
+"              When using this option, you must also provide a  fake  -u/--user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
 , stdout);

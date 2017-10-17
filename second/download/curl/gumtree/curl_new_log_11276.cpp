@@ -1,9 +1,11 @@
 fputs(
-"              When used, this option will make all  data  specified  with  -d,\n"
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
-"              used. The data will be appended to the URL with a '?' separator.\n"
-"              If  used  in  combination with -I, the POST data will instead be\n"
-"              appended to the URL with a HEAD request.\n"
+"              The default service name for a socks server is rcmd/server-fqdn.\n"
+"              This option allows you to change it.\n"
+"\n"
+"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
+"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
+"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
+"              where the proxy-name does not match the principal name.   (Added\n"
+"              in 7.19.4).\n"
 "\n"
 , stdout);

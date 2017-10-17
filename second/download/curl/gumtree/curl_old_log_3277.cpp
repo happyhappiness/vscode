@@ -1,11 +1,9 @@
 fputs(
-"              input. No cookies will be stored in the file. To store  cookies,\n"
-"              use  the  -c/--cookie-jar option or you could even save the HTTP\n"
-"              headers to a file using -D/--dump-header!\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped  counted from the beginning of the source file before it\n"
+"              is transferred to the destination.  If used  with  uploads,  the\n"
+"              ftp server command SIZE will not be used by curl.\n"
 "\n"
-"              If this option is set more than once, the last one will  be  the\n"
-"              one that’s used.\n"
-"\n"
-"       -B/--use-ascii\n"
-"              Enable  ASCII transfer when using FTP or LDAP. For FTP, this can\n"
+"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
 , stdout);

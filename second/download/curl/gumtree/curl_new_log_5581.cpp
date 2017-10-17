@@ -1,11 +1,10 @@
 fputs(
-"              rection. This option is meaningful only when using -L/--location\n"
-"              (Added in 7.19.1)\n"
+"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
+"              instead  of merely using it to do HTTP-like operations. The tun-\n"
+"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"       --proto <protocols>\n"
-"              Tells   curl  to  use  the  listed  protocols  for  its  initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated,  and  are each a protocol name or 'all', optionally pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
-"\n"
+"       --pubkey <key>\n"
+"              (SSH) Public key file name. Allows you to  provide  your  public\n"
 , stdout);

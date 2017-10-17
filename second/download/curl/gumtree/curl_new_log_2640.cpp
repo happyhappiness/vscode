@@ -1,9 +1,12 @@
 fputs(
-"              content-type   application/x-www-form-urlencoded.   Compare   to\n"
-"              -F/--form.  If  this  option  is used more than once on the same\n"
-"              command line, the data pieces specified will be merged  together\n"
-"              with  a  separating  &-letter.  Thus,  using  ’-d name=daniel -d\n"
-"              skill=lousy’  would  generate  a  post  chunk  that  looks  like\n"
-"              ’name=daniel&skill=lousy’.\n"
+"              option!  The  -c/--cookie-jar  option is however a better way to\n"
+"              store cookies.\n"
 "\n"
+"              When used on FTP, the ftp server response lines  are  considered\n"
+"              being \"headers\" and thus are saved there.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -e/--referer <URL>\n"
+"              (HTTP) Sends the \"Referer Page\" information to the HTTP  server.\n"
 , stdout);

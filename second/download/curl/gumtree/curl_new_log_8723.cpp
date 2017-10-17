@@ -1,10 +1,10 @@
 fputs(
-"              POST  requests  into GET requests when following a 303 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.26.0)\n"
+"              config  file will not be read and used. See the -K, --config for\n"
+"              details on the default config file search path.\n"
 "\n"
-"       --proto <protocols>\n"
+"       -Q, --quote <command>\n"
+"              (FTP/SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
+"              server.  Quote commands are sent BEFORE the transfer takes place\n"
+"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
+"              exact). To make commands take place after a successful transfer,\n"
 , stdout);

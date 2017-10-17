@@ -1,10 +1,11 @@
 fputs(
-"              valid email address to send the mail to. (Added in 7.20.0)\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
-"              recipient should be specified as the user name or user name  and\n"
-"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"       --netrc-file\n"
+"              This option is similar to --netrc, except that you  provide  the\n"
+"              path  (absolute  or relative) to the netrc file that Curl should\n"
+"              use.  You can only specify one netrc  file  per  invocation.  If\n"
+"              several  --netrc-file  options  are  provided, only the last one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient should be specified using the mailing list  name,  such  as\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              -      make  curl  pick the same IP address that is already used\n"
-"                     for the control connection\n"
+"              note  that  If  --metalink  and  --include  are  used  together,\n"
+"              --include  will be ignored. This is because including headers in\n"
+"              the response will break Metalink parser and if the  headers  are\n"
+"              included in the file described in Metalink file, hash check will\n"
+"              fail.\n"
 "\n"
-"       If this option is used several times, the last one will be  used.  Dis-\n"
-"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
-"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
-"       PORT++.\n"
+"              (Added in 7.27.0, if built against the libmetalink library.)\n"
 "\n"
-"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
+"       -n, --netrc\n"
 , stdout);

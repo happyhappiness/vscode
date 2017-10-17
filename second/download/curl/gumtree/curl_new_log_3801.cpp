@@ -1,11 +1,10 @@
 fputs(
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
+"              multicwd\n"
+"                     curl  does  a  single CWD operation for each path part in\n"
+"                     the given URL. For deep hierarchies this means very  many\n"
+"                     commands.  This  is  how  RFC1738 says it should be done.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
-"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
-"              if  that  is set, and uses the given path as a path to a CA cert\n"
-"              bundle. This option overrides that variable.\n"
-"\n"
-"              The windows version of curl will automatically  look  for  a  CA\n"
-"              certs  file  named  'curl-ca-bundle.crt',  either  in  the  same\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
 , stdout);

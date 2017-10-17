@@ -1,10 +1,12 @@
 fputs(
-"              This option can be used multiple times.\n"
+"              is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              location following.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"       --max-filesize <bytes>\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
+"\n"
 , stdout);

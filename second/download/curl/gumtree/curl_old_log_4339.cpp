@@ -1,11 +1,9 @@
 fputs(
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k/--insecure is used.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
-"\n"
-"       --keepalive-time <seconds>\n"
-"              This option sets the time a  connection  needs  to  remain  idle\n"
-"              before  sending keepalive probes and the time between individual\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
 , stdout);

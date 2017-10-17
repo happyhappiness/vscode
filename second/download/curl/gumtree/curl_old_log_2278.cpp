@@ -1,8 +1,10 @@
 fputs(
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied on the same config file line. If the parameter is  to  con-\n"
-"              tain white spaces, the parameter must be enclosed within quotes.\n"
-"              If the first column of a config line is  a  '#'  character,  the\n"
+"              resource  that  will  be  busy at times so setting this range to\n"
+"              something too narrow might cause  unnecessary  connection  setup\n"
+"              failures. (Added in 7.15.2)\n"
+"\n"
+"       -L/--location\n"
+"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
+"              moved to a different location (indicated with a Location: header\n"
+"              and  a  3XX  response  code) this option will make curl redo the\n"
 , stdout);

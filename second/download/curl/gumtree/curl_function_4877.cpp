@@ -72,59 +72,63 @@ void hugehelp(void)
 "       ple, for host names starting with \"ftp.\" curl will assume you  want  to\n"
 "       speak FTP.\n"
 "\n"
+"       curl  will  do  its best to use what you pass to it as a URL. It is not\n"
+"       trying to validate it as a syntactically correct URL by any  means  but\n"
+"       is instead very liberal with what it accepts.\n"
+"\n"
 "       Curl will attempt to re-use connections for multiple file transfers, so\n"
 "       that getting many files from the same server will not do multiple  con-\n"
+, stdout);
+ fputs(
 "       nects / handshakes. This improves speed. Of course this is only done on\n"
 "       files specified on a single command line and  cannot  be  used  between\n"
 "       separate curl invokes.\n"
 "\n"
 "PROGRESS METER\n"
-, stdout);
- fputs(
 "       curl  normally  displays a progress meter during operations, indicating\n"
 "       the amount of transferred data,  transfer  speeds  and  estimated  time\n"
 "       left, etc.\n"
 "\n"
 "       However,  since  curl displays this data to the terminal by default, if\n"
+, stdout);
+ fputs(
 "       you invoke curl to do an operation and it is about to write data to the\n"
 "       terminal,  it disables the progress meter as otherwise it would mess up\n"
 "       the output mixing progress meter and response data.\n"
 "\n"
-, stdout);
- fputs(
 "       If you want a progress meter for HTTP POST or PUT requests, you need to\n"
 "       redirect  the  response  output to a file, using shell redirect (>), -o\n"
 "       [file] or similar.\n"
 "\n"
 "       It is not the same case for FTP upload as that operation does not  spit\n"
+, stdout);
+ fputs(
 "       out any response data to the terminal.\n"
 "\n"
 "       If you prefer a progress \"bar\" instead of the regular meter, -# is your\n"
 "       friend.\n"
 "OPTIONS\n"
 "       In general, all boolean options are enabled with --option and yet again\n"
-, stdout);
- fputs(
 "       disabled  with --no-option. That is, you use the exact same option name\n"
 "       but prefix it with \"no-\". However, in this list we mostly only list and\n"
 "       show  the --option version of them. (This concept with --no options was\n"
+, stdout);
+ fputs(
 "       added in  7.19.0.  Previously  most  options  were  toggled  on/off  on\n"
 "       repeated use of the same command line option.)\n"
 "\n"
 "       -a/--append\n"
 "              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
-, stdout);
- fputs(
 "              to the target file  instead  of  overwriting  it.  If  the  file\n"
 "              doesn't  exist,  it  will  be  created.   Note that this flag is\n"
 "              ignored by some SSH servers (including OpenSSH).\n"
 "\n"
 "       -A/--user-agent <agent string>\n"
+, stdout);
+ fputs(
 "              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
 "              Some   badly   done  CGIs  fail  if  this  field  isn't  set  to\n"
 "              \"Mozilla/4.0\". To encode blanks  in  the  string,  surround  the\n"
-, stdout);
- fputs(
 "              string  with  single  quote marks. This can also be set with the\n"
 "              -H/--header option of course.\n"
 "\n"
@@ -132,97 +136,99 @@ void hugehelp(void)
 "              one that's used.\n"
 "\n"
 "       --anyauth\n"
+, stdout);
+ fputs(
 "              (HTTP) Tells curl to figure out authentication method by itself,\n"
 "              and use the most secure one the remote site claims  to  support.\n"
 "              This is done by first doing a request and checking the response-\n"
-, stdout);
- fputs(
 "              headers, thus possibly inducing  an  extra  network  round-trip.\n"
 "              This  is  used  instead  of  setting  a  specific authentication\n"
 "              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
+, stdout);
+ fputs(
 "              --negotiate.\n"
 "\n"
 "              Note  that  using --anyauth is not recommended if you do uploads\n"
 "              from stdin, since it may require data to be sent twice and  then\n"
-, stdout);
- fputs(
 "              the client must be able to rewind. If the need should arise when\n"
 "              uploading from stdin, the upload operation will fail.\n"
 "\n"
 "       -b/--cookie <name=data>\n"
 "              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
+, stdout);
+ fputs(
 "              posedly  the data previously received from the server in a \"Set-\n"
 "              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
 "              NAME2=VALUE2\".\n"
 "\n"
-, stdout);
- fputs(
 "              If  no  '=' symbol is used in the line, it is treated as a file-\n"
 "              name to use to read previously stored cookie lines  from,  which\n"
 "              should  be used in this session if they match. Using this method\n"
+, stdout);
+ fputs(
 "              also activates the \"cookie parser\" which will make  curl  record\n"
 "              incoming cookies too, which may be handy if you're using this in\n"
 "              combination with the -L/--location option. The  file  format  of\n"
-, stdout);
- fputs(
 "              the  file  to  read cookies from should be plain HTTP headers or\n"
 "              the Netscape/Mozilla cookie file format.\n"
 "\n"
 "              NOTE that the file specified with -b/--cookie is  only  used  as\n"
+, stdout);
+ fputs(
 "              input.  No cookies will be stored in the file. To store cookies,\n"
 "              use the -c/--cookie-jar option or you could even save  the  HTTP\n"
 "              headers to a file using -D/--dump-header!\n"
 "\n"
-, stdout);
- fputs(
 "              If  this  option is set more than once, the last one will be the\n"
 "              one that's used.\n"
 "\n"
 "       -B/--use-ascii\n"
 "              Enable ASCII transfer when using FTP or LDAP. For FTP, this  can\n"
+, stdout);
+ fputs(
 "              also  be enforced by using an URL that ends with \";type=A\". This\n"
 "              option causes data sent to stdout to be in text mode  for  win32\n"
 "              systems.\n"
 "\n"
 "       --basic\n"
 "              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
-, stdout);
- fputs(
 "              default and this option is usually pointless, unless you use  it\n"
 "              to  override  a  previously  set  option  that  sets a different\n"
+, stdout);
+ fputs(
 "              authentication method (such as --ntlm,  --digest,  or  --negoti-\n"
 "              ate).\n"
 "\n"
 "       --ciphers <list of ciphers>\n"
 "              (SSL) Specifies which ciphers to use in the connection. The list\n"
 "              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
-, stdout);
- fputs(
 "              list           details           on           this          URL:\n"
 "              http://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
+, stdout);
+ fputs(
 "              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
 "              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
 "              URL: http://directory.fedora.redhat.com/docs/mod_nss.html#Direc-\n"
 "              tives\n"
 "\n"
 "              If this option is used several times, the last one will override\n"
-, stdout);
- fputs(
 "              the others.\n"
 "\n"
 "       --compressed\n"
 "              (HTTP) Request a compressed response using one of the algorithms\n"
+, stdout);
+ fputs(
 "              libcurl supports, and return the uncompressed document.  If this\n"
 "              option is used and the server  sends  an  unsupported  encoding,\n"
 "              curl will report an error.\n"
 "\n"
 "       --connect-timeout <seconds>\n"
 "              Maximum  time  in  seconds  that you allow the connection to the\n"
-, stdout);
- fputs(
 "              server to take.  This only limits  the  connection  phase,  once\n"
 "              curl  has  connected this option is of no more use. See also the\n"
+, stdout);
+ fputs(
 "              -m/--max-time option.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
@@ -230,19 +236,19 @@ void hugehelp(void)
 "       -c/--cookie-jar <file name>\n"
 "              Specify to which file you want curl to write all cookies after a\n"
 "              completed  operation.  Curl  writes  all cookies previously read\n"
-, stdout);
- fputs(
 "              from a specified file as  well  as  all  cookies  received  from\n"
 "              remote server(s). If no cookies are known, no file will be writ-\n"
+, stdout);
+ fputs(
 "              ten. The file will be written using  the  Netscape  cookie  file\n"
 "              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
 "              cookies will be written to stdout.\n"
 "\n"
 "              NOTE If the cookie jar can't be created or written to, the whole\n"
-, stdout);
- fputs(
 "              curl operation won't fail or even report an error clearly. Using\n"
 "              -v will get a warning displayed, but that is  the  only  visible\n"
+, stdout);
+ fputs(
 "              feedback you get about this possibly lethal situation.\n"
 "\n"
 "              If  this  option  is used several times, the last specified file\n"
@@ -250,10 +256,10 @@ void hugehelp(void)
 "\n"
 "       -C/--continue-at <offset>\n"
 "              Continue/Resume a previous file transfer at  the  given  offset.\n"
-, stdout);
- fputs(
 "              The  given  offset  is  the  exact  number of bytes that will be\n"
 "              skipped, counting from the beginning of the source  file  before\n"
+, stdout);
+ fputs(
 "              it is transferred to the destination.  If used with uploads, the\n"
 "              FTP server command SIZE will not be used by curl.\n"
 "\n"
@@ -261,82 +267,91 @@ void hugehelp(void)
 "              resume  the  transfer. It then uses the given output/input files\n"
 "              to figure that out.\n"
 "\n"
-, stdout);
- fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --create-dirs\n"
+, stdout);
+ fputs(
 "              When used in conjunction with the -o option,  curl  will  create\n"
 "              the  necessary  local directory hierarchy as needed. This option\n"
 "              creates the dirs mentioned with the -o option, nothing else.  If\n"
 "              the  -o file name uses no dir or if the dirs it mentions already\n"
 "              exist, no dir will be created.\n"
 "\n"
-, stdout);
- fputs(
 "              To create remote directories when using FTP or SFTP, try  --ftp-\n"
 "              create-dirs.\n"
 "\n"
+, stdout);
+ fputs(
 "       --crlf (FTP) Convert LF to CRLF in upload. Useful for MVS (OS/390).\n"
 "\n"
+"       --crlfile <file>\n"
+"              (HTTPS/FTPS)  Provide a file using PEM format with a Certificate\n"
+"              Revocation List that may specify peer certificates that  are  to\n"
+"              be considered revoked.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              (Added in 7.19.7)\n"
+"\n"
 "       -d/--data <data>\n"
+, stdout);
+ fputs(
 "              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
 "              server, in the same way that a browser  does  when  a  user  has\n"
 "              filled  in an HTML form and presses the submit button. This will\n"
-, stdout);
- fputs(
 "              cause curl to pass the data to the server using the content-type\n"
 "              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
 "\n"
 "              -d/--data  is  the  same  as  --data-ascii.  To post data purely\n"
+, stdout);
+ fputs(
 "              binary, you should instead use the --data-binary option. To URL-\n"
 "              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
 "              If  any of these options is used more than once on the same com-\n"
-, stdout);
- fputs(
 "              mand line, the data pieces specified  will  be  merged  together\n"
 "              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
 "              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+, stdout);
+ fputs(
 "              'name=daniel&skill=lousy'.\n"
 "\n"
 "              If  you  start  the data with the letter @, the rest should be a\n"
 "              file name to read the data from, or - if you want curl  to  read\n"
-, stdout);
- fputs(
 "              the  data  from stdin.  The contents of the file must already be\n"
 "              URL-encoded. Multiple files can also be specified. Posting  data\n"
 "              from  a file named 'foobar' would thus be done with --data @foo-\n"
 "              bar.\n"
 "\n"
 "       --data-binary <data>\n"
+, stdout);
+ fputs(
 "              (HTTP) This posts data exactly as specified with no  extra  pro-\n"
 "              cessing whatsoever.\n"
 "\n"
 "              If  you  start  the data with the letter @, the rest should be a\n"
-, stdout);
- fputs(
 "              filename.  Data is posted in a similar  manner  as  --data-ascii\n"
 "              does,  except  that  newlines  are preserved and conversions are\n"
 "              never done.\n"
 "\n"
 "              If this option is used several times,  the  ones  following  the\n"
+, stdout);
+ fputs(
 "              first will append data as described in -d/--data.\n"
 "\n"
 "       --data-urlencode <data>\n"
 "              (HTTP) This posts data, similar to the other --data options with\n"
-, stdout);
- fputs(
 "              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
 "              To be CGI-compliant, the <data> part should begin  with  a  name\n"
 "              followed  by a separator and a content specification. The <data>\n"
 "              part can be passed to curl using one of the following syntaxes:\n"
 "\n"
+, stdout);
+ fputs(
 "              content\n"
 "                     This will make curl URL-encode the content and pass  that\n"
 "                     on.  Just  be careful so that the content doesn't contain\n"
-, stdout);
- fputs(
 "                     any = or @ symbols, as that will  then  make  the  syntax\n"
 "                     match one of the other cases below!\n"
 "\n"
@@ -344,10 +359,10 @@ void hugehelp(void)
 "                     This  will make curl URL-encode the content and pass that\n"
 "                     on. The preceding = symbol is not included in the data.\n"
 "\n"
-"              name=content\n"
-"                     This will make curl URL-encode the content part and  pass\n"
 , stdout);
  fputs(
+"              name=content\n"
+"                     This will make curl URL-encode the content part and  pass\n"
 "                     that  on.  Note that the name part is expected to be URL-\n"
 "                     encoded already.\n"
 "\n"
@@ -357,9 +372,9 @@ void hugehelp(void)
 "                     it on in the POST.\n"
 "\n"
 "              name@filename\n"
-"                     This will  make  curl  load  data  from  the  given  file\n"
 , stdout);
  fputs(
+"                     This will  make  curl  load  data  from  the  given  file\n"
 "                     (including  any  newlines), URL-encode that data and pass\n"
 "                     it on in the POST. The  name  part  gets  an  equal  sign\n"
 "                     appended, resulting in name=urlencoded-file-content. Note\n"
@@ -367,9 +382,9 @@ void hugehelp(void)
 "\n"
 "       --digest\n"
 "              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
-"              tion that prevents the password from being sent over the wire in\n"
 , stdout);
  fputs(
+"              tion that prevents the password from being sent over the wire in\n"
 "              clear text. Use this in combination with  the  normal  -u/--user\n"
 "              option to set user name and password. See also --ntlm, --negoti-\n"
 "              ate and --anyauth for related options.\n"
@@ -378,18 +393,18 @@ void hugehelp(void)
 "              make no difference.\n"
 "\n"
 "       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
 , stdout);
  fputs(
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
 "              when doing active FTP transfers. Curl will normally always first\n"
 "              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
 "              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
 "              sions  to  the  original  FTP  protocol, and may not work on all\n"
 "              servers, but they enable more functionality in a better way than\n"
-"              the traditional PORT command.\n"
-"\n"
 , stdout);
  fputs(
+"              the traditional PORT command.\n"
+"\n"
 "              Since  curl 7.19.0, --eprt can be used to explicitly enable EPRT\n"
 "              again and --no-eprt is an alias for --disable-eprt.\n"
 "\n"
@@ -1554,13 +1569,13 @@ void hugehelp(void)
 "              determines the amount.\n"
 "\n"
 "       -s/--silent\n"
-"              Silent mode. Don't show progress meter or error messages.  Makes\n"
-"              Curl mute.\n"
+"              Silent  or  quiet  mode. Don't show progress meter or error mes-\n"
+"              sages.  Makes Curl mute.\n"
 "\n"
 "       -S/--show-error\n"
-"              When used with -s it makes curl show  an  error  message  if  it\n"
 , stdout);
  fputs(
+"              When used with -s it makes curl show  an  error  message  if  it\n"
 "              fails.\n"
 "\n"
 "       --socks4 <host[:port]>\n"
@@ -1572,9 +1587,9 @@ void hugehelp(void)
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --socks4a <host[:port]>\n"
 , stdout);
  fputs(
+"       --socks4a <host[:port]>\n"
 "              Use the specified SOCKS4a proxy. If the port number is not spec-\n"
 "              ified, it is assumed at port 1080. (Added in 7.18.0)\n"
 "\n"
@@ -1673,43 +1688,48 @@ void hugehelp(void)
 "              be used.\n"
 "\n"
 "              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
-"              given file.\n"
+"              given  file.   Alternately,  the file name \".\" (a single period)\n"
+"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
+"              mode  to  allow  reading  server  output  while  stdin  is being\n"
+"              uploaded.\n"
 "\n"
+, stdout);
+ fputs(
 "              You can specify one -T for each URL on the command line. Each -T\n"
 "              + URL pair specifies what to upload and to where. curl also sup-\n"
 "              ports \"globbing\" of the -T argument, meaning that you can upload\n"
-, stdout);
- fputs(
-"              multiple files to a single URL by using the  same  URL  globbing\n"
+"              multiple  files  to  a single URL by using the same URL globbing\n"
 "              style supported in the URL, like this:\n"
 "\n"
 "              curl -T \"{file1,file2}\" http://www.uploadtothissite.com\n"
 "\n"
 "              or even\n"
 "\n"
+, stdout);
+ fputs(
 "              curl -T \"img[1-1000].png\" ftp://ftp.picturemania.com/upload/\n"
 "\n"
 "       --trace <file>\n"
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-, stdout);
- fputs(
-"              \"-\" as filename to have the output sent to stdout.\n"
-"\n"
-"              This  option overrides previous uses of -v/--verbose or --trace-\n"
-"              ascii.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
 "              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
 "              including descriptive information, to the given output file. Use\n"
 "              \"-\" as filename to have the output sent to stdout.\n"
+"\n"
+"              This option overrides previous uses of -v/--verbose or  --trace-\n"
+"              ascii.\n"
+"\n"
 , stdout);
  fputs(
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --trace-ascii <file>\n"
+"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
 "              This is very similar to --trace, but leaves out the hex part and\n"
-"              only  shows  the ASCII part of the dump. It makes smaller output\n"
+"              only shows the ASCII part of the dump. It makes  smaller  output\n"
+, stdout);
+ fputs(
 "              that might be easier to read for untrained humans.\n"
 "\n"
 "              This option overrides previous uses of -v/--verbose or --trace.\n"
@@ -1717,75 +1737,77 @@ void hugehelp(void)
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --trace-time\n"
-"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
-, stdout);
- fputs(
+"              Prepends  a  time  stamp to each trace or verbose line that curl\n"
 "              displays.  (Added in 7.14.0)\n"
 "\n"
 "       -u/--user <user:password>\n"
 "              Specify the user name and password to use for server authentica-\n"
-"              tion. Overrides -n/--netrc and --netrc-optional.\n"
-"\n"
-"              If you just give the user name (without entering a  colon)  curl\n"
-"              will prompt for a password.\n"
-"\n"
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
 , stdout);
  fputs(
-"              from  your  environment by simply specifying a single colon with\n"
+"              tion. Overrides -n/--netrc and --netrc-optional.\n"
+"\n"
+"              If  you  just give the user name (without entering a colon) curl\n"
+"              will prompt for a password.\n"
+"\n"
+"              If you use an SSPI-enabled curl binary and do  NTLM  authentica-\n"
+"              tion,  you  can force curl to pick up the user name and password\n"
+"              from your environment by simply specifying a single  colon  with\n"
 "              this option: \"-u :\".\n"
 "\n"
+, stdout);
+ fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       -U/--proxy-user <user:password>\n"
-"              Specify the user name and password to use for proxy  authentica-\n"
+"              Specify  the user name and password to use for proxy authentica-\n"
 "              tion.\n"
 "\n"
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
-, stdout);
- fputs(
-"              from  your  environment by simply specifying a single colon with\n"
+"              If you use an SSPI-enabled curl binary and do  NTLM  authentica-\n"
+"              tion,  you  can force curl to pick up the user name and password\n"
+"              from your environment by simply specifying a single  colon  with\n"
 "              this option: \"-U :\".\n"
 "\n"
+, stdout);
+ fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --url <URL>\n"
-"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
+"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
 "              want to specify URL(s) in a config file.\n"
 "\n"
-"              This  option  may  be used any number of times. To control where\n"
-, stdout);
- fputs(
+"              This option may be used any number of times.  To  control  where\n"
 "              this URL is written, use the -o/--output or the -O/--remote-name\n"
 "              options.\n"
 "\n"
 "       -v/--verbose\n"
-"              Makes  the  fetching  more  verbose/talkative. Mostly useful for\n"
-"              debugging. A line starting with '>' means \"header data\" sent  by\n"
+, stdout);
+ fputs(
+"              Makes the fetching more  verbose/talkative.  Mostly  useful  for\n"
+"              debugging.  A line starting with '>' means \"header data\" sent by\n"
 "              curl, '<' means \"header data\" received by curl that is hidden in\n"
 "              normal cases, and a line starting with '*' means additional info\n"
 "              provided by curl.\n"
 "\n"
-, stdout);
- fputs(
 "              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
 "              -i/--include might be the option you're looking for.\n"
 "\n"
-"              If you think this option still doesn't give you enough  details,\n"
+, stdout);
+ fputs(
+"              If  you think this option still doesn't give you enough details,\n"
 "              consider using --trace or --trace-ascii instead.\n"
 "\n"
 "              This option overrides previous uses of --trace-ascii or --trace.\n"
 "\n"
+"              Use -S/--silent to make curl quiet.\n"
+"\n"
 "       -V/--version\n"
 "              Displays information about curl and the libcurl version it uses.\n"
+"              The first line includes the full version of  curl,  libcurl  and\n"
 , stdout);
  fputs(
-"              The  first  line  includes the full version of curl, libcurl and\n"
 "              other 3rd party libraries linked with the executable.\n"
 "\n"
-"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
+"              The  second  line (starts with \"Protocols:\") shows all protocols\n"
 "              that libcurl reports to support.\n"
 "\n"
 "              The third line (starts with \"Features:\") shows specific features\n"
@@ -1793,13 +1815,13 @@ void hugehelp(void)
 "\n"
 "              IPv6   You can use IPv6 with this.\n"
 "\n"
-, stdout);
- fputs(
 "              krb4   Krb4 for FTP is supported.\n"
 "\n"
 "              SSL    HTTPS and FTPS are supported.\n"
 "\n"
-"              libz   Automatic decompression of compressed files over HTTP  is\n"
+, stdout);
+ fputs(
+"              libz   Automatic  decompression of compressed files over HTTP is\n"
 "                     supported.\n"
 "\n"
 "              NTLM   NTLM authentication is supported.\n"
@@ -1807,13 +1829,13 @@ void hugehelp(void)
 "              GSS-Negotiate\n"
 "                     Negotiate authentication and krb5 for FTP is supported.\n"
 "\n"
-"              Debug  This  curl  uses a libcurl built with Debug. This enables\n"
-, stdout);
- fputs(
-"                     more error-tracking and memory debugging etc.  For  curl-\n"
+"              Debug  This curl uses a libcurl built with Debug.  This  enables\n"
+"                     more  error-tracking  and memory debugging etc. For curl-\n"
 "                     developers only!\n"
 "\n"
 "              AsynchDNS\n"
+, stdout);
+ fputs(
 "                     This curl uses asynchronous name resolves.\n"
 "\n"
 "              SPNEGO SPNEGO Negotiate authentication is supported.\n"
@@ -1824,131 +1846,131 @@ void hugehelp(void)
 "\n"
 "              IDN    This curl supports IDN - international domain names.\n"
 "\n"
+"              SSPI   SSPI  is  supported. If you use NTLM and set a blank user\n"
 , stdout);
  fputs(
-"              SSPI   SSPI is supported. If you use NTLM and set a  blank  user\n"
-"                     name,  curl  will authenticate with your current user and\n"
+"                     name, curl will authenticate with your current  user  and\n"
 "                     password.\n"
 "\n"
 "       -w/--write-out <format>\n"
 "              Defines what to display on stdout after a completed and success-\n"
-"              ful  operation.  The  format  is a string that may contain plain\n"
+"              ful operation. The format is a string  that  may  contain  plain\n"
 "              text mixed with any number of variables. The string can be spec-\n"
+"              ified as \"string\", to get read from a particular file you  spec-\n"
 , stdout);
  fputs(
-"              ified  as \"string\", to get read from a particular file you spec-\n"
-"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
 "              stdin you write \"@-\".\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
-"              All  variables are specified as %{variable_name} and to output a\n"
+"              The variables present in the output format will  be  substituted\n"
+"              by  the  value or text that curl thinks fit, as described below.\n"
+"              All variables are specified as %{variable_name} and to output  a\n"
+"              normal  % you just write them as %%. You can output a newline by\n"
 , stdout);
  fputs(
-"              normal % you just write them as %%. You can output a newline  by\n"
 "              using \\n, a carriage return with \\r and a tab space with \\t.\n"
 "\n"
 "              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
-"              where all occurrences of %  must  be  doubled  when  using  this\n"
+"              where  all  occurrences  of  %  must  be doubled when using this\n"
 "              option.\n"
 "\n"
 "              The variables available at this point are:\n"
 "\n"
 "              url_effective  The URL that was fetched last. This is most mean-\n"
+"                             ingful  if  you've  told curl to follow location:\n"
 , stdout);
  fputs(
-"                             ingful if you've told curl  to  follow  location:\n"
 "                             headers.\n"
 "\n"
 "              http_code      The numerical response code that was found in the\n"
-"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
-"                             7.18.2  the alias response_code was added to show\n"
+"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
+"                             7.18.2 the alias response_code was added to  show\n"
 "                             the same info.\n"
 "\n"
-"              http_connect   The numerical code that was  found  in  the  last\n"
+"              http_connect   The  numerical  code  that  was found in the last\n"
+"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
 , stdout);
  fputs(
-"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
 "                             request. (Added in 7.12.4)\n"
 "\n"
-"              time_total     The total time, in seconds, that the full  opera-\n"
+"              time_total     The  total time, in seconds, that the full opera-\n"
 "                             tion lasted. The time will be displayed with mil-\n"
 "                             lisecond resolution.\n"
 "\n"
 "              time_namelookup\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-, stdout);
- fputs(
+"                             The  time,  in  seconds,  it  took from the start\n"
 "                             until the name resolving was completed.\n"
 "\n"
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the TCP connect  to  the  remote  host  (or\n"
+, stdout);
+ fputs(
+"              time_connect   The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  TCP  connect  to  the remote host (or\n"
 "                             proxy) was completed.\n"
 "\n"
 "              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
-, stdout);
- fputs(
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
 "                             remote host was completed. (Added in 7.19.0)\n"
 "\n"
+, stdout);
+ fputs(
 "              time_pretransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the file transfer was just about to begin.\n"
 "                             This includes all pre-transfer commands and nego-\n"
 "                             tiations that are specific to the particular pro-\n"
 "                             tocol(s) involved.\n"
 "\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
 , stdout);
  fputs(
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps include name lookup,  connect,  pretransfer\n"
-"                             and  transfer  before  the  final transaction was\n"
-"                             started. time_redirect shows the complete  execu-\n"
-"                             tion  time  for  multiple redirections. (Added in\n"
+"                             steps  include  name lookup, connect, pretransfer\n"
+"                             and transfer before  the  final  transaction  was\n"
+"                             started.  time_redirect shows the complete execu-\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
 "                             7.12.3)\n"
 "\n"
 "              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
 , stdout);
  fputs(
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the first byte was just about to be trans-\n"
-"                             ferred. This includes time_pretransfer  and  also\n"
-"                             the  time  the  server  needed  to  calculate the\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
+"                             the time  the  server  needed  to  calculate  the\n"
 "                             result.\n"
 "\n"
 "              size_download  The total amount of bytes that were downloaded.\n"
 "\n"
-, stdout);
- fputs(
 "              size_upload    The total amount of bytes that were uploaded.\n"
 "\n"
+, stdout);
+ fputs(
 "              size_header    The total amount of bytes of the downloaded head-\n"
 "                             ers.\n"
 "\n"
-"              size_request   The  total  amount of bytes that were sent in the\n"
+"              size_request   The total amount of bytes that were sent  in  the\n"
 "                             HTTP request.\n"
 "\n"
 "              speed_download The average download speed that curl measured for\n"
 "                             the complete download.\n"
 "\n"
-, stdout);
- fputs(
-"              speed_upload   The  average  upload speed that curl measured for\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
 "                             the complete upload.\n"
 "\n"
-"              content_type   The Content-Type of the  requested  document,  if\n"
-"                             there was any.\n"
-"\n"
-"              num_connects   Number  of new connects made in the recent trans-\n"
-"                             fer. (Added in 7.12.3)\n"
-"\n"
-"              num_redirects  Number of redirects that  were  followed  in  the\n"
 , stdout);
  fputs(
+"              content_type   The  Content-Type  of  the requested document, if\n"
+"                             there was any.\n"
+"\n"
+"              num_connects   Number of new connects made in the recent  trans-\n"
+"                             fer. (Added in 7.12.3)\n"
+"\n"
+"              num_redirects  Number  of  redirects  that  were followed in the\n"
 "                             request. (Added in 7.12.3)\n"
 "\n"
 "              redirect_url   When a HTTP request was made without -L to follow\n"
+, stdout);
+ fputs(
 "                             redirects, this variable will show the actual URL\n"
 "                             a redirect would take you to. (Added in 7.18.2)\n"
 "\n"
@@ -1956,45 +1978,48 @@ void hugehelp(void)
 "                             on to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
 "              ssl_verify_result\n"
+"                             The  result of the SSL peer certificate verifica-\n"
 , stdout);
  fputs(
-"                             The result of the SSL peer certificate  verifica-\n"
 "                             tion that was requested. 0 means the verification\n"
 "                             was successful. (Added in 7.19.0)\n"
 "\n"
 "       If this option is used several times, the last one will be used.\n"
 "\n"
 "       -x/--proxy <proxyhost[:port]>\n"
-"              Use the specified HTTP proxy. If the port number is  not  speci-\n"
+"              Use  the  specified HTTP proxy. If the port number is not speci-\n"
 "              fied, it is assumed at port 1080.\n"
 "\n"
+"              This option overrides existing environment  variables  that  set\n"
 , stdout);
  fputs(
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
+"              the  proxy  to use. If there's an environment variable setting a\n"
 "              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              Note  that  all  operations that are performed over a HTTP proxy\n"
-"              will transparently be converted to HTTP. It means  that  certain\n"
+"              Note that all operations that are performed over  a  HTTP  proxy\n"
+"              will  transparently  be converted to HTTP. It means that certain\n"
 "              protocol specific operations might not be available. This is not\n"
-, stdout);
- fputs(
-"              the case if you can tunnel through the proxy, as done  with  the\n"
+"              the  case  if you can tunnel through the proxy, as done with the\n"
 "              -p/--proxytunnel option.\n"
 "\n"
-"              Starting  with 7.14.1, the proxy host can be specified the exact\n"
-"              same way as the proxy environment variables, including the  pro-\n"
+, stdout);
+ fputs(
+"              Starting with 7.14.1, the proxy host can be specified the  exact\n"
+"              same  way as the proxy environment variables, including the pro-\n"
 "              tocol prefix (http://) and the embedded user + password.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       -X/--request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing  with  the  HTTP server.  The specified request will be used\n"
 , stdout);
  fputs(
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing with the HTTP server.  The specified request  will  be  used\n"
-"              instead  of  the  method otherwise used (which defaults to GET).\n"
-"              Read the HTTP 1.1 specification for details and explanations.\n"
+"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"              Read  the  HTTP  1.1 specification for details and explanations.\n"
+"              Common additional HTTP requests  include  PUT  and  DELETE,  but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
 "              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
 "              doing file lists with FTP.\n"

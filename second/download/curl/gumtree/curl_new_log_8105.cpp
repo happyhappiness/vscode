@@ -1,8 +1,11 @@
 fputs(
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied on the same config  file  line,  separated  by  whitespace,\n"
-"              colon,  the equals sign or any combination thereof (however, the\n"
-"              preferred separator is the equals sign). If the parameter is  to\n"
-"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
-"              quotes. Within double quotes, the following escape sequences are\n"
+"              are  errors (such as the file or server not being available). It\n"
+"              will also verify the hash of the file after  the  download  com-\n"
+"              pletes.  The Metalink file itself is downloaded and processed in\n"
+"              memory and not stored in the local file system.\n"
+"\n"
+"              Example to use a remote Metalink file:\n"
+"\n"
+"              curl --metalink http://www.example.com/example.metalink\n"
+"\n"
 , stdout);

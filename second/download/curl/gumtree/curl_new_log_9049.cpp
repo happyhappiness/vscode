@@ -1,11 +1,11 @@
 fputs(
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
+"              This option overrides any use of --netrc as  they  are  mutually\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
 "\n"
-"       --max-redirs <num>\n"
-"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
-"              --location is used, this option can be used to prevent curl from\n"
-"              following  redirections  \"in absurdum\". By default, the limit is\n"
-"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
-"              less.\n"
+"       --netrc-optional\n"
+"              Very  similar to --netrc, but this option makes the .netrc usage\n"
+"              optional and not mandatory as the --netrc option does.\n"
 "\n"
+"       --negotiate\n"
+"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
 , stdout);

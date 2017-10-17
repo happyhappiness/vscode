@@ -1,9 +1,10 @@
 fputs(
-"              data to the server using the content-type  applica-\n"
-"              tion/x-www-form-urlencoded.  Compare to -F. If more\n"
-"              than one -d/--data option is used on the same  com-\n"
-"              mand line, the data pieces specified will be merged\n"
-"              together with a separating  &-letter.  Thus,  using\n"
-"              '-d  name=daniel  -d  skill=lousy' would generate a\n"
-"              post       chunk       that       looks        like\n"
+"       -e/--referer <URL>\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the\n"
+"              HTTP  server.  This  can  also  be  set  with   the\n"
+"              -H/--header   flag   of  course.   When  used  with\n"
+"              -L/--location you can append \";auto\" to the referer\n"
+"              URL to make curl automatically set the previous URL\n"
+"              when it follows a  Location:  header.  The  \";auto\"\n"
+"              string  can be used alone, even if you don't set an\n"
 , stdout);

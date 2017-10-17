@@ -1,12 +1,8 @@
 fputs(
-"       --ignore-content-length\n"
-"              (HTTP) Ignore the Content-Length header.  This  is  particularly\n"
-"              useful  for servers running Apache 1.x, which will report incor-\n"
-"              rect Content-Length for files larger than 2 gigabytes.\n"
-"\n"
-"       -i/--include\n"
-"              (HTTP) Include the HTTP-header in the  output.  The  HTTP-header\n"
-"              includes  things  like  server-name, date of the document, HTTP-\n"
-"              version and more...\n"
-"\n"
+"              fig  file  is a text file in which command line arguments can be\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line. Options and their parameters must be speci-\n"
+"              fied on the same config file line. If the parameter is  to  con-\n"
+"              tain white spaces, the parameter must be enclosed within quotes.\n"
+"              If the first column of a config line is  a  '#'  character,  the\n"
 , stdout);

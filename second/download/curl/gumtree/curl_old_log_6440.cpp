@@ -1,12 +1,10 @@
 fputs(
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The  first  line  includes the full version of curl, libcurl and\n"
+"              other 3rd party libraries linked with the executable.\n"
 "\n"
-"              This  option overrides previous uses of -v/--verbose or --trace-\n"
-"              ascii.\n"
+"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
+"              that libcurl reports to support.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

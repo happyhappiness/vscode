@@ -1,11 +1,9 @@
 fputs(
-"              you're  doing. Remove an internal header by giving a replacement\n"
-"              without content on the right  side  of  the  colon,  as  in:  -H\n"
-"              \"Host:\".\n"
+"              The given speed is measured in bytes/second, unless a suffix  is\n"
+"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"              bytes, 'm' or M' makes it megabytes while 'g' or  'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              curl  will  make  sure that each header you add/replace get sent\n"
-"              with the proper end of line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns they will only mess things up for you.\n"
-"\n"
+"              The  given  rate is the average speed, counted during the entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
 , stdout);

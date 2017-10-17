@@ -1,12 +1,9 @@
 fputs(
-"              -b/--cookie option! The -c/--cookie-jar option is however a bet-\n"
-"              ter way to store cookies.\n"
+"              directory as curl.exe, or in the Current Working  Directory,  or\n"
+"              in any folder along your PATH.\n"
 "\n"
-"              When  used  in FTP, the FTP server response lines are considered\n"
-"              being \"headers\" and thus are saved there.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -e/--referer <URL>\n"
-"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the CA certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
 , stdout);

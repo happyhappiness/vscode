@@ -1,11 +1,10 @@
 fputs(
-"              but enable more functionality in a better way  than  the  tradi-\n"
-"              tional PORT command. (Added in 7.10.5)\n"
+"              ify the peer. The file may contain multiple CA certificates. The\n"
+"              certificate(s) must be in PEM format.\n"
 "\n"
-"              If  this option is used several times, each occurrence will tog-\n"
-"              gle this on/off.\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if that is set, and uses the given path as a path to a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"       --disable-epsv\n"
-"              (FTP) Tell curl to disable the use  of  the  EPSV  command  when\n"
-"              doing  passive  FTP  transfers.  Curl will normally always first\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
 , stdout);

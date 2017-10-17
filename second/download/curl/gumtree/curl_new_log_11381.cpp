@@ -1,10 +1,10 @@
 fputs(
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"       -I, --head\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on an FTP or FILE file,  curl  displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --login-options <options>\n"
+"       --interface <name>\n"
+"              Perform  an operation using a specified interface. You can enter\n"
 , stdout);

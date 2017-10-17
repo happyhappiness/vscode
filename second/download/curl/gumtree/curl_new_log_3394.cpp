@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, each occurrence will  tog-\n"
-"              gle this on/off.\n"
+"              certificate(s) must be in PEM format.\n"
 "\n"
-"       -D/--dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if that is set, and uses the given path as a path to a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
-"              then  be  read  in a second curl invoke by using the -b/--cookie\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
 , stdout);

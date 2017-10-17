@@ -1,11 +1,11 @@
 fputs(
-"              your curl supports it.\n"
+"              or may not introduce a security breach if the site redirects you\n"
+"              do a site to which you'll send your authentication  info  (which\n"
+"              is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              location following.\n"
 "\n"
-"       -K/--config <config file>\n"
-"              Specify  which config file to read curl arguments from. The con-\n"
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
-"              actual command line. Options and their parameters must be speci-\n"
+"       --max-filesize <bytes>\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
 , stdout);

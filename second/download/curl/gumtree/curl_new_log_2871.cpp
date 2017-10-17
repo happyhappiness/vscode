@@ -1,11 +1,11 @@
 fputs(
-"              same way as the proxy environment  variables,  include  protocol\n"
-"              prefix (http://) and embedded user + password.\n"
+"              This option can be used multiple times.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --random-file <file>\n"
+"              (SSL) Specify the path name to file containing what will be con‐\n"
+"              sidered  as  random  data.  The  data is used to seed the random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
 "\n"
-"       -X/--request <command>\n"
-"              (HTTP) Specifies a custom request method to use when communicat‐\n"
-"              ing  with  the  HTTP server.  The specified request will be used\n"
-"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"       -r/--range <range>\n"
+"              (HTTP/FTP) Retrieve a byte range (i.e a partial document) from a\n"
 , stdout);

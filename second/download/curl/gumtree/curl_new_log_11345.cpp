@@ -1,12 +1,9 @@
 fputs(
-"       22     HTTP page not retrieved. The requested  url  was  not  found  or\n"
-"              returned  another  error  with  the HTTP error code being 400 or\n"
-"              above. This return code only appears if -f, --fail is used.\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and the client certificate concatenated!\n"
+"              See --cert and --key to specify them independently.\n"
 "\n"
-"       23     Write error. Curl couldn't write data to a local  filesystem  or\n"
-"              similar.\n"
-"\n"
-"       25     FTP  couldn't  STOR  file. The server denied the STOR operation,\n"
-"              used for FTP uploading.\n"
-"\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
 , stdout);

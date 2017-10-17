@@ -1,10 +1,11 @@
 fputs(
-"              certificate(s) must be in PEM format.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
-"              curl recognizes the environment variable named  ’CURL_CA_BUNDLE’\n"
-"              if  that  is set, and uses the given path as a path to a CA cert\n"
-"              bundle. This option overrides that variable.\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com‐\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
-"              The windows version of curl will automatically  look  for  a  CA\n"
-"              certs file named ´curl-ca-bundle.crt´, either in the same direc‐\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
 , stdout);

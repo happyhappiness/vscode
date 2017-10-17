@@ -1,10 +1,12 @@
 fputs(
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
-"              num_redirects  Number  of  redirects  that  were followed in the\n"
-"                             request. (Added in 7.12.3)\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
 "\n"
-"              redirect_url   When a HTTP request was made without -L to follow\n"
-"                             redirects, this variable will show the actual URL\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y, --speed-limit <speed>\n"
 , stdout);

@@ -1,10 +1,8 @@
 fputs(
-"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
-"              ters, and the ';type=' string in the value have no special mean-\n"
-"              ing. Use this in preference to --form if there's any possibility\n"
-"              that  the  string  value may accidentally trigger the '@' or '<'\n"
-"              features of --form.\n"
-"\n"
-"       -g/--globoff\n"
-"              This option switches off the \"URL globbing parser\". When you set\n"
+"              (FTP)  Send an arbitrary command to the remote FTP server. Quote\n"
+"              commands are sent BEFORE the  transfer  is  taking  place  (just\n"
+"              after  the  initial  PWD  command to be exact). To make commands\n"
+"              take place after a successful transfer, prefix them with a  dash\n"
+"              '-'. To make commands get sent after libcurl has changed working\n"
+"              directory, just before the transfer command(s), prefix the  com-\n"
 , stdout);

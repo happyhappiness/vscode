@@ -1,9 +1,8 @@
 fputs(
-"              nal. Note that this option assumes a \"certificate\" file that  is\n"
-"              the  private  key  and the private certificate concatenated! See\n"
-"              --cert and --key to specify them independently.\n"
-"\n"
-"              If curl is built against the NSS SSL library  then  this  option\n"
-"              can  tell curl the nickname of the certificate to use within the\n"
-"              NSS database defined by the environment variable SSL_DIR (or  by\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
+"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
+"              directory must have been processed using  the  c_rehash  utility\n"
 , stdout);

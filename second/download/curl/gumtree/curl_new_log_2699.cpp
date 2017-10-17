@@ -1,9 +1,9 @@
 fputs(
-"       -L/--location\n"
-"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
-"              moved to a different location (indicated with a Location: header\n"
-"              and a 3XX response code) this option will  make  curl  redo  the\n"
-"              request  on the new place. If used together with -i/--include or\n"
-"              -I/--head, headers from all requested pages will be shown.  When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
+"              method was designed by Microsoft and is used in their web appli‐\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti‐\n"
+"              cation methods. For  more  information  see  IETF  draft  draft-\n"
+"              brezak-spnego-http-04.txt.\n"
+"\n"
+"              This option requires that the library was built with GSSAPI sup‐\n"
 , stdout);

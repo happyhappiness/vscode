@@ -1,9 +1,12 @@
 fputs(
-"              This option overrides existing environment  variables  that  set\n"
-"              the  proxy  to use. If there's an environment variable setting a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently  be  converted  to HTTP. It means that certain protocol\n"
-"              specific operations might not be available. This is not the case\n"
+"       -Y, --speed-limit <speed>\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond) for speed-time seconds it gets aborted. speed-time  is  set\n"
+"              with -y and is 30 if not set.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -z, --time-cond <date expression>|<file>\n"
 , stdout);

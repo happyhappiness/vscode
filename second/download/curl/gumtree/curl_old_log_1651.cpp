@@ -1,9 +1,11 @@
 fputs(
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps include name lookup,  connect,  pretransfer\n"
-"                             and   transfer   before   final  transaction  was\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y/--speed-limit <speed>\n"
+"              If a download is slower than this given speed, in bytes per sec-\n"
+"              ond, for speed-time seconds it gets aborted. speed-time  is  set\n"
 , stdout);

@@ -1,9 +1,10 @@
 fputs(
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it uses getpwuid() on unix-like systems (which returns the  home\n"
-"              dir  given the current user in your system). On Windows, it then\n"
-"              checks for the APPDATA variable, or as a last resort the ’%USER‐\n"
-"              PROFILE%0lication Data’.\n"
+"              the connection(s).  Note that port numbers by nature is a scarce\n"
+"              resource that will be busy at times so  setting  this  range  to\n"
+"              something  too  narrow  might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
+"       -L/--location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
+"              moved to a different location (indicated with a Location: header\n"
 , stdout);

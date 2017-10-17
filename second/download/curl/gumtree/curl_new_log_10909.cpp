@@ -1,11 +1,10 @@
 fputs(
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"       --netrc-file\n"
+"              This option is similar to --netrc, except that you  provide  the\n"
+"              path  (absolute  or relative) to the netrc file that Curl should\n"
+"              use.  You can only specify one netrc  file  per  invocation.  If\n"
+"              several  --netrc-file  options  are  provided, only the last one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to. (Added in 7.20.0)\n"
-"\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
+"              This option overrides any use of --netrc as  they  are  mutually\n"
 , stdout);

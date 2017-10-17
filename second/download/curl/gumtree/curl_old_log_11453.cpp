@@ -1,11 +1,10 @@
 fputs(
-"              WARNING: this option loosens the SSL security, and by using this\n"
-"              flag you ask for exactly that.  (Added in 7.25.0)\n"
+"       --socks5-gssapi-nec\n"
+"              As  part of the GSS-API negotiation a protection mode is negoti-\n"
+"              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"
+"              but  the  NEC  reference  implementation  does  not.  The option\n"
+"              --socks5-gssapi-nec allows the unprotected exchange of the  pro-\n"
+"              tection mode negotiation. (Added in 7.19.4).\n"
 "\n"
-"       --ssl-no-revoke\n"
-"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
-"              tion checks.  WARNING: this option loosens the SSL security, and\n"
-"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
-"\n"
-"       --socks4 <host[:port]>\n"
+"       --stderr <file>\n"
 , stdout);

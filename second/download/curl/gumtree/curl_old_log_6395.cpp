@@ -1,11 +1,11 @@
 fputs(
-"              -V/--version to see if your curl supports NTLM.\n"
+"              key in this separate file.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -o/--output <file>\n"
-"              Write output to <file> instead of stdout. If you are using {} or\n"
-"              []  to  fetch  multiple documents, you can use '#' followed by a\n"
-"              number in the <file> specifier. That variable will  be  replaced\n"
+"       -P/--ftp-port <address>\n"
+"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
+"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
+"              practice,  curl  then  tells  the  server to connect back to the\n"
+"              client's specified address and port, while passive mode asks the\n"
 , stdout);

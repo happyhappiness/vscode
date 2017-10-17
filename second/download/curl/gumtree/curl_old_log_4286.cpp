@@ -1,10 +1,9 @@
 fputs(
-"   HTTP offers many different methods of authentication and curl supports\n"
-"   several: Basic, Digest, NTLM and Negotiate. Without telling which method to\n"
-"   use, curl defaults to Basic. You can also ask curl to pick the most secure\n"
-"   ones out of the ones that the server accepts for the given URL, by using\n"
-"   --anyauth.\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
+"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
+"              sions to the original FTP protocol, may not work on all  servers\n"
+"              but  enable  more  functionality in a better way than the tradi-\n"
+"              tional PORT command.\n"
 "\n"
-"   NOTE! Since HTTP URLs don't support user and password, you can't use that\n"
-"   style when using Curl via a proxy. You _must_ use the -u style fetch\n"
 , stdout);

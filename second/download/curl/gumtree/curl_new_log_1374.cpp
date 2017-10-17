@@ -1,9 +1,11 @@
 fputs(
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination  with  the  -L/--location option. The file format of\n"
-"              the file to read cookies from should be plain  HTTP  headers  or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              -v will get a warning displayed, but that is  the  only  visible\n"
+"              feedback you get about this possibly lethal situation.\n"
 "\n"
-"              NOTE  that  the  file specified with -b/--cookie is only used as\n"
-"              input. No cookies will be stored in the file. To store  cookies,\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
+"\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
 , stdout);

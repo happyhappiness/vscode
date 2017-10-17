@@ -1,10 +1,9 @@
 fputs(
-"              Displays information about curl and the libcurl version it uses.\n"
-"              The  first  line  includes the full version of curl, libcurl and\n"
-"              other 3rd party libraries linked with the executable.\n"
-"\n"
-"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
-"              that libcurl reports to support.\n"
-"\n"
-"              The third line (starts with \"Features:\") shows specific features\n"
+"                             This includes all pre-transfer commands and nego-\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
+"              time_starttransfer\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  first byte is just about to be trans-\n"
+"                             fered. This includes  time_pretransfer  and  also\n"
 , stdout);

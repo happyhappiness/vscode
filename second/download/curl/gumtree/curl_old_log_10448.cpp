@@ -1,2 +1,2 @@
 warnf(config,
-              "--libcurl option was disabled at build-time!\n");
+              "built-in manual was disabled at build-time!\n");

@@ -1,12 +1,10 @@
 fputs(
-"       -I/--head\n"
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              transfer not use your entire bandwidth.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              header only.\n"
+"              The given speed is measured in bytes/second, unless a suffix  is\n"
+"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"              bytes, 'm' or M' makes it megabytes while 'g' or  'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"       -j/--junk-session-cookies\n"
+"              If  you  are also using the -Y/--speed-limit option, that option\n"
 , stdout);

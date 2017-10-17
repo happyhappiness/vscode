@@ -1,9 +1,10 @@
 fputs(
-"              NAME2=VALUE2\".\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              libcurl supports, and save the uncompressed document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
+"              curl will report an error.\n"
 "\n"
-"              If no '=' symbol is used in the line, it is treated as  a  file-\n"
-"              name  to  use to read previously stored cookie lines from, which\n"
-"              should be used in this session if they match. Using this  method\n"
-"              also  activates  the \"cookie parser\" which will make curl record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum time in seconds that you allow  the  connection  to  the\n"
+"              server  to  take.   This  only limits the connection phase, once\n"
 , stdout);

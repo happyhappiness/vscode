@@ -1,11 +1,10 @@
 fputs(
-"              (SSL/SSH) Pass phrase for the private key\n"
+"       -q     If used as the first parameter on the command line,  the  curlrc\n"
+"              config  file  will not be read and used. See the -K/--config for\n"
+"              details on the default config file search path.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --post301\n"
-"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
-"              requests into GET requests when following a 301 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
+"       -Q/--quote <command>\n"
+"              (FTP/SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
+"              server.  Quote  commands  are sent BEFORE the transfer is taking\n"
+"              place (just after the initial PWD command in an FTP transfer, to\n"
 , stdout);

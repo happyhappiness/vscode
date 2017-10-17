@@ -1,0 +1,1 @@
+warnf(config->global, "Field content type not allowed here: %s\n", type);

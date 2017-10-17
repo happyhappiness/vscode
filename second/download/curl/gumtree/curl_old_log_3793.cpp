@@ -1,10 +1,11 @@
 fputs(
-"                     This  will  make  curl  load  data  from  the  given file\n"
-"                     (including any newlines), URL encode that data  and  pass\n"
-"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL encoded already.\n"
+"              certificate(s)  must be in PEM format. Normally curl is built to\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"       --digest\n"
-"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if that is set, and uses the given path as a path to a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
+"\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
 , stdout);

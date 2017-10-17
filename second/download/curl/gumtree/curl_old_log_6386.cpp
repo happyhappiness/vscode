@@ -1,11 +1,11 @@
 fputs(
-"              path (absolute or relative) to the netrc file that  Curl  should\n"
-"              use.   You  can  only  specify one netrc file per invocation. If\n"
-"              several --netrc-file options are provided,  only  the  last  one\n"
-"              will be used.  (Added in 7.21.5)\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
+"              behavior  should  not be endorsed, you should encourage everyone\n"
+"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              tion method instead, such as Digest.\n"
 "\n"
-"              This  option  overrides  any use of --netrc as they are mutually\n"
-"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"              If  you  want to enable NTLM for your proxy authentication, then\n"
+"              use --proxy-ntlm.\n"
 "\n"
-"       --negotiate\n"
+"              This option requires a  library  built  with  SSL  support.  Use\n"
 , stdout);

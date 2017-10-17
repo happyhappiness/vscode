@@ -1,9 +1,12 @@
 fputs(
-"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
-"              mode  to  allow  reading  server  output  while  stdin  is being\n"
-"              uploaded.\n"
+"              If  you  just give the user name (without entering a colon) curl\n"
+"              will prompt for a password.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
-"              + URL pair specifies what to upload and to where. curl also sup-\n"
-"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
+"              If you use an SSPI-enabled curl binary and do  NTLM  authentica-\n"
+"              tion,  you  can force curl to pick up the user name and password\n"
+"              from your environment by simply specifying a single  colon  with\n"
+"              this option: \"-u :\".\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"                     The chown command sets the owner of the file named by the\n"
-"                     file  operand  to  the  user  ID  specified  by  the user\n"
-"                     operand. The user operand is a decimal integer user ID.\n"
+"              transfer,  it  will retry this number of times before giving up.\n"
+"              Setting the number to 0 makes curl do no retries (which  is  the\n"
+"              default).  Transient  error  means either: a timeout, an FTP 5xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              ln source_file target_file\n"
-"                     The ln and symlink commands create a symbolic link at the\n"
-"                     target_file  location  pointing  to the source_file loca-\n"
-"                     tion.\n"
-"\n"
-"              mkdir directory_name\n"
+"              When curl is about to retry a transfer, it will first  wait  one\n"
+"              second  and  then for all forthcoming retries it will double the\n"
 , stdout);

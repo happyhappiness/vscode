@@ -1,12 +1,11 @@
 fputs(
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
-"\n"
-"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
-"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
-"              option to work properly.\n"
+"              (FTP) When an FTP server asks for \"account data\" after user name\n"
+"              and  password has been provided, this data is sent off using the\n"
+"              ACCT command. (Added in 7.13.0)\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
+"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
 , stdout);

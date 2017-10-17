@@ -1,9 +1,12 @@
 fputs(
-"              and  use the most secure one the remote site claims it supports.\n"
-"              This is done by first doing a request and checking the response-\n"
-"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
-"              This is  used  instead  of  setting  a  specific  authentication\n"
-"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
-"              --negotiate.\n"
+"              If this option is used several times, the last one will override\n"
+"              the others.\n"
 "\n"
+"       --compressed\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              libcurl supports, and return the uncompressed document.  If this\n"
+"              option is used and the server  sends  an  unsupported  encoding,\n"
+"              Curl will report an error.\n"
+"\n"
+"              If  this option is used several times, each occurrence will tog-\n"
 , stdout);

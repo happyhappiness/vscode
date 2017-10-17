@@ -1,8 +1,11 @@
 fputs(
-"              This enables uploading of binary files etc. To force  the  'con-\n"
-"              tent' part to be a file, prefix the file name with an @ sign. To\n"
-"              just get the content part from a file, prefix the file name with\n"
-"              the  symbol  <.  The  difference  between @ and < is then that @\n"
-"              makes a file get attached in the post as a  file  upload,  while\n"
-"              the < makes a text field and just get the contents for that text\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
+"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
+"              even if you don't set an initial --referer.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --engine <name>\n"
+"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
+"              Use  --engine  list  to  print  a  list  of build-time supported\n"
 , stdout);

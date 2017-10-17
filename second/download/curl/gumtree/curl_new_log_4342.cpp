@@ -1,11 +1,11 @@
 fputs(
+"              When used in FTP, the FTP server response lines  are  considered\n"
+"              being \"headers\" and thus are saved there.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP) Enable Kerberos authentication and use. The level must  be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'. Should you use a level that  is  not  one  of  these,\n"
-"              'private' will instead be used.\n"
-"\n"
-"              This  option  requires  a library built with kerberos4 or GSSAPI\n"
+"       -e/--referer <URL>\n"
+"              (HTTP) Sends the \"Referer Page\" information to the HTTP  server.\n"
+"              This  can also be set with the -H/--header flag of course.  When\n"
+"              used with -L/--location you can append \";auto\" to the  --referer\n"
 , stdout);

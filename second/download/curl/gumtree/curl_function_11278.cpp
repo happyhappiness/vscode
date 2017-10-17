@@ -755,102 +755,110 @@ void hugehelp(void)
 "              If this option is set, the default capath value will be ignored,\n"
 "              and if it is used several times, the last one will be used.\n"
 "\n"
-"       --pinnedpubkey <pinned public key>\n"
-"              (SSL) Tells curl to use the specified public key file to  verify\n"
-"              the  peer.  The  file must contain a single public key in PEM or\n"
-"              DER format.\n"
-"\n"
-"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
+"       --pinnedpubkey <pinned public key (hashes)>\n"
+"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
 , stdout);
  fputs(
+"              of  base64  encoded  sha256  hashes  preceded  by 'sha256//' and\n"
+"              seperated by ';'\n"
+"\n"
+"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
 "              certificate  indicating  its identity. A public key is extracted\n"
 "              from this certificate and if it does not exactly match the  pub-\n"
 "              lic  key provided to this option, curl will abort the connection\n"
 "              before sending or receiving any data.\n"
 "\n"
-"              Added in 7.39.0 for OpenSSL, GnuTLS and GSKit. Added  in  7.43.0\n"
-"              for NSS and wolfSSL/CyaSSL. Other SSL backends not supported.\n"
-"\n"
 , stdout);
  fputs(
+"              Added in 7.39.0 for OpenSSL, GnuTLS and GSKit. Added  in  7.43.0\n"
+"              for  NSS  and wolfSSL/CyaSSL. sha256 support added in 7.44.0 for\n"
+"              OpenSSL, GnuTLS, NSS and wolfSSL/CyaSSL. Other SSL backends  not\n"
+"              supported.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --cert-status\n"
 "              (SSL)  Tells curl to verify the status of the server certificate\n"
+, stdout);
+ fputs(
 "              by using the Certificate Status Request (aka. OCSP stapling) TLS\n"
 "              extension.\n"
 "\n"
 "              If  this option is enabled and the server sends an invalid (e.g.\n"
 "              expired) response, if the response suggests that the server cer-\n"
-, stdout);
- fputs(
 "              tificate  has  been  revoked, or no response at all is received,\n"
 "              the verification fails.\n"
 "\n"
 "              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
+, stdout);
+ fputs(
 "              NSS backends.  (Added in 7.41.0)\n"
 "\n"
 "       --false-start\n"
 "\n"
 "              (SSL)  Tells  curl  to use false start during the TLS handshake.\n"
 "              False start is a mode where a  TLS  client  will  start  sending\n"
-, stdout);
- fputs(
 "              application data before verifying the server's Finished message,\n"
 "              thus saving a round trip when performing a full handshake.\n"
 "\n"
 "              This is currently only implemented in the NSS and Secure  Trans-\n"
+, stdout);
+ fputs(
 "              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
 "              (Added in 7.42.0)\n"
 "\n"
 "       -f, --fail\n"
 "              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-, stdout);
- fputs(
 "              is  mostly done to better enable scripts etc to better deal with\n"
 "              failed attempts. In normal cases when an HTTP  server  fails  to\n"
 "              deliver  a  document,  it  returns  an  HTML document stating so\n"
+, stdout);
+ fputs(
 "              (which often also describes why and more). This flag  will  pre-\n"
 "              vent curl from outputting that and return error 22.\n"
 "\n"
 "              This  method is not fail-safe and there are occasions where non-\n"
-, stdout);
- fputs(
 "              successful response codes will  slip  through,  especially  when\n"
 "              authentication is involved (response codes 401 and 407).\n"
 "\n"
 "       -F, --form <name=content>\n"
 "              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
+, stdout);
+ fputs(
 "              has pressed the submit button. This causes  curl  to  POST  data\n"
 "              using  the  Content-Type  multipart/form-data  according  to RFC\n"
 "              2388. This enables uploading of binary files etc. To  force  the\n"
-, stdout);
- fputs(
 "              'content'  part  to  be  a  file, prefix the file name with an @\n"
 "              sign. To just get the content part from a file, prefix the  file\n"
 "              name  with  the symbol <. The difference between @ and < is then\n"
+, stdout);
+ fputs(
 "              that @ makes a file get attached in the post as a  file  upload,\n"
 "              while  the  <  makes  a text field and just get the contents for\n"
 "              that text field from a file.\n"
 "\n"
-, stdout);
- fputs(
 "              Example, to send your password file to the server, where  'pass-\n"
 "              word' is the name of the form-field to which /etc/passwd will be\n"
 "              the input:\n"
 "\n"
 "              curl -F password=@/etc/passwd www.mypasswords.com\n"
 "\n"
-"              To read content from stdin instead of a file, use - as the file-\n"
-"              name. This goes for both @ and < constructs.\n"
-"\n"
-"              You  can  also  tell  curl  what  Content-Type  to  use by using\n"
 , stdout);
  fputs(
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name.  This  goes  for both @ and < constructs. Unfortunately it\n"
+"              does not support reading the file from a named pipe or  similar,\n"
+"              as it needs the full size before the transfer starts.\n"
+"\n"
+"              You  can  also  tell  curl  what  Content-Type  to  use by using\n"
 "              'type=', in a manner similar to:\n"
 "\n"
 "              curl -F \"web=@index.html;type=text/html\" url.com\n"
 "\n"
+, stdout);
+ fputs(
 "              or\n"
 "\n"
 "              curl -F \"name=daniel;type=text/foo\" url.com\n"
@@ -862,13 +870,13 @@ void hugehelp(void)
 "\n"
 "              If  filename/path contains ',' or ';', it must be quoted by dou-\n"
 "              ble-quotes like:\n"
-, stdout);
- fputs(
 "\n"
 "              curl -F \"file=@\\\"localfile\\\";filename=\\\"nameinpost\\\"\" url.com\n"
 "\n"
 "              or\n"
 "\n"
+, stdout);
+ fputs(
 "              curl -F 'file=@\"localfile\";filename=\"nameinpost\"' url.com\n"
 "\n"
 "              Note that if a filename/path is  quoted  by  double-quotes,  any\n"
@@ -880,9 +888,9 @@ void hugehelp(void)
 "              This option can be used multiple times.\n"
 "\n"
 "       --ftp-account [data]\n"
+"              (FTP) When an FTP server asks for \"account data\" after user name\n"
 , stdout);
  fputs(
-"              (FTP) When an FTP server asks for \"account data\" after user name\n"
 "              and  password has been provided, this data is sent off using the\n"
 "              ACCT command. (Added in 7.13.0)\n"
 "\n"
@@ -891,9 +899,9 @@ void hugehelp(void)
 "       --ftp-alternative-to-user <command>\n"
 "              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
 "              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
 , stdout);
  fputs(
-"              Transport server over FTPS using  a  client  certificate,  using\n"
 "              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
 "              the certificate. (Added in 7.15.5)\n"
 "\n"
@@ -901,11 +909,11 @@ void hugehelp(void)
 "              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
 "              doesn't  currently exist on the server, the standard behavior of\n"
 "              curl is to fail. Using this option, curl will instead attempt to\n"
-, stdout);
- fputs(
 "              create missing directories.\n"
 "\n"
 "       --ftp-method [method]\n"
+, stdout);
+ fputs(
 "              (FTP)  Control what method curl should use to reach a file on an\n"
 "              FTP(S) server. The method argument should be one of the  follow-\n"
 "              ing alternatives:\n"
@@ -913,9 +921,9 @@ void hugehelp(void)
 "              multicwd\n"
 "                     curl  does  a  single CWD operation for each path part in\n"
 "                     the given URL. For deep hierarchies this means very  many\n"
+"                     commands.  This  is  how RFC 1738 says it should be done.\n"
 , stdout);
  fputs(
-"                     commands.  This  is  how RFC 1738 says it should be done.\n"
 "                     This is the default but the slowest behavior.\n"
 "\n"
 "              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
@@ -924,9 +932,9 @@ void hugehelp(void)
 "\n"
 "              singlecwd\n"
 "                     curl does one CWD with the full target directory and then\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
 , stdout);
  fputs(
-"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
 "                     case). This is somewhat  more  standards  compliant  than\n"
 "                     'nocwd' but without the full penalty of 'multicwd'.\n"
 "\n"
@@ -935,10 +943,10 @@ void hugehelp(void)
 "       --ftp-pasv\n"
 "              (FTP)  Use  passive mode for the data connection. Passive is the\n"
 "              internal default behavior, but using this option can be used  to\n"
-, stdout);
- fputs(
 "              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
 "\n"
+, stdout);
+ fputs(
 "              If  this  option  is  used  several times, only the first one is\n"
 "              used. Undoing an enforced passive really isn't  doable  but  you\n"
 "              must then instead enforce the correct -P, --ftp-port again.\n"
@@ -947,9 +955,9 @@ void hugehelp(void)
 "              then PASV, unless --disable-epsv is used.\n"
 "\n"
 "       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
 , stdout);
  fputs(
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
 "              its  response to curl's PASV command when curl connects the data\n"
 "              connection. Instead curl will re-use  the  same  IP  address  it\n"
 "              already uses for the control connection. (Added in 7.14.2)\n"
@@ -958,9 +966,9 @@ void hugehelp(void)
 "              of PASV.\n"
 "\n"
 "       --ftp-pret\n"
+"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
 , stdout);
  fputs(
-"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
 "              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
 "              command for directory listings as well as up  and  downloads  in\n"
 "              PASV mode.  (Added in 7.20.x)\n"
@@ -968,18 +976,18 @@ void hugehelp(void)
 "       --ftp-ssl-ccc\n"
 "              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
 "              layer after authenticating. The rest of the control channel com-\n"
+"              munication  will be unencrypted. This allows NAT routers to fol-\n"
 , stdout);
  fputs(
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
 "              low the FTP transaction. The default mode is passive. See --ftp-\n"
 "              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
 "       --ftp-ssl-ccc-mode [active/passive]\n"
 "              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
 "              passive mode will not initiate the shutdown,  but  instead  wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
 , stdout);
  fputs(
-"              for the server to do it, and will not reply to the shutdown from\n"
 "              the server. The active mode initiates the shutdown and waits for\n"
 "              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
@@ -987,9 +995,9 @@ void hugehelp(void)
 "              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
 "              Allows secure authentication, but non-encrypted  data  transfers\n"
 "              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
+"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
 , stdout);
  fputs(
-"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
 "              be removed in a future version.\n"
 "\n"
 "       --form-string <name=string>\n"
@@ -997,9 +1005,9 @@ void hugehelp(void)
 "              named parameter is used literally. Leading '@' and  '<'  charac-\n"
 "              ters, and the ';type=' string in the value have no special mean-\n"
 "              ing. Use this in preference to --form if there's any possibility\n"
+"              that  the  string  value may accidentally trigger the '@' or '<'\n"
 , stdout);
  fputs(
-"              that  the  string  value may accidentally trigger the '@' or '<'\n"
 "              features of --form.\n"
 "\n"
 "       -g, --globoff\n"
@@ -1007,20 +1015,20 @@ void hugehelp(void)
 "              this  option, you can specify URLs that contain the letters {}[]\n"
 "              without having them being interpreted by curl itself. Note  that\n"
 "              these  letters are not normal legal URL contents but they should\n"
-, stdout);
- fputs(
 "              be encoded according to the URI standard.\n"
 "\n"
 "       -G, --get\n"
+, stdout);
+ fputs(
 "              When used, this option will make all  data  specified  with  -d,\n"
 "              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
 "              GET request instead of the POST request that otherwise would  be\n"
 "              used. The data will be appended to the URL with a '?' separator.\n"
 "              If  used  in  combination with -I, the POST data will instead be\n"
-, stdout);
- fputs(
 "              appended to the URL with a HEAD request.\n"
 "\n"
+, stdout);
+ fputs(
 "              If this option is used several times,  only  the  first  one  is\n"
 "              used.  This is because undoing a GET doesn't make sense, but you\n"
 "              should then instead enforce the alternative method you prefer.\n"
@@ -2181,17 +2189,24 @@ void hugehelp(void)
 "              WARNING: this option loosens the SSL security, and by using this\n"
 "              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
+"       --ssl-no-revoke\n"
+"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
+"\n"
 "       --socks4 <host[:port]>\n"
+, stdout);
+ fputs(
 "              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
 "              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
 "\n"
 "              This option overrides any previous use of -x, --proxy,  as  they\n"
 "              are mutually exclusive.\n"
 "\n"
-, stdout);
- fputs(
 "              Since 7.21.7, this option is superfluous since you can specify a\n"
 "              socks4 proxy with -x, --proxy using a socks4:// protocol prefix.\n"
+, stdout);
+ fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --socks4a <host[:port]>\n"
@@ -2199,11 +2214,11 @@ void hugehelp(void)
 "              ified, it is assumed at port 1080. (Added in 7.18.0)\n"
 "\n"
 "              This  option  overrides any previous use of -x, --proxy, as they\n"
-, stdout);
- fputs(
 "              are mutually exclusive.\n"
 "\n"
 "              Since 7.21.7, this option is superfluous since you can specify a\n"
+, stdout);
+ fputs(
 "              socks4a  proxy with -x, --proxy using a socks4a:// protocol pre-\n"
 "              fix.\n"
 "\n"
@@ -2212,10 +2227,10 @@ void hugehelp(void)
 "       --socks5-hostname <host[:port]>\n"
 "              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
 "              host  name).  If the port number is not specified, it is assumed\n"
-, stdout);
- fputs(
 "              at port 1080. (Added in 7.18.0)\n"
 "\n"
+, stdout);
+ fputs(
 "              This option overrides any previous use of -x, --proxy,  as  they\n"
 "              are mutually exclusive.\n"
 "\n"
@@ -2224,9 +2239,9 @@ void hugehelp(void)
 "              col prefix.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
 , stdout);
  fputs(
-"              (This option was  previously  wrongly  documented  and  used  as\n"
 "              --socks without the number appended.)\n"
 "\n"
 "       --socks5 <host[:port]>\n"
@@ -2237,9 +2252,9 @@ void hugehelp(void)
 "              This  option  overrides any previous use of -x, --proxy, as they\n"
 "              are mutually exclusive.\n"
 "\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
 , stdout);
  fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
 "              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
 "              If this option is used several times, the last one will be used.\n"
 "              (This option was  previously  wrongly  documented  and  used  as\n"
@@ -2248,9 +2263,9 @@ void hugehelp(void)
 "              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
 "              or LDAP.\n"
 "\n"
+"       --socks5-gssapi-service <servicename>\n"
 , stdout);
  fputs(
-"       --socks5-gssapi-service <servicename>\n"
 "              The default service name for a socks server is rcmd/server-fqdn.\n"
 "              This option allows you to change it.\n"
 "\n"
@@ -2258,10 +2273,10 @@ void hugehelp(void)
 "              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
 "              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
 "              where the proxy-name does not match the principal name.   (Added\n"
-, stdout);
- fputs(
 "              in 7.19.4).\n"
 "\n"
+, stdout);
+ fputs(
 "       --socks5-gssapi-nec\n"
 "              As  part of the GSS-API negotiation a protection mode is negoti-\n"
 "              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"

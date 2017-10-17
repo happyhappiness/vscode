@@ -1,9 +1,11 @@
 fputs(
-"              posedly  the data previously received from the server in a \"Set-\n"
-"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
-"              NAME2=VALUE2\".\n"
+"              feedback you get about this possibly lethal situation.\n"
 "\n"
-"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
-"              should  be used in this session if they match. Using this method\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
+"\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
 , stdout);

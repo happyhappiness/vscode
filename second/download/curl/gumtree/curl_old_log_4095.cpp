@@ -1,12 +1,8 @@
 fputs(
-"              server may requires a POST to remain a POST after such  a  redi-\n"
-"              rection. This option is meaningful only when using -L/--location\n"
-"              (Added in 7.17.1)\n"
-"\n"
-"       --proxy-anyauth\n"
-"              Tells curl to pick a suitable authentication method when  commu-\n"
-"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
-"              request/response round-trip. (Added in 7.13.2)\n"
-"\n"
-"       --proxy-basic\n"
+"              be exact). To make commands take place after a successful trans-\n"
+"              fer, prefix them with a dash '-'.  To  make  commands  get  sent\n"
+"              after  libcurl  has  changed  working directory, just before the\n"
+"              transfer command(s), prefix the command with '+' (this  is  only\n"
+"              supported  for  FTP). You may specify any number of commands. If\n"
+"              the server returns failure for one of the commands,  the  entire\n"
 , stdout);

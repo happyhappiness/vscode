@@ -1,11 +1,11 @@
 fputs(
-"              (SSL) Specify the path name to file containing what will be con-\n"
-"              sidered as random data. The data is  used  to  seed  the  random\n"
-"              engine for SSL connections.  See also the --egd-file option.\n"
+"              XDISPLOC=<X display> Sets the X display location.\n"
 "\n"
-"       -r/--range <range>\n"
-"              (HTTP/FTP/FILE)  Retrieve  a byte range (i.e a partial document)\n"
-"              from a HTTP/1.1, FTP server or a local FILE. Ranges can be spec-\n"
-"              ified in a number of ways.\n"
+"              NEW_ENV=<var,val> Sets an environment variable.\n"
 "\n"
+"       -T/--upload-file <file>\n"
+"              This transfers the specified local file to the  remote  URL.  If\n"
+"              there is no file part in the specified URL, Curl will append the\n"
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory  to really prove to Curl that there is no file name or\n"
 , stdout);

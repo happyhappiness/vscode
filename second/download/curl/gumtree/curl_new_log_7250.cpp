@@ -1,9 +1,12 @@
 fputs(
-"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
-"              uploaded.\n"
+"              tion. Overrides -n, --netrc and --netrc-optional.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
+"              If you just give the user name (without entering a  colon)  curl\n"
+"              will prompt for a password.\n"
+"\n"
+"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
+"              tion, you can force curl to pick up the user name  and  password\n"
+"              from  your  environment by simply specifying a single colon with\n"
+"              this option: \"-u :\".\n"
+"\n"
 , stdout);

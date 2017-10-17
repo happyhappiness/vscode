@@ -1,13 +1,8 @@
-puts(
-"  Note that curl cannot use persistant connections for transfers that are used\n"
-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
-"  same command line if they are using the same host, as that'll make the\n"
-"  transfers faster. If you use a http proxy for file transfers, practicly\n"
-"  all transfers will be persistant.\n"
-"\n"
-"  Persistant connections were introduced in curl 7.7.\n"
-"\n"
-"MAILING LISTS\n"
-"\n"
-"  For your convenience, we have several open mailing lists to discuss curl,\n"
-);
+puts(" -L/--location      Follow Location: hints (H)\n"
+       "    --location-trusted Same, and continue to send authentication when \n"
+       "                    following locations, even when hostname changed\n"
+       " -m/--max-time <seconds> Maximum time allowed for the transfer\n"
+       " -M/--manual        Display huge help text\n"
+       " -n/--netrc         Must read .netrc for user name and password\n"
+       "    --netrc-optional  Use either .netrc or URL; overrides -n\n"
+       " -N/--no-buffer     Disables the buffering of the output stream");

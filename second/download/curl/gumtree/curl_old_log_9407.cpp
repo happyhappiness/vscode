@@ -1,12 +1,8 @@
 fputs(
-"              mkdir directory_name\n"
-"                     The  mkdir  command  creates  the  directory named by the\n"
-"                     directory_name operand.\n"
-"\n"
-"              pwd    The pwd command returns the absolute pathname of the cur-\n"
-"                     rent working directory.\n"
-"\n"
-"              rename source target\n"
-"                     The rename command renames the file or directory named by\n"
-"                     the source operand to the destination path named  by  the\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
+"              on  the  command line. The port number should be the number used\n"
+"              for the specific protocol the host will be used  for.  It  means\n"
+"              you  need several entries if you want to provide address for the\n"
 , stdout);

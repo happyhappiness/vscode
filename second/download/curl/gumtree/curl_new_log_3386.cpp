@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP) This posts data exactly as specified with no  extra  pro-\n"
-"              cessing whatsoever.\n"
+"              If this option is used several times, each occurrence will  tog-\n"
+"              gle this on/off.\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
-"              filename.  Data is posted in a similar  manner  as  --data-ascii\n"
-"              does,  except  that  newlines  are preserved and conversions are\n"
-"              never done.\n"
+"       -D/--dump-header <file>\n"
+"              Write the protocol headers to the specified file.\n"
 "\n"
-"              If this option is used several times,  the  ones  following  the\n"
+"              This  option  is handy to use when you want to store the headers\n"
+"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
+"              then  be  read  in a second curl invoke by using the -b/--cookie\n"
 , stdout);

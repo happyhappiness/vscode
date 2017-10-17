@@ -1,11 +1,10 @@
 fputs(
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only shows the ASCII part of the dump. It makes  smaller  output\n"
-"              that might be easier to read for untrained humans.\n"
+"              Use -s, --silent to make curl quiet.\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace.\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-time\n"
-"              Prepends  a  time  stamp to each trace or verbose line that curl\n"
+"       -w, --write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful operation. The format is a string  that  may  contain  plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified as \"string\", to get read from a particular file you  spec-\n"
+"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
 , stdout);

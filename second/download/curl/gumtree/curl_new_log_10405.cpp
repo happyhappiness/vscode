@@ -1,11 +1,9 @@
 fputs(
-"              This option controls transfers and thus  will  not  affect  slow\n"
-"              connects  etc.  If this is a concern for you, try the --connect-\n"
-"              timeout option.\n"
+"              request, it does not alter the way curl behaves. So for  example\n"
+"              if  you  want  to make a proper HEAD request, using -X HEAD will\n"
+"              not suffice. You need to use the -I, --head option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -Y, --speed-limit <speed>\n"
-"              If a download is slower than this given speed (in bytes per sec-\n"
-"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              The the method string you set with  -X  will  be  used  for  all\n"
+"              requests,  which if you for example use -L, --location may cause\n"
+"              unintended side-effects when curl doesn't change request  method\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"                     This is the default but the slowest behavior.\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
-"                     etc and give a full path to the server for all these com-\n"
-"                     mands. This is the fastest behavior.\n"
-"\n"
-"              singlecwd\n"
-"                     curl does one CWD with the full target directory and then\n"
-"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
+"       -F/--form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using the Content-Type multipart/form-data according to RFC2388.\n"
 , stdout);

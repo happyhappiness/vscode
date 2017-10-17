@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"                     case). This is somewhat  more  standards  compliant  than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
+"       (Added in 7.15.1)\n"
 "\n"
-"       --cacert <CA certificate>\n"
-"              (SSL) Tells curl to use the specified certificate file to verify\n"
-"              the  peer.  The  file  may contain multiple CA certificates. The\n"
-"              certificate(s) must be in PEM format. Normally curl is built  to\n"
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  passive  mode for the data conection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
 "\n"
 , stdout);

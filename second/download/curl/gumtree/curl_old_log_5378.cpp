@@ -1,11 +1,10 @@
 fputs(
-"              ing alternatives:\n"
+"              This option was  formerly  known  as  --ftp-ssl-reqd  (added  in\n"
+"              7.15.5)  and  that  can  still  be used but will be removed in a\n"
+"              future version.\n"
 "\n"
-"              multicwd\n"
-"                     curl  does  a  single CWD operation for each path part in\n"
-"                     the given URL. For deep hierarchies this means very  many\n"
-"                     commands.  This  is  how  RFC1738 says it should be done.\n"
-"                     This is the default but the slowest behavior.\n"
-"\n"
-"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
+"              munication will be unencrypted. This allows NAT routers to  fol-\n"
 , stdout);

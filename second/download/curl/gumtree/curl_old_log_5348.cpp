@@ -1,10 +1,10 @@
 fputs(
-"       -C/--continue-at <offset>\n"
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
-"              The  given  offset  is  the  exact  number of bytes that will be\n"
-"              skipped, counting from the beginning of the source  file  before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
+"              followed  by a separator and a content specification. The <data>\n"
+"              part can be passed to curl using one of the following syntaxes:\n"
 "\n"
-"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              content\n"
+"                     This will make curl URL-encode the content and pass  that\n"
+"                     on.  Just  be careful so that the content doesn't contain\n"
+"                     any = or @ symbols, as that will  then  make  the  syntax\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              string should be the 128 bit MD5 checksum of the  remote  host's\n"
-"              public key, curl will refuse the connection with the host unless\n"
-"              the md5sums match. (Added in 7.17.1)\n"
+"              is  mostly done to better enable scripts etc to better deal with\n"
+"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
+"              deliver  a  document,  it  returns  an  HTML document stating so\n"
+"              (which often also describes why and more). This flag  will  pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"       --ignore-content-length\n"
-"              (HTTP) Ignore the Content-Length header.  This  is  particularly\n"
-"              useful  for servers running Apache 1.x, which will report incor-\n"
-"              rect Content-Length for files larger than 2 gigabytes.\n"
-"\n"
-"       -i, --include\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
 , stdout);

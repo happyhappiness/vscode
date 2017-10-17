@@ -1,11 +1,11 @@
 fputs(
-"              its  response to curl's PASV command when curl connects the data\n"
-"              connection. Instead curl will re-use  the  same  IP  address  it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
+"              See further examples and details in the MANUAL.\n"
 "\n"
-"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
-"              of PASV.\n"
+"              This option can be used multiple times.\n"
 "\n"
-"       --ftp-ssl\n"
-"              (FTP) Try to use SSL/TLS for the FTP connection.  Reverts  to  a\n"
+"       --form-string <name=string>\n"
+"              (HTTP)  Similar  to  --form except that the value string for the\n"
+"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
+"              ters, and the ';type=' string in the value have no special mean-\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
 , stdout);

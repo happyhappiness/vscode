@@ -1,11 +1,11 @@
 fputs(
-"              This option overrides previous uses of -v, --verbose or --trace.\n"
+"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -y and is 30 if not set.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --trace-time\n"
-"              Prepends  a  time  stamp to each trace or verbose line that curl\n"
-"              displays.  (Added in 7.14.0)\n"
-"\n"
-"       -u, --user <user:password;options>\n"
-"              Specify the user name, password and optional  login  options  to\n"
+"       -z, --time-cond <date expression>|<file>\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The <date expression> can be all sorts of date strings  or\n"
 , stdout);

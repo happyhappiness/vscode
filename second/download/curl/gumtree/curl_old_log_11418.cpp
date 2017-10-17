@@ -1,10 +1,11 @@
 fputs(
-"              requests into GET requests when following a 303 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
-"              server may require a POST to remain a POST after  such  a  redi-\n"
-"              rection.  This  option is meaningful only when using -L, --loca-\n"
-"              tion (Added in 7.26.0)\n"
+"              Examples:   --proxy-negotiate   proxy-name  --proxy-service-name\n"
+"              sockd would use sockd/proxy-name.  (Added in 7.43.0).\n"
 "\n"
-"       --proto <protocols>\n"
+"       --proxy1.0 <proxyhost[:port]>\n"
+"              Use the specified HTTP 1.0 proxy. If  the  port  number  is  not\n"
+"              specified, it is assumed at port 1080.\n"
+"\n"
+"              The  only difference between this and the HTTP proxy option (-x,\n"
+"              --proxy), is that attempts to use CONNECT through the proxy will\n"
 , stdout);

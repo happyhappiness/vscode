@@ -1,11 +1,11 @@
 fputs(
-"              FTP  commands  as  RFC959  defines to FTP servers, or one of the\n"
-"              commands listed below to SFTP servers.  This option can be  used\n"
-"              multiple times.\n"
+"       (*) = NOTE that this will cause the server to reply  with  a  multipart\n"
+"       response!\n"
 "\n"
-"              SFTP  is  a  binary protocol. Unlike for FTP, libcurl interprets\n"
-"              SFTP quote commands before sending them to the server.   Follow-\n"
-"              ing is the list of all supported SFTP quote commands:\n"
+"       Only  digit characters (0-9) are valid in the 'start' and 'stop' fields\n"
+"       of the 'start-stop' range syntax. If a non-digit character is given  in\n"
+"       the  range, the server's response will be unspecified, depending on the\n"
+"       server's configuration.\n"
 "\n"
-"              chgrp group file\n"
+"       You should also be aware that many HTTP/1.1 servers do  not  have  this\n"
 , stdout);

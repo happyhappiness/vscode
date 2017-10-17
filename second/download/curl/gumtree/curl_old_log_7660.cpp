@@ -1,11 +1,10 @@
 fputs(
-"                     'nocwd' but without the full penalty of 'multicwd'.\n"
-"       (Added in 7.15.1)\n"
+"              When  used,  this  option  will make all data specified with -d,\n"
+"              --data or --data-binary to be used in a HTTP GET request instead\n"
+"              of  the POST request that otherwise would be used. The data will\n"
+"              be appended to the URL with a '?' separator.\n"
 "\n"
-"       --ftp-pasv\n"
-"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
-"              internal default behavior, but using this option can be used  to\n"
-"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"              If used in combination with -I, the POST data  will  instead  be\n"
+"              appended to the URL with a HEAD request.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
 , stdout);

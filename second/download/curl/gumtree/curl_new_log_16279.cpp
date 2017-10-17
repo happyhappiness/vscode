@@ -1,0 +1,15 @@
+fputs(
+"       --crlfile <file>\n"
+"              (TLS) Provide a file using PEM format with a Certificate Revoca-\n"
+"              tion List that may specify peer certificates that are to be con-\n"
+"              sidered revoked.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              Added in 7.19.7.\n"
+"\n"
+"       --data-ascii <data>\n"
+"              (HTTP) This is just an alias for -d, --data.\n"
+"\n"
+"       --data-binary <data>\n"
+, stdout);

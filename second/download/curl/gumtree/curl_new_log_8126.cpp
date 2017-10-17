@@ -1,8 +1,12 @@
 fputs(
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
-"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
+"\n"
+"              +  Permit this protocol in addition to protocols already permit-\n"
+"                 ted (this is the default if no modifier is used).\n"
+"\n"
+"              -  Deny this protocol, removing it from the  list  of  protocols\n"
+"                 already permitted.\n"
+"\n"
+"              =  Permit  only this protocol (ignoring the list already permit-\n"
+"                 ted), though subject  to  later  modification  by  subsequent\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -k, --insecure\n"
-"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to  be  made secure by using the CA certificate bundle installed\n"
+"       -p, --proxytunnel\n"
+"              When an HTTP proxy is used (-x, --proxy), this option will cause\n"
+"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
+"              instead  of merely using it to do HTTP-like operations. The tun-\n"
+"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
 , stdout);

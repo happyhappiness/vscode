@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used twice,  the  second  will  again  disable\n"
-"              location following.\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
-"              + password to all hosts that the site may redirect to. This  may\n"
-"              or may not introduce a security breach if the site redirects you\n"
-"              do a site to which you'll send your authentication  info  (which\n"
+"              If this option is used twice, the second will  again  switch  on\n"
+"              buffering.\n"
+"\n"
+"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"  all of them, one after the other in the specified order.\n"
+"              this  option, you can specify URLs that contain the letters {}[]\n"
+"              without having them being interpreted by curl itself. Note  that\n"
+"              these  letters are not normal legal URL contents but they should\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"  libcurl will attempt to use persistent connections for the transfers so that\n"
-"  the second transfer to the same host can use the same connection that was\n"
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
-"\n"
-"  Note that curl cannot use persistent connections for transfers that are used\n"
+"       -G/--get\n"
+"              When used,  this  option  will  make  all  data  specified  with\n"
+"              -d/--data  or  --data-binary  to  be  used in a HTTP GET request\n"
 , stdout);

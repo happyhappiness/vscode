@@ -1,11 +1,11 @@
 fputs(
-"              See also the -A, --user-agent and -e, --referer options.\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a  '#' character, the rest of the line will be treated as a com-\n"
+"              ment. Only write one option per  physical  line  in  the  config\n"
+"              file.\n"
 "\n"
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
+"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
+"              the file from stdin.\n"
 "\n"
-"       --hostpubmd5 <md5>\n"
-"              Pass a string  containing  32  hexadecimal  digits.  The  string\n"
-"              should  be  the 128 bit MD5 checksum of the remote host's public\n"
-"              key, curl will refuse the connection with the  host  unless  the\n"
+"              Note that to be able to specify a URL in the  config  file,  you\n"
 , stdout);

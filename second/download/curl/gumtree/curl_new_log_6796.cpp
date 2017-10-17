@@ -1,11 +1,9 @@
 fputs(
-"              back you get about this possibly lethal situation.\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
-"\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
-"              The  given  offset  is  the  exact  number of bytes that will be\n"
-"              skipped, counting from the beginning of the source  file  before\n"
+"              If any of these options is used more than once on the same  com-\n"
+"              mand  line,  the  data  pieces specified will be merged together\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reversed engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
-"              who uses NTLM to switch to a public and  documented  authentica-\n"
-"              tion method instead. Such as Digest. (Added in 7.10.6)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -l/--list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
+"              only  view.   Especially useful if you want to machine-parse the\n"
+"              contents of an FTP directory since  the  normal  directory  view\n"
+"              doesn't use a standard look or format.\n"
+"\n"
+"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
 , stdout);

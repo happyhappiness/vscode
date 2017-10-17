@@ -1,10 +1,8 @@
 fputs(
-"       --hostpubmd5 <md5>\n"
-"              (SCP/SFTP)  Pass  a string containing 32 hexadecimal digits. The\n"
-"              string should be the 128 bit MD5 checksum of the  remote  host's\n"
-"              public key, curl will refuse the connection with the host unless\n"
-"              the md5sums match. (Added in 7.17.1)\n"
-"\n"
-"       --ignore-content-length\n"
-"              (HTTP) Ignore the Content-Length header.  This  is  particularly\n"
+"              can tell curl the nickname of the certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
+"              want to use a file from the current directory, please precede it\n"
+"              with  \"./\"  prefix, in order to avoid confusion with a nickname.\n"
 , stdout);

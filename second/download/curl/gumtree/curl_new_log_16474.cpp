@@ -1,0 +1,17 @@
+fputs(
+"              (TLS) Forces curl to use TLS version 1.2 when  connecting  to  a\n"
+"              remote TLS server.\n"
+"\n"
+"              Added in 7.34.0.\n"
+"\n"
+"       --tlsv1.3\n"
+"              (TLS)  Forces  curl  to use TLS version 1.3 when connecting to a\n"
+"              remote TLS server.\n"
+"\n"
+"              Note that TLS 1.3 is only supported by a subset of TLS backends.\n"
+"              At the time of writing this, those are BoringSSL and NSS only.\n"
+"\n"
+"              Added in 7.52.0.\n"
+"\n"
+"       -1, --tlsv1\n"
+, stdout);

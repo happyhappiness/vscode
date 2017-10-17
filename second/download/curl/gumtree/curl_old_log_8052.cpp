@@ -1,11 +1,11 @@
 fputs(
-"              file name to read the data from, or - if you want curl  to  read\n"
-"              the  data  from stdin.  The contents of the file must already be\n"
-"              URL-encoded. Multiple files can also be specified. Posting  data\n"
-"              from  a file named 'foobar' would thus be done with --data @foo-\n"
-"              bar.\n"
+"                     in  the  Kerberos  service  ticket,  which is a matter of\n"
+"                     realm policy.\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"              always Unconditionally allow the server to delegate.\n"
 "\n"
+"       --digest\n"
+"              (HTTP) Enables HTTP Digest authentication. This is an  authenti-\n"
+"              cation  scheme  that  prevents the password from being sent over\n"
+"              the wire in clear text. Use this in combination with the  normal\n"
 , stdout);

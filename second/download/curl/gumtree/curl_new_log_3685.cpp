@@ -1,11 +1,10 @@
 fputs(
-"                     commands. This is how RFC1738 says  it  should  be  done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
+"              passive  mode  will  not initiate the shutdown, but instead wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              nocwd  curl  does  no  CWD at all. curl will do SIZE, RETR, STOR\n"
-"                     etc and give a full path to the server for all these com-\n"
-"                     mands. This is the fastest behavior.\n"
-"\n"
-"              singlecwd\n"
-"                     curl does one CWD with the full target directory and then\n"
+"       -F/--form <name=content>\n"
+"              (HTTP) This lets curl emulate a filled in form in which  a  user\n"
 , stdout);

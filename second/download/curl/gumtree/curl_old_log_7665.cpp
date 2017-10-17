@@ -1,10 +1,10 @@
 fputs(
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
+"              should be the 128 bit MD5 checksum of the remote  host's  public\n"
+"              key,  curl  will  refuse the connection with the host unless the\n"
+"              md5sums match. This option is only for SCP and  SFTP  transfers.\n"
+"              (Added in 7.17.1)\n"
 "\n"
-"       --ftp-ssl-control\n"
-"              (FTP) Require SSL/TLS for the FTP  login,  clear  for  transfer.\n"
-"              Allows  secure  authentication, but non-encrypted data transfers\n"
-"              for efficiency.  Fails the transfer if the server  doesn't  sup-\n"
-"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
+"       --ignore-content-length\n"
+"              (HTTP)  Ignore  the  Content-Length header. This is particularly\n"
+"              useful for servers running Apache 1.x, which will report  incor-\n"
 , stdout);

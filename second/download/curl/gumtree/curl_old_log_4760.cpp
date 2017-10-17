@@ -1,8 +1,12 @@
 fputs(
-"              and a 3XX response code), this option will make  curl  redo  the\n"
-"              request  on the new place. If used together with -i/--include or\n"
-"              -I/--head, headers from all requested pages will be shown.  When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote  host.  Basic  is  the default authentication method curl\n"
+"              uses with proxies.\n"
+"\n"
+"       --proxy-digest\n"
+"              Tells curl to use HTTP Digest authentication when  communicating\n"
+"              with the given proxy. Use --digest for enabling HTTP Digest with\n"
+"              a remote host.\n"
+"\n"
+"       --proxy-negotiate\n"
 , stdout);

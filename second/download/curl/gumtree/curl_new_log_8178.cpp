@@ -1,12 +1,10 @@
 fputs(
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful if you've told curl  to  follow  location:\n"
-"                             headers.\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
-"       If this option is used several times, the last one will be used.\n"
-"\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use  the  specified HTTP proxy. If the port number is not speci-\n"
-"              fied, it is assumed at port 1080.\n"
+"              This  option  controls  transfers  and thus will not affect slow\n"
+"              connects etc. If this is a concern for you, try  the  --connect-\n"
+"              timeout option.\n"
 "\n"
 , stdout);

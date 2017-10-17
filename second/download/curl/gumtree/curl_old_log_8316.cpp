@@ -1,10 +1,11 @@
 fputs(
-"              and the embedded user + password.\n"
+"              dir  given the current user in your system). On Windows, it then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"              From 7.21.7, the proxy string may be  specified  with  a  proto-\n"
-"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
-"              socks4://, socks4a://, socks5:// or socks5h://  to  request  the\n"
-"              specific  SOCKS  version  to  be  used.  No  protocol specified,\n"
-"              http:// and all others will be treated as HTTP proxies.\n"
+"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              UNIX-like  systems,  it will simply try to load .curlrc from the\n"
+"              determined home dir.\n"
 "\n"
 , stdout);

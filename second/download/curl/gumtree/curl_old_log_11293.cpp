@@ -1,11 +1,10 @@
 fputs(
-"              Used together with -u, --user and -x, --proxy.\n"
+"              POST  requests  into GET requests when following a 303 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.26.0)\n"
 "\n"
-"              See also --proxy-basic.\n"
-"\n"
-"       -c, --cookie-jar <file name>\n"
-"              (HTTP) Specify to which file you want curl to write all  cookies\n"
-"              after  a completed operation. Curl writes all cookies previously\n"
-"              read from a specified file as well as all cookies received  from\n"
-"              remote server(s). If no cookies are known, no data will be writ-\n"
+"       --proto <protocols>\n"
 , stdout);

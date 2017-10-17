@@ -1,11 +1,11 @@
 fputs(
-"              See also the -A/--user-agent and -e/--referer options.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
+"       --krb <level>\n"
+"              (FTP) Enable Kerberos authentication and use. The level must  be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              'private'. Should you use a level that  is  not  one  of  these,\n"
+"              'private' will instead be used.\n"
 "\n"
-"       --hostpubmd5 <md5>\n"
-"              Pass a string  containing  32  hexadecimal  digits.  The  string\n"
-"              should  be  the 128 bit MD5 checksum of the remote host's public\n"
-"              key, curl will refuse the connection with the  host  unless  the\n"
+"              This  option  requires  a library built with kerberos4 or GSSAPI\n"
 , stdout);

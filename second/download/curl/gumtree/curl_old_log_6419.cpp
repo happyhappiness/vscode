@@ -1,8 +1,12 @@
 fputs(
-"              Using this, you can make the curl requests(s)  use  a  specified\n"
-"              address  and  prevent the otherwise normally resolved address to\n"
-"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
-"              on  the  command line. The port number should be the number used\n"
-"              for the specific protocol the host will be used  for.  It  means\n"
-"              you  need several entries if you want to provide address for the\n"
+"              This option overrides any previous use of  -x/--proxy,  as  they\n"
+"              are mutually exclusive.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --socks5-hostname <host[:port]>\n"
+"              Use  the  specified  SOCKS5 proxy (and let the proxy resolve the\n"
+"              host name). If the port number is not specified, it  is  assumed\n"
+"              at port 1080. (Added in 7.18.0)\n"
+"\n"
 , stdout);

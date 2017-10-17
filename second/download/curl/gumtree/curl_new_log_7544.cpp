@@ -1,11 +1,8 @@
 fputs(
-"              note  that  If  --metalink  and  --include  are  used  together,\n"
-"              --include  will be ignored. This is because including headers in\n"
-"              the response will break Metalink parser and if the  headers  are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
-"\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
-"\n"
-"       -n, --netrc\n"
+"              supported for FTP). You may specify any number of  commands.  If\n"
+"              the  server  returns failure for one of the commands, the entire\n"
+"              operation will be aborted. You must send  syntactically  correct\n"
+"              FTP  commands  as  RFC 959 defines to FTP servers, or one of the\n"
+"              commands listed below to SFTP servers.  This option can be  used\n"
+"              multiple  times.  When speaking to a FTP server, prefix the com-\n"
 , stdout);

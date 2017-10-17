@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP/FTP/FILE) Request a file that has been modified later than\n"
-"              the  given  time  and date, or one that has been modified before\n"
-"              that time. The date expression can be all sorts of date  strings\n"
-"              or  if  it  doesn't match any internal ones, it tries to get the\n"
-"              time from a given file name instead! See the curl_getdate(3) man\n"
-"              pages for date expression details.\n"
+"       NO_PROXY <comma-separated list of hosts>\n"
+"              list  of  host names that shouldn't go through any proxy. If set\n"
+"              to a asterisk '*' only, it matches all hosts.\n"
 "\n"
+"PROXY PROTOCOL PREFIXES\n"
+"       Since curl version 7.21.7, the proxy string may  be  specified  with  a\n"
+"       protocol:// prefix to specify alternative proxy protocols.\n"
+"\n"
+"       If  no  protocol  is  specified  in  the  proxy string or if the string\n"
 , stdout);

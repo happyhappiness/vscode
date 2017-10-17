@@ -1,0 +1,16 @@
+fputs(
+"              report incorrect Content-Length for files larger  than  2  giga-\n"
+"              bytes.\n"
+"\n"
+"              For  FTP (since 7.46.0), skip the RETR command to figure out the\n"
+"              size before downloading a file.\n"
+"\n"
+"       -i, --include\n"
+"              Include the HTTP-header in the output. The HTTP-header  includes\n"
+"              things  like server-name, date of the document, HTTP-version and\n"
+"              more...\n"
+"\n"
+"              See also -v, --verbose.\n"
+"\n"
+"       -k, --insecure\n"
+, stdout);

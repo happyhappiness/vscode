@@ -1,8 +1,10 @@
 fputs(
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied on the same config file line,  separated  by  white  space,\n"
-"              colon,  the equals sign or any combination thereof (however, the\n"
-"              preferred separator is the equals sign). If the parameter is  to\n"
+"              feature is useful if you have a limited pipe and you'd like your\n"
+"              transfer not use your entire bandwidth.\n"
+"\n"
+"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+"              bytes,  'm'  or  M' makes it megabytes while 'g' or 'G' makes it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              backend  that supports this operation. The c-ares backend is the\n"
-"              only such one.  (Added in 7.33.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -e, --referer <URL>\n"
-"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
-"              used with -L, --location you can append \";auto\" to the --referer\n"
-"              URL to make curl automatically set the previous URL when it fol-\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the  peer.  The  file  may contain multiple CA certificates. The\n"
+"              certificate(s) must be in PEM format. Normally curl is built  to\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
+"\n"
 , stdout);

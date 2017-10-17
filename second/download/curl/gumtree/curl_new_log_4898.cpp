@@ -1,10 +1,10 @@
 fputs(
-"              this  option, you can specify URLs that contain the letters {}[]\n"
-"              without having them being interpreted by curl itself. Note  that\n"
-"              these  letters are not normal legal URL contents but they should\n"
-"              be encoded according to the URI standard.\n"
+"              (HTTP)  This option tells the -O/--remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"       -G/--get\n"
-"              When used,  this  option  will  make  all  data  specified  with\n"
-"              -d/--data  or  --data-binary  to  be  used in a HTTP GET request\n"
+"       -k/--insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
 , stdout);

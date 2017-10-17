@@ -1,11 +1,11 @@
 fputs(
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
+"              application data before verifying the server's Finished message,\n"
+"              thus saving a round trip when performing a full handshake.\n"
 "\n"
-"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
-"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
-"              bundle. This option overrides that variable.\n"
+"              This is currently only implemented in the NSS and Secure  Trans-\n"
+"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
+"              (Added in 7.42.0)\n"
 "\n"
-"              The  windows  version  of  curl will automatically look for a CA\n"
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"       -f, --fail\n"
+"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
 , stdout);

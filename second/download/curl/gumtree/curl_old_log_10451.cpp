@@ -1,1 +1,1 @@
-warnf(config, "--test-event is ignored unless a debug build!\n");
+warnf(config, "Failed to read %s", fname);

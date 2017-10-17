@@ -1,11 +1,11 @@
 fputs(
-"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a  '#' character, the rest of the line will be treated as a com-\n"
-"              ment. Only write one option per  physical  line  in  the  config\n"
-"              file.\n"
+"              To use a Metalink file in the local file system, use FILE proto-\n"
+"              col (file://):\n"
 "\n"
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
+"              curl --metalink file://example.metalink\n"
 "\n"
+"              Please  note  that if FILE protocol is disabled, there is no way\n"
+"              to use a local Metalink file at the time of this  writing.  Also\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include will be ignored. This is because including headers  in\n"
 , stdout);

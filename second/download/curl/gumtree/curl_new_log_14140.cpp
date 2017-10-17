@@ -1,0 +1,16 @@
+fputs(
+"       --tcp-nodelay\n"
+"              Turn  on the TCP_NODELAY option. See the curl_easy_setopt(3) man\n"
+"              page for details about this option.\n"
+"\n"
+"              Since 7.50.2, curl sets this option by default and you  need  to\n"
+"              explictitly switch it off if you don't want it on.\n"
+"\n"
+"              Added in 7.11.2.\n"
+"\n"
+"       -t, --telnet-option <opt=val>\n"
+"              Pass options to the telnet protocol. Supported options are:\n"
+"\n"
+"              TTYPE=<term> Sets the terminal type.\n"
+"\n"
+, stdout);

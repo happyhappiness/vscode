@@ -1,8 +1,10 @@
-warnf(config,
-                  "--metalink option cannot be used because the version of "
-                  "the linked libmetalink library is too old. "
-                  "Required: %d.%d.%d, found %d.%d.%d\n",
-                  CURL_REQ_LIBMETALINK_MAJOR,
-                  CURL_REQ_LIBMETALINK_MINOR,
-                  CURL_REQ_LIBMETALINK_PATCH,
-                  mlmaj, mlmin, mlpatch);
+fputs(
+"              the file to read cookies from should be plain  HTTP  headers  or\n"
+"              the Netscape/Mozilla cookie file format.\n"
+"\n"
+"              NOTE  that  the file specified with -b, --cookie is only used as\n"
+"              input. No cookies will be stored in the file. To store  cookies,\n"
+"              use  the -c, --cookie-jar option or you could even save the HTTP\n"
+"              headers to a file using -D, --dump-header!\n"
+"\n"
+, stdout);

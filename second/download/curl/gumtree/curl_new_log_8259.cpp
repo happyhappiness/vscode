@@ -1,10 +1,10 @@
 fputs(
-"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
-"              passive mode will not initiate the shutdown,  but  instead  wait\n"
-"              for the server to do it, and will not reply to the shutdown from\n"
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
+"       --hostpubmd5 <md5>\n"
+"              (SCP/SFTP)  Pass  a string containing 32 hexadecimal digits. The\n"
+"              string should be the 128 bit MD5 checksum of the  remote  host's\n"
+"              public key, curl will refuse the connection with the host unless\n"
+"              the md5sums match. (Added in 7.17.1)\n"
 "\n"
-"       --ftp-ssl-control\n"
-"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
+"       --ignore-content-length\n"
+"              (HTTP) Ignore the Content-Length header.  This  is  particularly\n"
 , stdout);

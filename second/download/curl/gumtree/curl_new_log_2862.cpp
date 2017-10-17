@@ -1,11 +1,9 @@
 fputs(
-"              http_connect   The numerical code that was  found  in  the  last\n"
-"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
-"                             request. (Added in 7.12.4)\n"
+"              Note  that  all  operations that are performed over a HTTP proxy\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the case if you can tunnel through the proxy, as done  with  the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
-"              time_total     The total time, in seconds, that the full  opera‐\n"
-"                             tion lasted. The time will be displayed with mil‐\n"
-"                             lisecond resolution.\n"
-"\n"
-"              time_namelookup\n"
+"              Starting  with 7.14.1, the proxy host can be specified the exact\n"
 , stdout);

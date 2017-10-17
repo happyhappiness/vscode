@@ -1,11 +1,11 @@
 fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
+"              The file specified with -b, --cookie is only used as  input.  No\n"
+"              cookies  will  be written to the file. To store cookies, use the\n"
+"              -c, --cookie-jar option.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
-"              (This option was  previously  wrongly  documented  and  used  as\n"
-"              --socks without the number appended.)\n"
 "\n"
-"              This  option (as well as --socks4) does not work with IPV6, FTPS\n"
-"              or LDAP.\n"
-"\n"
+"       -B, --use-ascii\n"
+"              (FTP/LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
+"              enforced  by  using an URL that ends with \";type=A\". This option\n"
 , stdout);

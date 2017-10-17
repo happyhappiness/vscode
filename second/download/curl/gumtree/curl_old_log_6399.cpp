@@ -1,8 +1,8 @@
 fputs(
-"              Tells  curl  to  respect  RFC  2616/10.3.2  and not convert POST\n"
-"              requests into GET requests when following a 301 redirection. The\n"
-"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
-"              the conversion by default to maintain  consistency.  However,  a\n"
-"              server  may  require  a POST to remain a POST after such a redi-\n"
-"              rection. This option is meaningful only when using -L/--location\n"
+"       -Q/--quote <command>\n"
+"              (FTP/SFTP)  Send  an arbitrary command to the remote FTP or SFTP\n"
+"              server. Quote commands are sent BEFORE the transfer takes  place\n"
+"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
+"              exact). To make commands take place after a successful transfer,\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
 , stdout);

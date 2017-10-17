@@ -1,1 +1,1 @@
-warnf(config, "Failed to create/open output");
+!tool_create_output_file(outs);

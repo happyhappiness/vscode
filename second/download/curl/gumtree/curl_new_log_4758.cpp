@@ -1,11 +1,10 @@
 fputs(
-"              contents of an FTP directory since  the  normal  directory  view\n"
-"              doesn't use a standard look or format.\n"
+"              (Added in 7.17.1)\n"
 "\n"
-"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
-"              servers list only files in their response to NLST; they  do  not\n"
-"              include subdirectories and symbolic links.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
+"       --post302\n"
+"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
+"              requests into GET requests when following a 302 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
 , stdout);

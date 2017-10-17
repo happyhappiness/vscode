@@ -1,11 +1,11 @@
 fputs(
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              are  errors (such as the file or server not being available). It\n"
+"              will also verify the hash of the file after  the  download  com-\n"
+"              pletes.  The Metalink file itself is downloaded and processed in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Example to use a remote Metalink file:\n"
 "\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              curl --metalink http://www.example.com/example.metalink\n"
+"\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"                     This  will make curl URL-encode the content part and pass\n"
-"                     that on. Note that the name part is expected to  be  URL-\n"
-"                     encoded already.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              @filename\n"
-"                     This  will  make  curl  load  data  from  the  given file\n"
-"                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it on in the POST.\n"
-"\n"
-"              name@filename\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL) Tells curl to use the specified  client  certificate  file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col. The certificate must be in PEM  format.   If  the  optional\n"
+"              password  isn't  specified, it will be queried for on the termi-\n"
 , stdout);

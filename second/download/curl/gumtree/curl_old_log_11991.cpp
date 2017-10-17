@@ -1,11 +1,10 @@
 fputs(
-"              This option (as well as --socks4) does not work with IPV6,  FTPS\n"
-"              or LDAP.\n"
+"              Set  TLS  authentication  type.  Currently,  the  only supported\n"
+"              option is \"SRP\",  for  TLS-SRP  (RFC  5054).  If  --tlsuser  and\n"
+"              --tlspassword  are specified but --tlsauthtype is not, then this\n"
+"              option defaults to \"SRP\".  (Added in 7.21.4)\n"
 "\n"
-"       --socks5-gssapi-service <servicename>\n"
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
-"\n"
-"              Examples:  --socks5  proxy-name  --socks5-gssapi-service   sockd\n"
-"              would  use sockd/proxy-name --socks5 proxy-name --socks5-gssapi-\n"
+"       --tlspassword <password>\n"
+"              Set password for use with the TLS authentication  method  speci-\n"
+"              fied  with  --tlsauthtype.  Requires that --tlsuser also be set.\n"
 , stdout);

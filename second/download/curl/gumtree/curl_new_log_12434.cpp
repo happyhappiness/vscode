@@ -1,10 +1,9 @@
 fputs(
-"              curl to make SSL-connections much more  efficiently  than  using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
 "\n"
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
-"\n"
-"       --pinnedpubkey <pinned public key (hashes)>\n"
-"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
 , stdout);

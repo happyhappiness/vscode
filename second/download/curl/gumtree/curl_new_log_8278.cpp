@@ -1,8 +1,10 @@
 fputs(
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
+"              --location (Added in 7.19.1)\n"
+"\n"
+"       --post303\n"
+"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              POST  requests  into GET requests when following a 303 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
 , stdout);

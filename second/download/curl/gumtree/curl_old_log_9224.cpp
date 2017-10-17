@@ -1,11 +1,11 @@
 fputs(
-"              be used. No protocol specified, http:// and all others  will  be\n"
-"              treated as HTTP proxies. (The protocol support was added in curl\n"
-"              7.21.7)\n"
+"              See     this    online    resource    for    further    details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
 "\n"
-"              If the port number is not specified in the proxy string,  it  is\n"
-"              assumed to be 1080.\n"
+"       -K, --config <config file>\n"
+"              Specify which config file to read curl arguments from. The  con-\n"
+"              fig  file  is a text file in which command line arguments can be\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line.\n"
 "\n"
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
 , stdout);

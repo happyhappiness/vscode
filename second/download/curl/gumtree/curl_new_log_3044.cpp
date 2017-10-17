@@ -1,9 +1,12 @@
 fputs(
-"              text mixed with any number of variables. The string can be spec‐\n"
-"              ified  as \"string\", to get read from a particular file you spec‐\n"
-"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
-"              stdin you write \"@-\".\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download.\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
+"                             the complete upload.\n"
+"\n"
+"              content_type   The  Content-Type  of  the requested document, if\n"
+"                             there was any.\n"
+"\n"
+"              num_connects   Number of new connects made in the recent  trans‐\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              Maximum  time  in  seconds that you allow the whole operation to\n"
-"              take.  This is useful for preventing your batch jobs from  hang-\n"
-"              ing  for  hours  due  to slow networks or links going down.  See\n"
-"              also the --connect-timeout option.\n"
+"              This option is similar to --netrc, except that you  provide  the\n"
+"              path  (absolute  or relative) to the netrc file that Curl should\n"
+"              use.  You can only specify one netrc  file  per  invocation.  If\n"
+"              several  --netrc-file  options  are  provided, only the last one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --mail-from <address>\n"
-"              (SMTP) Specify a single address that the given mail  should  get\n"
-"              sent from.\n"
+"              This option overrides any use of --netrc as  they  are  mutually\n"
 , stdout);

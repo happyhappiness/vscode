@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
-"              you to a site to which  you'll  send  your  authentication  info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              uations, curl will use a standard buffered  output  stream  that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily exactly when the data arrives.   Using  this  option\n"
+"              will disable that buffering.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
+"              Note  that  this  is the negated option name documented. You can\n"
+"              thus use --buffer to enforce the buffering.\n"
+"\n"
+"       --netrc-file\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not to use your entire bandwidth.\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following redirections \"in absurdum\". By default, the  limit  is\n"
+"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
+"              less.\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -n, --netrc\n"
+"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
 , stdout);

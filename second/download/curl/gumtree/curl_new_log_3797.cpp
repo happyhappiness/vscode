@@ -1,12 +1,9 @@
 fputs(
-"              ful information after having run curl.\n"
+"              deal with failed attempts. In normal cases when  a  HTTP  server\n"
+"              fails to deliver a document, it returns an HTML document stating\n"
+"              so (which often also describes why and  more).  This  flag  will\n"
+"              prevent curl from outputting that and return error 22.\n"
 "\n"
-"       --egd-file <file>\n"
-"              (SSL) Specify the path name  to  the  Entropy  Gathering  Daemon\n"
-"              socket.  The  socket  is  used to seed the random engine for SSL\n"
-"              connections. See also the --random-file option.\n"
-"\n"
-"       -E/--cert <certificate[:password]>\n"
-"              (SSL) Tells curl to use the specified certificate file when get-\n"
-"              ting  a  file with HTTPS or FTPS. The certificate must be in PEM\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
 , stdout);

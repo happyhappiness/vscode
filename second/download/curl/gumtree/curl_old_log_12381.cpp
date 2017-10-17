@@ -1,9 +1,11 @@
 fputs(
-"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
-"              value then its header must be terminated with a semicolon,  such\n"
-"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
+"              already exists in the current working directory it will  not  be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
 "\n"
-"              curl  will  make  sure  that each header you add/replace is sent\n"
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
+"\n"
+"              WARNING: Exercise judicious use of this  option,  especially  on\n"
 , stdout);

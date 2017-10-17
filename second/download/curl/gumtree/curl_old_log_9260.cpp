@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation method. For more information see IETF draft draft-brezak-\n"
+"              spnego-http-04.txt.\n"
 "\n"
-"       --metalink\n"
-"              This  option  can  tell curl to parse and process a given URI as\n"
-"              Metalink file (both version 3 and 4 (RFC  5854)  are  supported)\n"
-"              and  make use of the mirrors listed within for failover if there\n"
-"              are errors (such as the file or server not being available).  It\n"
-"              will  also  verify  the hash of the file after the download com-\n"
+"              If  you  want to enable Negotiate for your proxy authentication,\n"
+"              then use --proxy-negotiate.\n"
+"\n"
 , stdout);

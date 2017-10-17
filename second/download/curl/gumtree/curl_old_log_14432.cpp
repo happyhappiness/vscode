@@ -1,0 +1,15 @@
+fputs(
+"              Added in 7.52.0.\n"
+"\n"
+"       --proxy-tlsv1\n"
+"              Same as -1, --tlsv1 but used in HTTPS proxy context.\n"
+"\n"
+"              Added in 7.52.0.\n"
+"\n"
+"       -U, --proxy-user <user:password>\n"
+"              Specify  the user name and password to use for proxy authentica-\n"
+"              tion.\n"
+"\n"
+"              If you use a Windows SSPI-enabled  curl  binary  and  do  either\n"
+"              Negotiate  or  NTLM  authentication  then  you  can tell curl to\n"
+, stdout);

@@ -1,0 +1,16 @@
+fputs(
+"              page for details about this option.\n"
+"\n"
+"              Since  7.50.2,  curl sets this option by default and you need to\n"
+"              explicitly switch it off if you don't want it on.\n"
+"\n"
+"              Added in 7.11.2.\n"
+"\n"
+"       -t, --telnet-option <opt=val>\n"
+"              Pass options to the telnet protocol. Supported options are:\n"
+"\n"
+"              TTYPE=<term> Sets the terminal type.\n"
+"\n"
+"              XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+, stdout);

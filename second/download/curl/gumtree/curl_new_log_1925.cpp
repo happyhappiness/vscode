@@ -1,1 +1,2 @@
-warnf(config, "You can only select one HTTP request!\n");
+warnf(config, "Couldn't read data from file \"%s\", this makes "
+                    "an empty POST.\n", nextarg);

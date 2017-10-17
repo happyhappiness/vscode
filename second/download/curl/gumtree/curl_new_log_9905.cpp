@@ -1,10 +1,8 @@
 fputs(
-"              Specify the login options to use during server authentication.\n"
-"\n"
-"              You can use the  login  options  to  specify  protocol  specific\n"
-"              options  that may be used during authentication. At present only\n"
-"              IMAP, POP3 and SMTP support login options. For more  information\n"
-"              about  the  login options please see RFC 2384, RFC 5092 and IETF\n"
-"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
-"\n"
+"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
+"              user's home directory for login name and password. This is typi-\n"
+"              cally used for FTP on Unix. If used with HTTP, curl will  enable\n"
+"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
+"              file format. Curl will not complain if that  file  doesn't  have\n"
+"              the  right permissions (it should not be either world- or group-\n"
 , stdout);

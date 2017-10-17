@@ -1,0 +1,15 @@
+fputs(
+"                 ted), though subject  to  later  modification  by  subsequent\n"
+"                 entries in the comma separated list.\n"
+"\n"
+"              For example:\n"
+"\n"
+"              --proto -ftps  uses the default protocols, but disables ftps\n"
+"\n"
+"              --proto -all,https,+http\n"
+"                             only enables http and https\n"
+"\n"
+"              --proto =http,https\n"
+"                             also only enables http and https\n"
+"\n"
+, stdout);

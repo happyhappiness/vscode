@@ -1,0 +1,1 @@
+warnf(global, "unsupported rate\n");

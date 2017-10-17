@@ -1,8 +1,11 @@
 fputs(
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
-"              sions to the original FTP protocol, and  may  not  work  on  all\n"
-"              servers, but they enable more functionality in a better way than\n"
+"              (SSL) Specify the path name  to  the  Entropy  Gathering  Daemon\n"
+"              socket.  The  socket  is  used to seed the random engine for SSL\n"
+"              connections. See also the --random-file option.\n"
+"\n"
+"       --cert-type <type>\n"
+"              (SSL) Tells curl what certificate type the provided  certificate\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
+"\n"
 , stdout);

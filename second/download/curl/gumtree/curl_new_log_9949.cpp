@@ -1,9 +1,12 @@
 fputs(
-"              ation  will  be aborted. You must send syntactically correct FTP\n"
-"              commands as RFC 959 defines to FTP servers, or one of  the  com-\n"
-"              mands  listed  below  to  SFTP servers.  This option can be used\n"
-"              multiple times. When speaking to an FTP server, prefix the  com-\n"
-"              mand with an asterisk (*) to make curl continue even if the com-\n"
-"              mand fails as by default curl will stop at first failure.\n"
+"       -R, --remote-time\n"
+"              When used, this will make curl attempt to figure out  the  time-\n"
+"              stamp  of  the  remote  file,  and if that is available make the\n"
+"              local file get that same timestamp.\n"
+"\n"
+"       --random-file <file>\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered  as  random  data.  The  data is used to seed the random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
 "\n"
 , stdout);

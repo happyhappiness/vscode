@@ -1,11 +1,12 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
+"              + URL pair specifies what to upload and to where. curl also sup-\n"
+"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
+"              multiple  files  to  a single URL by using the same URL globbing\n"
+"              style supported in the URL, like this:\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
+"              curl -T \"{file1,file2}\" http://www.uploadtothissite.com\n"
 "\n"
-"              size_upload    The total amount of bytes that were uploaded.\n"
+"              or even\n"
 "\n"
 , stdout);

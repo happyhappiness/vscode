@@ -1,4 +1,12 @@
-warnf(config,"Invalid character is found in given range. "
-                  "A specified range MUST have only digits in "
-                  "\'start\'-\'stop\'. The server's response to this "
-                  "request is uncertain.\n");
+fputs(
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
+"\n"
+"              Example, to send your password file to the server, where  'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
+"\n"
+"              curl -F password=@/etc/passwd www.mypasswords.com\n"
+"\n"
+, stdout);

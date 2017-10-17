@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on an FTP or FILE file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              backslash preceding any other letter is ignored.  If  the  first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
 "\n"
-"       --interface <name>\n"
-"              Perform  an operation using a specified interface. You can enter\n"
-"              interface name, IP address or host name. An example  could  look\n"
+"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
+"              the file from stdin.\n"
+"\n"
+"              Note that to be able to specify a URL in the  config  file,  you\n"
 , stdout);

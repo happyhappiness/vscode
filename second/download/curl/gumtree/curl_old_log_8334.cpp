@@ -1,9 +1,11 @@
 fputs(
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
+"              less.\n"
 "\n"
-"              The  given  rate  is the average speed counted during the entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --metalink\n"
+"              This option can tell curl to parse and process a  given  URI  as\n"
+"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
+"              and make use of the mirrors listed within for failover if  there\n"
 , stdout);

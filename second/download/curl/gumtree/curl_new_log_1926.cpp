@@ -1,1 +1,2 @@
-warnf(config, "Illegally formatted content-type field!\n");
+warnf(config,
+            "built-in manual was disabled at build-time!\n");

@@ -1,1 +1,2 @@
-warnf(global, "bad range input\n");
+warnf(global, "error trying read config from the '%s' file\n",
+              nextarg);

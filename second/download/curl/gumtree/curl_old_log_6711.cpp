@@ -1,9 +1,11 @@
 fputs(
-"              nal.  Note that this option assumes a \"certificate\" file that is\n"
-"              the private key and the private  certificate  concatenated!  See\n"
-"              --cert and --key to specify them independently.\n"
+"              much more efficiently than using --cacert if the  --cacert  file\n"
+"              contains many CA certificates.\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
-"              can tell curl the nickname of the certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -f, --fail\n"
+"              (HTTP)  Fail  silently (no output at all) on server errors. This\n"
+"              is mostly done to better enable scripts etc to better deal  with\n"
+"              failed  attempts.  In  normal  cases when a HTTP server fails to\n"
 , stdout);

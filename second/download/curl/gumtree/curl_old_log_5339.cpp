@@ -1,9 +1,12 @@
 fputs(
-"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
-"              NAME2=VALUE2\".\n"
+"              cookies will be written to stdout.\n"
 "\n"
-"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
+"              NOTE If the cookie jar can't be created or written to, the whole\n"
+"              curl operation won't fail or even report an error clearly. Using\n"
+"              -v will get a warning displayed, but that is  the  only  visible\n"
+"              feedback you get about this possibly lethal situation.\n"
+"\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
+"\n"
 , stdout);

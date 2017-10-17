@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              its response to curl's PASV command when curl connects the  data\n"
+"              connection.  Instead  curl  will  re-use  the same IP address it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"       -f/--fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when a  HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
-"              (which often also describes why and more). This flag  will  pre-\n"
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
+"\n"
+"       --ftp-ssl\n"
+"              (FTP)  Try  to use SSL/TLS for the FTP connection.  Reverts to a\n"
 , stdout);

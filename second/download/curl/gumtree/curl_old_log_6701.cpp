@@ -1,11 +1,9 @@
 fputs(
-"              first will append data as described in -d, --data.\n"
-"\n"
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
-"              followed by a separator and a content specification. The  <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              (HTTP) Sends the \"Referer Page\" information to the HTTP  server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
+"              used with -L, --location you can append \";auto\" to the --referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
+"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
+"              even if you don't set an initial --referer.\n"
 "\n"
 , stdout);

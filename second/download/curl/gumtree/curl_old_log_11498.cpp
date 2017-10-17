@@ -1,11 +1,11 @@
 fputs(
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -y and is 30 if not set.\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              User and password that might be provided in the proxy string are\n"
+"       -z, --time-cond <date expression>|<file>\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
 , stdout);

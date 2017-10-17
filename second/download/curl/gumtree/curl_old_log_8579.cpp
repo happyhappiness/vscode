@@ -1,10 +1,11 @@
 fputs(
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"       --ftp-create-dirs\n"
+"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
+"              doesn't  currently exist on the server, the standard behavior of\n"
+"              curl is to fail. Using this option, curl will instead attempt to\n"
+"              create missing directories.\n"
 "\n"
-"       -f, --fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
+"       --ftp-method [method]\n"
+"              (FTP)  Control what method curl should use to reach a file on an\n"
+"              FTP(S) server. The method argument should be one of the  follow-\n"
 , stdout);

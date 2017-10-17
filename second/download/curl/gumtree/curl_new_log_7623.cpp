@@ -1,14 +1,8 @@
-fputs(
-"              request  was  not  enabled  or was explicitly disabled at build-\n"
-"              time. To make curl able to do this, you  probably  need  another\n"
-"              build of libcurl!\n"
-"\n"
-"       5      Couldn't  resolve  proxy.  The  given  proxy  host  could not be\n"
-"              resolved.\n"
-"\n"
-"       6      Couldn't resolve host. The given remote host was not resolved.\n"
-"\n"
-"       7      Failed to connect to host.\n"
-"\n"
-"       8      FTP weird server reply.  The  server  sent  data  curl  couldn't\n"
-, stdout);
+warnf(config,
+                  "--metalink option cannot be used because the version of "
+                  "the linked libmetalink library is too old. "
+                  "Required: %d.%d.%d, found %d.%d.%d\n",
+                  CURL_REQ_LIBMETALINK_MAJOR,
+                  CURL_REQ_LIBMETALINK_MINOR,
+                  CURL_REQ_LIBMETALINK_PATCH,
+                  mlmaj, mlmin, mlpatch);

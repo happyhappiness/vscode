@@ -1,0 +1,17 @@
+puts(
+"     20   FTP write error. The transfer was reported bad by the\n"
+"          server.\n"
+"\n"
+"     21   FTP quote error. A quote command returned error from\n"
+"          the server.\n"
+"\n"
+"     22   HTTP not found. The requested page was not found. This\n"
+"          return code only appears if --fail is used.\n"
+"\n"
+"     23   Write error. Curl couldn't write data to a local\n"
+"          filesystem or similar.\n"
+"\n"
+"     24   Malformat user. User name badly specified.\n"
+"\n"
+"     25   FTP couldn't STOR file. The server denied the STOR\n"
+);

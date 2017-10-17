@@ -1,10 +1,12 @@
 fputs(
-"              redirect_url   When a HTTP request was made without -L to follow\n"
-"                             redirects, this variable will show the actual URL\n"
-"                             a redirect would take you to. (Added in 7.18.2)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              ftp_entry_path The initial path libcurl ended up in when logging\n"
-"                             on to the remote FTP server. (Added in 7.15.4)\n"
+"       -Y, --speed-limit <speed>\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -y and is 30 if not set.\n"
 "\n"
-"              ssl_verify_result\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -z, --time-cond <date expression>\n"
 , stdout);

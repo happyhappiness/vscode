@@ -1,0 +1,16 @@
+puts(
+"     19   FTP couldn't RETR file. The RETR command failed.\n"
+"\n"
+"     20   FTP write error. The transfer was reported bad  by  the\n"
+"          server.\n"
+"\n"
+"     21   FTP  quote  error.  A quote command returned error from\n"
+"          the server.\n"
+"\n"
+"     22   HTTP not found. The requested page was not found.  This\n"
+"          return code only appears if --fail is used.\n"
+"\n"
+"     23   Write  error.  Curl  couldn't  write  data  to  a local\n"
+"          filesystem or similar.\n"
+"\n"
+);

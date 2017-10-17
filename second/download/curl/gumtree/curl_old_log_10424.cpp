@@ -1,1 +1,2 @@
-warnf(heads->config, "Header data exceeds single call write limit!\n");
+warnf(config, "Refusing to overwrite %s: %s\n", outs->filename,
+              strerror(EEXIST));

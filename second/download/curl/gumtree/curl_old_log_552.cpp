@@ -1,11 +1,11 @@
 puts(
-"        curl -L -b empty.txt www.example.com\n"
+"  The default way for curl is to issue the PASV command which causes the\n"
+"  server to open another port and await another connection performed by the\n"
+"  client. This is good if the client is behind a firewall that don't allow\n"
+"  incoming connections.\n"
 "\n"
-"  The file to read cookies from must be formatted using plain HTTP headers OR\n"
-"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
-"  file contents.  In the above command, curl will parse the header and store\n"
-"  the cookies received from www.example.com.  curl will send to the server the\n"
-"  stored cookies which match the request as it follows the location.  The\n"
-"  file \"empty.txt\" may be a non-existant file.\n"
+"        curl ftp.download.com\n"
 "\n"
+"  If the server for example, is behind a firewall that don't allow connections\n"
+"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
 );

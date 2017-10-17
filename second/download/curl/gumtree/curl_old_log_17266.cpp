@@ -1,0 +1,18 @@
+puts(
+"     description in RFC 2396.\n"
+"\n"
+"     You  can  specify  multiple URLs or parts of URLs by writing\n"
+"     part sets within braces as in:\n"
+"\n"
+"      http://site.{one,two,three}.com\n"
+"\n"
+"     or you can get sequences of alphanumeric series by using  []\n"
+"     as in:\n"
+"\n"
+"      ftp://ftp.numericals.com/file[1-100].txt\n"
+"      ftp://ftp.numericals.com/file[001-100].txt    (with leading\n"
+"     zeros)\n"
+"      ftp://ftp.letters.com/file[a-z].txt\n"
+"\n"
+"     It is possible to specify up to 9 sets or series for a  URL,\n"
+);

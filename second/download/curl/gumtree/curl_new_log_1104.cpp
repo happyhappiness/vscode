@@ -1,10 +1,9 @@
 fputs(
-"       supported protocols (HTTP, HTTPS, FTP, FTPS, GOPHER, DICT, TELNET, LDAP\n"
-"       or FILE). The command is designed to work without user interaction.\n"
-"\n"
-"       curl offers a busload of useful tricks like proxy support, user authen-\n"
-"       tication, ftp upload, HTTP post,  SSL  (https:)  connections,  cookies,\n"
-"       file  transfer  resume  and  more. As you will see below, the amount of\n"
-"       features will make your head spin!\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the \"cookie parser\" which will make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L/--location option. The  file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
 , stdout);

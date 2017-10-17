@@ -1,11 +1,10 @@
 fputs(
-"              To create remote directories when using FTP or SFTP, try  --ftp-\n"
-"              create-dirs.\n"
+"                     (including  any  newlines), URL-encode that data and pass\n"
+"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
 "\n"
-"       --crlf (FTP) Convert LF to CRLF in upload. Useful for MVS (OS/390).\n"
-"\n"
-"       -d/--data <data>\n"
-"              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
-"              server, in the same way that a browser  does  when  a  user  has\n"
-"              filled  in an HTML form and presses the submit button. This will\n"
+"       --digest\n"
+"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
+"              tion that prevents the password from being sent over the wire in\n"
 , stdout);

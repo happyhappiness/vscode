@@ -1,11 +1,9 @@
 fputs(
-"       (*)  =  NOTE  that this will cause the server to reply with a multipart\n"
-"       response!\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"              reached  the  limit, the request will be made and while perform-\n"
+"              ing, it may take longer than this given time period. To limit  a\n"
+"              single  request's  maximum  time,  use  -m/--max-time.  Set this\n"
+"              option to zero to not timeout retries. (Added in 7.12.3)\n"
 "\n"
-"       Only digit characters (0-9) are valid in the 'start' and 'stop'  fields\n"
-"       of  the 'start-stop' range syntax. If a non-digit character is given in\n"
-"       the range, the server's response will be unspecified, depending on  the\n"
-"       server's configuration.\n"
-"\n"
-"       You  should  also  be aware that many HTTP/1.1 servers do not have this\n"
 , stdout);

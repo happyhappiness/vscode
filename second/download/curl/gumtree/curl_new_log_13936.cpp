@@ -1,0 +1,16 @@
+fputs(
+"              public key, curl will refuse the connection with the host unless\n"
+"              the md5sums match.\n"
+"\n"
+"              Added in 7.17.1.\n"
+"\n"
+"       -0, --http1.0\n"
+"              (HTTP)  Tells  curl to use HTTP version 1.0 instead of using its\n"
+"              internally preferred HTTP version.\n"
+"\n"
+"              This option overrides --http1.1 and --http2.\n"
+"\n"
+"       --http1.1\n"
+"              (HTTP) Tells curl to use HTTP version 1.1.\n"
+"\n"
+, stdout);

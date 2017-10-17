@@ -1,9 +1,11 @@
 fputs(
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reversed engineered by clever peo‐\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
-"              who  uses  NTLM to switch to a public and documented authentica‐\n"
-"              tion method instead. Such as Digest.\n"
+"              instead of merely using it to do HTTP-like operations. The  tun‐\n"
+"              nel  approach  is  made  with the HTTP proxy CONNECT request and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              proxy tunnel.\n"
+"\n"
+"       --pubkey <key>\n"
 , stdout);

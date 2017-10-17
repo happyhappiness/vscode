@@ -1,0 +1,15 @@
+fputs(
+"       --proxy-cacert <file>\n"
+"              Same as --cacert but used in HTTPS proxy context.\n"
+"\n"
+"              See  also  --proxy-capath  and  --cacert  and  --capath  and -x,\n"
+"              --proxy. Added in 7.52.0.\n"
+"\n"
+"       --proxy-capath <dir>\n"
+"              Same as --capath but used in HTTPS proxy context.\n"
+"\n"
+"              See also --proxy-cacert and -x, --proxy and --capath.  Added  in\n"
+"              7.52.0.\n"
+"\n"
+"       --proxy-cert-type <type>\n"
+, stdout);

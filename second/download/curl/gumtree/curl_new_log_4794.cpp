@@ -1,11 +1,9 @@
 fputs(
-"              would use sockd/real-name for cases where  the  proxy-name  does\n"
-"              not match the princpal name.\n"
-"               (Added in 7.19.4).\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"       --socks5-gssapi-nec\n"
-"              As  part  of the gssapi negotiation a protection mode is negoti-\n"
-"              ated. The rfc1961 says in section  4.3/4.4  it  should  be  pro-\n"
-"              tected,  but  the  NEC  reference  implementation does not.  The\n"
-"              option --socks5-gssapi-nec allows the  unprotected  exchange  of\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified as %{variable_name} and to output a\n"
 , stdout);

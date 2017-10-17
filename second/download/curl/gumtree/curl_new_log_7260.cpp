@@ -1,12 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
+"                             remote host was completed. (Added in 7.19.0)\n"
 "\n"
-"       --url <URL>\n"
-"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
-"              want to specify URL(s) in a config file.\n"
-"\n"
-"              This  option  may  be used any number of times. To control where\n"
-"              this URL is written, use the -o, --output or the  -O,  --remote-\n"
-"              name options.\n"
-"       -v, --verbose\n"
+"              time_pretransfer\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the file transfer was just about to begin.\n"
+"                             This includes all pre-transfer commands and nego-\n"
 , stdout);

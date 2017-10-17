@@ -1,10 +1,11 @@
 fputs(
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
+"              socks4://, socks4a://, socks5:// or socks5h://  to  request  the\n"
+"              specific  SOCKS  version  to  be  used.  No  protocol specified,\n"
+"              http:// and all others will be treated as HTTP proxies.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -X, --request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
 , stdout);

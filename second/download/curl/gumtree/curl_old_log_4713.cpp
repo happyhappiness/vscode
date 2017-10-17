@@ -1,10 +1,9 @@
 fputs(
-"                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
+"              \"certificate\"  file that is the private key and the private cer-\n"
+"              tificate concatenated! See --cert  and  --key  to  specify  them\n"
+"              independently.\n"
 "\n"
-"       --digest\n"
-"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
-"              tion that prevents the password from being sent over the wire in\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the certificate to use within the NSS\n"
+"              database  defined  by  the  environment  variable SSL_DIR (or by\n"
 , stdout);

@@ -1,2 +1,1 @@
-warnf(global, "Refusing to overwrite %s: %s\n", outs->filename,
-            strerror(EEXIST));
+warnf(config, "Failed to open %s to write libcurl code!\n", o);

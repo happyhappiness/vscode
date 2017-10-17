@@ -1,1 +1,1 @@
-fputs("\n", config->errors);
+warnf(config, "Illegally formatted input field!\n");

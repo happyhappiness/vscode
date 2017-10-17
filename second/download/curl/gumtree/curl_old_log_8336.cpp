@@ -1,10 +1,11 @@
 fputs(
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              To use a Metalink file in the local file system, use FILE proto-\n"
+"              col (file://):\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
+"              curl --metalink file://example.metalink\n"
+"\n"
+"              Please  note  that if FILE protocol is disabled, there is no way\n"
+"              to use a local Metalink file at the time of this  writing.  Also\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include will be ignored. This is because including headers  in\n"
 , stdout);

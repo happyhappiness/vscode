@@ -1,11 +1,11 @@
 fputs(
-"              curl operation won't fail or even report an error clearly. Using\n"
-"              -v  will  get  a warning displayed, but that is the only visible\n"
-"              feedback you get about this possibly lethal situation.\n"
+"              Since curl 7.19.0, --eprt can be used to explicitly enable  EPRT\n"
+"              again and --no-eprt is an alias for --disable-eprt.\n"
 "\n"
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
+"              Disabling  EPRT only changes the active behavior. If you want to\n"
+"              switch to passive mode you need  to  not  use  -P/--ftp-port  or\n"
+"              force it with --ftp-pasv.\n"
 "\n"
-"       -C/--continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"       --disable-epsv\n"
+"              (FTP)  Tell  curl  to  disable  the use of the EPSV command when\n"
 , stdout);

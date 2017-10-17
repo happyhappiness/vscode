@@ -1,10 +1,11 @@
 fputs(
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
+"       curl  normally  displays a progress meter during operations, indicating\n"
+"       the amount of transferred data,  transfer  speeds  and  estimated  time\n"
+"       left, etc.\n"
 "\n"
-"  Note that curl cannot use persistent connections for transfers that are used\n"
-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
-"  same command line if they are using the same host, as that'll make the\n"
-"  transfers faster. If you use a http proxy for file transfers, practically\n"
+"       However,  since  curl displays this data to the terminal by default, if\n"
+"       you invoke curl to do an operation and it is about to write data to the\n"
+"       terminal,  it disables the progress meter as otherwise it would mess up\n"
+"       the output mixing progress meter and response data.\n"
+"\n"
 , stdout);

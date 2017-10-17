@@ -1,11 +1,11 @@
 fputs(
-"              Reverts to a non-secure connection if the server doesn't support\n"
-"              SSL/TLS.  See also --ftp-ssl-control and --ssl-reqd for  differ-\n"
-"              ent levels of encryption required. (Added in 7.20.0)\n"
+"              See further examples and details in the MANUAL.\n"
 "\n"
-"              This  option  was  formerly known as --ftp-ssl (Added in 7.11.0)\n"
-"              and that can still be used but will be removed in a future  ver-\n"
-"              sion.\n"
+"              This option can be used multiple times.\n"
 "\n"
-"       --ftp-ssl-control\n"
+"       --form-string <name=string>\n"
+"              (HTTP)  Similar  to  --form except that the value string for the\n"
+"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
+"              ters, and the ';type=' string in the value have no special mean-\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
 , stdout);

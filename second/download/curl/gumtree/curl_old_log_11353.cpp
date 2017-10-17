@@ -1,9 +1,9 @@
 fputs(
-"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
-"              optional password isn't specified, it will be queried for on the\n"
-"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
-"              that is the private key and  the  private  certificate  concate-\n"
-"              nated! See --cert and --key to specify them independently.\n"
+"              enclosed  within  quotes.  Within  double  quotes, the following\n"
+"              escape sequences are available: \\\\, \\\", \\t, \\n,  \\r  and  \\v.  A\n"
+"              backslash  preceding  any  other letter is ignored. If the first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
 , stdout);

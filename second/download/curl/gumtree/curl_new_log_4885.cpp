@@ -1,12 +1,8 @@
 fputs(
-"              You can specify one -T for each URL on the command line. Each -T\n"
-"              + URL pair specifies what to upload and to where. curl also sup-\n"
-"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
-"              multiple  files  to  a single URL by using the same URL globbing\n"
-"              style supported in the URL, like this:\n"
-"\n"
-"              curl -T \"{file1,file2}\" http://www.uploadtothissite.com\n"
-"\n"
-"              or even\n"
-"\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the Content-Type multipart/form-data according to RFC2388.\n"
+"              This  enables  uploading of binary files etc. To force the 'con-\n"
+"              tent' part to be a file, prefix the file name with an @ sign. To\n"
+"              just get the content part from a file, prefix the file name with\n"
+"              the symbol <. The difference between @ and  <  is  then  that  @\n"
 , stdout);

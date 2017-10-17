@@ -1,9 +1,11 @@
 fputs(
-"              text mixed with any number of variables. The string can be spec-\n"
-"              ified  as \"string\", to get read from a particular file you spec-\n"
-"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
-"              stdin you write \"@-\".\n"
+"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
+"                             remote host was completed. (Added in 7.19.0)\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
+"              time_connect   The  time,  in  seconds,  it  took from the start\n"
+"                             until the TCP connect  to  the  remote  host  (or\n"
+"                             proxy) was completed.\n"
+"\n"
+"              time_namelookup\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
 , stdout);

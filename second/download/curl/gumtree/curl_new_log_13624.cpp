@@ -1,0 +1,18 @@
+fputs(
+"              is  the same as concatenating the protocols into one instance of\n"
+"              the option.\n"
+"\n"
+"              (Added in 7.20.2)\n"
+"\n"
+"       --proto-default <protocol>\n"
+"              Tells curl to use protocol for any URL missing a scheme name.\n"
+"\n"
+"              Example:\n"
+"\n"
+"              --proto-default https ftp.mozilla.org\n"
+"                     https://ftp.mozilla.org\n"
+"\n"
+"       An unknown or unsupported protocol causes error  CURLE_UNSUPPORTED_PRO-\n"
+"       TOCOL.\n"
+"\n"
+, stdout);

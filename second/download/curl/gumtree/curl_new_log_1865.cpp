@@ -1,10 +1,9 @@
 fputs(
-"              this.\n"
+"              internally set  headers  without  knowing  perfectly  well  what\n"
+"              you're doing. Replacing an internal header with one without con-\n"
+"              tent on the right side of the colon  will  prevent  that  header\n"
+"              from appearing.\n"
 "\n"
-"       -F/--form <name=content>\n"
-"              (HTTP) This lets curl emulate a filled in form in which  a  user\n"
-"              has  pressed  the  submit  button. This causes curl to POST data\n"
-"              using the Content-Type multipart/form-data according to RFC1867.\n"
-"              This  enables  uploading of binary files etc. To force the 'con-\n"
-"              tent' part to be a file, prefix the file name with an @ sign. To\n"
+"              curl  will  make  sure that each header you add/replace get sent\n"
+"              with the proper end of line marker, you should thus not add that\n"
 , stdout);

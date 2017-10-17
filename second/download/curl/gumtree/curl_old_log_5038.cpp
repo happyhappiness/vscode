@@ -1,10 +1,11 @@
 fputs(
-"              If  curl  is  built against the NSS SSL library then this option\n"
-"              tells curl the nickname of the CA certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
-"              nsspem.so) is available then PEM files may be loaded.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an  enforced  passive  really  isn't\n"
+"              doable  but  you must then instead enforce the correct -P/--ftp-\n"
+"              port again.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
 "\n"
+"       --ftp-alternative-to-user <command>\n"
 , stdout);

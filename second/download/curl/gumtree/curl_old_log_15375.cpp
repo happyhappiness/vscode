@@ -1,0 +1,13 @@
+fputs(
+"              addition  to  this option. If the server chooses a file name and\n"
+"              that name already exists it will not be overwritten.\n"
+"\n"
+"              There is no URL decoding done on the file name. If it has %20 or\n"
+"              other  URL  encoded parts of the name, they will end up as-is as\n"
+"              file name.\n"
+"\n"
+"              You may use this option as many times as the number of URLs  you\n"
+"              have.\n"
+"\n"
+"       -R, --remote-time\n"
+, stdout);

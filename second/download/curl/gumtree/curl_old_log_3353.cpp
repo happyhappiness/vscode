@@ -1,11 +1,11 @@
 fputs(
-"              request using the same unmodified method.\n"
+"              When using this option, you must also provide a  fake  -u/--user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              ’-u :’ is enough as the user  name  and  password  from  the  -u\n"
+"              option aren’t actually used.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              location following.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
-"              +  password to all hosts that the site may redirect to. This may\n"
-"              or may not introduce a security breach if the site redirects you\n"
+"       -N/--no-buffer\n"
 , stdout);

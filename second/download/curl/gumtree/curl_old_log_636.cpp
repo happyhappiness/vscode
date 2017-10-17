@@ -1,10 +1,11 @@
 fputs(
-"              be  used as if they were written on the actual com-\n"
-"              mand line. Options and  their  parameters  must  be\n"
-"              specified  on  the  same  config  file line. If the\n"
-"              parameter is to contain white spaces, the parameter\n"
-"              must  be inclosed within quotes.  If the first col-\n"
-"              umn of a config line is a '#' character,  the  rest\n"
-"              of the line will be treated as a comment.\n"
+"              download. If the file requested is larger than this\n"
+"              value,  the  transfer  will not start and curl will\n"
+"              return with exit code 63.\n"
 "\n"
+"              NOTE: The file size is not always  known  prior  to\n"
+"              download,  and  for  such  files this option has no\n"
+"              effect even if the  file  transfer  ends  up  being\n"
+"              larger  than  this  given limit. This concerns both\n"
+"              FTP and HTTP transfers.\n"
 , stdout);

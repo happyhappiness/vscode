@@ -1,9 +1,10 @@
 puts(
-"              remote URL. If there is no file part in the  speci-\n"
-"              fied  URL,  Curl  will  append the local file name.\n"
-"              NOTE that you must use a trailing  /  on  the  last\n"
-"              directory  to really prove to Curl that there is no\n"
-"              file name or curl will think that your last  direc-\n"
-"              tory name is the remote file name to use. That will\n"
-"              most likely cause the upload operation to fail.  If\n"
+"              cessful  operation. The format is a string that may\n"
+"              contain plain text mixed with any number  of  vari-\n"
+"              ables.  The string can be specified as \"string\", to\n"
+"              get read from a  particular  file  you  specify  it\n"
+"              \"@filename\"  and  to  tell  curl to read the format\n"
+"              from stdin you write \"@-\".\n"
+"\n"
+"              The variables present in the output format will  be\n"
 );

@@ -1,12 +1,9 @@
 fputs(
-"              specified, PEM is assumed.\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
-"              'private' will instead be used.\n"
-"\n"
+"              The given rate is the average speed counted  during  the  entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
 , stdout);

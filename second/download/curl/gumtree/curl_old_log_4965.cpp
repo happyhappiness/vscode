@@ -1,11 +1,9 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
-"\n"
-"              size_upload    The total amount of bytes that were uploaded.\n"
-"\n"
+"       -z/--time-cond <date expression>\n"
+"              (HTTP/FTP)  Request a file that has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time. The date expression can be all sorts of date strings or if\n"
+"              it doesn't match any internal ones, it tries  to  get  the  time\n"
 , stdout);

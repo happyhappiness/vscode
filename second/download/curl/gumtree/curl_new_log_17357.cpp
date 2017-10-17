@@ -1,0 +1,14 @@
+puts(
+"          content_type   The Content-Type of the requested  docu�\n"
+"                         ment, if there was any. (Added in 7.9.5)\n"
+"\n"
+"     If this option is used several times, the last one  will  be\n"
+"     used.\n"
+"\n"
+"     -x/--proxy <proxyhost[:port]>\n"
+"          Use  specified  HTTP  proxy.  If the port number is not\n"
+"          specified, it is assumed at port 1080.\n"
+"\n"
+"          Note that all operations that are performed over a HTTP\n"
+"          proxy will transparantly be converted to HTTP. It means\n"
+);

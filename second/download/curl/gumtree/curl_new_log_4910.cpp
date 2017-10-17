@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              instead of the POST request that otherwise would  be  used.  The\n"
+"              data will be appended to the URL with a '?' separator.\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
-"              'private' will instead be used.\n"
+"              If  used  in  combination with -I, the POST data will instead be\n"
+"              appended to the URL with a HEAD request.\n"
 "\n"
-"              This option requires a library built with  kerberos4  or  GSSAPI\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make  no  difference. This is because undoing a GET doesn't make\n"
 , stdout);

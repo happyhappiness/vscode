@@ -1,11 +1,11 @@
 fputs(
-"       you invoke curl to do an operation and it is about to write data to the\n"
-"       terminal,  it disables the progress meter as otherwise it would mess up\n"
-"       the output mixing progress meter and response data.\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c/--cookie-jar option or you could even save  the  HTTP\n"
+"              headers to a file using -D/--dump-header!\n"
 "\n"
-"       If you want a progress meter for HTTP POST or PUT requests, you need to\n"
-"       redirect  the  response  output to a file, using shell redirect (>), -o\n"
-"       [file] or similar.\n"
+"              If  this  option is set more than once, the last one will be the\n"
+"              one that's used.\n"
 "\n"
-"       It is not the same case for FTP upload as that operation does not  spit\n"
+"       -B/--use-ascii\n"
+"              Enable ASCII transfer when using FTP or LDAP. For FTP, this  can\n"
 , stdout);

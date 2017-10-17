@@ -1,9 +1,10 @@
 fputs(
-"              The file specified with -b, --cookie is only used as  input.  No\n"
-"              cookies  will  be written to the file. To store cookies, use the\n"
-"              -c, --cookie-jar option.\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection.  This  option is meaningful only when using -L, --loca-\n"
+"              tion (Added in 7.17.1)\n"
 "\n"
-"              Exercise caution if you  are  using  this  option  and  multiple\n"
-"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
-"              a file use the Set-Cookie format and  don't  specify  a  domain,\n"
+"       --post302\n"
+"              (HTTP) Tells curl to respect RFC 7230/6.4.3 and not convert POST\n"
+"              requests into GET requests when following a 302 redirection. The\n"
 , stdout);

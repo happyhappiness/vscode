@@ -1,9 +1,11 @@
 fputs(
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default config file and uses it if  found.  The  default  config\n"
-"              file is checked for in the following places in this order:\n"
+"              contents of an FTP directory since  the  normal  directory  view\n"
+"              doesn't use a standard look or format.\n"
 "\n"
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
+"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
+"              servers list only files in their response to NLST; they  do  not\n"
+"              include subdirectories and symbolic links.\n"
+"\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
 , stdout);

@@ -1,0 +1,18 @@
+fputs(
+"              Added in 7.12.3.\n"
+"\n"
+"       --sasl-ir\n"
+"              Enable initial response in SASL authentication.\n"
+"\n"
+"              Added in 7.31.0.\n"
+"\n"
+"       --service-name <name>\n"
+"              This option allows you to change the service name for SPNEGO.\n"
+"\n"
+"              Examples:   --negotiate   --service-name   sockd    would    use\n"
+"              sockd/server-name.\n"
+"\n"
+"              Added in 7.43.0.\n"
+"       -S, --show-error\n"
+"              When used with -s, --silent, it makes curl show an error message\n"
+, stdout);

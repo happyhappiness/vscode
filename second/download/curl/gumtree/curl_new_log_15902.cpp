@@ -1,0 +1,15 @@
+fputs(
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              Added in 7.19.7.\n"
+"\n"
+"       --data-ascii <data>\n"
+"              (HTTP) This is just an alias for -d, --data.\n"
+"\n"
+"       --data-binary <data>\n"
+"              (HTTP) This posts data exactly as specified with no  extra  pro-\n"
+"              cessing whatsoever.\n"
+"\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              filename.  Data is posted in a  similar  manner  as  -d,  --data\n"
+, stdout);

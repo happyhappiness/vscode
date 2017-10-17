@@ -1,9 +1,11 @@
 fputs(
-"              transfer, it will retry this number of times before  giving  up.\n"
-"              Setting  the  number to 0 makes curl do no retries (which is the\n"
-"              default). Transient error means either: a timeout,  an  FTP  5xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              --socks without the number appended.)\n"
+"       --socks5-gssapi-service <servicename>\n"
+"              The default service name for a socks server is rcmd/server-fqdn.\n"
+"              This option allows you to change it.\n"
 "\n"
-"              When  curl  is about to retry a transfer, it will first wait one\n"
-"              second and then for all forthcoming retries it will  double  the\n"
+"              Examples:\n"
+"               --socks5 proxy-name --socks5-gssapi-service sockd    would  use\n"
+"              sockd/proxy-name\n"
+"               --socks5   proxy-name  --socks5-gssapi-service  sockd/real-name\n"
 , stdout);

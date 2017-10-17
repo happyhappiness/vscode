@@ -1,10 +1,10 @@
 fputs(
-"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to  be  made secure by using the CA certificate bundle installed\n"
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k/--insecure is used.\n"
+"              without the initial double dashes.\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default  config  file  and  uses it if found. The default config\n"
+"              file is checked for in the following places in this order:\n"
+"\n"
+"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

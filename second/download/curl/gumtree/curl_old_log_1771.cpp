@@ -1,11 +1,10 @@
 fputs(
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
-"              sions to the original FTP protocol, may not work on all  servers\n"
-"              but  enable  more  functionality in a better way than the tradi-\n"
-"              tional PORT command. (Added in 7.10.5)\n"
+"              (HTTPS) Tells curl to use the specified certificate file to ver-\n"
+"              ify the peer. The file may contain multiple CA certificates. The\n"
+"              certificate(s) must be in PEM format.\n"
 "\n"
-"              If this option is used several times, each occurrence will  tog-\n"
-"              gle this on/off.\n"
+"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
+"              if  that  is set, and uses the given path as a path to a CA cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
 , stdout);

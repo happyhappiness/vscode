@@ -1,11 +1,11 @@
 fputs(
-"              but enable more functionality in a better way  than  the  tradi-\n"
-"              tional PORT command. (Aded in 7.10.5)\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              silent failure.\n"
 "\n"
-"              If  this option is used several times, each occurrence will tog-\n"
-"              gle this on/off.\n"
+"       --ftp-create-dirs\n"
+"              (FTP) When an FTP URL/operation uses a path  that  doesn't  cur-\n"
+"              rently  exist on the server, the standard behavior of curl is to\n"
+"              fail. Using this option, curl will  instead  attempt  to  create\n"
+"              missing directories. (Added in 7.10.7)\n"
 "\n"
-"       --disable-epsv\n"
-"              (FTP) Tell curl to disable the use  of  the  EPSV  command  when\n"
-"              doing  passive  FTP  transfers.  Curl will normally always first\n"
 , stdout);

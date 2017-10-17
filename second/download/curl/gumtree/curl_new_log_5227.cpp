@@ -1,10 +1,10 @@
 fputs(
-"              rection. This option is meaningful only when using -L/--location\n"
-"              (Added in 7.17.1)\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing with the HTTP server.  The specified request  will  be  used\n"
+"              instead  of  the  method otherwise used (which defaults to GET).\n"
+"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
+"              Common  additional  HTTP  requests  include  PUT and DELETE, but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
-"       --post302\n"
-"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a  '#' character, the rest of the line will be treated as a com-\n"
-"              ment. Only write one option per  physical  line  in  the  config\n"
-"              file.\n"
+"              -      make curl pick the same IP address that is  already  used\n"
+"                     for the control connection\n"
 "\n"
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
+"       If  this  option is used several times, the last one will be used. Dis-\n"
+"       able the use of PORT with --ftp-pasv. Disable the attempt  to  use  the\n"
+"       EPRT  command  instead  of PORT by using --disable-eprt. EPRT is really\n"
+"       PORT++.\n"
 "\n"
+"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              doing file lists with FTP.\n"
+"       NO_PROXY <comma-separated list of hosts>\n"
+"              list  of  host names that shouldn't go through any proxy. If set\n"
+"              to a asterisk '*' only, it matches all hosts.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"PROXY PROTOCOL PREFIXES\n"
+"       Since curl version 7.21.7, the proxy string may  be  specified  with  a\n"
+"       protocol:// prefix to specify alternative proxy protocols.\n"
 "\n"
-"       --xattr\n"
-"              When  saving  output  to a file, this option tells curl to store\n"
-"              certain file metadata in extened file attributes. Currently, the\n"
-"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
-"              content type is stored in the mime_type attribute. If  the  file\n"
+"       If  no  protocol  is  specified  in  the  proxy string or if the string\n"
 , stdout);

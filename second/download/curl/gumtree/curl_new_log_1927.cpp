@@ -1,1 +1,1 @@
-warnf(config, "Error building form post!\n");
+warnf(config, "Failed to read %s", file);

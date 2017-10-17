@@ -1,11 +1,11 @@
 fputs(
-"                     any = or @ symbols, as that will  then  make  the  syntax\n"
-"                     match one of the other cases below!\n"
+"              fail.  If this is used on a HTTP(S) server, the PUT command will\n"
+"              be used.\n"
 "\n"
-"              =content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
+"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
+"              given file.\n"
 "\n"
-"              name=content\n"
-"                     This will make curl URL-encode the content part and  pass\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
+"              + URL pair specifies what to upload and to where. curl also sup-\n"
+"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
 , stdout);

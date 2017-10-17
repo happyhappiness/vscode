@@ -1,9 +1,11 @@
 fputs(
-"              also  activates  the \"cookie parser\" which will make curl record\n"
-"              incoming cookies too, which may be handy if you’re using this in\n"
-"              combination  with  the  -L/--location option. The file format of\n"
-"              the file to read cookies from should be plain  HTTP  headers  or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              NOTE If the cookie jar can’t be created or written to, the whole\n"
+"              curl operation won’t fail or even report an error clearly. Using\n"
+"              -v  will  get  a warning displayed, but that is the only visible\n"
+"              feedback you get about this possibly lethal situation.\n"
 "\n"
-"              NOTE  that  the  file specified with -b/--cookie is only used as\n"
+"              If this option is used several times, the  last  specified  file\n"
+"              name will be used.\n"
+"\n"
+"       -C/--continue-at <offset>\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              unix-like systems, it will simply try to load .curlrc  from  the\n"
-"              determined home dir.\n"
-"       --limit-rate <speed>\n"
-"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not use your entire bandwidth.\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
+"\n"
+"       -m/--max-time <seconds>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
 , stdout);

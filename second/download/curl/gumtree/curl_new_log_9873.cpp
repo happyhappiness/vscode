@@ -1,10 +1,11 @@
 fputs(
-"              without having them being interpreted by curl itself. Note  that\n"
-"              these  letters are not normal legal URL contents but they should\n"
-"              be encoded according to the URI standard.\n"
+"              basically have the same effect as if a new session  is  started.\n"
+"              Typical  browsers  always  discard  session cookies when they're\n"
+"              closed down.\n"
 "\n"
-"       -G, --get\n"
-"              When used, this option will make all  data  specified  with  -d,\n"
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
+"       -J, --remote-header-name\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
+"\n"
 , stdout);

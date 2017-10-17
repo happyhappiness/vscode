@@ -1,11 +1,11 @@
 fputs(
-"              certificate/private key in the system or user keychain,  or  the\n"
-"              path  to  a  PKCS#12-encoded certificate and private key. If you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              (which  often  also describes why and more). This flag will pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This method is not fail-safe and there are occasions where  non-\n"
+"              successful  response  codes  will  slip through, especially when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
-"       --engine <name>\n"
-"              Select  the  OpenSSL crypto engine to use for cipher operations.\n"
+"       -F, --form <name=content>\n"
+"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
 , stdout);

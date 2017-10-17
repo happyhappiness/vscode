@@ -1,10 +1,11 @@
 fputs(
-"              Examples:  --socks5  proxy-name  --socks5-gssapi-service   sockd\n"
-"              would  use sockd/proxy-name --socks5 proxy-name --socks5-gssapi-\n"
-"              service sockd/real-name  would  use  sockd/real-name  for  cases\n"
-"              where  the proxy-name does not match the principal name.  (Added\n"
-"              in 7.19.4).\n"
+"              This option overrides previous uses of -v, --verbose or --trace.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --socks5-gssapi-nec\n"
-"              As part of the gssapi negotiation a protection mode  is  negoti-\n"
+"       --trace-time\n"
+"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
+"              displays.  (Added in 7.14.0)\n"
+"\n"
+"       -u, --user <user:password;options>\n"
+"              Specify  the  user  name, password and optional login options to\n"
 , stdout);

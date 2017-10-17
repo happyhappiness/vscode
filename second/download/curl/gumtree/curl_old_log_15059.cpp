@@ -1,0 +1,15 @@
+fputs(
+"              To  create remote directories when using FTP or SFTP, try --ftp-\n"
+"              create-dirs.\n"
+"\n"
+"       --crlf (FTP SMTP)  Convert  LF  to  CRLF  in  upload.  Useful  for  MVS\n"
+"              (OS/390).\n"
+"\n"
+"              (SMTP added in 7.40.0)\n"
+"\n"
+"       --crlfile <file>\n"
+"              (TLS) Provide a file using PEM format with a Certificate Revoca-\n"
+"              tion List that may specify peer certificates that are to be con-\n"
+"              sidered revoked.\n"
+"\n"
+, stdout);

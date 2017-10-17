@@ -1,10 +1,9 @@
 fputs(
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
+"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation method. For more information see IETF draft draft-brezak-\n"
+"              spnego-http-04.txt.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
-"              +  password to all hosts that the site may redirect to. This may\n"
-"              or may not introduce a security breach if the site redirects you\n"
 , stdout);

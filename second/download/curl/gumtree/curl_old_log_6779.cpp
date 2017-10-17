@@ -1,11 +1,10 @@
 fputs(
-"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require you to disable this in order for you to succeed.  (Added\n"
-"              in 7.16.0)\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
-"\n"
-"       --noproxy <no-proxy-list>\n"
+"       -P, --ftp-port <address>\n"
+"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
+"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
+"              practice,  curl  then  tells  the  server to connect back to the\n"
+"              client's specified address and port, while passive mode asks the\n"
 , stdout);

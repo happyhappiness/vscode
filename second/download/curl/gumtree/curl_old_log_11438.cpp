@@ -1,11 +1,9 @@
 fputs(
-"              (*) = NOTE that this will cause the server to reply with a  mul-\n"
-"              tipart response!\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Only  digit characters (0-9) are valid in the 'start' and 'stop'\n"
-"              fields of the 'start-stop' range syntax. If a non-digit  charac-\n"
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
-"\n"
-"              You should also be aware that many HTTP/1.1 servers do not  have\n"
+"       --retry-delay <seconds>\n"
+"              Make curl sleep this amount of time before  each  retry  when  a\n"
+"              transfer  has  failed  with  a  transient  error (it changes the\n"
+"              default backoff time algorithm between retries). This option  is\n"
+"              only  interesting if --retry is also used. Setting this delay to\n"
 , stdout);

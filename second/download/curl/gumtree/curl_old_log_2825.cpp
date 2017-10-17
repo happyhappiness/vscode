@@ -1,9 +1,12 @@
 fputs(
-"              method was designed by Microsoft and is used in their web appli‐\n"
-"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
-"              authentication but may be also used along with another authenti‐\n"
-"              cation methods. For  more  information  see  IETF  draft  draft-\n"
-"              brezak-spnego-http-04.txt.\n"
+"       You should also be aware that many HTTP/1.1 servers do  not  have  this\n"
+"       feature  enabled,  so  that  when  you  attempt  to get a range, you’ll\n"
+"       instead get the whole document.\n"
 "\n"
-"              This option requires that the library was built with GSSAPI sup‐\n"
+"       FTP  range  downloads  only  support  the  simple  syntax  ’start-stop’\n"
+"       (optionally with one of the numbers omitted). It depends on the non-RFC\n"
+"       command SIZE.\n"
+"\n"
+"       If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

@@ -1,11 +1,8 @@
 fputs(
-"       out any response data to the terminal.\n"
-"\n"
-"       If you prefer a progress \"bar\" instead of the regular meter, -# is your\n"
-"       friend.\n"
-"OPTIONS\n"
-"       In general, all boolean options are enabled with --option and yet again\n"
-"       disabled with --no-option. That is, you use the exact same option  name\n"
-"       but prefix it with \"no-\". However, in this list we mostly only list and\n"
-"       show the --option version of them. (This concept with --no options  was\n"
+"              If no '=' symbol is used in the line, it is treated as  a  file-\n"
+"              name  to  use to read previously stored cookie lines from, which\n"
+"              should be used in this session if they match. Using this  method\n"
+"              also  activates  the \"cookie parser\" which will make curl record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination  with  the -L, --location option. The file format of\n"
 , stdout);

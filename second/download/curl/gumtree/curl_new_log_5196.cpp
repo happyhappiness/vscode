@@ -1,10 +1,12 @@
 fputs(
-"              without the initial double dashes.\n"
+"              include subdirectories and symbolic links.\n"
 "\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"       -L/--location\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              \"ftp://\" etc) then curl will make a guess based on the host.  If\n"
+"              the  outermost  sub-domain  name  matches DICT, FTP, IMAP, LDAP,\n"
+"              POP3 or SMTP then that protocol will  be  used,  otherwise  HTTP\n"
+"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
+"              default protocol, see --proto-default for details.\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace-\n"
-"              ascii.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
+"              This option may be used any number of times.  To  control  where\n"
 , stdout);

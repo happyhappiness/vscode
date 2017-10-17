@@ -1,10 +1,10 @@
 fputs(
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only  shows  the ASCII part of the dump. It makes smaller output\n"
+"              that might be easier to read for untrained humans.\n"
+"\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"       --ftp-pasv\n"
-"              (FTP)  Use  passive  mode for the data conection. Passive is the\n"
-"              internal default behavior, but using this option can be used  to\n"
-"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference. Undoing an  enforced  passive  really  isn't\n"
-"              doable  but  you must then instead enforce the correct -P/--ftp-\n"
+"       -F/--form <name=content>\n"
+"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the Content-Type multipart/form-data according to RFC2388.\n"
+"              This  enables  uploading of binary files etc. To force the 'con-\n"
 , stdout);

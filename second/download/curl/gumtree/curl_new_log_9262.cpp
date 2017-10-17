@@ -1,12 +1,10 @@
 fputs(
-"              curl --metalink http://www.example.com/example.metalink\n"
+"              this option. The password can, still.\n"
 "\n"
-"              To use a Metalink file in the local file system, use FILE proto-\n"
-"              col (file://):\n"
+"              When using Kerberos V5 with a Windows based  server  you  should\n"
+"              include  the  Windows domain name in the user name, in order for\n"
+"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
+"              then the initial authentication handshake may fail.\n"
 "\n"
-"              curl --metalink file://example.metalink\n"
-"\n"
-"              Please  note  that if FILE protocol is disabled, there is no way\n"
-"              to use a local Metalink file at the time of this  writing.  Also\n"
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
 , stdout);

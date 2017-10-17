@@ -1,11 +1,11 @@
 fputs(
-"              cation  scheme  that  prevents the password from being sent over\n"
-"              the wire in clear text. Use this in combination with the  normal\n"
-"              -u,  --user  option  to  set  user  name  and password. See also\n"
-"              --ntlm, --negotiate and --anyauth for related options.\n"
+"              name with the symbol <. The difference between @ and <  is  then\n"
+"              that  @  makes a file get attached in the post as a file upload,\n"
+"              while the < makes a text field and just  get  the  contents  for\n"
+"              that text field from a file.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.\n"
+"              Example,  to send your password file to the server, where 'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
 "\n"
-"       --disable-eprt\n"
 , stdout);

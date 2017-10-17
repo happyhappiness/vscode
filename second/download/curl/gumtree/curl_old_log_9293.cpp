@@ -1,10 +1,10 @@
 fputs(
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing with the HTTP server.  The specified request  will  be  used\n"
-"              instead  of  the  method otherwise used (which defaults to GET).\n"
-"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
-"              Common  additional  HTTP  requests  include  PUT and DELETE, but\n"
-"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
-"              more.\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The  first  line  includes the full version of curl, libcurl and\n"
+"              other 3rd party libraries linked with the executable.\n"
 "\n"
+"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
+"              that libcurl reports to support.\n"
+"\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
-"              who  uses  NTLM to switch to a public and documented authentica-\n"
-"              tion method instead. Such as Digest.\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"              If you want to enable NTLM for your proxy  authentication,  then\n"
-"              use --proxy-ntlm.\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              proxy tunnel.\n"
 "\n"
-"              This  option  requires  that the library was built with SSL sup-\n"
+"       -P/--ftp-port <address>\n"
+"              (FTP) Reverses the initiator/listener roles when connecting with\n"
+"              ftp.  This  switch  makes  Curl  use the PORT command instead of\n"
+"              PASV. In practice, PORT tells  the  server  to  connect  to  the\n"
 , stdout);

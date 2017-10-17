@@ -1,10 +1,9 @@
 fputs(
-"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
-"              command  for  directory  listings as well as up and downloads in\n"
-"              PASV mode.  (Added in 7.20.x)\n"
+"              without content on the right  side  of  the  colon,  as  in:  -H\n"
+"              \"Host:\".  If  you  send the custom header with no-value then its\n"
+"              header must be terminated with a semicolon, such as  -H  \"X-Cus-\n"
+"              tom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication will be unencrypted. This allows NAT routers to  fol-\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
 , stdout);

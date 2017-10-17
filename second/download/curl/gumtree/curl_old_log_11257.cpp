@@ -1,11 +1,10 @@
 fputs(
-"              application data before verifying the server's Finished message,\n"
-"              thus saving a round trip when performing a full handshake.\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
-"              This is currently only implemented in the NSS and Secure  Trans-\n"
-"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
-"              (Added in 7.42.0)\n"
-"\n"
-"       -f, --fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
+"       --ftp-create-dirs\n"
+"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
+"              doesn't  currently exist on the server, the standard behavior of\n"
+"              curl is to fail. Using this option, curl will instead attempt to\n"
 , stdout);

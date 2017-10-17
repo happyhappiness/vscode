@@ -1,10 +1,10 @@
 fputs(
-"              Tells  curl to pick a suitable authentication method when commu-\n"
-"              nicating with  the  given  proxy.  This  might  cause  an  extra\n"
-"              request/response round-trip. (Added in 7.13.2)\n"
+"              quote  commands  itself before sending them to the server.  File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
+"              acters.   Following is the list of all supported SFTP quote com-\n"
+"              mands:\n"
 "\n"
-"       --proxy-basic\n"
-"              Tells  curl  to use HTTP Basic authentication when communicating\n"
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
-"              remote  host.  Basic  is  the default authentication method curl\n"
+"              chgrp group file\n"
+"                     The chgrp command sets the group ID of the file named  by\n"
+"                     the  file  operand to the group ID specified by the group\n"
 , stdout);

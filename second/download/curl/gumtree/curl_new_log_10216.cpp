@@ -1,10 +1,12 @@
 fputs(
-"  addresses can also be specified directly in URLs using the syntax:\n"
+"              the verification fails.\n"
 "\n"
-"    http://[2001:1890:1112:1::20]/overview.html\n"
+"              This  is  currently  only implemented in the OpenSSL, GnuTLS and\n"
+"              NSS backends.  (Added in 7.41.0)\n"
 "\n"
-"  When this style is used, the -g option must be given to stop curl from\n"
-"  interpreting the square brackets as special globbing characters.  Link local\n"
-"  and site local addresses including a scope identifier, such as fe80::1234%1,\n"
-"  may also be used, but the scope portion must be numeric or match an existing\n"
+"       -f, --fail\n"
+"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
+"              is  mostly done to better enable scripts etc to better deal with\n"
+"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
+"              deliver  a  document,  it  returns  an  HTML document stating so\n"
 , stdout);

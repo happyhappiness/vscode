@@ -1,11 +1,10 @@
 fputs(
-"              Maximum  time  in  seconds  that you allow the connection to the\n"
-"              server to take.  This only limits  the  connection  phase,  once\n"
-"              curl  has  connected this option is of no more use. See also the\n"
-"              -m/--max-time option.\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              file name to read the data from, or - if you want curl  to  read\n"
+"              the  data  from stdin.  The contents of the file must already be\n"
+"              url-encoded. Multiple files can also be specified. Posting  data\n"
+"              from  a file named 'foobar' would thus be done with --data @foo-\n"
+"              bar\".\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -c/--cookie-jar <file name>\n"
-"              Specify to which file you want curl to write all cookies after a\n"
+"              To post data purely binary, you should instead use  the  --data-\n"
 , stdout);

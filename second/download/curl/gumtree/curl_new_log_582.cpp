@@ -1,0 +1,1 @@
+curl_maprintf("%s%s%s", home, DIR_CHAR, NETRC);

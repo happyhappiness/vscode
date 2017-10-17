@@ -1,0 +1,15 @@
+puts(
+"     speed.  Of  course this is only done on files specified on a\n"
+"     single command line and cannot be used between separate curl\n"
+"     invokes.\n"
+"OPTIONS\n"
+"     -a/--append\n"
+"          (FTP) When used in a ftp upload, this will tell curl to\n"
+"          append to the target file instead of overwriting it. If\n"
+"          the file doesn't exist, it will be created.\n"
+"\n"
+"          If  this option is used twice, the second one will dis�\n"
+"          able append mode again.\n"
+"\n"
+"     -A/--user-agent <agent string>\n"
+);

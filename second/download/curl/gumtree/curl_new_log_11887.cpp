@@ -1,10 +1,10 @@
 fputs(
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on an FTP or FILE file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
-"       --interface <name>\n"
-"              Perform  an operation using a specified interface. You can enter\n"
-"              interface name, IP address or host name. An example  could  look\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
+"\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              deliver a document, it  returns  an  HTML  document  stating  so\n"
+"              (which  often  also describes why and more). This flag will pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"       -E, --cert <certificate[:password]>\n"
-"              (SSL)  Tells  curl  to use the specified client certificate file\n"
-"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
-"              col.  The  certificate  must  be in PEM format.  If the optional\n"
-"              password isn't specified, it will be queried for on  the  termi-\n"
+"              This method is not fail-safe and there are occasions where  non-\n"
+"              successful  response  codes  will  slip through, especially when\n"
+"              authentication is involved (response codes 401 and 407).\n"
+"\n"
+"       -F, --form <name=content>\n"
 , stdout);

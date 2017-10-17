@@ -1,8 +1,12 @@
 fputs(
-"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
-"              POST  requests  into GET requests when following a 301 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              Tells  curl  to use HTTP Basic authentication when communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote  host.  Basic  is  the default authentication method curl\n"
+"              uses with proxies.\n"
+"\n"
+"       --proxy-digest\n"
+"              Tells curl to use HTTP Digest authentication when  communicating\n"
+"              with the given proxy. Use --digest for enabling HTTP Digest with\n"
+"              a remote host.\n"
+"\n"
 , stdout);

@@ -1,9 +1,10 @@
 fputs(
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
-"              dir given the current user in your system). On Windows, it  then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              the  email's  unique  identifier  rather than it's message id to\n"
+"              make the request. (Added in 7.21.5)\n"
 "\n"
+"       -L, --location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
+"              moved to a different location (indicated with a Location: header\n"
+"              and a 3XX response code), this option will make  curl  redo  the\n"
+"              request on the new place. If used together with -i, --include or\n"
 , stdout);

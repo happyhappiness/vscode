@@ -1,11 +1,11 @@
 fputs(
-"              NOTE: this does not properly support -F and the sending of  mul-\n"
-"              tipart  formposts,  so in those cases the output program will be\n"
-"              missing necessary calls to curl_formadd(3), and possibly more.\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following  redirections  \"in absurdum\". By default, the limit is\n"
+"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
+"              less.\n"
 "\n"
-"              If this option is used several times, the last given  file  name\n"
-"              will be used. (Added in 7.16.1)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
+"       -n, --netrc\n"
+"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
 , stdout);

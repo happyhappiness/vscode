@@ -1,10 +1,11 @@
 fputs(
-"              Very  similar to --netrc, but this option makes the .netrc usage\n"
-"              optional and not mandatory as the --netrc does.\n"
+"              Starting  with 7.14.1, the proxy host can be specified the exact\n"
+"              same way as the proxy environment  variables,  include  protocol\n"
+"              prefix (http://) and embedded user + password.\n"
 "\n"
-"       --negotiate\n"
-"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
-"              method was designed by Microsoft and is used in their web appli-\n"
-"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
-"              authentication but may be also used along with another authenti-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -X/--request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing  with  the  HTTP server.  The specified request will be used\n"
 , stdout);

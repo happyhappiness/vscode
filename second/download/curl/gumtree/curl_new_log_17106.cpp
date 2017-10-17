@@ -1,0 +1,16 @@
+puts(
+"          host name   i.e \"my.host.domain\" to specify machine\n"
+"\n"
+"          -           (any  single-letter string) to make it pick\n"
+"                      the machine's default\n"
+"\n"
+"     If this option is used several times, the last one  will  be\n"
+"     used.\n"
+"\n"
+"     -q   If used as the first parameter on the command line, the\n"
+"          $HOME/.curlrc file will not be read and used as a  con�\n"
+"          fig file.\n"
+"\n"
+"     -Q/--quote <comand>\n"
+"          (FTP)  Send  an  arbitrary  command  to  the remote FTP\n"
+);

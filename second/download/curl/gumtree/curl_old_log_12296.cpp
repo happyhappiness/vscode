@@ -1,11 +1,11 @@
 fputs(
-"              the  file requested is larger than this value, the transfer will\n"
-"              not start and curl will return with exit code 63.\n"
+"              allow  curl to FTP to the machine host.domain.com with user name\n"
+"              'myself' and password 'secret' should look similar to:\n"
 "\n"
-"              NOTE: The file size is not always known prior to  download,  and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer ends up being larger than this given  limit.  This  concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              machine host.domain.com login myself password secret\n"
 "\n"
-"       --mail-rcpt <address>\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
 , stdout);

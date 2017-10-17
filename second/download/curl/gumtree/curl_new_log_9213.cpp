@@ -1,10 +1,10 @@
 fputs(
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
-"              http_code      The numerical response code that was found in the\n"
-"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
-"                             7.18.2  the alias response_code was added to show\n"
-"                             the same info.\n"
-"\n"
-"              http_connect   The numerical code that was  found  in  the  last\n"
+"              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
+"                             the time  the  server  needed  to  calculate  the\n"
 , stdout);

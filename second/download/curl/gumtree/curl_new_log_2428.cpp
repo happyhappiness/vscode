@@ -1,11 +1,11 @@
 fputs(
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied  on  the same config file line. If the parameter is to con-\n"
-"              tain white spaces, the parameter must be enclosed within quotes.\n"
-"              If  the  first  column  of a config line is a '#' character, the\n"
-"              rest of the line will be treated as a comment.\n"
+"              include subdirectories and symbolic links.\n"
 "\n"
-"              Specify the filename as '-' to make  curl  read  the  file  from\n"
-"              stdin.\n"
+"              If this option is used twice, the second will again disable list\n"
+"              only.\n"
 "\n"
+"       --local-port <num>[-num]\n"
+"              Set a prefered number or range of local port numbers to use  for\n"
+"              the connection(s).  Note that port numbers by nature is a scarce\n"
+"              resource that will be busy at times so  setting  this  range  to\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
+"\n"
+"       -k, --insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
 , stdout);

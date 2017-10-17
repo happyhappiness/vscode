@@ -1,11 +1,11 @@
 fputs(
-"              method was designed by Microsoft and is used in their web appli-\n"
-"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
-"              authentication but may be also used along with another authenti-\n"
-"              cation method. For more information see IETF draft draft-brezak-\n"
-"              spnego-http-04.txt.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference.\n"
 "\n"
-"              If  you  want to enable Negotiate for your proxy authentication,\n"
-"              then use --proxy-negotiate.\n"
+"       -o/--output <file>\n"
+"              Write output to <file> instead of stdout. If you are using {} or\n"
+"              []  to  fetch  multiple documents, you can use '#' followed by a\n"
+"              number in the <file> specifier. That variable will  be  replaced\n"
+"              with the current string for the URL being fetched. Like in:\n"
 "\n"
 , stdout);

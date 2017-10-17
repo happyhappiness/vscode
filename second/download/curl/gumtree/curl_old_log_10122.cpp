@@ -1,11 +1,9 @@
 fputs(
-"  If curl fails where it isn't supposed to, if the servers don't let you in,\n"
-"  if you can't understand the responses: use the -v flag to get verbose\n"
-"  fetching. Curl will output lots of info and what it sends and receives in\n"
-"  order to let the user see all client-server interaction (but it won't show\n"
-"  you the actual data).\n"
+"  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
+"  be read from a file, use <@filename> as contents. When specifying a file,\n"
+"  you can also specify the file content type by appending ';type=<mime type>'\n"
+"  to the file name. You can also post the contents of several files in one\n"
+"  field.  For example, the field name 'coolfiles' is used to send three files,\n"
+"  with different content types using the following syntax:\n"
 "\n"
-"        curl -v ftp://ftp.upload.com/\n"
-"\n"
-"  To get even more details and information on what curl does, try using the\n"
 , stdout);

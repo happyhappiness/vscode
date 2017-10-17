@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              This option can be used multiple times.\n"
 "\n"
-"       -I/--head\n"
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the command HEAD which this uses to get nothing but  the  header\n"
-"              of  a  document.  When used on a FTP or FILE file, curl displays\n"
-"              the file size and last modification time only.\n"
+"       --limit-rate <speed>\n"
+"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
+"              feature is useful if you have a limited pipe and you'd like your\n"
+"              transfer not use your entire bandwidth.\n"
 "\n"
-"              If this option is used twice,  the  second  will  again  disable\n"
+"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
 , stdout);

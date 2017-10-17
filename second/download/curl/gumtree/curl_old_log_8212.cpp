@@ -1,10 +1,11 @@
 fputs(
-"              default  and this option is usually pointless, unless you use it\n"
-"              to override a  previously  set  option  that  sets  a  different\n"
-"              authentication  method  (such  as --ntlm, --digest, or --negoti-\n"
-"              ate).\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -c, --cookie-jar <file name>\n"
-"              (HTTP) Specify to which file you want curl to write all  cookies\n"
-"              after  a completed operation. Curl writes all cookies previously\n"
+"       --create-dirs\n"
+"              When used in conjunction with the -o option,  curl  will  create\n"
+"              the  necessary  local directory hierarchy as needed. This option\n"
+"              creates the dirs mentioned with the -o option, nothing else.  If\n"
+"              the  -o file name uses no dir or if the dirs it mentions already\n"
+"              exist, no dir will be created.\n"
+"\n"
 , stdout);

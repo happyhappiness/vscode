@@ -1,11 +1,10 @@
 fputs(
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              time_total     The  total time, in seconds, that the full opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
-"\n"
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful if you've told curl  to  follow  location:\n"
+"       --xattr\n"
+"              When saving output to a file, this option tells  curl  to  store\n"
+"              certain  file  metadata  in extended file attributes. Currently,\n"
+"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
+"              the  content  type  is stored in the mime_type attribute. If the\n"
+"              file system does not support extended attributes, a  warning  is\n"
 , stdout);

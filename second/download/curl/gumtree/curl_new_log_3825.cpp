@@ -1,8 +1,11 @@
 fputs(
-"              specify any number of extra headers. Note that if you should add\n"
-"              a custom header that has the same name as one  of  the  internal\n"
-"              ones  curl  would  use,  your externally set header will be used\n"
-"              instead of the internal one. This allows you to make even trick-\n"
-"              ier  stuff  than  curl would normally do. You should not replace\n"
-"              internally set  headers  without  knowing  perfectly  well  what\n"
+"              by default. This makes all connections considered \"insecure\"  to\n"
+"              fail unless -k/--insecure is used.\n"
+"\n"
+"              See     this    online    resource    for    further    details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
+"\n"
+"       --keepalive-time <seconds>\n"
+"              This option sets the time a  connection  needs  to  remain  idle\n"
+"              before  sending keepalive probes and the time between individual\n"
 , stdout);

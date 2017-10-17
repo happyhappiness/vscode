@@ -1,11 +1,11 @@
 fputs(
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations,  curl  will  use a standard buffered output stream that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              instead  of merely using it to do HTTP-like operations. The tun-\n"
+"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"              If this option is used twice, the second will  again  switch  on\n"
-"              buffering.\n"
+"              If this option is used twice,  the  second  will  again  disable\n"
+"              proxy tunnel.\n"
 "\n"
+"       -P/--ftp-port <address>\n"
 , stdout);

@@ -1,10 +1,9 @@
 fputs(
-"              from stdin, since it may require data to be sent twice and  then\n"
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"                             The ultimate filename that curl  writes  out  to.\n"
+"                             This  is only meaningful if curl is told to write\n"
+"                             to a file  with  the  --remote-name  or  --output\n"
+"                             option.  It's most useful in combination with the\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"       -b, --cookie <name=data>\n"
-"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
-"              posedly  the data previously received from the server in a \"Set-\n"
-"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
 , stdout);

@@ -1,0 +1,17 @@
+fputs(
+"              Added in 7.21.4.\n"
+"       --tlsuser <name>\n"
+"              Set  username  for use with the TLS authentication method speci-\n"
+"              fied with --tlsauthtype. Requires  that  --tlspassword  also  is\n"
+"              set.\n"
+"\n"
+"              Added in 7.21.4.\n"
+"\n"
+"       --tlsv1.0\n"
+"              (TLS)  Forces  curl  to use TLS version 1.0 when connecting to a\n"
+"              remote TLS server.\n"
+"\n"
+"              Added in 7.34.0.\n"
+"\n"
+"       --tlsv1.1\n"
+, stdout);

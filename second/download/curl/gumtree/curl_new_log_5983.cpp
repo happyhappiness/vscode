@@ -1,10 +1,11 @@
 fputs(
-"                     SRP (Secure Remote Password) authentication is  supported\n"
-"                     for TLS.\n"
+"                             until the first byte was just about to be  trans-\n"
+"                             ferred.  This  includes time_pretransfer and also\n"
+"                             the time  the  server  needed  to  calculate  the\n"
+"                             result.\n"
 "\n"
-"       -w/--write-out <format>\n"
-"              Defines what to display on stdout after a completed and success-\n"
-"              ful operation. The format is a string  that  may  contain  plain\n"
-"              text mixed with any number of variables. The string can be spec-\n"
-"              ified as \"string\", to get read from a particular file you  spec-\n"
+"              size_download  The total amount of bytes that were downloaded.\n"
+"\n"
+"              size_upload    The total amount of bytes that were uploaded.\n"
+"\n"
 , stdout);

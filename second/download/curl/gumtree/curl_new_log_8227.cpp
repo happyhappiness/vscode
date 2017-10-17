@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP)  This  posts data exactly as specified with no extra pro-\n"
-"              cessing whatsoever.\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              filename.   Data  is  posted in a similar manner as --data-ascii\n"
-"              does, except that newlines and carriage  returns  are  preserved\n"
-"              and conversions are never done.\n"
+"       --dns-servers <ip-address,ip-address>\n"
+"              Set the list of DNS servers to be used  instead  of  the  system\n"
+"              default.  The list of IP addresses should be separated with com-\n"
+"              mas. Port numbers may also optionally be given as :<port-number>\n"
+"              after each IP address.\n"
 "\n"
-"              If  this  option  is  used several times, the ones following the\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
 , stdout);

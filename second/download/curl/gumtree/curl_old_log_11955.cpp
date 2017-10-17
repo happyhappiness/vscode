@@ -1,10 +1,9 @@
 fputs(
-"              Tells curl to pick a suitable authentication method when  commu-\n"
-"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
-"              request/response round-trip. (Added in 7.13.2)\n"
+"              multiple  times. When speaking to an FTP server, prefix the com-\n"
+"              mand with an asterisk (*) to make curl continue even if the com-\n"
+"              mand fails as by default curl will stop at first failure.\n"
 "\n"
-"       --proxy-basic\n"
-"              Tells curl to use HTTP Basic authentication  when  communicating\n"
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
-"              remote host. Basic is the  default  authentication  method  curl\n"
+"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
+"              quote commands itself before sending them to the  server.   File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
 , stdout);

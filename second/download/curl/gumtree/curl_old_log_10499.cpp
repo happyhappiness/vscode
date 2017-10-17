@@ -1,12 +1,9 @@
 fputs(
-"              # --- End of example file ---\n"
+"              authentication is used, curl only sends its credentials  to  the\n"
+"              initial  host.  If a redirect takes curl to a different host, it\n"
+"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              This option can be used multiple times to load  multiple  config\n"
-"              files.\n"
-"\n"
-"       --keepalive-time <seconds>\n"
-"              This  option  sets  the  time  a connection needs to remain idle\n"
-"              before sending keepalive probes and the time between  individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              When curl follows a redirect and the request is not a plain  GET\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              as   well  as  all  cookies  received  from  remote\n"
-"              server(s). If no cookies are known, no file will be\n"
-"              written.   The  file  will  be  written  using  the\n"
-"              Netscape cookie file format. If you  set  the  file\n"
-"              name  to  a  single  dash, \"-\", the cookies will be\n"
-"              written to stdout.\n"
+"              vates  the  \"cookie  parser\"  which  will make curl\n"
+"              record incoming cookies too, which may be handy  if\n"
+"              you're   using   this   in   combination  with  the\n"
+"              -L/--location option. The file format of  the  file\n"
+"              to  read  cookies from should be plain HTTP headers\n"
+"              or the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              NOTE If the cookie jar can't be created or  written\n"
-"              to,  the  whole  curl  operation won't fail or even\n"
+"              NOTE that the file specified  with  -b/--cookie  is\n"
 , stdout);

@@ -1,0 +1,16 @@
+fputs(
+"              meant  to  be used with -D, --dump-header or -i, --include which\n"
+"              are used to show protocol headers  in  the  output.  It  has  no\n"
+"              effect on debug options such as -v, --verbose or --trace, or any\n"
+"              statistics.\n"
+"\n"
+"              See also -D, --dump-header and -i, --include and -p, --proxytun-\n"
+"              nel.\n"
+"\n"
+"       --tcp-fastopen\n"
+"              Enable use of TCP Fast Open (RFC7413).\n"
+"\n"
+"              Added in 7.49.0.\n"
+"\n"
+"       --tcp-nodelay\n"
+, stdout);

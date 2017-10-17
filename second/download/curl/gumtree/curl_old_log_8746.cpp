@@ -1,9 +1,12 @@
 fputs(
-"              second and then for all forthcoming retries it will  double  the\n"
-"              waiting  time until it reaches 10 minutes which then will be the\n"
-"              delay between the rest of the retries.  By  using  --retry-delay\n"
-"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
-"              --retry-max-time to limit the total time  allowed  for  retries.\n"
-"              (Added in 7.12.3)\n"
+"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
 "\n"
+"              This option overrides any previous use of -x, --proxy,  as  they\n"
+"              are mutually exclusive.\n"
+"\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4 proxy with -x, --proxy using a socks4:// protocol prefix.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --socks4a <host[:port]>\n"
 , stdout);

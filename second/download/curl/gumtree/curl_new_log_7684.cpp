@@ -1,10 +1,11 @@
 fputs(
-"              --location (Added in 7.17.1)\n"
+"              Reverts to a non-secure connection if the server doesn't support\n"
+"              SSL/TLS.  See also --ftp-ssl-control and --ssl-reqd for  differ-\n"
+"              ent levels of encryption required. (Added in 7.20.0)\n"
 "\n"
-"       --post302\n"
-"              (HTTP)  Tells  curl  to  respect RFC 2616/10.3.2 and not convert\n"
-"              POST requests into GET requests when following a  302  redirect-\n"
-"              ion.  The  non-RFC  behaviour  is ubiquitous in web browsers, so\n"
-"              curl does the conversion by  default  to  maintain  consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
+"              This  option  was formerly known as --ftp-ssl (Added in 7.11.0).\n"
+"              That option name can still be used but  will  be  removed  in  a\n"
+"              future version.\n"
+"\n"
+"       --ssl-reqd\n"
 , stdout);

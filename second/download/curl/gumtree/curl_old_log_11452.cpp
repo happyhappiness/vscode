@@ -1,10 +1,11 @@
 fputs(
-"              7.15.5).  That option name can still be used but will be removed\n"
-"              in a future version.\n"
+"              The default service name for a socks server is rcmd/server-fqdn.\n"
+"              This option allows you to change it.\n"
 "\n"
-"       --ssl-allow-beast\n"
-"              (SSL) This option tells curl to not work around a security  flaw\n"
-"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
-"              isn't used, the SSL layer may use  workarounds  known  to  cause\n"
-"              interoperability  problems  with some older SSL implementations.\n"
+"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
+"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
+"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
+"              where the proxy-name does not match the principal name.   (Added\n"
+"              in 7.19.4).\n"
+"\n"
 , stdout);

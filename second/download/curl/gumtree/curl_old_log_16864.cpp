@@ -1,0 +1,16 @@
+puts(
+"                         col(s) involved.\n"
+"\n"
+"          size_download  The total amount of bytes that were\n"
+"                         downloaded.\n"
+"\n"
+"          size_upload    The total amount of bytes that were\n"
+"                         uploaded.\n"
+"\n"
+"          size_header    The total amount of bytes of the down�\n"
+"                         loaded headers.\n"
+"\n"
+"          size_request   The total amount of bytes that were sent\n"
+"                         in the HTTP request.\n"
+"\n"
+);

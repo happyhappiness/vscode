@@ -1,12 +1,9 @@
 fputs(
-"              This option overrides previous uses of --trace-ascii or --trace.\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
 "\n"
-"       -V/--version\n"
-"              Displays information about curl and the libcurl version it uses.\n"
-"              The first line includes the full version of  curl,  libcurl  and\n"
-"              other 3rd party libraries linked with the executable.\n"
-"\n"
-"              The  second  line (starts with \"Protocols:\") shows all protocols\n"
-"              that libcurl reports to support.\n"
-"\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
+"                             steps include name lookup,  connect,  pretransfer\n"
+"                             and   transfer   before   final  transaction  was\n"
+"                             started. time_redirect shows the complete  execu-\n"
 , stdout);

@@ -1,9 +1,9 @@
 fputs(
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
+"              and the embedded user + password.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps include name lookup,  connect,  pretransfer\n"
-"                             and  transfer  before  the  final transaction was\n"
-"                             started. time_redirect shows the complete  execu-\n"
+"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
+"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
+"              socks4://,  socks4a://,  socks5://  or socks5h:// to request the\n"
+"              specific SOCKS  version  to  be  used.  No  protocol  specified,\n"
 , stdout);

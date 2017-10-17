@@ -1,10 +1,9 @@
 fputs(
-"              the  conversion  by  default to maintain consistency. However, a\n"
-"              server may require a POST to remain a POST after  such  a  redi-\n"
-"              rection.  This  option is meaningful only when using -L, --loca-\n"
-"              tion (Added in 7.17.1)\n"
+"              with any number of variables. The format can be specified  as  a\n"
+"              literal  \"string\",  or  you can have curl read the format from a\n"
+"              file with \"@filename\" and to tell curl to read the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"       --post302\n"
-"              (HTTP) Tells curl to respect RFC 7230/6.4.3 and not convert POST\n"
-"              requests into GET requests when following a 302 redirection. The\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
 , stdout);

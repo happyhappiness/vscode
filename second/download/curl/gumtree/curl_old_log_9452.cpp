@@ -1,10 +1,10 @@
 fputs(
-"              stdin you write \"@-\".\n"
+"              ssl_verify_result\n"
+"                             The result of the SSL peer certificate  verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
-"              All variables are specified as %{variable_name} and to output  a\n"
-"              normal  % you just write them as %%. You can output a newline by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
-"\n"
+"              time_appconnect\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
 , stdout);

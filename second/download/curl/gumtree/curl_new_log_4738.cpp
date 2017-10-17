@@ -1,8 +1,11 @@
 fputs(
-"              This enables uploading of binary files etc. To force  the  'con-\n"
-"              tent' part to be a file, prefix the file name with an @ sign. To\n"
-"              just get the content part from a file, prefix the file name with\n"
-"              the  symbol  <.  The  difference  between @ and < is then that @\n"
-"              makes a file get attached in the post as a  file  upload,  while\n"
-"              the < makes a text field and just get the contents for that text\n"
+"              you're  doing. Remove an internal header by giving a replacement\n"
+"              without content on the right  side  of  the  colon,  as  in:  -H\n"
+"              \"Host:\".\n"
+"\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
+"\n"
 , stdout);

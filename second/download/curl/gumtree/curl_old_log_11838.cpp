@@ -1,10 +1,10 @@
 fputs(
-"              number curl wants to tunnel through to.\n"
+"              Tells   curl  to  use  the  listed  protocols  for  its  initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated,  and  are each a protocol name or 'all', optionally pre-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
 "\n"
-"       -P, --ftp-port <address>\n"
-"              (FTP)  Reverses  the  default initiator/listener roles when con-\n"
-"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
-"              practice,  curl  then  tells  the  server to connect back to the\n"
-"              client's specified address and port, while passive mode asks the\n"
-"              server  to  setup  an  IP address and port for it to connect to.\n"
+"              +  Permit this protocol in addition to protocols already permit-\n"
+"                 ted (this is the default if no modifier is used).\n"
+"\n"
 , stdout);

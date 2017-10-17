@@ -1,9 +1,9 @@
 fputs(
-"              mand line, the data pieces specified  will  be  merged  together\n"
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
+"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
+"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
+"              sions  to  the  original  FTP  protocol, and may not work on all\n"
+"              servers, but they enable more functionality in a better way than\n"
+"              the traditional PORT command.\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
-"              file name to read the data from, or - if you want curl  to  read\n"
 , stdout);

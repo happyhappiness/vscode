@@ -1,9 +1,10 @@
 fputs(
-"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not to use your entire bandwidth.\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              When performing a mail transfer, the recipient should specify  a\n"
 , stdout);

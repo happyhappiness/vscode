@@ -1,11 +1,9 @@
 fputs(
-"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code  was  any  other  3xx code, curl will re-send the following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              If unspecified, the option defaults to 60 seconds.\n"
-"\n"
-"       --key <key>\n"
-"              (SSL/SSH) Private key file name. Allows you to provide your pri-\n"
-"              vate key in this separate file. For SSH, if not specified,  curl\n"
+"              You can tell curl to not change the non-GET  request  method  to\n"
+"              GET  after  a  30x  response  by using the dedicated options for\n"
 , stdout);

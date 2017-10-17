@@ -1,9 +1,12 @@
 fputs(
-"              \"ftp://\" etc) then curl will make a guess based on the host.  If\n"
-"              the  outermost  sub-domain  name  matches DICT, FTP, IMAP, LDAP,\n"
-"              POP3 or SMTP then that protocol will  be  used,  otherwise  HTTP\n"
-"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
-"              default protocol, see --proto-default for details.\n"
+"              local_ip       The  IP  address  of  the  local  end of the most\n"
+"                             recently done connection - can be either IPv4  or\n"
+"                             IPv6 (Added in 7.29.0)\n"
 "\n"
-"              This option may be used any number of times.  To  control  where\n"
+"              local_port     The  local  port number of the most recently done\n"
+"                             connection (Added in 7.29.0)\n"
+"\n"
+"              num_connects   Number of new connects made in the recent  trans-\n"
+"                             fer. (Added in 7.12.3)\n"
+"\n"
 , stdout);

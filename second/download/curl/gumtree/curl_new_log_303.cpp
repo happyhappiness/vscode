@@ -1,11 +1,18 @@
-puts(
-"  The usage of the -x/--proxy flag overrides the environment variables.\n"
+fputs(
+"       tures. See libcurl(3) for details.\n"
 "\n"
-"NETRC\n"
+"URL\n"
+"       The  URL  syntax  is  protocol  dependent.  You'll  find a\n"
+"       detailed description in RFC 2396.\n"
 "\n"
-"  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
-"  to specify name and password for commonly visited ftp sites in a file so\n"
-"  that you don't have to type them in each time you visit those sites. You\n"
-"  realize this is a big security risk if someone else gets hold of your\n"
-"  passwords, so therefor most unix programs won't read this file unless it is\n"
-);
+"       You can specify multiple URLs or parts of URLs by  writing\n"
+"       part sets within braces as in:\n"
+"\n"
+"        http://site.{one,two,three}.com\n"
+"\n"
+"       or  you  can get sequences of alphanumeric series by using\n"
+"       [] as in:\n"
+"\n"
+"        ftp://ftp.numericals.com/file[1-100].txt\n"
+"        ftp://ftp.numericals.com/file[001-100].txt    (with lead-\n"
+, stdout);

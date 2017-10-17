@@ -1,10 +1,10 @@
 fputs(
-"              default  /etc/pki/nssdb).   If  the NSS PEM PKCS#11 module (lib-\n"
-"              nsspem.so) is available then PEM files may be loaded.\n"
+"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
+"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL) Tells curl to use the specified certificate  directory  to\n"
-"              verify  the peer. The certificates must be in PEM format, and if\n"
+"       --ftp-create-dirs\n"
+"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
 , stdout);

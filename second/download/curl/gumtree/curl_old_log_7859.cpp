@@ -1,9 +1,12 @@
 fputs(
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
-"              (which often also describes why and more). This flag  will  pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              create missing directories.\n"
 "\n"
-"              This  method is not fail-safe and there are occasions where non-\n"
+"       --ftp-method [method]\n"
+"              (FTP)  Control what method curl should use to reach a file on an\n"
+"              FTP(S) server. The method argument should be one of the  follow-\n"
+"              ing alternatives:\n"
+"\n"
+"              multicwd\n"
+"                     curl  does  a  single CWD operation for each path part in\n"
+"                     the given URL. For deep hierarchies this means very  many\n"
 , stdout);

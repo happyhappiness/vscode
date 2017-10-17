@@ -1,9 +1,11 @@
 fputs(
-"              The  given  rate  is the average speed counted during the entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following  redirections  \"in absurdum\". By default, the limit is\n"
+"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
+"              less.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --metalink\n"
+"              This  option  can  tell curl to parse and process a given URI as\n"
 , stdout);

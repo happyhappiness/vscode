@@ -1,1 +1,1 @@
-warnf(config, "--trace overrides an earlier trace/verbose option\n");
+warnf(config, "--test-event is ignored unless a debug build!\n");

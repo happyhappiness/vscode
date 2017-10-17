@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
-"              followed  by a separator and a content specification. The <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              This option overrides previous uses of --trace-ascii or --trace.\n"
 "\n"
-"              content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
+"              Use -s, --silent to make curl quiet.\n"
+"\n"
+"       -w, --write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful  operation.  The  format  is a string that may contain plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
 , stdout);

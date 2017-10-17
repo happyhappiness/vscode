@@ -1,9 +1,12 @@
 fputs(
-"              just get the content part from a file, prefix the file name with\n"
-"              the  letter  <.  The  difference  between @ and < is then that @\n"
-"              makes a file get attached in the post as a  file  upload,  while\n"
-"              the < makes a text field and just get the contents for that text\n"
-"              field from a file.\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns they will only mess things up for you.\n"
 "\n"
-"              Example, to send your password file to the server, where  'pass-\n"
+"              See also the -A/--user-agent and -e/--referer options.\n"
+"\n"
+"              This option can be used  multiple  times  to  add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
+"       --ignore-content-length\n"
+"              (HTTP)  Ignore  the  Content-Length header. This is particularly\n"
 , stdout);

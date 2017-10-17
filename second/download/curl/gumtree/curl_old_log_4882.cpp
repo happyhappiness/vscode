@@ -1,9 +1,12 @@
 fputs(
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              port SSL/TLS.  (Added in 7.16.0)\n"
 "\n"
-"              Note  that  all  operations that are performed over a HTTP proxy\n"
-"              will transparently be converted to HTTP. It means  that  certain\n"
-"              protocol specific operations might not be available. This is not\n"
+"       --ftp-ssl-reqd\n"
+"              (FTP)  Require  SSL/TLS  for the FTP connection.  Terminates the\n"
+"              connection if the server doesn't  support  SSL/TLS.   (Added  in\n"
+"              7.15.5)\n"
+"\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
 , stdout);

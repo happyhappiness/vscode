@@ -1,8 +1,12 @@
 fputs(
-"              libcurl  has  changed  the  working  directory,  just before the\n"
-"              transfer command(s), prefix the command with a '+' (this is only\n"
-"              supported  for  FTP). You may specify any number of commands. If\n"
-"              the server returns failure for one of the commands,  the  entire\n"
-"              operation  will  be aborted. You must send syntactically correct\n"
-"              FTP commands as RFC959 defines to FTP servers,  or  one  of  the\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
+"\n"
+"              +  Permit this protocol in addition to protocols already permit-\n"
+"                 ted (this is the default if no modifier is used).\n"
+"\n"
+"              -  Deny this protocol, removing it from the  list  of  protocols\n"
+"                 already permitted.\n"
+"\n"
+"              =  Permit  only this protocol (ignoring the list already permit-\n"
+"                 ted), though subject  to  later  modification  by  subsequent\n"
 , stdout);

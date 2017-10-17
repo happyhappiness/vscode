@@ -1,8 +1,12 @@
 fputs(
-"              commands  are  sent  BEFORE  the  transfer is taking place (just\n"
-"              after the initial PWD command to be  exact).  To  make  commands\n"
-"              take  place after a successful transfer, prefix them with a dash\n"
-"              ’-’. To make commands get sent after libcurl has changed working\n"
-"              directory,  just before the transfer command(s), prefix the com‐\n"
-"              mand with ’+’. You may specify any amount of  commands.  If  the\n"
+"              --retry-max-time  to  limit  the total time allowed for retries.\n"
+"              (Added in 7.12.3)\n"
+"\n"
+"              If this option is  used  multiple  times,  the  last  occurrence\n"
+"              decide the amount.\n"
+"\n"
+"       --retry-delay <seconds>\n"
+"              Make  curl  sleep  this amount of time between each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"              default  backoff time algorithm between retries). This option is\n"
 , stdout);

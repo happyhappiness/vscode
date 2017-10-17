@@ -1,12 +1,8 @@
 fputs(
-"                     i.e \"my.host.domain\" to specify machine\n"
-"\n"
-"              -      make curl pick the same IP address that is  already  used\n"
-"                     for the control connection\n"
-"\n"
-"       If  this  option is used several times, the last one will be used. Dis-\n"
-"       able the use of PORT with --ftp-pasv. Disable the attempt  to  use  the\n"
-"       EPRT  command  instead  of PORT by using --disable-eprt. EPRT is really\n"
-"       PORT++.\n"
-"\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
+"              second and then for all forthcoming retries it will  double  the\n"
+"              waiting  time until it reaches 10 minutes which then will be the\n"
+"              delay between the rest of the retries.  By  using  --retry-delay\n"
+"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
+"              --retry-max-time to limit the total time  allowed  for  retries.\n"
 , stdout);

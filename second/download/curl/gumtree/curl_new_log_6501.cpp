@@ -1,12 +1,9 @@
 fputs(
-"              at port 1080. (Added in 7.18.0)\n"
+"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
+"              mode  to  allow  reading  server  output  while  stdin  is being\n"
+"              uploaded.\n"
 "\n"
-"              This  option  overrides any previous use of -x, --proxy, as they\n"
-"              are mutually exclusive.\n"
-"\n"
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks5-hostnamae  proxy with -x, --proxy using a socks5h:// pro-\n"
-"              tocol prefix.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
+"              + URL pair specifies what to upload and to where. curl also sup-\n"
+"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
 , stdout);

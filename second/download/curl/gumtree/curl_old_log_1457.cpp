@@ -1,11 +1,9 @@
 fputs(
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              IDN    This curl supports IDN - international domain names.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              (Added in 7.9.7)\n"
-"\n"
-"       --trace-ascii <file>\n"
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
+"       -w/--write-out <format>\n"
+"              Defines what to display after a completed and successful  opera-\n"
+"              tion.  The  format is a string that may contain plain text mixed\n"
+"              with any number of variables. The string  can  be  specified  as\n"
+"              \"string\",  to  get  read  from  a particular file you specify it\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"  all of them, one after the other in the specified order.\n"
 "\n"
-"       -y/--speed-time <time>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
-"              used, the default speed-limit will be 1 unless set with -Y.\n"
+"  libcurl will attempt to use persistent connections for the transfers so that\n"
+"  the second transfer to the same host can use the same connection that was\n"
+"  already initiated and was left open in the previous transfer. This greatly\n"
+"  decreases connection time for all but the first transfer and it makes a far\n"
+"  better use of the network.\n"
 "\n"
-"              This option controls transfers and thus  will  not  affect  slow\n"
+"  Note that curl cannot use persistent connections for transfers that are used\n"
 , stdout);

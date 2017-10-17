@@ -1,10 +1,9 @@
 fputs(
-"                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
+"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
-"       --digest\n"
-"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
-"              tion that prevents the password from being sent over the wire in\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
+"              passive mode will not initiate the shutdown,  but  instead  wait\n"
 , stdout);

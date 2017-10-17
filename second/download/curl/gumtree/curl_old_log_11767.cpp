@@ -1,11 +1,9 @@
 fputs(
-"              If  this  option  is  used  several times, only the first one is\n"
-"              used. Undoing an enforced passive really isn't  doable  but  you\n"
-"              must then instead enforce the correct -P, --ftp-port again.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  This is because undoing a GET doesn't make sense, but you\n"
+"              should then instead enforce the alternative method you prefer.\n"
 "\n"
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
-"\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"       -H, --header <header>\n"
+"              (HTTP) Extra header to include in the request when sending  HTTP\n"
+"              to  a  server. You may specify any number of extra headers. Note\n"
 , stdout);

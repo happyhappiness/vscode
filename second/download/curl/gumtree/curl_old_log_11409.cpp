@@ -1,11 +1,10 @@
 fputs(
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection.  This  option is meaningful only when using -L, --loca-\n"
+"              tion (Added in 7.19.1)\n"
 "\n"
-"              Headers  specified  with  this  option  will  not be included in\n"
-"              requests that curl knows will not be sent to a proxy.\n"
-"\n"
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
+"       --post303\n"
+"              (HTTP) Tells curl to respect RFC 7230/6.4.4 and not convert POST\n"
 , stdout);

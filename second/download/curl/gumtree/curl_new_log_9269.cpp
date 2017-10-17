@@ -1,11 +1,10 @@
 fputs(
-"              This option requires a library  built  with  kerberos4  support.\n"
-"              This  is  not very common. Use -V, --version to see if your curl\n"
-"              supports it.\n"
+"                             This is only meaningful if curl is told to  write\n"
+"                             to  a  file  with  the  --remote-name or --output\n"
+"                             option. It's most useful in combination with  the\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
-"       -l, --list-only\n"
-"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-"              only  view.  This  is  especially  useful  if  the user wants to\n"
 , stdout);

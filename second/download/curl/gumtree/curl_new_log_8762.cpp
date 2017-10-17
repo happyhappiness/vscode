@@ -1,10 +1,9 @@
 fputs(
-"              there is no file part in the specified URL, Curl will append the\n"
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory to really prove to Curl that there is no file name  or\n"
-"              curl will think that your last directory name is the remote file\n"
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              with  this  option:  \"-u :\" or by specfying the login options on\n"
+"              their own, for example \"-u ;auth=NTLM\".\n"
 "\n"
+"              You can use the optional login options part to specify  protocol\n"
+"              specific  options  that  may  be  used during authentication. At\n"
+"              present only IMAP, POP3 and SMTP support login options  as  part\n"
+"              of  the  user  login information. For more information about the\n"
 , stdout);

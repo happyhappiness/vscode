@@ -1,11 +1,11 @@
 fputs(
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following redirections \"in absurdum\". By default, the  limit  is\n"
+"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
+"              less.\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
+"       --metalink\n"
+"              This option can tell curl to parse and process a  given  URI  as\n"
 , stdout);

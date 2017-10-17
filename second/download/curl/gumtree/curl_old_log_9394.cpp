@@ -1,11 +1,8 @@
 fputs(
-"              following redirections \"in absurdum\". By default, the  limit  is\n"
-"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
-"              less.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --metalink\n"
-"              This option can tell curl to parse and process a  given  URI  as\n"
-"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
+"              server. Quote commands are sent BEFORE the transfer takes  place\n"
+"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
+"              exact). To make commands take place after a successful transfer,\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
+"              curl has changed the working directory, just before the transfer\n"
+"              command(s),  prefix  the  command  with a '+' (this is only sup-\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
-"              the  file requested is larger than this value, the transfer will\n"
-"              not start and curl will return with exit code 63.\n"
+"       --no-keepalive\n"
+"              Disables the use of keepalive messages on the TCP connection, as\n"
+"              by default curl enables them.\n"
 "\n"
-"              NOTE: The file size is not always known prior to  download,  and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              Note  that  this  is the negated option name documented. You can\n"
+"              thus use --keepalive to enforce keepalive.\n"
+"\n"
+"       --no-sessionid\n"
+"              (SSL) Disable curl's use of SSL session-ID caching.  By  default\n"
+"              all  transfers are done using the cache. Note that while nothing\n"
 , stdout);

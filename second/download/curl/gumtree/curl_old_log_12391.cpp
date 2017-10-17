@@ -1,11 +1,9 @@
 fputs(
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"              before  sending keepalive probes and the time between individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              https://curl.haxx.se/docs/sslcerts.html\n"
-"\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

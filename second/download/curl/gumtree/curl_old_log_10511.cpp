@@ -1,9 +1,10 @@
 fputs(
-"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              When performing a mail transfer, the recipient should specify  a\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
-"              The  given  rate  is the average speed counted during the entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
+"              When  performing  an  address  verification  (VRFY command), the\n"
+"              recipient should be specified as the user name or user name  and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"\n"
 , stdout);

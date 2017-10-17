@@ -1,11 +1,11 @@
 fputs(
-"  systems) from the user's home dir on startup.\n"
+"  on ports other than 21 (or if it just doesn't support the PASV command), the\n"
+"  other way to do it is to use the PORT command and instruct the server to\n"
+"  connect to the client on the given IP number and port (as parameters to the\n"
+"  PORT command).\n"
 "\n"
-"  The config file could be made up with normal command line switches, but you\n"
-"  can also specify the long options without the dashes to make it more\n"
-"  readable. You can separate the options and the parameter with spaces, or\n"
-"  with = or :. Comments can be used within the file. If the first letter on a\n"
-"  line is a '#'-symbol the rest of the line is treated as a comment.\n"
+"  The -P flag to curl supports a few different options. Your machine may have\n"
+"  several IP-addresses and/or network interfaces and curl allows you to select\n"
+"  which of them to use. Default address can also be used:\n"
 "\n"
-"  If you want the parameter to contain spaces, you must enclose the entire\n"
 , stdout);

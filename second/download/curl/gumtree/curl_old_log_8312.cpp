@@ -1,11 +1,8 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
-"\n"
-"              time_total     The  total time, in seconds, that the full opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
-"\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line. Options and their parameters must be speci-\n"
+"              fied on the same config  file  line,  separated  by  whitespace,\n"
+"              colon,  the equals sign or any combination thereof (however, the\n"
+"              preferred separator is the equals sign). If the parameter is  to\n"
+"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
 , stdout);

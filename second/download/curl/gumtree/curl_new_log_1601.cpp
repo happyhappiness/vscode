@@ -1,12 +1,9 @@
 fputs(
-"              is plaintext in the case of HTTP Basic authentication).\n"
-"\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              location following.\n"
-"\n"
-"       --max-filesize <bytes>\n"
-"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
-"              the  file requested is larger than this value, the transfer will\n"
-"              not start and curl will return with exit code 63.\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It is a proprietary protocol, reversed engineered by clever peo-\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
+"              behavior  should  not be endorsed, you should encourage everyone\n"
+"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              tion method instead. Such as Digest. (Added in 7.10.6)\n"
 "\n"
 , stdout);

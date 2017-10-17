@@ -1,12 +1,11 @@
 fputs(
-"              All  variables are specified as %{variable_name} and to output a\n"
-"              normal % you just write them as %%. You can output a newline  by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
 "\n"
-"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
-"              where all occurrences of %  must  be  doubled  when  using  this\n"
-"              option.\n"
+"              speed_upload   The  average  upload speed that curl measured for\n"
+"                             the complete upload. Bytes per second.\n"
 "\n"
-"              The variables available at this point are:\n"
+"              content_type   The Content-Type of the  requested  document,  if\n"
+"                             there was any.\n"
 "\n"
 , stdout);

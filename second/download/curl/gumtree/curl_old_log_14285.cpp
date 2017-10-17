@@ -1,0 +1,15 @@
+fputs(
+"              Unix-like  systems,  it will simply try to load .curlrc from the\n"
+"              determined home dir.\n"
+"\n"
+"              # --- Example file ---\n"
+"              # this is a comment\n"
+"              url = \"example.com\"\n"
+"              output = \"curlhere.html\"\n"
+"              user-agent = \"superagent/1.0\"\n"
+"\n"
+"              # and fetch another URL too\n"
+"              url = \"example.com/docs/manpage.html\"\n"
+"              -O\n"
+"              referer = \"http://nowhereatall.example.com/\"\n"
+, stdout);

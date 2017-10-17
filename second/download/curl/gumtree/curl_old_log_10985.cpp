@@ -1,12 +1,9 @@
 fputs(
-"              Turn  on the TCP_NODELAY option. See the curl_easy_setopt(3) man\n"
-"              page for details about this option. (Added in 7.11.2)\n"
+"              When  using  Kerberos  V5 with a Windows based server you should\n"
+"              include the Windows domain name in the user name, in  order  for\n"
+"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"
+"              don't then the initial authentication handshake may fail.\n"
 "\n"
-"       --tftp-blksize <value>\n"
-"              (TFTP) Set TFTP BLKSIZE option (must be >512). This is the block\n"
-"              size that curl will try to use when transferring data to or from\n"
-"              a TFTP server. By default 512 bytes will be used.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
+"              When using NTLM, the user name can be specified  simply  as  the\n"
+"              user  name,  without the domain, if there is a single domain and\n"
 , stdout);

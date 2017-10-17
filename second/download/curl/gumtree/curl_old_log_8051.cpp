@@ -1,9 +1,12 @@
 fputs(
-"              If  any of these options is used more than once on the same com-\n"
-"              mand line, the data pieces specified  will  be  merged  together\n"
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
+"       --delegation LEVEL\n"
+"              Set LEVEL to tell the server what it is allowed to delegate when\n"
+"              it comes to user credentials. Used with GSS/kerberos.\n"
+"\n"
+"              none   Don't allow any delegation.\n"
+"\n"
+"              policy Delegates if and only if the OK-AS-DELEGATE flag  is  set\n"
 , stdout);

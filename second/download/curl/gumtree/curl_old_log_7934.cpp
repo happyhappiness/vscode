@@ -1,10 +1,12 @@
 fputs(
-"              URL decoded by curl. This allows you to pass in special  charac-\n"
-"              ters such as @ by using %40 or pass in a colon with %3a.\n"
+"              and tries to get  the  modification  date  (mtime)  from  <file>\n"
+"              instead.  See  the curl_getdate(3) man pages for date expression\n"
+"              details.\n"
 "\n"
-"              The  proxy host can be specified the exact same way as the proxy\n"
-"              environment variables, including the protocol  prefix  (http://)\n"
-"              and the embedded user + password.\n"
+"              Start the date expression with a dash (-) to make it request for\n"
+"              a  document that is older than the given date/time, default is a\n"
+"              document that is newer than the specified date/time.\n"
 "\n"
-"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

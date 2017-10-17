@@ -1,9 +1,11 @@
 fputs(
-"              This is done by first doing a request and checking the response-\n"
-"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
-"              This is  used  instead  of  setting  a  specific  authentication\n"
-"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
-"              --negotiate.\n"
+"              back you get about this possibly lethal situation.\n"
 "\n"
-"              Note that using --anyauth is not recommended if you  do  uploads\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
+"\n"
+"       -C, --continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
 , stdout);

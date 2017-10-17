@@ -1,9 +1,11 @@
 fputs(
-"              you to a site to which  you'll  send  your  authentication  info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              the  response  will break Metalink parser and if the headers are\n"
+"              included in the file described in Metalink file, hash check will\n"
+"              fail.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum  time  in  seconds that you allow the whole operation to\n"
-"              take.  This is useful for preventing your batch jobs from  hang-\n"
-"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"\n"
+"       -n, --netrc\n"
+"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
+"              user's home directory for login name and password. This is typi-\n"
 , stdout);

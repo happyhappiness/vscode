@@ -1,8 +1,11 @@
 fputs(
-"              specify any number of extra headers. Note that if you should add\n"
-"              a custom header that has the same name as one  of  the  internal\n"
-"              ones  curl  would  use,  your externally set header will be used\n"
-"              instead of the internal one. This allows you to make even trick-\n"
-"              ier  stuff  than  curl would normally do. You should not replace\n"
-"              internally set  headers  without  knowing  perfectly  well  what\n"
+"              dir given the current user in your system). On Windows, it  then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
+"\n"
+"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              UNIX-like systems, it will simply try to load .curlrc  from  the\n"
+"              determined home dir.\n"
+"\n"
 , stdout);

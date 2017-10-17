@@ -1,11 +1,10 @@
 fputs(
-"              tion that prevents the password from being sent over the wire in\n"
-"              clear  text.  Use  this in combination with the normal -u/--user\n"
-"              option to set user name and password. See also --ntlm, --negoti-\n"
-"              ate and --anyauth for related options.\n"
+"              socket. The socket is used to seed the  random  engine  for  SSL\n"
+"              connections. See also the --random-file option.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference.\n"
-"\n"
-"       --disable-eprt\n"
+"       -E/--cert <certificate[:password]>\n"
+"              (SSL) Tells curl to use the specified certificate file when get-\n"
+"              ting a file with HTTPS or FTPS. The certificate must be  in  PEM\n"
+"              format.   If  the  optional password isn't specified, it will be\n"
+"              queried for on the terminal. Note that  this  option  assumes  a\n"
 , stdout);

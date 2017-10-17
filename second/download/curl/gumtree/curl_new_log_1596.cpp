@@ -1,10 +1,9 @@
 fputs(
-"              unix-like  systems,  it will simply try to load .curlrc from the\n"
-"              determined home dir.\n"
-"       --limit-rate <speed>\n"
-"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
-"              feature is useful if you have a limited pipe and you'd like your\n"
-"              transfer not use your entire bandwidth.\n"
+"              login name and password. This is typically used for ftp on unix.\n"
+"              If used with http, curl will  enable  user  authentication.  See\n"
+"              netrc(4) or ftp(1) for details on the file format. Curl will not\n"
+"              complain if that file hasn't the right  permissions  (it  should\n"
+"              not  be  world  nor  group  readable).  The environment variable\n"
+"              \"HOME\" is used to find the home directory.\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
 , stdout);

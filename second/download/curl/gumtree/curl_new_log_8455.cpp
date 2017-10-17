@@ -1,9 +1,10 @@
 fputs(
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              necting with FTP. This switch makes curl  use  active  mode.  In\n"
+"              practice,  curl  then  tells  the  server to connect back to the\n"
+"              client's specified address and port, while passive mode asks the\n"
+"              server  to  setup  an  IP address and port for it to connect to.\n"
+"              <address> should be one of:\n"
 "\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
+"              interface\n"
+"                     i.e \"eth0\" to specify which interface's  IP  address  you\n"
 , stdout);

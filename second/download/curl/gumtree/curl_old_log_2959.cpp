@@ -1,12 +1,10 @@
 fputs(
-"              size_request   The  total  amount of bytes that were sent in the\n"
-"                             HTTP request.\n"
+"              it doesn’t match any internal ones, it tries  to  get  the  time\n"
+"              from  a  given  file  name  instead! See the curl_getdate(3) man\n"
+"              pages for date expression details.\n"
 "\n"
-"              speed_download The average download speed that curl measured for\n"
-"                             the complete download.\n"
+"              Start the date expression with a dash (-) to make it request for\n"
+"              a  document that is older than the given date/time, default is a\n"
+"              document that is newer than the specified date/time.\n"
 "\n"
-"              speed_upload   The  average  upload speed that curl measured for\n"
-"                             the complete upload.\n"
-"\n"
-"              content_type   The Content-Type of the  requested  document,  if\n"
 , stdout);

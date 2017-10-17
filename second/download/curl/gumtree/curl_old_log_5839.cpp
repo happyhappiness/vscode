@@ -1,11 +1,11 @@
 fputs(
-"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a '#' character, the rest of the line will be treated as a  com-\n"
-"              ment.  Only  write  one  option  per physical line in the config\n"
-"              file.\n"
+"              If you also use the -Y/--speed-limit option,  that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              Specify the filename to -K/--config as '-' to make curl read the\n"
-"              file from stdin.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -l/--list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
+"              only  view.   Especially useful if you want to machine-parse the\n"
 , stdout);

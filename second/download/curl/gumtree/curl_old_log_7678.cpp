@@ -1,11 +1,8 @@
 fputs(
-"              fail unless -k, --insecure is used.\n"
-"\n"
-"              See    this    online    resource    for    further     details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
-"\n"
-"       -K, --config <config file>\n"
-"              Specify  which config file to read curl arguments from. The con-\n"
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
+"              supported for FTP). You may specify any number of  commands.  If\n"
+"              the  server  returns failure for one of the commands, the entire\n"
+"              operation will be aborted. You must send  syntactically  correct\n"
+"              FTP  commands  as  RFC 959 defines to FTP servers, or one of the\n"
+"              commands listed below to SFTP servers.  This option can be  used\n"
+"              multiple  times.  When speaking to a FTP server, prefix the com-\n"
 , stdout);

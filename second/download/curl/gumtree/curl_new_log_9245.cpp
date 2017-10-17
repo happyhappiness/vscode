@@ -1,10 +1,9 @@
 fputs(
-"              the  email's  unique  identifier  rather than it's message id to\n"
-"              make the request. (Added in 7.21.5)\n"
+"              you  to  a  site  to  which you'll send your authentication info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"       -L, --location\n"
-"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
-"              moved to a different location (indicated with a Location: header\n"
-"              and a 3XX response code), this option will make  curl  redo  the\n"
-"              request on the new place. If used together with -i, --include or\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or links going  down.   Since\n"
 , stdout);

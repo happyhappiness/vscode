@@ -1,11 +1,11 @@
 fputs(
-"              reached  the  limit, the request will be made and while perform-\n"
-"              ing, it may take longer than this given time period. To limit  a\n"
-"              single  request's  maximum  time,  use  -m/--max-time.  Set this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on a http(s) server, the PUT command  will\n"
+"              be used.\n"
 "\n"
-"              If this option is  used  multiple  times,  the  last  occurrence\n"
-"              decide the amount.\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.\n"
 "\n"
-"       -s/--silent\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
 , stdout);

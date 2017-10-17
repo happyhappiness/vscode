@@ -1,11 +1,11 @@
 fputs(
-"              specify alternative proxy protocols. Use socks4://,  socks4a://,\n"
-"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
-"              be used. No protocol specified, http:// and all others  will  be\n"
-"              treated as HTTP proxies. (The protocol support was added in curl\n"
-"              7.21.7)\n"
+"              the content type is stored in the mime_type  attribute.  If  the\n"
+"              file  system  does not support extended attributes, a warning is\n"
+"              issued.\n"
 "\n"
-"              If the port number is not specified in the proxy string,  it  is\n"
-"              assumed to be 1080.\n"
+"       -y, --speed-time <time>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
 , stdout);

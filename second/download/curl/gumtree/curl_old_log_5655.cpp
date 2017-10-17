@@ -1,11 +1,10 @@
 fputs(
-"       21     FTP quote error. A quote command returned error from the server.\n"
-"       22     HTTP  page  not  retrieved.  The  requested url was not found or\n"
-"              returned another error with the HTTP error  code  being  400  or\n"
-"              above. This return code only appears if -f/--fail is used.\n"
+"              determines the amount.\n"
 "\n"
-"       23     Write  error.  Curl couldn't write data to a local filesystem or\n"
-"              similar.\n"
-"\n"
-"       25     FTP couldn't STOR file. The server denied  the  STOR  operation,\n"
+"       --retry-max-time <seconds>\n"
+"              The retry timer is reset  before  the  first  transfer  attempt.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"              reached  the  limit, the request will be made and while perform-\n"
+"              ing, it may take longer than this given time period. To limit  a\n"
 , stdout);

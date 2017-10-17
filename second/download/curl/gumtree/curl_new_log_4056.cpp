@@ -1,11 +1,11 @@
 fputs(
-"              (FTP)  Use  PASV when transferring. PASV is the internal default\n"
-"              behavior, but using this option can be used to override a previ-\n"
-"              ous --ftp-port option. (Added in 7.11.0)\n"
+"              you're  doing. Remove an internal header by giving a replacement\n"
+"              without content on the right  side  of  the  colon,  as  in:  -H\n"
+"              \"Host:\".\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference. Undoing an enforced PASV really isn't doable\n"
-"              but you must then instead enforce the correct EPRT again.\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"       --ftp-alternative-to-user <command>\n"
 , stdout);

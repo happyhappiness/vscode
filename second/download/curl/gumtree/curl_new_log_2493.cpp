@@ -1,12 +1,9 @@
 fputs(
-"                             tion: headers.\n"
+"              This  option  overrides existing environment variables that sets\n"
+"              proxy to use. If  there's  an  environment  variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              http_code      The  numerical  code  that  was found in the last\n"
-"                             retrieved HTTP(S) page.\n"
-"\n"
-"              http_connect   The numerical code that was  found  in  the  last\n"
-"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
-"                             request. (Added in 7.12.4)\n"
-"\n"
-"              time_total     The total time, in seconds, that the full  opera-\n"
+"              Note  that  all  operations that are performed over a HTTP proxy\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
 , stdout);

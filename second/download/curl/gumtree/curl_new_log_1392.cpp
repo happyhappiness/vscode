@@ -1,11 +1,9 @@
 fputs(
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
-"              sions to the original FTP protocol, may not work on all  servers\n"
-"              but  enable  more  functionality in a better way than the tradi-\n"
-"              tional PORT command. (Added in 7.10.5)\n"
+"              Cookie:\"  line.  The data should be in the format \"NAME1=VALUE1;\n"
+"              NAME2=VALUE2\".\n"
 "\n"
-"              If this option is used several times, each occurrence will  tog-\n"
-"              gle this on/off.\n"
-"\n"
+"              If no '=' letter is used in the line, it is treated as  a  file-\n"
+"              name  to  use to read previously stored cookie lines from, which\n"
+"              should be used in this session if they match. Using this  method\n"
+"              also  activates  the \"cookie parser\" which will make curl record\n"
 , stdout);

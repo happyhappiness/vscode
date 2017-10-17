@@ -1,11 +1,9 @@
 fputs(
-"              ate and --anyauth for related options.\n"
+"              ting  a  file with HTTPS or FTPS. The certificate must be in PEM\n"
+"              format.  If the optional password isn't specified,  it  will  be\n"
+"              queried  for  on  the  terminal. Note that this option assumes a\n"
+"              \"certificate\" file that is the private key and the private  cer-\n"
+"              tificate  concatenated!  See  --cert  and  --key to specify them\n"
+"              independently.\n"
 "\n"
-"              If this option is used several times, the following  occurrences\n"
-"              make no difference.\n"
-"\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
 , stdout);

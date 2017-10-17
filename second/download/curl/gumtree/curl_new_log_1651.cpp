@@ -1,9 +1,12 @@
 fputs(
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              connects etc. If this is a concern for you, try  the  --connect-\n"
+"              timeout option.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and  transfer  before   final   transaction   was\n"
-"                             started.  time_redirect shows the complete execu-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y/--speed-limit <speed>\n"
+"              If a download is slower than this given speed, in bytes per sec-\n"
+"              ond,  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -Y and is 30 if not set.\n"
+"\n"
 , stdout);

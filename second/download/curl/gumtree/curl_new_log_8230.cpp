@@ -1,10 +1,9 @@
 fputs(
-"       example, requires a space between it and its value.\n"
+"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
+"              optional password isn't specified, it will be queried for on the\n"
+"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
+"              that is the private key and  the  private  certificate  concate-\n"
+"              nated! See --cert and --key to specify them independently.\n"
 "\n"
-"       Short version options that don't need any additional values can be used\n"
-"       immediately next to each other, like for example you  can  specify  all\n"
-"       the options -O, -L and -v at once as -OLv.\n"
-"\n"
-"       In general, all boolean options are enabled with --option and yet again\n"
-"       disabled with --no-option. That is, you use the exact same option  name\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
 , stdout);

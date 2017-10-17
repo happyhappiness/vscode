@@ -1,11 +1,8 @@
 fputs(
-"              If  this  option  is  used  several times, only the first one is\n"
-"              used. Undoing an enforced passive really isn't  doable  but  you\n"
-"              must then instead enforce the correct -P, --ftp-port again.\n"
-"\n"
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
-"\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
 , stdout);

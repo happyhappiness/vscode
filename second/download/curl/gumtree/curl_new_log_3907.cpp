@@ -1,11 +1,11 @@
 fputs(
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until the name resolving was completed.\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the case if you can tunnel through the proxy, as done  with  the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the TCP connect  to  the  remote  host  (or\n"
-"                             proxy) was completed.\n"
+"              Starting  with 7.14.1, the proxy host can be specified the exact\n"
+"              same way as the proxy environment  variables,  include  protocol\n"
+"              prefix (http://) and embedded user + password.\n"
 "\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
 , stdout);

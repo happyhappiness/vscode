@@ -1,11 +1,10 @@
 fputs(
-"              list           details           on           this          URL:\n"
-"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
 "\n"
-"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
-"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
-"              URL: http://directory.fedora.redhat.com/docs/mod_nss.html#Direc-\n"
-"              tives\n"
+"              -d/--data  is  the  same  as  --data-ascii.  To post data purely\n"
+"              binary, you should instead use the --data-binary option. To  URL\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"              If this option is used several times, the last one will override\n"
+"              If  any of these options is used more than once on the same com-\n"
 , stdout);

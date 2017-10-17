@@ -1,11 +1,11 @@
 fputs(
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              To use a Metalink file in the local file system, use FILE proto-\n"
+"              col (file://):\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              curl --metalink file://example.metalink\n"
 "\n"
-"       --login-options <options>\n"
-"              Specify the login options to use during server authentication.\n"
-"\n"
-"              You can use the  login  options  to  specify  protocol  specific\n"
+"              Please note that if FILE protocol is disabled, there is  no  way\n"
+"              to  use  a local Metalink file at the time of this writing. Also\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include  will be ignored. This is because including headers in\n"
 , stdout);

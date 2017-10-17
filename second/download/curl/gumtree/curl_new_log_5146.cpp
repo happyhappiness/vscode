@@ -1,10 +1,11 @@
 fputs(
-"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
-"              sions  to  the  original  FTP  protocol, and may not work on all\n"
-"              servers, but they enable more functionality in a better way than\n"
-"              the traditional PORT command.\n"
+"              If curl is built against the NSS SSL library  then  this  option\n"
+"              tells curl the nickname of the certificate to use within the NSS\n"
+"              database defined by the  environment  variable  SSL_DIR  (or  by\n"
+"              default  /etc/pki/nssdb).  If  the  NSS PEM PKCS#11 module (lib-\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
 "\n"
-"              Since  curl 7.19.0, --eprt can be used to explicitly enable EPRT\n"
-"              again and --no-eprt is an alias for --disable-eprt.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --cert-type <type>\n"
 , stdout);

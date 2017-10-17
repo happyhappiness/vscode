@@ -1,2 +1,2 @@
-warnf(config, "Keep-alive functionality somewhat crippled due to "
-                "missing support in your operating system!\n");
+warnf(operation, "%s:%d: warning: '%s' %s\n",
+                filename, lineno, option, reason);

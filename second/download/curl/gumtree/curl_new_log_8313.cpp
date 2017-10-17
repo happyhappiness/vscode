@@ -1,12 +1,9 @@
 fputs(
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful  if  you've  told curl to follow location:\n"
-"                             headers.\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
+"              backslash preceding any other letter is ignored.  If  the  first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
 "\n"
-"       If this option is used several times, the last one will be used.\n"
-"\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use the specified proxy.\n"
-"\n"
-"              The proxy string can be specified with a protocol://  prefix  to\n"
 , stdout);

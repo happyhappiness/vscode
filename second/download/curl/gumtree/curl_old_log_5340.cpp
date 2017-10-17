@@ -1,9 +1,10 @@
 fputs(
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L/--location option. The  file  format  of\n"
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              NOTE that the file specified with -b/--cookie is  only  used  as\n"
-"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
 , stdout);

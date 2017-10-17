@@ -1,10 +1,10 @@
 fputs(
-"              ones  curl  would  use,  your externally set header will be used\n"
-"              instead of the internal one. This allows you to make even trick-\n"
-"              ier  stuff  than  curl would normally do. You should not replace\n"
-"              internally set  headers  without  knowing  perfectly  well  what\n"
-"              you're  doing. Remove an internal header by giving a replacement\n"
-"              without content on the right  side  of  the  colon,  as  in:  -H\n"
-"              \"Host:\".\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
+"              If this option is used multiple times, the last occurrence  sets\n"
+"              the amount.\n"
+"       --key <key>\n"
 , stdout);

@@ -1,10 +1,12 @@
 fputs(
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              Specify the user name and password to use for server authentica-\n"
+"              tion. Overrides -n, --netrc and --netrc-optional.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If  you  simply  specify  the  user name, curl will prompt for a\n"
+"              password.\n"
+"\n"
+"              The user name and passwords are split up  on  the  first  colon,\n"
+"              which  makes  it impossible to use a colon in the user name with\n"
+"              this option. The password can, still.\n"
 "\n"
 , stdout);

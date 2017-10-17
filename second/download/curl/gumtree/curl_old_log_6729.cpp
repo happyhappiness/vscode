@@ -1,10 +1,11 @@
 fputs(
-"                     operates on the file \"normally\"  (like  in  the  multicwd\n"
-"                     case).  This  is  somewhat  more standards compliant than\n"
-"                     'nocwd' but without the full penalty of 'multicwd'.\n"
-"       (Added in 7.15.1)\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"       --ftp-pasv\n"
-"              (FTP) Use passive mode for the data connection. Passive  is  the\n"
-"              internal  default behavior, but using this option can be used to\n"
+"       -G, --get\n"
+"              When used, this option will make all  data  specified  with  -d,\n"
+"              --data or --data-binary to be used in a HTTP GET request instead\n"
+"              of the POST request that otherwise would be used. The data  will\n"
+"              be appended to the URL with a '?' separator.\n"
+"\n"
+"              If  used  in  combination with -I, the POST data will instead be\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              (GSS-Negotiate) support. This is not very common. Use  -V/--ver-\n"
-"              sion to see if your curl supports it.\n"
+"              If this option is used several times, the last given  file  name\n"
+"              will be used. (Added in 7.16.1)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --limit-rate <speed>\n"
+"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
+"              feature is useful if you have a limited pipe and you'd like your\n"
+"              transfer not to use your entire bandwidth.\n"
 "\n"
-"       -K/--config <config file>\n"
-"              Specify  which config file to read curl arguments from. The con-\n"
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
+"              The  given speed is measured in bytes/second, unless a suffix is\n"
 , stdout);

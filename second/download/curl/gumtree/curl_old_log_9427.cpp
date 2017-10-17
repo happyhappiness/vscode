@@ -1,11 +1,10 @@
 fputs(
-"              Since 7.21.7, this option is superfluous since you can specify a\n"
-"              socks4a  proxy with -x, --proxy using a socks4a:// protocol pre-\n"
-"              fix.\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
+"              be used.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --socks5-hostname <host[:port]>\n"
-"              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
-"              host  name).  If the port number is not specified, it is assumed\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
 , stdout);

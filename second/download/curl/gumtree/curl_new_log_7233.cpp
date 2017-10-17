@@ -1,10 +1,11 @@
 fputs(
-"              When  used,  this  option  will make all data specified with -d,\n"
-"              --data or --data-binary to be used in a HTTP GET request instead\n"
-"              of  the POST request that otherwise would be used. The data will\n"
-"              be appended to the URL with a '?' separator.\n"
+"       -j, --junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option  will  make  it  discard all \"session cookies\". This will\n"
+"              basically have the same effect as if a new session  is  started.\n"
+"              Typical  browsers  always  discard  session cookies when they're\n"
+"              closed down.\n"
 "\n"
-"              If used in combination with -I, the POST data  will  instead  be\n"
-"              appended to the URL with a HEAD request.\n"
-"\n"
+"       -J, --remote-header-name\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
 , stdout);

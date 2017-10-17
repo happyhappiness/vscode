@@ -1,11 +1,11 @@
 fputs(
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.26.0)\n"
+"              present  only  IMAP, POP3 and SMTP support login options as part\n"
+"              of the user login information. For more  information  about  the\n"
+"              login  options  please  see  RFC  2384,  RFC 5092 and IETF draft\n"
+"              draft-earhart-url-smtp-00.txt (Added in 7.31.0).\n"
 "\n"
-"       --proto <protocols>\n"
-"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -U, --proxy-user <user:password>\n"
+"              Specify the user name and password to use for proxy  authentica-\n"
 , stdout);

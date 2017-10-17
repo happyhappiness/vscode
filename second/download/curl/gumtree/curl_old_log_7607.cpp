@@ -1,9 +1,12 @@
 fputs(
-"              All  operations that are performed over a HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
+"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
+"              instead. See the curl_getdate(3) man pages for  date  expression\n"
+"              details.\n"
 "\n"
-"              User and password that might be provided in the proxy string are\n"
+"              Start the date expression with a dash (-) to make it request for\n"
+"              a document that is older than the given date/time, default is  a\n"
+"              document that is newer than the specified date/time.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

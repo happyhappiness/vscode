@@ -1,10 +1,11 @@
 fputs(
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
+"              (FTP)  Use  PASV when transferring. PASV is the internal default\n"
+"              behavior, but using this option can be used to override a previ-\n"
+"              ous --ftp-port option. (Added in 7.11.0)\n"
 "\n"
-"              -d/--data  is  the  same  as  --data-ascii.  To post data purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an enforced PASV really isn't doable\n"
+"              but you must then instead enforce the correct EPRT again.\n"
 "\n"
-"              If  any of these options is used more than once on the same com-\n"
+"       --ftp-alternative-to-user <command>\n"
 , stdout);

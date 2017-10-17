@@ -1,9 +1,11 @@
 fputs(
-"              Only digit characters (0-9) are valid in the 'start' and  'stop'\n"
-"              fields  of the 'start-stop' range syntax. If a non-digit charac-\n"
-"              ter is given in the range, the server's response will be unspec-\n"
-"              ified, depending on the server's configuration.\n"
+"              Make  curl  sleep  this  amount of time before each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"              default  backoff time algorithm between retries). This option is\n"
+"              only interesting if --retry is also used. Setting this delay  to\n"
+"              zero  will  make  curl  use the default backoff time.  (Added in\n"
+"              7.12.3)\n"
 "\n"
-"              You  should also be aware that many HTTP/1.1 servers do not have\n"
-"              this feature enabled, so that when you attempt to get  a  range,\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

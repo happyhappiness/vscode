@@ -1,9 +1,10 @@
 fputs(
-"                     curl  does  a  single CWD operation for each path part in\n"
-"                     the given URL. For deep hierarchies this means very  many\n"
-"                     commands.  This  is  how RFC 1738 says it should be done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              ters, and the ';type=' string in the value have no special mean-\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
+"              that the string value may accidentally trigger the  '@'  or  '<'\n"
+"              features of --form.\n"
 "\n"
-"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
-"                     etc and give a full path to the server for all these com-\n"
+"       -g, --globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
+"              this option, you can specify URLs that contain the letters  {}[]\n"
 , stdout);

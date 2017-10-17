@@ -1,8 +1,12 @@
 fputs(
-"              The  retry  timer  is  reset  before the first transfer attempt.\n"
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
-"              reached the limit, the request will be made and  while  perform-\n"
-"              ing,  it may take longer than this given time period. To limit a\n"
-"              single request's maximum  time,  use  -m/--max-time.   Set  this\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
+"              + URL pair specifies what to upload and to where. curl also sup-\n"
+"              ports \"globbing\" of the -T argument, meaning that you can upload\n"
+"              multiple files to a single URL by using the  same  URL  globbing\n"
+"              style supported in the URL, like this:\n"
+"\n"
+"              curl -T \"{file1,file2}\" http://www.uploadtothissite.com\n"
+"\n"
+"              or even\n"
+"\n"
 , stdout);

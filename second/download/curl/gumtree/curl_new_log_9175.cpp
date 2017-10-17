@@ -1,11 +1,9 @@
 fputs(
-"              Disable  the  NPN  TLS  extension.  NPN is enabled by default if\n"
-"              libcurl was built with an SSL library that supports NPN. NPN  is\n"
-"              used  by a libcurl that supports HTTP 2 to negotiate HTTP 2 sup-\n"
-"              port with the server during https sessions.\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              (Added in 7.36.0)\n"
-"\n"
-"       --no-alpn\n"
-"              Disable the ALPN TLS extension. ALPN is enabled  by  default  if\n"
+"              NOTE that the file specified with -b, --cookie is only  used  as\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
 , stdout);

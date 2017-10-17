@@ -1,12 +1,10 @@
 fputs(
-"              request, it does not alter the way curl behaves. So for  example\n"
-"              if  you  want  to make a proper HEAD request, using -X HEAD will\n"
-"              not suffice. You need to use the -I, --head option.\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The first line includes the full version of  curl,  libcurl  and\n"
+"              other 3rd party libraries linked with the executable.\n"
 "\n"
-"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
-"              doing file lists with FTP.\n"
+"              The  second  line (starts with \"Protocols:\") shows all protocols\n"
+"              that libcurl reports to support.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --xattr\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

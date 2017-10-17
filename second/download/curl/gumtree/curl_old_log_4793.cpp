@@ -1,11 +1,10 @@
 fputs(
-"              --socks without the number appended.)\n"
-"       --socks5-gssapi-service <servicename>\n"
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"              SSPI   SSPI  is  supported. If you use NTLM and set a blank user\n"
+"                     name, curl will authenticate with your current  user  and\n"
+"                     password.\n"
 "\n"
-"              Examples:\n"
-"               --socks5  proxy-name  --socks5-gssapi-service sockd   would use\n"
-"              sockd/proxy-name\n"
-"               --socks5  proxy-name  --socks5-gssapi-service   sockd/real-name\n"
+"       -w/--write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful operation. The format is a string  that  may  contain  plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
 , stdout);

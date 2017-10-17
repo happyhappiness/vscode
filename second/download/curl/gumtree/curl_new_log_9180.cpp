@@ -1,11 +1,10 @@
 fputs(
-"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
-"              string with single quote marks. This can also be  set  with  the\n"
-"              -H, --header option of course.\n"
+"              If this option is used several times, the  last  specified  file\n"
+"              name will be used.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and use the most secure one the remote site claims  to  support.\n"
+"       -C, --continue-at <offset>\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
+"              skipped,  counting  from the beginning of the source file before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
 , stdout);

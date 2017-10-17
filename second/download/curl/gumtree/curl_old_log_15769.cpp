@@ -1,0 +1,16 @@
+fputs(
+"              \"-\"  as  filename  to have the output sent to stdout. Use \"%\" as\n"
+"              filename to have the output sent to stderr.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              This option overrides -v, --verbose and --trace-ascii.\n"
+"\n"
+"       --unix-socket <path>\n"
+"              (HTTP) Connect through this Unix domain socket, instead of using\n"
+"              the network.\n"
+"\n"
+"              Added in 7.40.0.\n"
+"\n"
+"       -T, --upload-file <file>\n"
+, stdout);

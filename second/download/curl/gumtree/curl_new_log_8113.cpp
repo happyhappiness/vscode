@@ -1,11 +1,12 @@
 fputs(
-"              are  errors (such as the file or server not being available). It\n"
-"              will also verify the hash of the file after  the  download  com-\n"
-"              pletes.  The Metalink file itself is downloaded and processed in\n"
-"              memory and not stored in the local file system.\n"
+"              cation method. For more information see IETF draft draft-brezak-\n"
+"              spnego-http-04.txt.\n"
 "\n"
-"              Example to use a remote Metalink file:\n"
+"              If you want to enable Negotiate for your  proxy  authentication,\n"
+"              then use --proxy-negotiate.\n"
 "\n"
-"              curl --metalink http://www.example.com/example.metalink\n"
+"              This  option  requires a library built with GSSAPI support. This\n"
+"              is not very common. Use -V, --version to  see  if  your  version\n"
+"              supports GSS-Negotiate.\n"
 "\n"
 , stdout);

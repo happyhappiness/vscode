@@ -1,10 +1,11 @@
 fputs(
-"  libcurl will attempt to use persistent connections for the transfers so that\n"
-"  the second transfer to the same host can use the same connection that was\n"
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
+"       -u/--user <user:password>\n"
+"              Specify the user name and password to use for server authentica-\n"
+"              tion. Overrides -n/--netrc and --netrc-optional.\n"
 "\n"
-"  Note that curl cannot use persistent connections for transfers that are used\n"
-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
+"              If you just give the user name (without entering a  colon)  curl\n"
+"              will prompt for a password.\n"
+"\n"
+"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
+"              tion, you can force curl to pick up the user name  and  password\n"
 , stdout);

@@ -1,8 +1,11 @@
 fputs(
-"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
-"              POST  requests  into GET requests when following a 303 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              The  only difference between this and the HTTP proxy option (-x,\n"
+"              --proxy), is that attempts to use CONNECT through the proxy will\n"
+"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
+"\n"
+"       --pubkey <key>\n"
+"              (SSH)  Public  key  file name. Allows you to provide your public\n"
+"              key in this separate file.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

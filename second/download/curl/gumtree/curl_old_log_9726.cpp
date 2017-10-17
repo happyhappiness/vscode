@@ -1,8 +1,12 @@
 fputs(
-"              If no '=' symbol is used in the line, it is treated as  a  file-\n"
-"              name  to  use to read previously stored cookie lines from, which\n"
-"              should be used in this session if they match. Using this  method\n"
-"              also  activates  the \"cookie parser\" which will make curl record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination  with  the -L, --location option. The file format of\n"
+"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"\n"
+"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
+"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+"              URL:                                          http://git.fedora-\n"
+"              hosted.org/cgit/mod_nss.git/plain/docs/mod_nss.html#Directives\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --compressed\n"
 , stdout);

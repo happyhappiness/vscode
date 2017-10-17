@@ -1,11 +1,11 @@
 fputs(
-"              input. No cookies will be stored in the file. To store  cookies,\n"
-"              use  the  -c/--cookie-jar option or you could even save the HTTP\n"
-"              headers to a file using -D/--dump-header!\n"
+"       --crlf (FTP) Convert LF to CRLF in upload. Useful for MVS (OS/390).\n"
 "\n"
-"              If this option is set more than once, the last one will  be  the\n"
-"              one that's used.\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make no difference.\n"
 "\n"
-"       -B/--use-ascii\n"
-"              Enable  ASCII transfer when using FTP or LDAP. For FTP, this can\n"
+"       -d/--data <data>\n"
+"              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
+"              server, in a way that can emulate as if a user has filled  in  a\n"
+"              HTML  form  and pressed the submit button. Note that the data is\n"
 , stdout);

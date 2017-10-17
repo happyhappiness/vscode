@@ -1,8 +1,12 @@
 fputs(
-"              that if you should add a custom header that has the same name as\n"
-"              one  of  the  internal  ones curl would use, your externally set\n"
-"              header will be used instead of the internal one. This allows you\n"
-"              to  make  even  trickier  stuff than curl would normally do. You\n"
-"              should not replace internally set headers without  knowing  per-\n"
-"              fectly well what you're doing. Remove an internal header by giv-\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
+"\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
+"\n"
+"       -k, --insecure\n"
+"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
 , stdout);

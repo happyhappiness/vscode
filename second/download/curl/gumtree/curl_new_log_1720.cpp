@@ -1,11 +1,11 @@
 fputs(
-"  Specifying multiple files on a single command line will make curl transfer\n"
-"  all of them, one after the other in the specified order.\n"
+"  The default way for curl is to issue the PASV command which causes the\n"
+"  server to open another port and await another connection performed by the\n"
+"  client. This is good if the client is behind a firewall that don't allow\n"
+"  incoming connections.\n"
 "\n"
-"  libcurl will attempt to use persistent connections for the transfers so that\n"
-"  the second transfer to the same host can use the same connection that was\n"
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
+"        curl ftp.download.com\n"
 "\n"
+"  If the server for example, is behind a firewall that don't allow connections\n"
+"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
 , stdout);

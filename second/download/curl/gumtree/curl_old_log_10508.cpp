@@ -1,9 +1,11 @@
 fputs(
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
+"              options  that may be used during authentication. At present only\n"
+"              IMAP, POP3 and SMTP support login options. For more  information\n"
+"              about  the  login options please see RFC 2384, RFC 5092 and IETF\n"
+"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
 "\n"
-"              You can tell curl to not change the non-GET  request  method  to\n"
-"              GET  after  a  30x  response  by using the dedicated options for\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --mail-auth <address>\n"
+"              (SMTP) Specify a single address. This will be  used  to  specify\n"
 , stdout);

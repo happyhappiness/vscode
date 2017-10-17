@@ -1,11 +1,11 @@
 fputs(
-"              only such one. (Added in 7.33.0)\n"
+"              certificate/private  key  in the system or user keychain, or the\n"
+"              path to a PKCS#12-encoded certificate and private  key.  If  you\n"
+"              want to use a file from the current directory, please precede it\n"
+"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
 "\n"
-"       --dns-ipv4-addr <ip-address>\n"
-"              Tell curl to bind to <ip-address> when making IPv4 DNS requests,\n"
-"              so  that the DNS requests originate from this address. The argu-\n"
-"              ment should be a single IPv4 address.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This option requires that libcurl  was  built  with  a  resolver\n"
-"              backend  that supports this operation. The c-ares backend is the\n"
+"       --engine <name>\n"
+"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
 , stdout);

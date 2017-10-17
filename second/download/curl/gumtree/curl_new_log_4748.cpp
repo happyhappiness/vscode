@@ -1,12 +1,9 @@
 fputs(
-"              md5sums match. This option is only for SCP and  SFTP  transfers.\n"
-"              (Added in 7.17.1)\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"       --ignore-content-length\n"
-"              (HTTP)  Ignore  the  Content-Length header. This is particularly\n"
-"              useful for servers running Apache 1.x, which will report  incor-\n"
-"              rect Content-Length for files larger than 2 gigabytes.\n"
-"\n"
-"       -i/--include\n"
-"              (HTTP)  Include  the  HTTP-header in the output. The HTTP-header\n"
+"              The given rate is the average speed counted  during  the  entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
 , stdout);

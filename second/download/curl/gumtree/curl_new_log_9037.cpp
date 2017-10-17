@@ -1,9 +1,12 @@
 fputs(
-"              tion-trusted on how to change this. You can limit the amount  of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              about  the  login options please see RFC 2384, RFC 5092 and IETF\n"
+"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
 "\n"
-"              When  curl follows a redirect and the request is not a plain GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code was any other 3xx code, curl  will  re-send  the  following\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --mail-auth <address>\n"
+"              (SMTP) Specify a single address. This will be  used  to  specify\n"
+"              the  authentication  address  (identity)  of a submitted message\n"
+"              that is being relayed to another server.\n"
+"\n"
 , stdout);

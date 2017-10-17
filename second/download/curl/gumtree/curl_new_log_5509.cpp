@@ -1,11 +1,11 @@
 fputs(
-"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
-"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
-"              bundle. This option overrides that variable.\n"
+"                     case).  This  is  somewhat  more standards compliant than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
+"       (Added in 7.15.1)\n"
 "\n"
-"              The  windows  version  of  curl will automatically look for a CA\n"
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
+"       --ftp-pasv\n"
+"              (FTP) Use passive mode for the data conection.  Passive  is  the\n"
+"              internal  default behavior, but using this option can be used to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
 "\n"
 , stdout);

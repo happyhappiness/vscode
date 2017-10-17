@@ -1,11 +1,10 @@
 fputs(
-"              be encoded according to the URI standard.\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
+"              by default. This makes all connections considered \"insecure\"  to\n"
+"              fail unless -k/--insecure is used.\n"
 "\n"
-"       -G/--get\n"
-"              When used,  this  option  will  make  all  data  specified  with\n"
-"              -d/--data  or  --data-binary  to  be  used in a HTTP GET request\n"
-"              instead of the POST request that otherwise would  be  used.  The\n"
-"              data will be appended to the URL with a '?'  separator.\n"
-"\n"
-"              If  used  in  combination with -I, the POST data will instead be\n"
+"              See     this    online    resource    for    further    details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
 , stdout);

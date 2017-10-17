@@ -1,8 +1,11 @@
 fputs(
-"       -Q/--quote <command>\n"
-"              (FTP/SFTP)  Send  an arbitrary command to the remote FTP or SFTP\n"
-"              server. Quote commands are sent BEFORE the transfer takes  place\n"
-"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
-"              exact). To make commands take place after a successful transfer,\n"
-"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
+"       (*)  =  NOTE  that this will cause the server to reply with a multipart\n"
+"       response!\n"
+"\n"
+"       Only digit characters (0-9) are valid in the 'start' and 'stop'  fields\n"
+"       of  the 'start-stop' range syntax. If a non-digit character is given in\n"
+"       the range, the server's response will be unspecified, depending on  the\n"
+"       server's configuration.\n"
+"\n"
+"       You  should  also  be aware that many HTTP/1.1 servers do not have this\n"
 , stdout);

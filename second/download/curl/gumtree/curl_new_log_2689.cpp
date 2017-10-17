@@ -1,11 +1,10 @@
 fputs(
-"              rest of the line will be treated as a comment.  Only  write  one\n"
-"              option per physical line in the config file.\n"
+"              only  view.   Especially useful if you want to machine-parse the\n"
+"              contents of an FTP directory since  the  normal  directory  view\n"
+"              doesn’t use a standard look or format.\n"
 "\n"
-"              Specify the filename to -K/--config as ’-’ to make curl read the\n"
-"              file from stdin.\n"
+"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
+"              servers list only files in their response to NLST; they  do  not\n"
+"              include subdirectories and symbolic links.\n"
 "\n"
-"              Note that to be able to specify a URL in the  config  file,  you\n"
-"              need  to  specify  it  using the --url option, and not by simply\n"
-"              writing the URL on its own line. So, it could  look  similar  to\n"
 , stdout);

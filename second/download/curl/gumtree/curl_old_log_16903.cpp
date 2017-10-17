@@ -1,0 +1,17 @@
+puts(
+" Get a file from a HTTP server that requires user and password, using the\n"
+" same proxy as above:\n"
+"\n"
+"        curl -u user:passwd -x my-proxy:888 http://www.get.this/\n"
+"\n"
+" Some proxies require special authentication. Specify by using -U as above:\n"
+"\n"
+"        curl -U user:passwd -x my-proxy:888 http://www.get.this/\n"
+"\n"
+" See also the environment variables Curl support that offer further proxy\n"
+" control.\n"
+"\n"
+"RANGES\n"
+"\n"
+"  With HTTP 1.1 byte-ranges were introduced. Using this, a client can request\n"
+);

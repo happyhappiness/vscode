@@ -1,10 +1,11 @@
 fputs(
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              If a download is slower than this given speed, in bytes per sec-\n"
+"              ond,  for  speed-time seconds it gets aborted. speed-time is set\n"
+"              with -Y and is 30 if not set.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the first byte is just about to  be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the  time  the  server  needs  to  calculate  the\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -z/--time-cond <date expression>\n"
+"              (HTTP)  Request  a  file  that  has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              resource  that  will  be  busy at times so setting this range to\n"
-"              something too narrow might cause  unnecessary  connection  setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              Very similar to --netrc, but this option makes the .netrc  usage\n"
+"              optional and not mandatory as the --netrc does.\n"
 "\n"
-"       -L/--location\n"
-"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
-"              moved to a different location (indicated with a Location: header\n"
-"              and  a  3XX  response  code) this option will make curl redo the\n"
+"       --negotiate\n"
+"              (HTTP)  Enables  GSS-Negotiate authentication. The GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
+"              cations.  It  is  primarily  meant  as  a  support for Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
 , stdout);

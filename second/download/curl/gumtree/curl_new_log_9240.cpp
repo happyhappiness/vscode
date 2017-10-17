@@ -1,9 +1,11 @@
 fputs(
-"              before  sending keepalive probes and the time between individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              GET after a 30x response by  using  the  dedicated  options  for\n"
+"              that: --post301, --post302 and -post303.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --libcurl <file>\n"
+"              Append  this  option  to any ordinary curl command line, and you\n"
+"              will get a libcurl-using C source code written to the file  that\n"
+"              does the equivalent of what your command-line operation does!\n"
+"\n"
+"              If  this  option is used several times, the last given file name\n"
 , stdout);

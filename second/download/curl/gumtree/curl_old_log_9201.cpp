@@ -1,11 +1,9 @@
 fputs(
-"              first will append data as described in -d, --data.\n"
-"\n"
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
-"              followed  by a separator and a content specification. The <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful  operation.  The  format  is a string that may contain plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
 , stdout);

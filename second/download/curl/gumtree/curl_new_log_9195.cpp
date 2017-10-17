@@ -1,10 +1,9 @@
 fputs(
-"              (Added in 7.19.7)\n"
-"       -d, --data <data>\n"
-"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
-"              server,  in  the  same  way  that a browser does when a user has\n"
-"              filled in an HTML form and presses the submit button. This  will\n"
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"              This is done by first doing a request and checking the response-\n"
+"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+"              This  is  used  instead  of  setting  a  specific authentication\n"
+"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
+"              --negotiate.\n"
 "\n"
+"              Note  that  using --anyauth is not recommended if you do uploads\n"
 , stdout);

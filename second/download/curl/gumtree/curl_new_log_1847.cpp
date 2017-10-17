@@ -1,9 +1,9 @@
 fputs(
-"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
-"              tion that prevents the password from being sent over the wire in\n"
-"              clear text. Use this in combination with  the  normal  -u/--user\n"
-"              option to set user name and password. See also --ntlm, --negoti-\n"
-"              ate and --anyauth for related options. (Added in curl 7.10.6)\n"
+"       -E/--cert <certificate[:password]>\n"
+"              (HTTPS) Tells curl to use the specified  certificate  file  when\n"
+"              getting  a  file with HTTPS. The certificate must be in PEM for-\n"
+"              mat.  If the optional  password  isn't  specified,  it  will  be\n"
+"              queried  for  on the terminal. Note that this certificate is the\n"
+"              private key and the private certificate concatenated!\n"
 "\n"
-"              If this option is used several times, the following  occurrences\n"
 , stdout);

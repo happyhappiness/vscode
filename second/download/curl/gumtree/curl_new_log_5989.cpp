@@ -1,10 +1,9 @@
 fputs(
-"              time_pretransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the file transfer was just about to begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              This option overrides existing environment  variables  that  set\n"
+"              the  proxy  to use. If there's an environment variable setting a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
+"              Note that all operations that are performed over  a  HTTP  proxy\n"
+"              will  transparently  be converted to HTTP. It means that certain\n"
+"              protocol specific operations might not be available. This is not\n"
 , stdout);

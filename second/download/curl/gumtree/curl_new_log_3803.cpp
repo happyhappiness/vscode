@@ -1,10 +1,11 @@
 fputs(
-"              nsspem.so) is available then PEM files may be loaded.\n"
+"              behavior, but using this option can be used to override a previ-\n"
+"              ous --ftp-port option. (Added in 7.11.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an enforced PASV really isn't doable\n"
+"              but you must then instead enforce the correct EPRT again.\n"
 "\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL) Tells curl to use the specified certificate  directory  to\n"
-"              verify the peer. The certificates must be in PEM format, and the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
 , stdout);

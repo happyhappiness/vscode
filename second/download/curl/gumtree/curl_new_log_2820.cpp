@@ -1,9 +1,9 @@
 fputs(
-"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
-"              the file requested is larger than this value, the transfer  will\n"
-"              not start and curl will return with exit code 63.\n"
+"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              won’t  be  able to intercept the user+password. See also --loca‐\n"
+"              tion-trusted on how to change this. You can limit the amount  of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans‐\n"
-"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              When  curl follows a redirect and the request is not a plain GET\n"
+"              (for example POST or PUT), it will do the following request with\n"
 , stdout);

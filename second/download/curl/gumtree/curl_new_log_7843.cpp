@@ -1,17 +1,1 @@
-fputs(
-"    Certificates. Then you can Export, and depending on the format you may\n"
-"    need to convert to PEM.\n"
-"\n"
-"    In Chrome, select Settings, then Show Advanced Settings. Under HTTPS/SSL\n"
-"    select Manage Certificates.\n"
-"\n"
-"RESUMING FILE TRANSFERS\n"
-"\n"
-" To continue a file transfer where it was previously aborted, curl supports\n"
-" resume on HTTP(S) downloads as well as FTP uploads and downloads.\n"
-"\n"
-" Continue downloading a document:\n"
-"\n"
-"        curl -C - -o file ftp://ftp.server.com/path/file\n"
-"\n"
-, stdout);
+warnf(config, "skip unknown form field: %s\n", unknown);

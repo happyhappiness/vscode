@@ -1,10 +1,8 @@
 fputs(
-"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
-"\n"
-"              +  Permit this protocol in addition to protocols already permit-\n"
-"                 ted (this is the default if no modifier is used).\n"
-"\n"
+"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
+"              curl has changed the working directory, just before the transfer\n"
+"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
+"              ported  for FTP). You may specify any number of commands. If the\n"
+"              server returns failure for one of the commands, the entire oper-\n"
+"              ation  will  be aborted. You must send syntactically correct FTP\n"
 , stdout);

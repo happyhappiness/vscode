@@ -1,9 +1,12 @@
 fputs(
-"              supported  for  FTP). You may specify any number of commands. If\n"
-"              the server returns failure for one of the commands,  the  entire\n"
-"              operation  will  be aborted. You must send syntactically correct\n"
-"              FTP commands as RFC959 defines to FTP servers,  or  one  of  the\n"
-"              following commands (with appropriate arguments) to SFTP servers:\n"
-"              chgrp, chmod, chown, ln, mkdir, rename, rm, rmdir, symlink.\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              --retry-max-time  to  limit  the total time allowed for retries.\n"
+"              (Added in 7.12.3)\n"
 "\n"
+"              If this option is  used  multiple  times,  the  last  occurrence\n"
+"              decide the amount.\n"
+"\n"
+"       --retry-delay <seconds>\n"
+"              Make  curl  sleep  this amount of time between each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
 , stdout);

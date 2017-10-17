@@ -1,10 +1,11 @@
 fputs(
-"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
+"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
 "\n"
-"              +  Permit this protocol in addition to protocols already permit-\n"
-"                 ted (this is the default if no modifier is used).\n"
+"       --pubkey <key>\n"
+"              (SSH)  Public  key  file name. Allows you to provide your public\n"
+"              key in this separate file.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (As of 7.39.0, curl attempts to automatically extract the public\n"
+"              key  from the private key file, so passing this option is gener-\n"
 , stdout);

@@ -1,10 +1,9 @@
 fputs(
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              uploaded.\n"
 "\n"
-"       -k, --insecure\n"
-"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to be made secure by using the CA certificate  bundle  installed\n"
-"              by  default.  This  makes  all connections considered \"insecure\"\n"
+"              You can specify one -T for each URL on the command line. Each -T\n"
 , stdout);

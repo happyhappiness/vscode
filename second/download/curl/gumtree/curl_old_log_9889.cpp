@@ -1,9 +1,10 @@
 fputs(
-"              before  sending keepalive probes and the time between individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              When  curl follows a redirect and the request is not a plain GET\n"
+"              (for example POST or PUT), it will do the following request with\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code was any other 3xx code, curl  will  re-send  the  following\n"
+"              request using the same unmodified method.\n"
+"\n"
 , stdout);

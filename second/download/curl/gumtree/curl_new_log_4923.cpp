@@ -1,11 +1,8 @@
 fputs(
-"              If  you  also  use the -Y/--speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -l/--list-only\n"
-"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
-"              only view.  Especially useful if you want to  machine-parse  the\n"
+"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
+"              user's home directory for login name and password. This is typi-\n"
+"              cally used for FTP on UNIX. If used with HTTP, curl will  enable\n"
+"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
+"              file format. Curl will not complain if that  file  doesn't  have\n"
+"              the  right permissions (it should not be either world- or group-\n"
 , stdout);

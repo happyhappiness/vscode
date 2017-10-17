@@ -1,9 +1,9 @@
 fputs(
-"              The user name and passwords are split up  on  the  first  colon,\n"
-"              which  makes  it impossible to use a colon in the user name with\n"
-"              this option. The password can, still.\n"
+"              with  any  number of variables. The format can be specified as a\n"
+"              literal \"string\", or you can have curl read the  format  from  a\n"
+"              file  with  \"@filename\" and to tell curl to read the format from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              When using Kerberos V5 with a Windows based  server  you  should\n"
-"              include  the  Windows domain name in the user name, in order for\n"
-"              the server to successfully obtain  a  Kerberos  Ticket.  If  you\n"
+"              The variables present in the output format will  be  substituted\n"
+"              by  the  value or text that curl thinks fit, as described below.\n"
 , stdout);

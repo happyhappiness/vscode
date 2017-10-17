@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              Specify the maximum transfer rate you want curl  to  use  -  for\n"
+"              both downloads and uploads. This feature is useful if you have a\n"
+"              limited pipe and you'd like your transfer not to use your entire\n"
+"              bandwidth. To make it slower than it otherwise would be.\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
-"              'private' will instead be used.\n"
-"\n"
-"              This option requires a library  built  with  kerberos4  support.\n"
+"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
 , stdout);

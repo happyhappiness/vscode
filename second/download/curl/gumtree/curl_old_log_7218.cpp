@@ -1,8 +1,11 @@
 fputs(
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
-"              that @ makes a file get attached in the post as a  file  upload,\n"
-"              while  the  <  makes  a text field and just get the contents for\n"
+"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an  enforced  passive  really  isn't\n"
+"              doable  but you must then instead enforce the correct -P, --ftp-\n"
+"              port again.\n"
+"\n"
 , stdout);

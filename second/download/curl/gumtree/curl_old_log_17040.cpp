@@ -1,0 +1,15 @@
+puts(
+"                      address you want to use  (Unix only)\n"
+"\n"
+"          IP address  i.e \"192.168.10.1\" to specify exact IP num�\n"
+"                      ber\n"
+"          host name   i.e \"my.host.domain\" to specify machine\n"
+"\n"
+"          -           (any  single-letter string) to make it pick\n"
+"                      the machine's default\n"
+"\n"
+"     If this option is used several times, the last one  will  be\n"
+"     used.\n"
+"\n"
+"     -q   If used as the first parameter on the command line, the\n"
+);

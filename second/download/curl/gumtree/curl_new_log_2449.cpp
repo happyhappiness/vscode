@@ -1,11 +1,9 @@
 fputs(
-"              require you to disable this in order for you to succeed.  (Added\n"
-"              in 7.16.0)\n"
-"\n"
-"              If  this  option  is used twice, the second will again switch on\n"
-"              use of the session cache.\n"
-"\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reversed engineered by clever peo-\n"
+"              proxy HTTP NTLM.\n"
+"       -p/--proxytunnel\n"
+"              When an HTTP proxy is used (-x/--proxy), this option will  cause\n"
+"              non-HTTP  protocols  to  attempt  to  tunnel  through  the proxy\n"
+"              instead of merely using it to do HTTP-like operations. The  tun-\n"
+"              nel  approach  is  made  with the HTTP proxy CONNECT request and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
 , stdout);

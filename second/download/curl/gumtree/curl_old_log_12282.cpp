@@ -1,10 +1,11 @@
 fputs(
-"              directory  view doesn't use a standard look or format. When used\n"
-"              like this, the option causes a NLST command to be  sent  to  the\n"
-"              server instead of LIST.\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              Note:  Some  FTP  servers  list  only files in their response to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
+"              scarce resource that will be busy at times so setting this range\n"
 , stdout);

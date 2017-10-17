@@ -1,12 +1,12 @@
 fputs(
-"              the file to read cookies from should be plain  HTTP  headers  or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              http://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
-"              The  file  specified with -b, --cookie is only used as input. No\n"
-"              cookies will be written to the file. To store cookies,  use  the\n"
-"              -c, --cookie-jar option.\n"
+"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
+"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+"              URL:                                          http://git.fedora-\n"
+"              hosted.org/cgit/mod_nss.git/plain/docs/mod_nss.html#Directives\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -B, --use-ascii\n"
+"       --compressed\n"
 , stdout);

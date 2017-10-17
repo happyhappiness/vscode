@@ -1,11 +1,9 @@
 fputs(
-"              --epsv can be used to explicitly enable EPRT again and --no-epsv\n"
-"              is an alias for --disable-epsv.\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
-"              Disabling EPSV only changes the passive behavior. If you want to\n"
-"              switch to active mode you need to use -P, --ftp-port.\n"
-"\n"
-"       -e, --referer <URL>\n"
-"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
+"              If curl is built against the NSS SSL library  then  this  option\n"
+"              tells  curl the nickname of the CA certificate to use within the\n"
+"              NSS database defined by the environment variable SSL_DIR (or  by\n"
 , stdout);

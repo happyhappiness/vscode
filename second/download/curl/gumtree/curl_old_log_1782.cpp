@@ -1,9 +1,10 @@
 fputs(
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
-"              is  mostly done like this to better enable scripts etc to better\n"
-"              deal with failed attempts. In normal cases when  a  HTTP  server\n"
-"              fails  to deliver a document, it returns a HTML document stating\n"
-"              so (which often also describes why and  more).  This  flag  will\n"
-"              prevent curl from outputting that and fail silently instead.\n"
+"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
+"              ters, and the ';type=' string in the value have no special mean-\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
+"              that  the  string  value may accidentally trigger the '@' or '<'\n"
+"              features of --form.\n"
 "\n"
+"       -g/--globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
 , stdout);

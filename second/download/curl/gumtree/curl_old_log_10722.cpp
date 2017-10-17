@@ -1,10 +1,11 @@
 fputs(
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
-"                             was successful. (Added in 7.19.0)\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
+"              User and password that might be provided in the proxy string are\n"
+"              URL decoded by curl. This allows you to pass in special  charac-\n"
+"              ters such as @ by using %40 or pass in a colon with %3a.\n"
+"\n"
+"              The  proxy host can be specified the exact same way as the proxy\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
 , stdout);

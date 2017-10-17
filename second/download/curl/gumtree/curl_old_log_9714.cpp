@@ -1,9 +1,10 @@
 fputs(
-"       The  short  \"single-dash\"  form  of the options, -d for example, may be\n"
-"       used with or without a space between it and its value, although a space\n"
-"       is  a  recommended  separator.  The long \"double-dash\" form, --data for\n"
-"       example, requires a space between it and its value.\n"
+"              target file instead  of  overwriting  it.  If  the  remote  file\n"
+"              doesn't  exist,  it  will  be  created.   Note that this flag is\n"
+"              ignored by some SFTP servers (including OpenSSH).\n"
 "\n"
-"       Short version options that don't need any additional values can be used\n"
-"       immediately  next  to  each other, like for example you can specify all\n"
+"       -A, --user-agent <agent string>\n"
+"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
+"              Some   badly   done  CGIs  fail  if  this  field  isn't  set  to\n"
+"              \"Mozilla/4.0\". To encode blanks  in  the  string,  surround  the\n"
 , stdout);

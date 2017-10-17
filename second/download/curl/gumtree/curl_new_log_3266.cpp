@@ -1,1 +1,0 @@
-Curl_failf(conn->data, "Failed to decode base64 in reply");

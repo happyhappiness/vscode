@@ -1,11 +1,11 @@
 fputs(
-"              you're  doing. Remove an internal header by giving a replacement\n"
-"              without content on the right  side  of  the  colon,  as  in:  -H\n"
-"              \"Host:\".\n"
+"       --libcurl <file>\n"
+"              Append this option to any ordinary curl command  line,  and  you\n"
+"              will  get  a  libcurl-using source code written to the file that\n"
+"              does the equivalent of what your command-line operation does!\n"
 "\n"
-"              curl  will  make  sure  that each header you add/replace is sent\n"
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"              NOTE: this does not properly support -F and the sending of  mul-\n"
+"              tipart  formposts,  so in those cases the output program will be\n"
+"              missing necessary calls to curl_formadd(3), and possibly more.\n"
 "\n"
 , stdout);

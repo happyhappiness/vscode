@@ -1,11 +1,9 @@
 fputs(
-"              vent curl from outputting that and return error 22.\n"
+"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
+"              command  for  directory  listings as well as up and downloads in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
 "\n"
-"              This  method is not fail-safe and there are occasions where non-\n"
-"              successful response codes will  slip  through,  especially  when\n"
-"              authentication is involved (response codes 401 and 407).\n"
-"\n"
-"       --ftp-account [data]\n"
-"              (FTP) When an FTP server asks for \"account data\" after user name\n"
-"              and password has been provided, this data is sent off using  the\n"
+"       --ssl  (FTP, POP3, IMAP, SMTP) Try to use SSL/TLS for  the  connection.\n"
+"              Reverts to a non-secure connection if the server doesn't support\n"
+"              SSL/TLS.  See also --ftp-ssl-control and --ssl-reqd for  differ-\n"
 , stdout);

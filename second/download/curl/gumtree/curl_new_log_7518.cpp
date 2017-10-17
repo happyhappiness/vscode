@@ -1,8 +1,11 @@
 fputs(
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
-"              user's home directory for login name and password. This is typi-\n"
-"              cally used for FTP on UNIX. If used with HTTP, curl will  enable\n"
-"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
-"              file format. Curl will not complain if that  file  doesn't  have\n"
-"              the  right permissions (it should not be either world- or group-\n"
+"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require you to disable this in order for you to succeed.  (Added\n"
+"              in 7.16.0)\n"
+"\n"
+"              Note  that  this  is the negated option name documented. You can\n"
+"              thus use --sessionid to enforce session-ID caching.\n"
+"\n"
+"       --noproxy <no-proxy-list>\n"
 , stdout);

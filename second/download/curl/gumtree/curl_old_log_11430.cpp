@@ -1,8 +1,11 @@
 fputs(
-"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
-"              ported  for FTP). You may specify any number of commands. If the\n"
-"              server returns failure for one of the commands, the entire oper-\n"
-"              ation  will  be aborted. You must send syntactically correct FTP\n"
-"              commands as RFC 959 defines to FTP servers, or one of  the  com-\n"
-"              mands  listed  below  to  SFTP servers.  This option can be used\n"
+"              (*) = NOTE that this will cause the server to reply with a  mul-\n"
+"              tipart response!\n"
+"\n"
+"              Only  digit characters (0-9) are valid in the 'start' and 'stop'\n"
+"              fields of the 'start-stop' range syntax. If a non-digit  charac-\n"
+"              ter is given in the range, the server's response will be unspec-\n"
+"              ified, depending on the server's configuration.\n"
+"\n"
+"              You should also be aware that many HTTP/1.1 servers do not  have\n"
 , stdout);

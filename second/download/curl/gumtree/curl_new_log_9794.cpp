@@ -1,9 +1,11 @@
 fputs(
-"       curl will do its best to use what you pass to it as a URL.  It  is  not\n"
-"       trying  to  validate it as a syntactically correct URL by any means but\n"
-"       is instead very liberal with what it accepts.\n"
+"              libcurl was built with an SSL library that supports NPN. NPN  is\n"
+"              used  by a libcurl that supports HTTP 2 to negotiate HTTP 2 sup-\n"
+"              port with the server during https sessions.\n"
 "\n"
-"       curl will attempt to re-use connections for multiple file transfers, so\n"
-"       that  getting many files from the same server will not do multiple con-\n"
-"       nects / handshakes. This improves speed. Of course this is only done on\n"
+"              (Added in 7.36.0)\n"
+"\n"
+"       --no-alpn\n"
+"              Disable the ALPN TLS extension. ALPN is enabled  by  default  if\n"
+"              libcurl  was  built with an SSL library that supports ALPN. ALPN\n"
 , stdout);

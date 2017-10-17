@@ -1,12 +1,9 @@
 fputs(
-"                     the file operand to the group ID specified by  the  group\n"
-"                     operand. The group operand is a decimal integer group ID.\n"
+"              transfer, it will retry this number of times before  giving  up.\n"
+"              Setting  the  number to 0 makes curl do no retries (which is the\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              chmod mode file\n"
-"                     The  chmod  command  modifies  the  file mode bits of the\n"
-"                     specified file. The mode operand is an octal integer mode\n"
-"                     number.\n"
-"\n"
-"              chown user file\n"
-"                     The chown command sets the owner of the file named by the\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
+"              second and then for all forthcoming retries it will  double  the\n"
 , stdout);

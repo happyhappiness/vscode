@@ -1,10 +1,11 @@
 fputs(
-"              make no difference.\n"
+"       --cacert <CA certificate>\n"
+"              (HTTPS) Tells curl to use the specified certificate file to ver-\n"
+"              ify the peer. The file may contain multiple CA certificates. The\n"
+"              certificate(s) must be in PEM format.\n"
 "\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
-"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
-"              sions  to the original FTP protocol, may not work on all servers\n"
+"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
+"              if  that  is set, and uses the given path as a path to a CA cert\n"
+"              bundle. This option overrides that variable.\n"
+"\n"
 , stdout);

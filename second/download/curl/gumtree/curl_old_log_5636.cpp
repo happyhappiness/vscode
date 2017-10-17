@@ -1,10 +1,10 @@
 fputs(
-"              time_pretransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the file transfer was just about to begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing  with  the  HTTP server.  The specified request will be used\n"
+"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"              Read  the  HTTP  1.1 specification for details and explanations.\n"
+"              Common additional HTTP requests  include  PUT  and  DELETE,  but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
 , stdout);

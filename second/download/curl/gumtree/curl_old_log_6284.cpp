@@ -1,1 +1,1 @@
-curl_mprintf("%3d %5d\n", 10, 1998);
+puts("out of memory!");

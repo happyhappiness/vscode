@@ -1,11 +1,9 @@
 fputs(
-"              (FTP) When an FTP server asks for \"account data\" after user name\n"
-"              and  password has been provided, this data is sent off using the\n"
-"              ACCT command. (Added in 7.13.0)\n"
+"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --ftp-alternative-to-user <command>\n"
-"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
-"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
+"              passive mode will not initiate the shutdown,  but  instead  wait\n"
 , stdout);

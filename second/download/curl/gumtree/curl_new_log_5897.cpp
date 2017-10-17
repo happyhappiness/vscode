@@ -1,10 +1,10 @@
 fputs(
-"              This option was  formerly  known  as  --ftp-ssl-reqd  (added  in\n"
-"              7.15.5)  and  that  can  still  be used but will be removed in a\n"
-"              future version.\n"
+"              When  used,  this  option  will  make  all  data  specified with\n"
+"              -d/--data or --data-binary to be used  in  a  HTTP  GET  request\n"
+"              instead  of  the  POST request that otherwise would be used. The\n"
+"              data will be appended to the URL with a '?' separator.\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication will be unencrypted. This allows NAT routers to  fol-\n"
+"              If used in combination with -I, the POST data  will  instead  be\n"
+"              appended to the URL with a HEAD request.\n"
+"\n"
 , stdout);

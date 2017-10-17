@@ -1,11 +1,10 @@
 fputs(
-"              filename.  Data is posted in a similar  manner  as  --data-ascii\n"
-"              does,  except  that  newlines  are preserved and conversions are\n"
-"              never done.\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
+"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
-"              If this option is used several times,  the  ones  following  the\n"
-"              first will append data. As described in -d/--data.\n"
-"\n"
-"       --data-urlencode <data>\n"
-"              (HTTP) This posts data, similar to the other --data options with\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its response to curl's PASV command when curl connects the  data\n"
 , stdout);

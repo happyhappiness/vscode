@@ -1,9 +1,10 @@
 fputs(
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
-"              The  given  rate  is the average speed counted during the entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              When  performing  an  address  verification  (VRFY command), the\n"
+"              recipient should be specified as the user name or user name  and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient should be specified using the mailing list  name,  such  as\n"
 , stdout);

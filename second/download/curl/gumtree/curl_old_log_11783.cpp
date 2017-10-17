@@ -1,12 +1,9 @@
 fputs(
-"              interface name, IP address or host name. An example  could  look\n"
-"              like:\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
+"              dir given the current user in your system). On Windows, it  then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"               curl --interface eth0:1 http://www.netscape.com/\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -j, --junk-session-cookies\n"
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option will make it discard all  \"session  cookies\".  This  will\n"
 , stdout);

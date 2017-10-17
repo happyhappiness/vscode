@@ -1,0 +1,15 @@
+fputs(
+"              ask for exactly that.\n"
+"\n"
+"              Added in 7.25.0.\n"
+"\n"
+"       --ssl-no-revoke\n"
+"              (WinSSL) This option tells curl to disable  certificate  revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.\n"
+"\n"
+"              Added in 7.44.0.\n"
+"\n"
+"       --ssl-reqd\n"
+"              (FTP IMAP POP3 SMTP) Require SSL/TLS for the connection.  Termi-\n"
+, stdout);

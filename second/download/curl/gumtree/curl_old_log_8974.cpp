@@ -1,11 +1,10 @@
 fputs(
-"              This option overrides previous uses of -v, --verbose or --trace.\n"
-"              If this option is used several times, the last one will be used.\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"       --trace-time\n"
-"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
-"              displays.  (Added in 7.14.0)\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified as %{variable_name} and to output a\n"
+"              normal % you just write them as %%. You can output a newline  by\n"
+"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
 "\n"
-"       -u, --user <user:password;options>\n"
-"              Specify  the  user  name, password and optional login options to\n"
 , stdout);

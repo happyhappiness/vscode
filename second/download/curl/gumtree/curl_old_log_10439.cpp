@@ -1,2 +1,1 @@
-warnf(config, "curl_formadd failed, possibly the file %s is bad!\n",
-                contp+1);
+warnf(config, "bad range input\n");

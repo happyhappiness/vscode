@@ -1,8 +1,11 @@
 fputs(
-"              and  a  3XX  response code), this option will make curl redo the\n"
-"              request on the new place. If used together with -i/--include  or\n"
-"              -I/--head,  headers from all requested pages will be shown. When\n"
-"              authentication is used, curl only sends its credentials  to  the\n"
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation method. For more information see IETF draft draft-brezak-\n"
+"              spnego-http-04.txt.\n"
+"\n"
+"              If  you  want to enable Negotiate for your proxy authentication,\n"
+"              then use --proxy-negotiate.\n"
+"\n"
+"              This option requires a library built with GSSAPI  support.  This\n"
+"              is not very common. Use -V/--version to see if your version sup-\n"
 , stdout);

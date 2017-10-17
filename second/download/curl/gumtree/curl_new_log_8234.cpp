@@ -1,11 +1,11 @@
 fputs(
-"              only such one.  (Added in 7.33.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --dns-ipv6-addr <ip-address>\n"
-"              Tell curl to bind to <ip-address> when making IPv6 DNS requests,\n"
-"              so  that the DNS requests originate from this address. The argu-\n"
-"              ment should be a single IPv6 address.\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the peer. The file may contain  multiple  CA  certificates.  The\n"
+"              certificate(s)  must be in PEM format. Normally curl is built to\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"              This option requires that libcurl  was  built  with  a  resolver\n"
-"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

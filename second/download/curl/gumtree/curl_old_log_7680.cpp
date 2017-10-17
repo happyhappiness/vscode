@@ -1,11 +1,11 @@
 fputs(
-"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a '#' character, the rest of the line will be treated as a  com-\n"
-"              ment.  Only  write  one  option  per physical line in the config\n"
-"              file.\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered as random data. The data is  used  to  seed  the  random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
 "\n"
-"              Specify the filename to -K, --config as '-' to  make  curl  read\n"
-"              the file from stdin.\n"
+"       --raw  When  used, it disables all internal HTTP decoding of content or\n"
+"              transfer encodings and instead makes them passed  on  unaltered,\n"
+"              raw. (Added in 7.16.2)\n"
 "\n"
+"       --remote-name-all\n"
 , stdout);

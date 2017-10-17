@@ -1,12 +1,8 @@
 fputs(
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
-"\n"
-"       --delegation LEVEL\n"
-"              Set LEVEL to tell the server what it is allowed to delegate when\n"
-"              it comes to user credentials. Used with GSS/kerberos.\n"
-"\n"
-"              none   Don't allow any delegation.\n"
-"\n"
-"              policy Delegates if and only if the OK-AS-DELEGATE flag  is  set\n"
+"              If curl is built against the NSS SSL library  then  this  option\n"
+"              can  tell curl the nickname of the certificate to use within the\n"
+"              NSS database defined by the environment variable SSL_DIR (or  by\n"
+"              default  /etc/pki/nssdb).  If  the  NSS PEM PKCS#11 module (lib-\n"
+"              nsspem.so) is available then PEM files may  be  loaded.  If  you\n"
+"              want to use a file from the current directory, please precede it\n"
 , stdout);

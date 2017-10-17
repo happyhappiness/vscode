@@ -1,10 +1,11 @@
 fputs(
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
+"              clear text. Use this in combination with  the  normal  -u/--user\n"
+"              option to set user name and password. See also --ntlm, --negoti-\n"
+"              ate and --anyauth for related options.\n"
 "\n"
-"              -d/--data  is  the  same  as  --data-ascii.  To post data purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make no difference.\n"
 "\n"
-"              If  any of these options is used more than once on the same com-\n"
+"       --disable-eprt\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
 , stdout);

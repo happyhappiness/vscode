@@ -1,11 +1,10 @@
 fputs(
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
+"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              This option overrides any previous use of -x, --proxy,  as  they\n"
+"              are mutually exclusive.\n"
 "\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4 proxy with -x, --proxy using a socks4:// protocol prefix.\n"
 , stdout);

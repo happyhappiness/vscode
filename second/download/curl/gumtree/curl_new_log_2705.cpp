@@ -1,10 +1,11 @@
 fputs(
-"              complain if that file hasn’t the right  permissions  (it  should\n"
-"              not  be  world  nor  group  readable).  The environment variable\n"
-"              \"HOME\" is used to find the home directory.\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make no difference.\n"
 "\n"
-"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
-"              allow  curl to ftp to the machine host.domain.com with user name\n"
-"              ’myself’ and password ’secret’ should look similar to:\n"
+"       -o/--output <file>\n"
+"              Write output to <file> instead of stdout. If you are using {} or\n"
+"              [] to fetch multiple documents, you can use ’#’  followed  by  a\n"
+"              number  in  the <file> specifier. That variable will be replaced\n"
+"              with the current string for the URL being fetched. Like in:\n"
 "\n"
 , stdout);

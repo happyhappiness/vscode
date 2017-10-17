@@ -1,10 +1,9 @@
 fputs(
-"              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
-"              user authentication. See netrc(5) ftp(1) for details on the file\n"
-"              format.  Curl  will  not  complain if that file doesn't have the\n"
-"              right permissions (it should not be either world- or group-read-\n"
-"              able).  The environment variable \"HOME\" is used to find the home\n"
-"              directory.\n"
+"              is  specified.  The only wildcard is a single * character, which\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in  this  list  is matched as either a domain which contains the\n"
+"              hostname, or the hostname itself. For example,  local.com  would\n"
+"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
-"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
 , stdout);

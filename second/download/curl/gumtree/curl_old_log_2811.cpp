@@ -1,11 +1,9 @@
 fputs(
-"  % Total    % Received % Xferd  Average Speed          Time             Curr.\n"
-"                                 Dload  Upload Total    Current  Left    Speed\n"
-"  0  151M    0 38608    0     0   9406      0  4:41:43  0:00:04  4:41:39  9287\n"
+"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
+"              +  password to all hosts that the site may redirect to. This may\n"
+"              or may not introduce a security breach if the site redirects you\n"
+"              do  a  site to which you’ll send your authentication info (which\n"
+"              is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"  From left-to-right:\n"
-"   %             - percentage completed of the whole transfer\n"
-"   Total         - total size of the whole expected transfer\n"
-"   %             - percentage completed of the download\n"
-"   Received      - currently downloaded amount of bytes\n"
+"              If this option is used twice,  the  second  will  again  disable\n"
 , stdout);

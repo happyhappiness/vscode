@@ -1,11 +1,10 @@
 fputs(
-"       -j, --junk-session-cookies\n"
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option  will  make  it  discard all \"session cookies\". This will\n"
-"              basically have the same effect as if a new session  is  started.\n"
-"              Typical  browsers  always  discard  session cookies when they're\n"
-"              closed down.\n"
+"              there is no file part in the specified URL, Curl will append the\n"
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory  to really prove to Curl that there is no file name or\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on a HTTP(S) server, the PUT command  will\n"
+"              be used.\n"
 "\n"
-"       -J, --remote-header-name\n"
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
 , stdout);

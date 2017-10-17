@@ -1,0 +1,18 @@
+puts(
+"          instead. If the file name is a plain '-', it is instead\n"
+"          written to stdout. This option has no point when you're\n"
+"          using a shell with decent redirecting capabilities.\n"
+"\n"
+"          If this option is used serveral times, the last one\n"
+"          will be used.\n"
+"\n"
+"FILES\n"
+"     ~/.curlrc\n"
+"          Default config file.\n"
+"\n"
+"ENVIRONMENT\n"
+"     HTTP_PROXY [protocol://]<host>[:port]\n"
+"          Sets proxy server to use for HTTP.\n"
+"\n"
+"     HTTPS_PROXY [protocol://]<host>[:port]\n"
+);

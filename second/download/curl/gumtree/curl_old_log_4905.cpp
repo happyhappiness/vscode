@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the command HEAD which this uses to get nothing but  the  header\n"
-"              of  a  document.  When used on a FTP or FILE file, curl displays\n"
-"              the file size and last modification time only.\n"
+"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a '#' character, the rest of the line will be treated as a  com-\n"
+"              ment.  Only  write  one  option  per physical line in the config\n"
+"              file.\n"
 "\n"
-"       -j/--junk-session-cookies\n"
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option  will  make  it  discard all \"session cookies\". This will\n"
+"              Specify the filename to -K/--config as '-' to make curl read the\n"
+"              file from stdin.\n"
+"\n"
 , stdout);

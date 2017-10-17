@@ -1,11 +1,11 @@
 fputs(
-"              ated. RFC 1961 says in section 4.3/4.4 it should  be  protected,\n"
-"              but  the  NEC  reference  implementation  does  not.  The option\n"
-"              --socks5-gssapi-nec allows the unprotected exchange of the  pro-\n"
-"              tection mode negotiation. (Added in 7.19.4).\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --stderr <file>\n"
-"              Redirect  all writes to stderr to the specified file instead. If\n"
-"              the file name is a plain '-', it is instead written to stdout.\n"
+"       --trace-ascii <file>\n"
+"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only  shows  the ASCII part of the dump. It makes smaller output\n"
 , stdout);

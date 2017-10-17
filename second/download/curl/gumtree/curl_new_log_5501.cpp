@@ -1,10 +1,11 @@
 fputs(
-"              Write the protocol headers to the specified file.\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"              This option is handy to use when you want to store  the  headers\n"
-"              that  a  HTTP  site sends to you. Cookies from the headers could\n"
-"              then  be  read  in  a  second  curl  invocation  by  using   the\n"
-"              -b/--cookie option! The -c/--cookie-jar option is however a bet-\n"
-"              ter way to store cookies.\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
-"              that @ makes a file get attached in the post as a  file  upload,\n"
-"              while  the  <  makes  a text field and just get the contents for\n"
-"              that text field from a file.\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
+"                     case). This is somewhat  more  standards  compliant  than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
 "\n"
+"              (Added in 7.15.1)\n"
+"\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
 , stdout);

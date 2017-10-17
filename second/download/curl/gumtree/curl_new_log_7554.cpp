@@ -1,12 +1,8 @@
 fputs(
-"              chgrp group file\n"
-"                     The  chgrp command sets the group ID of the file named by\n"
-"                     the file operand to the group ID specified by  the  group\n"
-"                     operand. The group operand is a decimal integer group ID.\n"
-"\n"
-"              chmod mode file\n"
-"                     The  chmod  command  modifies  the  file mode bits of the\n"
-"                     specified file. The mode operand is an octal integer mode\n"
-"                     number.\n"
-"\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
+"              on  the  command line. The port number should be the number used\n"
+"              for the specific protocol the host will be used  for.  It  means\n"
+"              you  need several entries if you want to provide address for the\n"
 , stdout);

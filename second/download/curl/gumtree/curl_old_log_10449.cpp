@@ -1,8 +1,4 @@
-warnf(config,
-                  "--metalink option cannot be used because the version of "
-                  "the linked libmetalink library is too old. "
-                  "Required: %d.%d.%d, found %d.%d.%d\n",
-                  CURL_REQ_LIBMETALINK_MAJOR,
-                  CURL_REQ_LIBMETALINK_MINOR,
-                  CURL_REQ_LIBMETALINK_PATCH,
-                  mlmaj, mlmin, mlpatch);
+warnf(config,"Invalid character is found in given range. "
+                  "A specified range MUST have only digits in "
+                  "\'start\'-\'stop\'. The server's response to this "
+                  "request is uncertain.\n");

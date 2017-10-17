@@ -1,11 +1,11 @@
 fputs(
-"              100-continue response when curl emits an  Expects:  100-continue\n"
-"              header  in  its  request.  By default curl will wait one second.\n"
-"              This option accepts decimal values! When curl stops waiting,  it\n"
-"              will continue as if the response has been received.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              (Added in 7.47.0)\n"
+"       --cert-status\n"
+"              (SSL)  Tells curl to verify the status of the server certificate\n"
+"              by using the Certificate Status Request (aka. OCSP stapling) TLS\n"
+"              extension.\n"
 "\n"
-"       --cert-type <type>\n"
-"              (SSL)  Tells curl what certificate type the provided certificate\n"
+"              If  this option is enabled and the server sends an invalid (e.g.\n"
+"              expired) response, if the response suggests that the server cer-\n"
 , stdout);

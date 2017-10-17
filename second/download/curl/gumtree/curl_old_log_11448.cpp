@@ -1,11 +1,12 @@
 fputs(
-"              reached the limit, the request will be made and  while  perform-\n"
-"              ing,  it may take longer than this given time period. To limit a\n"
-"              single request's maximum time, use  -m,  --max-time.   Set  this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              socks4a  proxy with -x, --proxy using a socks4a:// protocol pre-\n"
+"              fix.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -s, --silent\n"
-"              Silent  or  quiet  mode. Don't show progress meter or error mes-\n"
+"       --socks5-hostname <host[:port]>\n"
+"              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
+"              host  name).  If the port number is not specified, it is assumed\n"
+"              at port 1080. (Added in 7.18.0)\n"
+"\n"
 , stdout);

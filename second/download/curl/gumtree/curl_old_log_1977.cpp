@@ -1,11 +1,9 @@
 fputs(
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
+"              just get the content part from a file, prefix the file name with\n"
+"              the letter <. The difference between @ and  <  is  then  that  @\n"
+"              makes  a  file  get attached in the post as a file upload, while\n"
+"              the < makes a text field and just get the contents for that text\n"
+"              field from a file.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --capath <CA certificate directory>\n"
-"              (HTTPS) Tells curl to use the specified certificate directory to\n"
-"              verify the peer. The certificates must be in PEM format, and the\n"
+"              Example,  to send your password file to the server, where 'pass-\n"
 , stdout);

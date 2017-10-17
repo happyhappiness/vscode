@@ -1,0 +1,15 @@
+puts(
+"  passwords, so therefor most unix programs won't read this file unless it is\n"
+"  only readable by yourself (curl doesn't care though).\n"
+"\n"
+"  Curl supports .netrc files if told so (using the -n/--netrc option). This is\n"
+"  not restricted to only ftp, but curl can use it for all protocols where\n"
+"  authentication is used.\n"
+"\n"
+"  A very simple .netrc file could look something like:\n"
+"\n"
+"        machine curl.haxx.se login iamdaniel password mysecret\n"
+"\n"
+"CUSTOM OUTPUT\n"
+"\n"
+);

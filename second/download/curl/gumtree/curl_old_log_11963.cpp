@@ -1,9 +1,12 @@
 fputs(
-"              multiple  times. When speaking to an FTP server, prefix the com-\n"
-"              mand with an asterisk (*) to make curl continue even if the com-\n"
-"              mand fails as by default curl will stop at first failure.\n"
+"              you'll instead get the whole document.\n"
 "\n"
-"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
-"              quote commands itself before sending them to the  server.   File\n"
-"              names may be quoted shell-style to embed spaces or special char-\n"
+"              FTP  and  SFTP  range  downloads only support the simple 'start-\n"
+"              stop' syntax (optionally with one of the numbers  omitted).  FTP\n"
+"              use depends on the extended FTP command SIZE.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -R, --remote-time\n"
+"              When  used,  this will make curl attempt to figure out the time-\n"
 , stdout);

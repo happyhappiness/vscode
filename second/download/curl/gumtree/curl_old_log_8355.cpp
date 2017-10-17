@@ -1,9 +1,10 @@
 fputs(
-"              is specified.  The only wildcard is a single * character,  which\n"
-"              matches all hosts, and effectively disables the proxy. Each name\n"
-"              in this list is matched as either a domain  which  contains  the\n"
-"              hostname,  or  the hostname itself. For example, local.com would\n"
-"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
+"       -P, --ftp-port <address>\n"
+"              (FTP) Reverses the default initiator/listener  roles  when  con-\n"
+"              necting  with  FTP.  This  switch makes curl use active mode. In\n"
+"              practice, curl then tells the server  to  connect  back  to  the\n"
+"              client's specified address and port, while passive mode asks the\n"
+"              server to setup an IP address and port for  it  to  connect  to.\n"
 , stdout);

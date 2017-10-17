@@ -1,9 +1,12 @@
 fputs(
-"              also  activates  the \"cookie parser\" which will make curl record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination  with  the  -L/--location option. The file format of\n"
-"              the file to read cookies from should be plain  HTTP  headers  or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"       --create-dirs\n"
+"              When  used  in  conjunction with the -o option, curl will create\n"
+"              the necessary local directory hierarchy as needed.  This  option\n"
+"              creates  the dirs mentioned with the -o option, nothing else. If\n"
+"              the -o file name uses no dir or if the dirs it mentions  already\n"
+"              exist, no dir will be created.\n"
 "\n"
-"              NOTE  that  the  file specified with -b/--cookie is only used as\n"
+"              To  create  remote directories when using FTP, try --ftp-create-\n"
+"              dirs.\n"
+"\n"
 , stdout);

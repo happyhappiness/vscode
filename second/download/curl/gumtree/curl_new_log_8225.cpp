@@ -1,11 +1,11 @@
 fputs(
-"              from a file named 'foobar' would thus be done with --data  @foo-\n"
-"              bar. When --data is told to read from a file like that, carriage\n"
-"              returns and newlines will be stripped out.\n"
+"              only such one. (Added in 7.33.0)\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"       --dns-ipv4-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv4 DNS requests,\n"
+"              so  that the DNS requests originate from this address. The argu-\n"
+"              ment should be a single IPv4 address.\n"
 "\n"
-"              This option is handy to use when you want to store  the  headers\n"
-"              that  an  HTTP site sends to you. Cookies from the headers could\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

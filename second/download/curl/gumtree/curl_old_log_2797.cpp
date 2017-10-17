@@ -1,9 +1,11 @@
 fputs(
-"  understood by CGI's and similar, curl also supports the more capable\n"
-"  multipart/form-data type. This latter type supports things like file upload.\n"
+"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
 "\n"
-"  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
-"  be read from a file, use <@filename> as contents. When specifying a file,\n"
-"  you can also specify the file content type by appending ';type=<mime type>'\n"
-"  to the file name. You can also post the contents of several files in one\n"
+"COOKIES\n"
+"\n"
+"  Cookies are generally used by web servers to keep state information at the\n"
+"  client's side. The server sets cookies by sending a response line in the\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
 , stdout);

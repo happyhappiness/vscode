@@ -1,11 +1,11 @@
 fputs(
-"              certificate/private  key  in the system or user keychain, or the\n"
-"              path to a PKCS#12-encoded certificate and private  key.  If  you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
+"              from this certificate and if it does not exactly match the  pub-\n"
+"              lic  key provided to this option, curl will abort the connection\n"
+"              before sending or receiving any data.\n"
+"\n"
+"              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
+"              GSKit backends.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
 , stdout);

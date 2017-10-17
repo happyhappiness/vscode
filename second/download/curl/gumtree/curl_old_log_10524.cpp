@@ -1,11 +1,11 @@
 fputs(
-"              the response will break Metalink parser and if the  headers  are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require  you to disable this in order for you to succeed. (Added\n"
+"              in 7.16.0)\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --sessionid to enforce session-ID caching.\n"
 "\n"
-"       -n, --netrc\n"
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
-"              user's home directory for login name and password. This is typi-\n"
+"       --noproxy <no-proxy-list>\n"
 , stdout);

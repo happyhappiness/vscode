@@ -1,11 +1,9 @@
 fputs(
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
+"              used with -L, --location you can append \";auto\" to the --referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
+"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
+"              even if you don't set an initial --referer.\n"
 "\n"
-"              =content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
-"              name=content\n"
 , stdout);

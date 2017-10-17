@@ -1,9 +1,9 @@
 fputs(
-"              default config file and uses it if  found.  The  default  config\n"
-"              file is checked for in the following places in this order:\n"
+"              -I/--head, headers from all requested pages will be shown.  When\n"
+"              authentication  is  used, curl only sends its credentials to the\n"
+"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              won't  be  able to intercept the user+password. See also --loca-\n"
+"              tion-trusted on how to change this. You can limit the amount  of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it  uses getpwuid() on unix-like systems (which returns the home\n"
-"              dir given the current user in your system). On Windows, it  then\n"
 , stdout);

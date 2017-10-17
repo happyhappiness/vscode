@@ -1,10 +1,9 @@
 fputs(
-"              successful response codes will  slip  through,  especially  when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              cally  used for FTP on UNIX. If used with HTTP, curl will enable\n"
+"              user authentication. See netrc(4) or ftp(1) for details  on  the\n"
+"              file  format.  Curl  will not complain if that file doesn't have\n"
+"              the right permissions (it should not be either world- or  group-\n"
+"              readable).  The  environment variable \"HOME\" is used to find the\n"
+"              home directory.\n"
 "\n"
-"       -F, --form <name=content>\n"
-"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
 , stdout);

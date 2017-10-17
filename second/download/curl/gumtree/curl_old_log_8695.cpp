@@ -1,11 +1,11 @@
 fputs(
-"              recipient should be specified as the user name or user name  and\n"
-"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
 "\n"
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient should be specified using the mailing list  name,  such  as\n"
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
+"       --netrc-optional\n"
+"              Very  similar to --netrc, but this option makes the .netrc usage\n"
+"              optional and not mandatory as the --netrc option does.\n"
 "\n"
-"       --max-redirs <num>\n"
-"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
+"       --negotiate\n"
+"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
 , stdout);

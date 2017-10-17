@@ -1,11 +1,9 @@
 fputs(
-"              servers list only files in their response to NLST; they  do  not\n"
-"              include subdirectories and symbolic links.\n"
+"              If used with http, curl will  enable  user  authentication.  See\n"
+"              netrc(4) or ftp(1) for details on the file format. Curl will not\n"
+"              complain if that file hasn't the right  permissions  (it  should\n"
+"              not  be  world  nor  group  readable).  The environment variable\n"
+"              \"HOME\" is used to find the home directory.\n"
 "\n"
-"              If this option is used twice, the second will again disable list\n"
-"              only.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that port numbers by nature is a scarce\n"
+"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
 , stdout);

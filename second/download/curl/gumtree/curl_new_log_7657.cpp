@@ -1,11 +1,10 @@
 fputs(
-"       --ftp-create-dirs\n"
-"              (FTP/SFTP)  When  an  FTP or SFTP URL/operation uses a path that\n"
-"              doesn't currently exist on the server, the standard behavior  of\n"
-"              curl is to fail. Using this option, curl will instead attempt to\n"
-"              create missing directories.\n"
+"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
+"              passive  mode  will  not initiate the shutdown, but instead wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"       --ftp-method [method]\n"
-"              (FTP) Control what method curl should use to reach a file on  an\n"
-"              FTP(S)  server. The method argument should be one of the follow-\n"
+"       --ftp-ssl-control\n"
+"              (FTP) Require SSL/TLS for the FTP  login,  clear  for  transfer.\n"
 , stdout);

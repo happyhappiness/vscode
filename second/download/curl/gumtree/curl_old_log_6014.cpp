@@ -1,10 +1,9 @@
 fputs(
-"              socket. The socket is used to seed the  random  engine  for  SSL\n"
-"              connections. See also the --random-file option.\n"
+"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
-"       -E/--cert <certificate[:password]>\n"
-"              (SSL) Tells curl to use the specified certificate file when get-\n"
-"              ting a file with HTTPS or FTPS. The certificate must be  in  PEM\n"
-"              format.   If  the  optional password isn't specified, it will be\n"
-"              queried for on the terminal. Note that  this  option  assumes  a\n"
+"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
 , stdout);

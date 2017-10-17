@@ -1,11 +1,10 @@
 fputs(
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
-"              if  that  is set, and uses the given path as a path to a CA cert\n"
-"              bundle. This option overrides that variable.\n"
-"\n"
-"              The windows version of curl will automatically  look  for  a  CA\n"
-"              certs  file  named  'curl-ca-bundle.crt',  either  in  the  same\n"
+"       -F/--form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled in form in which a user\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using the Content-Type multipart/form-data according to RFC1867.\n"
+"              This enables uploading of binary files etc. To force  the  'con-\n"
 , stdout);

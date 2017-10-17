@@ -1,11 +1,11 @@
 fputs(
-"              connection.  Instead  curl  will  re-use  the same IP address it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
+"              or  GSSAPI (GSS-Negotiate) support. This is not very common. Use\n"
+"              -V/--version to see if your curl supports it.\n"
 "\n"
-"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
-"              of PASV.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --ftp-ssl\n"
-"              (FTP)  Try  to use SSL/TLS for the FTP connection.  Reverts to a\n"
-"              non-secure connection if the  server  doesn't  support  SSL/TLS.\n"
+"       -K/--config <config file>\n"
+"              Specify  which config file to read curl arguments from. The con-\n"
+"              fig file is a text file in which command line arguments  can  be\n"
+"              written  which  then will be used as if they were written on the\n"
 , stdout);

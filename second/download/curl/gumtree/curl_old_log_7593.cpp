@@ -1,9 +1,10 @@
 fputs(
-"              text mixed with any number of variables. The string can be spec-\n"
-"              ified  as \"string\", to get read from a particular file you spec-\n"
-"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
-"              stdin you write \"@-\".\n"
+"                             tion  time  for  multiple redirections. (Added in\n"
+"                             7.12.3)\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
+"              time_starttransfer\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the first byte was just about to be trans-\n"
+"                             ferred. This includes time_pretransfer  and  also\n"
+"                             the  time  the  server  needed  to  calculate the\n"
 , stdout);

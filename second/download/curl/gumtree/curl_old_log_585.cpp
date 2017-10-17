@@ -1,8 +1,10 @@
-puts(" -y/--speed-time    Time needed to trig speed-limit abort. Defaults to 30\n"
-       " -Y/--speed-limit   Stop transfer if below speed-limit for 'speed-time' secs\n"
-       " -z/--time-cond <time> Includes a time condition to the server (H)\n"
-       " -Z/--max-redirs <num> Set maximum number of redirections allowed (H)\n"
-       " -0/--http1.0       Force usage of HTTP 1.0 (H)\n"
-       " -1/--tlsv1         Force usage of TLSv1 (H)\n"
-       " -2/--sslv2         Force usage of SSLv2 (H)\n"
-       " -3/--sslv3         Force usage of SSLv3 (H)");
+fputs(
+"              vates  the  \"cookie  parser\"  which  will make curl\n"
+"              record incoming cookies too, which may be handy  if\n"
+"              you're   using   this   in   combination  with  the\n"
+"              -L/--location option. The file format of  the  file\n"
+"              to  read  cookies from should be plain HTTP headers\n"
+"              or the Netscape/Mozilla cookie file format.\n"
+"\n"
+"              NOTE that the file specified  with  -b/--cookie  is\n"
+, stdout);

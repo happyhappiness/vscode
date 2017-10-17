@@ -1,10 +1,12 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              normal % you just write them as %%. You can output a newline  by\n"
+"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only shows the ASCII part of the dump. It makes  smaller  output\n"
-"              that might be easier to read for untrained humans.\n"
+"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
+"              where all occurrences of %  must  be  doubled  when  using  this\n"
+"              option.\n"
 "\n"
+"              The variables available at this point are:\n"
+"\n"
+"              url_effective  The URL that was fetched last. This is most mean-\n"
 , stdout);

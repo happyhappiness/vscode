@@ -1,11 +1,8 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --cacert <CA certificate>\n"
-"              (SSL) Tells curl to use the specified certificate file to verify\n"
-"              the peer. The file may contain  multiple  CA  certificates.  The\n"
-"              certificate(s)  must be in PEM format. Normally curl is built to\n"
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
-"\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
 , stdout);

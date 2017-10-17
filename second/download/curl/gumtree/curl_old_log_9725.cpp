@@ -1,11 +1,11 @@
 fputs(
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              resume the transfer. It then uses the given  output/input  files\n"
+"              to figure that out.\n"
 "\n"
-"       -b, --cookie <name=data>\n"
-"              (HTTP)  Pass the data to the HTTP server as a cookie. It is sup-\n"
-"              posedly the data previously received from the server in a  \"Set-\n"
-"              Cookie:\"  line.  The data should be in the format \"NAME1=VALUE1;\n"
-"              NAME2=VALUE2\".\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --ciphers <list of ciphers>\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
+"              list           details           on           this          URL:\n"
 , stdout);

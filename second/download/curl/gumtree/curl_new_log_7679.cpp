@@ -1,8 +1,11 @@
 fputs(
-"              written  which  then will be used as if they were written on the\n"
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied  on  the  same  config  file line, separated by whitespace,\n"
-"              colon, the equals sign or any combination thereof (however,  the\n"
-"              preferred  separator is the equals sign). If the parameter is to\n"
-"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
+"              mand with an asterisk (*) to make curl continue even if the com-\n"
+"              mand fails as by default curl will stop at first failure.\n"
+"\n"
+"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
+"              quote commands itself before sending them to the  server.   File\n"
+"              names may be quoted shell-style to embed spaces or special char-\n"
+"              acters.  Following is the list of all supported SFTP quote  com-\n"
+"              mands:\n"
+"\n"
 , stdout);

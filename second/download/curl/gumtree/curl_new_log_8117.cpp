@@ -1,11 +1,9 @@
 fputs(
-"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
-"              allow  curl to FTP to the machine host.domain.com with user name\n"
-"              'myself' and password 'secret' should look similar to:\n"
+"              is specified.  The only wildcard is a single * character,  which\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in this list is matched as either a domain  which  contains  the\n"
+"              hostname,  or  the hostname itself. For example, local.com would\n"
+"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
-"              machine host.domain.com login myself password secret\n"
-"\n"
-"       -N, --no-buffer\n"
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations,  curl  will  use a standard buffered output stream that\n"
 , stdout);

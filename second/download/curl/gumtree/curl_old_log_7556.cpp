@@ -1,12 +1,9 @@
 fputs(
-"              mkdir directory_name\n"
-"                     The mkdir command creates  the  directory  named  by  the\n"
-"                     directory_name operand.\n"
+"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              pwd    The pwd command returns the absolute pathname of the cur-\n"
-"                     rent working directory.\n"
-"\n"
-"              rename source target\n"
-"                     The rename command renames the file or directory named by\n"
-"                     the  source  operand to the destination path named by the\n"
+"              When curl is about to retry a transfer, it will first  wait  one\n"
+"              second  and  then for all forthcoming retries it will double the\n"
+"              waiting time until it reaches 10 minutes which then will be  the\n"
+"              delay  between  the rest of the retries.  By using --retry-delay\n"
 , stdout);

@@ -1,12 +1,8 @@
 fputs(
-"              off.)\n"
-"\n"
-"              The remote file name to use for saving  is  extracted  from  the\n"
-"              given URL, nothing else.\n"
-"\n"
-"              Consequentially,  the  file will be saved in the current working\n"
-"              directory. If you want the file saved in a different  directory,\n"
-"              make sure you change current working directory before you invoke\n"
-"              curl with the -O, --remote-name flag!\n"
-"\n"
+"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              POST  requests  into GET requests when following a 302 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
 , stdout);

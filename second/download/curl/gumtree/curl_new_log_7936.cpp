@@ -1,9 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The <date expression> can be all sorts of date strings  or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
+"              and tries to get  the  modification  date  (mtime)  from  <file>\n"
+"              instead.  See  the curl_getdate(3) man pages for date expression\n"
+"              details.\n"
 "\n"
-"       -X, --request <command>\n"
-"              (HTTP) Specifies a custom request method to use when communicat-\n"
-"              ing with the HTTP server.  The specified request  will  be  used\n"
-"              instead  of  the  method otherwise used (which defaults to GET).\n"
-"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
 , stdout);

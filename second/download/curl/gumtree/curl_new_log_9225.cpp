@@ -1,10 +1,9 @@
 fputs(
-"              num_connects   Number  of new connects made in the recent trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line.\n"
 "\n"
-"              num_redirects  Number of redirects that  were  followed  in  the\n"
-"                             request. (Added in 7.12.3)\n"
-"\n"
-"              redirect_url   When  an HTTP request was made without -L to fol-\n"
-"                             low redirects, this variable will show the actual\n"
+"              Options  and their parameters must be specified on the same con-\n"
+"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
+"              sign.  Long  option  names can optionally be given in the config\n"
+"              file without the initial double dashes and if so, the  colon  or\n"
 , stdout);

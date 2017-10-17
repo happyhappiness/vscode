@@ -1,10 +1,10 @@
 fputs(
-"              internally  set  headers  without  knowing  perfectly  well what\n"
-"              you're doing. Remove an internal header by giving a  replacement\n"
-"              without  content  on  the  right  side  of  the colon, as in: -H\n"
-"              \"Host:\".\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning  Linux, recent AIX, HP-UX and more). This option has no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
-"              curl will make sure that each header you  add/replace  get  sent\n"
-"              with the proper end of line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
+"              If this option is used multiple times, the last occurrence  sets\n"
+"              the amount.\n"
+"       --key <key>\n"
 , stdout);

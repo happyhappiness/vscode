@@ -1,10 +1,9 @@
 fputs(
-"       -N, --no-buffer\n"
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations, curl will use a standard buffered  output  stream  that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily exactly when the data arrives.   Using  this  option\n"
-"              will disable that buffering.\n"
+"              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
+"              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
+"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
+"              ple and implemented in curl based on their efforts. This kind of\n"
 , stdout);

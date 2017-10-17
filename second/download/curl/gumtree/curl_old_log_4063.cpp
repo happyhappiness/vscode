@@ -1,9 +1,12 @@
 fputs(
-"              tent' part to be a file, prefix the file name with an @ sign. To\n"
-"              just get the content part from a file, prefix the file name with\n"
-"              the  letter  <.  The  difference  between @ and < is then that @\n"
-"              makes a file get attached in the post as a  file  upload,  while\n"
-"              the < makes a text field and just get the contents for that text\n"
-"              field from a file.\n"
+"              missing necessary calls to curl_formadd(3), and possibly more.\n"
+"\n"
+"              If  this  option is used several times, the last given file name\n"
+"              will be used. (Added in 7.16.1)\n"
+"\n"
+"       --limit-rate <speed>\n"
+"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
+"              feature is useful if you have a limited pipe and you'd like your\n"
+"              transfer not use your entire bandwidth.\n"
 "\n"
 , stdout);

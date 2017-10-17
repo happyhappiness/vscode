@@ -1,12 +1,9 @@
 fputs(
-"              content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              =content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL)  Tells  curl  to use the specified client certificate file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col.  The  certificate  must  be in PEM format.  If the optional\n"
+"              password isn't specified, it will be queried for on  the  termi-\n"
 , stdout);

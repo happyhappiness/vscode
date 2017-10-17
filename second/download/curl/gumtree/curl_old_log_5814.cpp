@@ -1,11 +1,10 @@
 fputs(
-"              ent levels of encryption required. (Added in 7.20.0)\n"
+"              named  parameter  is used literally. Leading '@' and '<' charac-\n"
+"              ters, and the ';type=' string in the value have no special mean-\n"
+"              ing. Use this in preference to --form if there's any possibility\n"
+"              that the string value may accidentally trigger the  '@'  or  '<'\n"
+"              features of --form.\n"
 "\n"
-"              This option was formerly known as --ftp-ssl  (Added  in  7.11.0)\n"
-"              and  that can still be used but will be removed in a future ver-\n"
-"              sion.\n"
-"\n"
-"       --ftp-ssl-control\n"
-"              (FTP) Require SSL/TLS for the FTP  login,  clear  for  transfer.\n"
-"              Allows  secure  authentication, but non-encrypted data transfers\n"
+"       -g/--globoff\n"
+"              This option switches off the \"URL globbing parser\". When you set\n"
 , stdout);

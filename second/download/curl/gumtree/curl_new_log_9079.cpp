@@ -1,10 +1,11 @@
 fputs(
-"              --location (Added in 7.19.1)\n"
+"              Use  the  specified  HTTP  1.0  proxy. If the port number is not\n"
+"              specified, it is assumed at port 1080.\n"
 "\n"
-"       --post303\n"
-"              (HTTP)  Tells  curl  to  respect RFC 2616/10.3.2 and not convert\n"
-"              POST requests into GET requests when following a  303  redirect-\n"
-"              ion.  The  non-RFC  behaviour  is ubiquitous in web browsers, so\n"
-"              curl does the conversion by  default  to  maintain  consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
+"              The only difference between this and the HTTP proxy option  (-x,\n"
+"              --proxy), is that attempts to use CONNECT through the proxy will\n"
+"              specify an HTTP 1.0 protocol instead of the default HTTP 1.1.\n"
+"\n"
+"       --pubkey <key>\n"
+"              (SSH) Public key file name. Allows you to  provide  your  public\n"
 , stdout);

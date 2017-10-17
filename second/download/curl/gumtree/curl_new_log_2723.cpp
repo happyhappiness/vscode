@@ -1,11 +1,9 @@
 fputs(
-"       EPRT  command  instead  of PORT by using --disable-eprt. EPRT is really\n"
-"       PORT++.\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"       -q     If used as the first parameter on the command line,  the  curlrc\n"
-"              config  file  will not be read and used. See the -K/--config for\n"
-"              details on the default config file search path.\n"
-"\n"
-"       -Q/--quote <command>\n"
-"              (FTP) Send an arbitrary command to the remote FTP server.  Quote\n"
+"              When curl is about to retry a transfer, it will first  wait  one\n"
+"              second  and  then for all forthcoming retries it will double the\n"
+"              waiting time until it reaches 10 minutes which then will be  the\n"
+"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
 , stdout);

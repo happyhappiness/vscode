@@ -1,11 +1,11 @@
 fputs(
-"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
-"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
-"              sions  to  the  original  FTP  protocol, and may not work on all\n"
-"              servers, but they enable more functionality in a better way than\n"
-"              the traditional PORT command.\n"
+"              (SSL)  Tells curl what certificate type the provided certificate\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
 "\n"
-"              --eprt can be used to explicitly enable EPRT again and --no-eprt\n"
-"              is an alias for --disable-eprt.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the peer. The file may contain  multiple  CA  certificates.  The\n"
 , stdout);

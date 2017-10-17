@@ -1,13 +1,6 @@
-puts(
-"  If you have installed the OpenLDAP library, curl can take advantage of it\n"
-"  and offer ldap:// support.\n"
-"\n"
-"  LDAP is a complex thing and writing an LDAP query is not an easy task. I do\n"
-"  advice you to dig up the syntax description for that elsewhere. Two places\n"
-"  that might suit you are:\n"
-"\n"
-"  Netscape's \"Netscape Directory SDK 3.0 for C Programmer's Guide Chapter 10:\n"
-"  Working with LDAP URLs\":\n"
-"  http://developer.netscape.com/docs/manuals/dirsdk/csdk30/url.htm\n"
-"\n"
-);
+puts("    --engine <eng>  Specifies the crypto engine to use (HTTPS)\n"
+       "    --cacert <file> CA certifciate to verify peer against (SSL)\n"
+       "    --capath <directory> CA directory (made using c_rehash) to verify\n"
+       "                    peer against (SSL)\n"
+       "    --ciphers <list> What SSL ciphers to use (SSL)\n"
+       "    --compressed    Request a compressed response (using deflate).");

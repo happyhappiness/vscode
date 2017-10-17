@@ -1,12 +1,8 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -j, --junk-session-cookies\n"
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option will make it discard all  \"session  cookies\".  This  will\n"
-"              basically  have  the same effect as if a new session is started.\n"
-"              Typical browsers always discard  session  cookies  when  they're\n"
-"              closed down.\n"
-"\n"
-"       -J, --remote-header-name\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory to really prove to Curl that there is no file name  or\n"
-"              curl will think that your last directory name is the remote file\n"
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail.  If this is used on a HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              Makes the fetching more  verbose/talkative.  Mostly  useful  for\n"
+"              debugging.  A line starting with '>' means \"header data\" sent by\n"
+"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              normal cases, and a line starting with '*' means additional info\n"
+"              provided by curl.\n"
 "\n"
-"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
+"              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
+"              -i/--include might be option you're looking for.\n"
+"\n"
 , stdout);

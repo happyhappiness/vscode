@@ -1,11 +1,11 @@
 fputs(
-"  If there's a \"normal\" post, you use -d to post. -d takes a full \"post\n"
-"  string\", which is in the format\n"
+"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
+"  file contents.  In the above command, curl will parse the header and store\n"
+"  the cookies received from www.example.com.  curl will send to the server the\n"
+"  stored cookies which match the request as it follows the location.  The\n"
+"  file \"empty.txt\" may be a nonexistent file.\n"
 "\n"
-"        <variable1>=<data1>&<variable2>=<data2>&...\n"
+"  Alas, to both read and write cookies from a netscape cookie file, you can\n"
+"  set both -b and -c to use the same file:\n"
 "\n"
-"  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
-"  the data is the contents you want to fill in for the inputs. The data *must*\n"
-"  be properly URL encoded. That means you replace space with + and that you\n"
-"  write weird letters with %XX where XX is the hexadecimal representation of\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  also  use the -Y/--speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -l/--list-only\n"
+"       -m/--max-time <seconds>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours  due  to slow networks or links going down.  See\n"
 , stdout);

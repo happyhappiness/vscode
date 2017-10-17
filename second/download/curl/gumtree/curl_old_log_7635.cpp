@@ -1,12 +1,9 @@
 fputs(
-"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
-"              string with single quote marks. This can also be  set  with  the\n"
-"              -H, --header option of course.\n"
+"              This command line option will activate the  cookie  engine  that\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
 "\n"
-"              If  this  option is set more than once, the last one will be the\n"
-"              one that's used.\n"
-"\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and  use  the most secure one the remote site claims to support.\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
+"              operation  won't  fail or even report an error clearly. Using -v\n"
+"              will get a warning displayed, but that is the only visible feed-\n"
 , stdout);

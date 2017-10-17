@@ -1,9 +1,10 @@
 fputs(
-"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
-"              dir given the current user in your system). On Windows, it  then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              Note:  When  combined  with -X, --request <command>, this option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
+"              the  email's  unique  identifier  rather than it's message id to\n"
+"              make the request. (Added in 7.21.5)\n"
 "\n"
-"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
-"              checks for one in the same dir the curl executable is placed. On\n"
+"       -L, --location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
+"              moved to a different location (indicated with a Location: header\n"
 , stdout);

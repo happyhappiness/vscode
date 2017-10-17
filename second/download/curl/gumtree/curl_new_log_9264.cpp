@@ -1,8 +1,12 @@
 fputs(
-"              user's home directory for login name and password. This is typi-\n"
-"              cally  used for FTP on UNIX. If used with HTTP, curl will enable\n"
-"              user authentication. See netrc(4) or ftp(1) for details  on  the\n"
-"              file  format.  Curl  will not complain if that file doesn't have\n"
-"              the right permissions (it should not be either world- or  group-\n"
-"              readable).  The  environment variable \"HOME\" is used to find the\n"
+"              Negotiate or NTLM authentication  then  you  can  tell  curl  to\n"
+"              select the user name and password from your environment by spec-\n"
+"              ifying a single colon with this option: \"-U :\".\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --url <URL>\n"
+"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
+"              want to specify URL(s) in a config file.\n"
+"\n"
 , stdout);

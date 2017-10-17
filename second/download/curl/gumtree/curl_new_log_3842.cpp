@@ -1,11 +1,10 @@
 fputs(
-"              dir given the current user in your system). On Windows, it  then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%0lication Data'.\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that port numbers by nature is a scarce\n"
+"              resource that will be busy at times so  setting  this  range  to\n"
+"              something  too  narrow  might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
-"              checks for one in the same dir the executable curl is placed. On\n"
-"              unix-like systems, it will simply try to load .curlrc  from  the\n"
-"              determined home dir.\n"
-"\n"
+"       -L/--location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
 , stdout);

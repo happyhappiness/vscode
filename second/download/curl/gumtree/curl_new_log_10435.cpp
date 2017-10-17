@@ -1,2 +1,1 @@
-warnf(config->global,
-                    "Illegally formatted content-type field!\n");
+warnf(global, "--trace overrides an earlier trace/verbose option\n");

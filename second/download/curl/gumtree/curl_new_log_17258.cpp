@@ -1,0 +1,1 @@
+Curl_failf(data, "Failed to decode base64 from server");

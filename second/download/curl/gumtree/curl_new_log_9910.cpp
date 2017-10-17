@@ -1,11 +1,11 @@
 fputs(
-"              --location is used, this option can be used to prevent curl from\n"
-"              following  redirections  \"in absurdum\". By default, the limit is\n"
-"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
-"              less.\n"
+"              This  option  requires a library built with GSS-API or SSPI sup-\n"
+"              port. Use -V, --version  to  see  if  your  curl  supports  GSS-\n"
+"              API/SSPI and SPNEGO.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              When  using this option, you must also provide a fake -u, --user\n"
+"              option to activate the authentication code properly.  Sending  a\n"
+"              '-u  :'  is  enough  as  the  user name and password from the -u\n"
+"              option aren't actually used.\n"
 "\n"
-"       --metalink\n"
-"              This  option  can  tell curl to parse and process a given URI as\n"
 , stdout);

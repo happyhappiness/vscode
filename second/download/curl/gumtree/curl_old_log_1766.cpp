@@ -1,9 +1,9 @@
 fputs(
-"              with a separating  &-letter.  Thus,  using  '-d  name=daniel  -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
-"              the data from stdin.  The contents of the file must  already  be\n"
+"       -e/--referer <URL>\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H/--header flag of course.   When\n"
+"              used  with  -L/--location  you can append \";auto\" to the referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
 , stdout);

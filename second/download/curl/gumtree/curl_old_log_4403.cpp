@@ -1,12 +1,11 @@
 fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --socks5-hostname <host[:port]>\n"
-"              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
-"              host  name).  If the port number is not specified, it is assumed\n"
-"              at port 1080. (Added in 7.18.0)\n"
+"       --trace-ascii <file>\n"
+"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
-"              This option overrides any previous use of  -x/--proxy,  as  they\n"
-"              are mutually exclusive.\n"
-"\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only shows the ASCII part of the dump. It makes  smaller  output\n"
 , stdout);

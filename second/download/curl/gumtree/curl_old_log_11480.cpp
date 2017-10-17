@@ -1,11 +1,11 @@
 fputs(
-"              debugging and seeing what's going on \"under the  hood\".  A  line\n"
-"              starting  with  '>'  means \"header data\" sent by curl, '<' means\n"
-"              \"header data\" received by curl that is hidden in  normal  cases,\n"
-"              and  a  line starting with '*' means additional info provided by\n"
-"              curl.\n"
+"                             low redirects, this variable will show the actual\n"
+"                             URL  a  redirect  would  take  you  to. (Added in\n"
+"                             7.18.2)\n"
 "\n"
-"              Note that if you only want  HTTP  headers  in  the  output,  -i,\n"
-"              --include might be the option you're looking for.\n"
+"              remote_ip      The remote IP address of the most  recently  done\n"
+"                             connection - can be either IPv4 or IPv6 (Added in\n"
+"                             7.29.0)\n"
 "\n"
+"              remote_port    The remote port number of the most recently  done\n"
 , stdout);

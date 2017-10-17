@@ -1,0 +1,15 @@
+fputs(
+"       --tlspassword\n"
+"              Set  password  for use with the TLS authentication method speci-\n"
+"              fied with --tlsauthtype. Requires that --tlsuser also be set.\n"
+"\n"
+"              Added in 7.21.4.\n"
+"       --tlsuser <name>\n"
+"              Set username for use with the TLS authentication  method  speci-\n"
+"              fied  with  --tlsauthtype.  Requires  that --tlspassword also is\n"
+"              set.\n"
+"\n"
+"              Added in 7.21.4.\n"
+"\n"
+"       --tlsv1.0\n"
+, stdout);

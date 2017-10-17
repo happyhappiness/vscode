@@ -1,9 +1,11 @@
 fputs(
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              The given rate is the average speed, counted during  the  entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  are also using the -Y/--speed-limit option, that option\n"
-"              will  take  precedence  and  might  cripple  the   rate-limiting\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans‐\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
+"\n"
+"       -m/--max-time <seconds>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
 , stdout);

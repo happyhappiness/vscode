@@ -1,12 +1,9 @@
 fputs(
-"                             only enables http and https\n"
+"              commands  as  RFC 959 defines to FTP servers, or one of the com-\n"
+"              mands listed below to SFTP servers.  This  option  can  be  used\n"
+"              multiple  times. When speaking to an FTP server, prefix the com-\n"
+"              mand with an asterisk (*) to make curl continue even if the com-\n"
+"              mand fails as by default curl will stop at first failure.\n"
 "\n"
-"              --proto =http,https\n"
-"                             also only enables http and https\n"
-"\n"
-"              Unknown protocols produce a  warning.  This  allows  scripts  to\n"
-"              safely  rely on being able to disable potentially dangerous pro-\n"
-"              tocols, without relying upon support  for  that  protocol  being\n"
-"              built into curl to avoid an error.\n"
-"\n"
+"              SFTP  is a binary protocol. Unlike for FTP, curl interprets SFTP\n"
 , stdout);

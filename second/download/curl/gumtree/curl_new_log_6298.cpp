@@ -1,9 +1,11 @@
 fputs(
-"              combination  with  the -L, --location option. The file format of\n"
-"              the file to read cookies from should be plain  HTTP  headers  or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              curl has connected this option is of no more use. See  also  the\n"
+"              -m, --max-time option.\n"
 "\n"
-"              NOTE  that  the file specified with -b, --cookie is only used as\n"
-"              input. No cookies will be stored in the file. To store  cookies,\n"
-"              use  the -c, --cookie-jar option or you could even save the HTTP\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --create-dirs\n"
+"              When  used  in  conjunction with the -o option, curl will create\n"
+"              the necessary local directory hierarchy as needed.  This  option\n"
+"              creates  the dirs mentioned with the -o option, nothing else. If\n"
 , stdout);

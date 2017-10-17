@@ -1,10 +1,10 @@
 fputs(
-"              Write the protocol headers to the specified file.\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
 "\n"
-"              This option is handy to use when you want to store  the  headers\n"
-"              that  a  HTTP  site sends to you. Cookies from the headers could\n"
-"              then  be  read  in  a  second  curl  invocation  by  using   the\n"
-"              -b/--cookie option! The -c/--cookie-jar option is however a bet-\n"
-"              ter way to store cookies.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the peer. The certificates must be in PEM format, and if\n"
+"              curl is built against OpenSSL, the directory must have been pro-\n"
 , stdout);

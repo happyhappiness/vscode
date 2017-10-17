@@ -1,0 +1,15 @@
+puts(
+"     -t/--telnet-option <OPT=val>\n"
+"          Pass options to the telnet protocol. Supported  options\n"
+"          are:\n"
+"\n"
+"          TTYPE=<term> Sets the terminal type.\n"
+"\n"
+"          XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+"          NEW_ENV=<var,val> Sets an environment variable.\n"
+"\n"
+"     -T/--upload-file <file>\n"
+"          Like  -t,  but this transfers the specified local file.\n"
+"          If there is no file part in  the  specified  URL,  Curl\n"
+);

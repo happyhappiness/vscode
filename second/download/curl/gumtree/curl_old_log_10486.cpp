@@ -1,12 +1,9 @@
 fputs(
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
+"              equals character between the option and its parameter.\n"
 "\n"
-"       --hostpubmd5 <md5>\n"
-"              (SCP/SFTP) Pass a string containing 32 hexadecimal  digits.  The\n"
-"              string  should  be the 128 bit MD5 checksum of the remote host's\n"
-"              public key, curl will refuse the connection with the host unless\n"
-"              the md5sums match. (Added in 7.17.1)\n"
-"\n"
-"       --ignore-content-length\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed  within  quotes.  Within  double  quotes, the following\n"
+"              escape sequences are available: \\\\, \\\", \\t, \\n,  \\r  and  \\v.  A\n"
+"              backslash  preceding  any  other letter is ignored. If the first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
 , stdout);

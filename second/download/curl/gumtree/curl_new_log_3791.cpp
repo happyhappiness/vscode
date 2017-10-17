@@ -1,11 +1,11 @@
 fputs(
-"                     any  =  or  @  letters, as that will then make the syntax\n"
-"                     match one of the other cases below!\n"
+"              tells curl the nickname of the certificate to use within the NSS\n"
+"              database defined by the  environment  variable  SSL_DIR  (or  by\n"
+"              default  /etc/pki/nssdb).  If  the  NSS PEM PKCS#11 module (lib-\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
 "\n"
-"              =content\n"
-"                     This will make curl URL encode the content and pass  that\n"
-"                     on. The preceding = letter is not included in the data.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              name=content\n"
-"                     This  will make curl URL encode the content part and pass\n"
+"       --cert-type <type>\n"
+"              (SSL)  Tells curl what certificate type the provided certificate\n"
 , stdout);

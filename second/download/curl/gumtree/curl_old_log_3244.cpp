@@ -1,11 +1,11 @@
 fputs(
-"  If curl fails where it isn't supposed to, if the servers don't let you in,\n"
-"  if you can't understand the responses: use the -v flag to get verbose\n"
-"  fetching. Curl will output lots of info and what it sends and receives in\n"
-"  order to let the user see all client-server interaction (but it won't show\n"
-"  you the actual data).\n"
+"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
+"        http://www.post.com/postit.cgi\n"
 "\n"
-"        curl -v ftp://ftp.upload.com/\n"
+"  If the content-type is not specified, curl will try to guess from the file\n"
+"  extension (it only knows a few), or use the previously specified type (from\n"
+"  an earlier file if several files are specified in a list) or else it will\n"
+"  using the default type 'text/plain'.\n"
 "\n"
-"  To get even more details and information on what curl does, try using the\n"
+"  Emulate a fill-in form with -F. Let's say you fill in three fields in a\n"
 , stdout);

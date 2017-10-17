@@ -1,9 +1,11 @@
 fputs(
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"              If  you  also  use the -Y/--speed-limit option, that option will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it uses getpwuid() on UNIX-like systems (which returns the  home\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l/--list-only\n"
+"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
+"              only view.  Especially useful if you want to  machine-parse  the\n"
 , stdout);

@@ -1,11 +1,9 @@
 fputs(
-"              URL to make curl automatically set the previous URL when it fol-\n"
-"              lows  a  Location: header. The \";auto\" string can be used alone,\n"
-"              even if you don't set an initial --referer.\n"
+"              is  mostly done to better enable scripts etc to better deal with\n"
+"              failed attempts. In normal cases when a  HTTP  server  fails  to\n"
+"              deliver  a  document,  it  returns  an  HTML document stating so\n"
+"              (which often also describes why and more). This flag  will  pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
-"              Use  --engine  list  to  print  a  list  of build-time supported\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
 , stdout);

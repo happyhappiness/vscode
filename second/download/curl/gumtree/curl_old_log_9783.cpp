@@ -1,11 +1,8 @@
 fputs(
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
-"\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
-"              its response to curl's PASV command when curl connects the  data\n"
-"              connection.  Instead  curl  will  re-use  the same IP address it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
-"\n"
+"              (HTTP)  Extra header to include in the request when sending HTTP\n"
+"              to a server. You may specify any number of extra  headers.  Note\n"
+"              that if you should add a custom header that has the same name as\n"
+"              one of the internal ones curl would  use,  your  externally  set\n"
+"              header will be used instead of the internal one. This allows you\n"
+"              to make even trickier stuff than curl  would  normally  do.  You\n"
 , stdout);

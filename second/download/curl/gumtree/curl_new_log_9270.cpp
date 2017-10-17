@@ -1,10 +1,11 @@
 fputs(
-"              this option. The password can, still.\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
+"                             7.18.2 the alias response_code was added to  show\n"
+"                             the same info.\n"
 "\n"
-"              When using Kerberos V5 with a Windows based  server  you  should\n"
-"              include  the  Windows domain name in the user name, in order for\n"
-"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
-"              then the initial authentication handshake may fail.\n"
+"              http_connect   The  numerical  code  that  was found in the last\n"
+"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
-"              When  using  NTLM,  the user name can be specified simply as the\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"              internally set  headers  without  knowing  perfectly  well  what\n"
-"              you're doing. Replacing an internal header with one without con-\n"
-"              tent on the right side of the colon  will  prevent  that  header\n"
-"              from appearing.\n"
+"              entered  and should be one of 'clear', 'safe', 'confidential' or\n"
+"              'private'. Should you use a level that  is  not  one  of  these,\n"
+"              'private' will instead be used.\n"
 "\n"
-"              curl  will  make  sure that each header you add/replace get sent\n"
-"              with the proper end of line marker, you should thus not add that\n"
+"              This  option  requires that the library was built with kerberos4\n"
+"              support. This is not very common. Use  -V/--version  to  see  if\n"
+"              your curl supports it.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

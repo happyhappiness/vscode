@@ -1,10 +1,11 @@
 fputs(
-"              ing  for  hours due to slow networks or links going down.  Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include  will be ignored. This is because including headers in\n"
+"              the response will break Metalink parser and if the  headers  are\n"
+"              included in the file described in Metalink file, hash check will\n"
+"              fail.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              (Added in 7.27.0, if built against the libmetalink library.)\n"
 "\n"
-"       --login-options <options>\n"
+"       -n, --netrc\n"
 , stdout);

@@ -1,0 +1,1 @@
+Curl_debug(data, CURLINFO_TEXT, print_buffer, strlen(print_buffer));

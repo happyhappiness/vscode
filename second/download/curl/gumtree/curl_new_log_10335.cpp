@@ -1,9 +1,10 @@
 fputs(
-"              forces a LIST command to be performed instead of RETR.  This  is\n"
-"              particularly  useful if the user wants to see if a specific mes-\n"
-"              sage id exists on the server and what size it is.\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"              Note: When combined with -X, --request  <command>,  this  option\n"
-"              can be used to send an UIDL command instead, so the user may use\n"
-"              the email's unique identifier rather than  it's  message  id  to\n"
+"       --location-trusted\n"
+"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
+"              name + password to all hosts that the site may redirect to. This\n"
+"              may or may not introduce a security breach if the site redirects\n"
+"              you to a site to which  you'll  send  your  authentication  info\n"
 , stdout);

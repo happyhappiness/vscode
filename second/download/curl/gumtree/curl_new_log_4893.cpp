@@ -1,8 +1,12 @@
 fputs(
-"              has  pressed  the  submit  button. This causes curl to POST data\n"
-"              using the Content-Type multipart/form-data according to RFC2388.\n"
-"              This  enables  uploading of binary files etc. To force the 'con-\n"
-"              tent' part to be a file, prefix the file name with an @ sign. To\n"
-"              just get the content part from a file, prefix the file name with\n"
-"              the symbol <. The difference between @ and  <  is  then  that  @\n"
+"              curl will make sure that each header  you  add/replace  is  sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
+"\n"
+"              See also the -A/--user-agent and -e/--referer options.\n"
+"\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
 , stdout);

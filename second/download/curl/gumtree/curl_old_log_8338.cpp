@@ -1,10 +1,9 @@
 fputs(
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
-"              out will decrease in accuracy as the specified timeout increases\n"
-"              in decimal precision.  See also the --connect-timeout option.\n"
+"              cally  used for FTP on UNIX. If used with HTTP, curl will enable\n"
+"              user authentication. See netrc(4) or ftp(1) for details  on  the\n"
+"              file  format.  Curl  will not complain if that file doesn't have\n"
+"              the right permissions (it should not be either world- or  group-\n"
+"              readable).  The  environment variable \"HOME\" is used to find the\n"
+"              home directory.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --mail-auth <address>\n"
-"              (SMTP) Specify a single address. This will be  used  to  specify\n"
 , stdout);

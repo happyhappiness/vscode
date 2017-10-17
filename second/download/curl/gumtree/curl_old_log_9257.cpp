@@ -1,10 +1,10 @@
 fputs(
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations, curl will use a standard buffered  output  stream  that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily exactly when the data arrives.   Using  this  option\n"
+"              will disable that buffering.\n"
 "\n"
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
+"              Note  that  this  is the negated option name documented. You can\n"
 , stdout);

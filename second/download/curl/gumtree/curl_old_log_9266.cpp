@@ -1,11 +1,11 @@
 fputs(
-"              thus use --buffer to enforce the buffering.\n"
+"              This option overrides previous uses of --trace-ascii or --trace.\n"
 "\n"
-"       --netrc-file\n"
-"              This option is similar to --netrc, except that you  provide  the\n"
-"              path  (absolute  or relative) to the netrc file that Curl should\n"
-"              use.  You can only specify one netrc  file  per  invocation.  If\n"
-"              several  --netrc-file  options  are  provided, only the last one\n"
-"              will be used.  (Added in 7.21.5)\n"
+"              Use -s, --silent to make curl quiet.\n"
 "\n"
+"       -w, --write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful  operation.  The  format  is a string that may contain plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
 , stdout);

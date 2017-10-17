@@ -1,11 +1,10 @@
 fputs(
-"              or  GSSAPI (GSS-Negotiate) support. This is not very common. Use\n"
-"              -V/--version to see if your curl supports it.\n"
+"       --libcurl <file>\n"
+"              Append this option to any ordinary curl command  line,  and  you\n"
+"              will  get  a  libcurl-using source code written to the file that\n"
+"              does the equivalent operation of what your command  line  opera-\n"
+"              tion does!\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -K/--config <config file>\n"
-"              Specify  which config file to read curl arguments from. The con-\n"
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
+"              NOTE:  this does not properly support -F and the sending of mul-\n"
+"              tipart formposts, so in those cases the output program  will  be\n"
 , stdout);

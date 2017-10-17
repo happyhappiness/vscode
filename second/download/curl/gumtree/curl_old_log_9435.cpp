@@ -1,10 +1,11 @@
 fputs(
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only shows the ASCII part of the dump. It makes  smaller  output\n"
+"              that might be easier to read for untrained humans.\n"
 "\n"
-"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              This option overrides previous uses of -v, --verbose or --trace.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --trace-time\n"
+"              Prepends  a  time  stamp to each trace or verbose line that curl\n"
 , stdout);

@@ -1,12 +1,12 @@
 fputs(
-"              the file name is a plain ’-’, it is instead written  to  stdout.\n"
-"              This  option  has no point when you’re using a shell with decent\n"
-"              redirecting capabilities.\n"
+"              from your environment by simply specifying a single  colon  with\n"
+"              this option: \"-U :\".\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --tcp-nodelay\n"
-"              Turn  on the TCP_NODELAY option. See the curl_easy_setopt(3) man\n"
-"              page for details about this option. (Added in 7.11.2)\n"
+"       --url <URL>\n"
+"              Specify a URL to fetch. This option is  mostly  handy  when  you\n"
+"              want to specify URL(s) in a config file.\n"
 "\n"
+"              This  option  may  be used any number of times. To control where\n"
 , stdout);

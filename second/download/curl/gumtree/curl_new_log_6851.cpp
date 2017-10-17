@@ -1,10 +1,9 @@
 fputs(
-"              (HTTP)  Include  the  HTTP-header in the output. The HTTP-header\n"
-"              includes things like server-name, date of  the  document,  HTTP-\n"
-"              version and more...\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"       -I, --head\n"
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the command HEAD which this uses to get nothing but  the  header\n"
-"              of  a  document.  When used on a FTP or FILE file, curl displays\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
 , stdout);

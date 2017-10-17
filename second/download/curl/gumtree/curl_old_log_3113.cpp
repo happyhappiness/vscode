@@ -1,12 +1,12 @@
 fputs(
-"              Use the specified SOCKS4 proxy. If the port number is not speci‐\n"
-"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
 "\n"
-"              This option overrides any previous use of  -x/--proxy,  as  they\n"
-"              are mutually exclusive.\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only  shows  the ASCII part of the dump. It makes smaller output\n"
+"              that might be easier to read for untrained humans.\n"
 "\n"
+"              This option overrides previous uses of -v/--verbose or  --trace.\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --socks5 <host[:port]>\n"
-"              Use the specified SOCKS5 proxy. If the port number is not speci‐\n"
+"       --trace-time\n"
+"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
 , stdout);

@@ -1,11 +1,9 @@
 fputs(
-"              uations,  curl  will  use a standard buffered output stream that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              it uses getpwuid() on unix-like systems (which returns the  home\n"
+"              dir  given the current user in your system). On Windows, it then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%0lication Data'.\n"
 "\n"
-"              If this option is used twice, the second will  again  switch  on\n"
-"              buffering.\n"
-"\n"
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
+"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
+"              checks for one in the same dir the executable curl is placed. On\n"
 , stdout);

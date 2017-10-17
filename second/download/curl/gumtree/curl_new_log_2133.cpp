@@ -1,11 +1,11 @@
 fputs(
-"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
-"       PORT++.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
+"              --socks without the number appended.)\n"
 "\n"
-"       -q     If  used  as the first parameter on the command line, the curlrc\n"
-"              config file will not be read and used. See the  -K/--config  for\n"
-"              details on the default config file search path.\n"
+"       --stderr <file>\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
+"              the file name is a plain '-', it is instead written  to  stdout.\n"
+"              This  option  has no point when you're using a shell with decent\n"
+"              redirecting capabilities.\n"
 "\n"
-"       -Q/--quote <command>\n"
-"              (FTP)  Send an arbitrary command to the remote FTP server. Quote\n"
 , stdout);

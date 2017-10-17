@@ -1,9 +1,11 @@
 fputs(
-"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
-"              list           details           on           this          URL:\n"
-"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"              from a file named 'foobar' would thus be done with --data  @foo-\n"
+"              bar. When --data is told to read from a file like that, carriage\n"
+"              returns and newlines will be stripped out.\n"
 "\n"
-"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
-"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
-"              URL:                                          http://git.fedora-\n"
+"       -D, --dump-header <file>\n"
+"              Write the protocol headers to the specified file.\n"
+"\n"
+"              This option is handy to use when you want to store  the  headers\n"
+"              that  an  HTTP site sends to you. Cookies from the headers could\n"
 , stdout);

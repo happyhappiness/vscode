@@ -1,9 +1,11 @@
 fputs(
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y, --speed-limit <speed>\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond)  for  speed-time seconds it gets aborted. speed-time is set\n"
 , stdout);

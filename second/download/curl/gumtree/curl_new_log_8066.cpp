@@ -1,9 +1,12 @@
 fputs(
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
+"\n"
+"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
+"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
+"              option to work properly.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -E, --cert <certificate[:password]>\n"
-"              (SSL) Tells curl to use the specified  client  certificate  file\n"
-"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
-"              col. The certificate must be in PEM  format.   If  the  optional\n"
-"              password  isn't  specified, it will be queried for on the termi-\n"
 , stdout);

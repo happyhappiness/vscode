@@ -1,11 +1,9 @@
 fputs(
-"              will be used. (Added in 7.16.1)\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+"              the  file requested is larger than this value, the transfer will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify the maximum transfer rate you want curl  to  use  -  for\n"
-"              both downloads and uploads. This feature is useful if you have a\n"
-"              limited pipe and you'd like your transfer not to use your entire\n"
-"              bandwidth. To make it slower than it otherwise would be.\n"
-"\n"
-"              The  given speed is measured in bytes/second, unless a suffix is\n"
+"              NOTE: The file size is not always known prior to  download,  and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer ends up being larger than this given  limit.  This  concerns\n"
 , stdout);

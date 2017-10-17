@@ -1,11 +1,8 @@
 fputs(
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
-"\n"
-"       --pinnedpubkey <pinned public key>\n"
-"              (SSL)  Tells curl to use the specified public key file to verify\n"
-"              the peer. The file must contain a single public key in DER  for-\n"
-"              mat.\n"
-"\n"
-"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
+"              request on the new place. If used together with -i, --include or\n"
+"              -I, --head, headers from all requested pages will be shown. When\n"
+"              authentication  is  used, curl only sends its credentials to the\n"
+"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              won't  be  able to intercept the user+password. See also --loca-\n"
+"              tion-trusted on how to change this. You can limit the amount  of\n"
 , stdout);

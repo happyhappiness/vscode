@@ -1,11 +1,11 @@
 fputs(
-"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a '#' character, the rest of the line will be treated as a  com-\n"
-"              ment.  Only  write  one  option  per physical line in the config\n"
-"              file.\n"
+"              If this option is used several times, the last given  file  name\n"
+"              will be used. (Added in 7.16.1)\n"
 "\n"
-"              Specify the filename to -K/--config as '-' to make curl read the\n"
-"              file from stdin.\n"
+"       --limit-rate <speed>\n"
+"              Specify  the  maximum  transfer  rate you want curl to use. This\n"
+"              feature is useful if you have a limited pipe and you'd like your\n"
+"              transfer not to use your entire bandwidth.\n"
 "\n"
+"              The  given speed is measured in bytes/second, unless a suffix is\n"
 , stdout);

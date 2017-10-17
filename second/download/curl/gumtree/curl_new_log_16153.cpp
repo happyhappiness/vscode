@@ -1,0 +1,1 @@
+warnf(config->global, "curl_mime_init failed!\n");

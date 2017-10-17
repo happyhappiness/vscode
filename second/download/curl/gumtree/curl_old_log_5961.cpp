@@ -1,11 +1,10 @@
 fputs(
-"              commands listed below to SFTP servers.  This option can be  used\n"
-"              multiple times.\n"
+"              there is no file part in the specified URL, Curl will append the\n"
+"              local file name. NOTE that you must use a trailing / on the last\n"
+"              directory  to really prove to Curl that there is no file name or\n"
+"              curl will think that your last directory name is the remote file\n"
+"              name to use. That will most likely cause the upload operation to\n"
+"              fail. If this is used on a HTTP(S) server, the PUT command  will\n"
+"              be used.\n"
 "\n"
-"              SFTP  is  a  binary protocol. Unlike for FTP, libcurl interprets\n"
-"              SFTP quote commands before sending them to the server.   Follow-\n"
-"              ing is the list of all supported SFTP quote commands:\n"
-"\n"
-"              chgrp group file\n"
-"                     The  chgrp command sets the group ID of the file named by\n"
 , stdout);

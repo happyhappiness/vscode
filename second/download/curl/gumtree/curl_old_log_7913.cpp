@@ -1,12 +1,10 @@
 fputs(
-"              tion. Overrides -n, --netrc and --netrc-optional.\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"              If you just give the user name (without entering a  colon)  curl\n"
-"              will prompt for a password.\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
-"              from  your  environment by simply specifying a single colon with\n"
-"              this option: \"-u :\".\n"
-"\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
+"                             7.18.2 the alias response_code was added to  show\n"
 , stdout);

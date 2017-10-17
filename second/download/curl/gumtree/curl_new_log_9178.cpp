@@ -1,12 +1,9 @@
 fputs(
-"              If curl is capable of resolving an address to multiple  IP  ver-\n"
-"              sions  (which  it  is  if it is IPv6-capable), this option tells\n"
-"              curl to resolve names to IPv4 addresses only.\n"
+"              read  from a specified file as well as all cookies received from\n"
+"              remote server(s). If no cookies are known, no file will be writ-\n"
+"              ten.  The  file  will  be written using the Netscape cookie file\n"
+"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
+"              cookies will be written to stdout.\n"
 "\n"
-"       -6, --ipv6\n"
-"              If curl is capable of resolving an address to multiple  IP  ver-\n"
-"              sions  (which  it  is  if it is IPv6-capable), this option tells\n"
-"              curl to resolve names to IPv6 addresses only.\n"
-"\n"
-"       -a, --append\n"
+"              This  command  line  option will activate the cookie engine that\n"
 , stdout);

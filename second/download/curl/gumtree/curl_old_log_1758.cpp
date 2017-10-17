@@ -1,11 +1,9 @@
 fputs(
-"              option is used and the server  sends  an  unsupported  encoding,\n"
-"              Curl will report an error.\n"
+"              with a separating  &-letter.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              If  this option is used several times, each occurrence will tog-\n"
-"              gle it on/off.\n"
-"\n"
-"       --connect-timeout <seconds>\n"
-"              Maximum time in seconds that you allow  the  connection  to  the\n"
-"              server  to  take.   This  only limits the connection phase, once\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
+"              the data from stdin.  The contents of the file must  already  be\n"
 , stdout);

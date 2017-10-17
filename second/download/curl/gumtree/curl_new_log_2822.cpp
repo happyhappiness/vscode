@@ -1,10 +1,9 @@
 fputs(
-"              Manual. Display the huge help text.\n"
+"              supported  for  FTP). You may specify any number of commands. If\n"
+"              the server returns failure for one of the commands,  the  entire\n"
+"              operation  will  be aborted. You must send syntactically correct\n"
+"              FTP commands as RFC959 defines to FTP servers,  or  one  of  the\n"
+"              following commands (with appropriate arguments) to SFTP servers:\n"
+"              chgrp, chmod, chown, ln, mkdir, rename, rm, rmdir, symlink.\n"
 "\n"
-"       -n/--netrc\n"
-"              Makes curl scan the .netrc file in the user’s home directory for\n"
-"              login name and password. This is typically used for ftp on unix.\n"
-"              If used with http, curl will  enable  user  authentication.  See\n"
-"              netrc(4) or ftp(1) for details on the file format. Curl will not\n"
-"              complain if that file hasn’t the right  permissions  (it  should\n"
 , stdout);

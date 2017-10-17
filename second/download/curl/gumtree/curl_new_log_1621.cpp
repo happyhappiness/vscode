@@ -1,8 +1,12 @@
 fputs(
-"              (FTP)  Send an arbitrary command to the remote FTP server. Quote\n"
-"              commands are sent BEFORE the  transfer  is  taking  place  (just\n"
-"              after  the  initial  PWD  command to be exact). To make commands\n"
-"              take place after a successful transfer, prefix them with a  dash\n"
-"              '-'. To make commands get sent after libcurl has changed working\n"
-"              directory, just before the transfer command(s), prefix the  com-\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"              default  backoff time algorithm between retries). This option is\n"
+"              only interesting if --retry is also used. Setting this delay  to\n"
+"              zero will make curl use the default backoff time.  (Option added\n"
+"              in 7.12.3)\n"
+"\n"
+"              If this option is  used  multiple  times,  the  last  occurrence\n"
+"              decide the amount.\n"
+"\n"
+"       --retry-max-time <seconds>\n"
 , stdout);

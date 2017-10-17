@@ -1,10 +1,9 @@
 fputs(
-"       Since  curl 7.15.1 you can also specify step counter for the ranges, so\n"
-"       that you can get every Nth number or letter:\n"
-"        http://www.numericals.com/file[1-100:10].txt\n"
-"        http://www.letters.com/file[a-z:2].txt\n"
+"              posedly  the data previously received from the server in a \"Set-\n"
+"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
+"              NAME2=VALUE2\".\n"
 "\n"
-"       If you specify URL without protocol:// prefix,  curl  will  attempt  to\n"
-"       guess  what  protocol  you might want. It will then default to HTTP but\n"
-"       try other protocols based on often-used host name prefixes.  For  exam-\n"
+"              If  no  '=' letter is used in the line, it is treated as a file-\n"
+"              name to use to read previously stored cookie lines  from,  which\n"
+"              should  be used in this session if they match. Using this method\n"
 , stdout);

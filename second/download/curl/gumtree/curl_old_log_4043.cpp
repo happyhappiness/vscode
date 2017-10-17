@@ -1,11 +1,11 @@
 fputs(
-"       supported protocols (HTTP, HTTPS, FTP, FTPS,  SCP,  SFTP,  TFTP,  DICT,\n"
-"       TELNET,  LDAP  or  FILE).  The command is designed to work without user\n"
-"       interaction.\n"
+"                     any  =  or  @  letters, as that will then make the syntax\n"
+"                     match one of the other cases below!\n"
 "\n"
-"       curl offers a busload of useful tricks like proxy support, user authen-\n"
-"       tication,  ftp upload, HTTP post, SSL connections, cookies, file trans-\n"
-"       fer resume and more. As you will see below, the number of features will\n"
-"       make your head spin!\n"
+"              =content\n"
+"                     This will make curl URL encode the content and pass  that\n"
+"                     on. The preceding = letter is not included in the data.\n"
 "\n"
+"              name=content\n"
+"                     This  will make curl URL encode the content part and pass\n"
 , stdout);

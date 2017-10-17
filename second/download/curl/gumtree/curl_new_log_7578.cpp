@@ -1,10 +1,11 @@
 fputs(
-"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
-"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
-"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
-"              where the proxy-name does not match the principal name.   (Added\n"
-"              in 7.19.4).\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --socks5-gssapi-nec\n"
-"              As  part  of the gssapi negotiation a protection mode is negoti-\n"
+"       --trace-ascii <file>\n"
+"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
+"\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only  shows  the ASCII part of the dump. It makes smaller output\n"
 , stdout);

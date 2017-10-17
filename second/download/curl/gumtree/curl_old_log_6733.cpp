@@ -1,9 +1,11 @@
 fputs(
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"              See also the -A, --user-agent and -e, --referer options.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
-"              passive mode will not initiate the shutdown,  but  instead  wait\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
+"       --hostpubmd5 <md5>\n"
+"              Pass a string  containing  32  hexadecimal  digits.  The  string\n"
+"              should  be  the 128 bit MD5 checksum of the remote host's public\n"
+"              key, curl will refuse the connection with the  host  unless  the\n"
 , stdout);

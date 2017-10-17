@@ -1,11 +1,11 @@
 fputs(
-"              only such one.  (Added in 7.33.0)\n"
+"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
+"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"       --dns-servers <ip-address,ip-address>\n"
-"              Set the list of DNS servers to be used  instead  of  the  system\n"
-"              default.  The list of IP addresses should be separated with com-\n"
-"              mas. Port numbers may also optionally be given as :<port-number>\n"
-"              after each IP address.\n"
+"              The  windows  version  of  curl will automatically look for a CA\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
-"              This  option  requires  that  libcurl  was built with a resolver\n"
 , stdout);

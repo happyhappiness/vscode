@@ -1,9 +1,9 @@
 fputs(
-"              sign. Long option names can optionally be given  in  the  config\n"
-"              file  without  the initial double dashes and if so, the colon or\n"
-"              equals characters can be used as separators. If  the  option  is\n"
-"              specified  with  one  or  two  dashes,  there can be no colon or\n"
-"              equals character between the option and its parameter.\n"
+"              only view. This is  especially  useful  if  the  user  wants  to\n"
+"              machine-parse  the contents of an FTP directory since the normal\n"
+"              directory view doesn't use a standard look or format. When  used\n"
+"              like  this,  the  option causes a NLST command to be sent to the\n"
+"              server instead of LIST.\n"
 "\n"
-"              If the parameter is to contain whitespace, the parameter must be\n"
+"              Note: Some FTP servers list only  files  in  their  response  to\n"
 , stdout);

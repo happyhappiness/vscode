@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              login name and password. This is typically used for ftp on unix.\n"
+"              If  used  with  http,  curl will enable user authentication. See\n"
+"              netrc(4) or ftp(1) for details on the file format. Curl will not\n"
+"              complain  if  that  file hasn't the right permissions (it should\n"
+"              not be world  nor  group  readable).  The  environment  variable\n"
+"              \"HOME\" is used to find the home directory.\n"
 "\n"
-"       -l/--list-only\n"
-"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
-"              only view.  Especially useful if you want to  machine-parse  the\n"
-"              contents  of  an  FTP  directory since the normal directory view\n"
-"              doesn't use a standard look or format.\n"
-"\n"
-"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
 , stdout);

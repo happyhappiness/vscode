@@ -1,12 +1,9 @@
 fputs(
-"              speed_upload   The average upload speed that curl  measured  for\n"
-"                             the complete upload.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              content_type   The  Content-Type  of  the requested document, if\n"
-"                             there was any.\n"
-"\n"
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
-"\n"
-"              num_redirects  Number  of  redirects  that  were followed in the\n"
+"       -z/--time-cond <date expression>\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The date expression can be all sorts of date strings or if\n"
+"              it  doesn't  match  any  internal ones, it tries to get the time\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"       You  can  specify a step counter for the ranges to get every Nth number\n"
-"       or letter:\n"
+"              --negotiate.\n"
 "\n"
-"        http://www.numericals.com/file[1-100:10].txt\n"
-"        http://www.letters.com/file[a-z:2].txt\n"
+"              Note that using --anyauth is not recommended if you  do  uploads\n"
+"              from  stdin, since it may require data to be sent twice and then\n"
+"              the client must be able to rewind. If the need should arise when\n"
+"              uploading from stdin, the upload operation will fail.\n"
 "\n"
-"       If you specify URL without protocol:// prefix,  curl  will  attempt  to\n"
-"       guess  what  protocol  you might want. It will then default to HTTP but\n"
-"       try other protocols based on often-used host name prefixes.  For  exam-\n"
+"       -b/--cookie <name=data>\n"
+"              (HTTP)  Pass the data to the HTTP server as a cookie. It is sup-\n"
 , stdout);

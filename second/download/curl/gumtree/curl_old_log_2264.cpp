@@ -1,11 +1,11 @@
 fputs(
-"              See further examples and details in the MANUAL.\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"              This option can be used multiple times.\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              header only.\n"
 "\n"
-"       --form-string <name=string>\n"
-"              (HTTP)  Similar  to  --form except that the value string for the\n"
-"              named  parameter  is  used  literally.  Leading  '@'   and   '<'\n"
-"              characters, and the ';type=' string in the value have no special\n"
-"              meaning. Use this in preference to --form if there's any  possi-\n"
+"       -j/--junk-session-cookies\n"
 , stdout);

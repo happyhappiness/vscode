@@ -1,11 +1,11 @@
 fputs(
-"              only view.  Especially useful if you want to  machine-parse  the\n"
-"              contents  of  an  FTP  directory since the normal directory view\n"
-"              doesn't use a standard look or format.\n"
+"              file format. Curl will not complain  if  that  file  hasn't  the\n"
+"              right  permissions  (it should not be world nor group readable).\n"
+"              The environment variable \"HOME\" is used to find the home  direc-\n"
+"              tory.\n"
 "\n"
-"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
-"              servers  list  only files in their response to NLST; they do not\n"
-"              include subdirectories and symbolic links.\n"
+"              A  quick  and  very  simple  example of how to setup a .netrc to\n"
+"              allow curl to ftp to the machine host.domain.com with user  name\n"
+"              'myself' and password 'secret' should look similar to:\n"
 "\n"
-"       --local-port <num>[-num]\n"
 , stdout);

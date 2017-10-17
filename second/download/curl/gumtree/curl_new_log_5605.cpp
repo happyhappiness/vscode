@@ -1,9 +1,11 @@
 fputs(
-"              transfer, it will retry this number of times before  giving  up.\n"
-"              Setting  the  number to 0 makes curl do no retries (which is the\n"
-"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              Use the specified SOCKS5 proxy  -  but  resolve  the  host  name\n"
+"              locally.  If  the port number is not specified, it is assumed at\n"
+"              port 1080.\n"
 "\n"
-"              When  curl  is about to retry a transfer, it will first wait one\n"
-"              second and then for all forthcoming retries it will  double  the\n"
+"              This option overrides any previous use of  -x/--proxy,  as  they\n"
+"              are mutually exclusive.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
 , stdout);

@@ -1,8 +1,11 @@
 fputs(
-"              Specify to which file you want curl to write all cookies after a\n"
-"              completed  operation.  Curl  writes  all cookies previously read\n"
-"              from a specified file as  well  as  all  cookies  received  from\n"
-"              remote server(s). If no cookies are known, no file will be writ-\n"
-"              ten. The file will be written using  the  Netscape  cookie  file\n"
-"              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
+"              (HTTP) This posts data exactly as specified with no  extra  pro-\n"
+"              cessing whatsoever.\n"
+"\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              filename.  Data is posted in a similar  manner  as  --data-ascii\n"
+"              does,  except  that  newlines  are preserved and conversions are\n"
+"              never done.\n"
+"\n"
+"              If this option is used several times,  the  ones  following  the\n"
 , stdout);

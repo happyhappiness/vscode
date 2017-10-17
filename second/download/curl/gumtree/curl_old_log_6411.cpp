@@ -1,12 +1,8 @@
 fputs(
-"                     The chown command sets the owner of the file named by the\n"
-"                     file operand to the user ID specified by the  user  oper-\n"
-"                     and. The user operand is a decimal integer user ID.\n"
-"\n"
-"              ln source_file target_file\n"
-"                     The ln and symlink commands create a symbolic link at the\n"
-"                     target_file location pointing to  the  source_file  loca-\n"
-"                     tion.\n"
-"\n"
-"              mkdir directory_name\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
+"              on  the  command line. The port number should be the number used\n"
+"              for the specific protocol the host will be used  for.  It  means\n"
+"              you  need several entries if you want to provide address for the\n"
 , stdout);
